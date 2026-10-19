@@ -28,7 +28,12 @@ daymark/
 | `src/types/daymark.ts` | Types | Master TypeScript interfaces (`TaskItem`, `DailyDocument`, `AppSettings`, `SyncPayload`). |
 | `src/utils/lifecycleEngine.ts` | Logic | Pure algorithms for task rollover (`performDailyRollover`), aging calculation (`calculateTaskAge`, `getAgingSeverity`), and historical correction (`correctHistoricalCompletion`). |
 | `src/utils/markdownEngine.ts` | Logic | Canonical Markdown parsing and serialization with frontmatter and `<!-- daymark: ... -->` comments. |
-| `src/utils/vaultStore.ts` | Storage | LocalStorage I/O, seed data reset, JSON snapshot, and Obsidian-compatible ZIP export. |
+| `src/utils/vaultStore.ts` | Storage | IndexedDB persistence with in-memory cache (`initVaultStore`), localStorage migration/fallback, onboarding flag, sample-data load, JSON/ZIP download. |
+| `src/utils/vaultArchive.ts` | Storage | Pure ZIP build/import (`buildVaultZip`, `importVaultFromZip`); exports include a full-fidelity `.daymark/vault.json`, import falls back to Markdown parsing. |
+| `src/utils/clock.ts` | Logic | Real local date helpers; `resolveToday` applies the optional developer date override. |
+| `src/hooks/useRealToday.ts`, `src/hooks/usePwa.ts` | Hooks | Midnight/visibility-aware current date; online status and PWA install prompt. |
+| `public/sw.js`, `public/manifest.json`, `public/icons/` | PWA | Offline app-shell service worker, install manifest, PNG icons (regenerate with `node scripts/generate-icons.mjs`). |
+| `src/components/WelcomeModal.tsx` | UI | First-run choice: empty vault or sample data. |
 | `src/components/TodayView.tsx` | UI | Daily notebook view with visual, split, and raw markdown modes. |
 | `src/components/StandaloneNotesView.tsx` | UI | 3-column evergreen notes workspace with folder navigation and editor. |
 | `src/components/DailyHistoryView.tsx` | UI | Historical calendar archive with heat-map and task reopen capabilities. |

@@ -39,7 +39,7 @@ All endpoints are prefixed with `/api`.
 ---
 
 ## 4. Sync Protocol Architecture
-- **Local-First**: Client retains primary state in `localStorage` (`src/utils/vaultStore.ts`).
+- **Local-First**: Client retains primary state in IndexedDB (`src/utils/vaultStore.ts`).
 - **Reconciliation**:
   - Client sends modified documents with checksums.
   - Server reconciles updates per-document using `lastModified` timestamps without destroying historical journal entries.

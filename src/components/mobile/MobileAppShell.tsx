@@ -38,6 +38,7 @@ import {
   StatusDefinition,
   TaskItem,
 } from '../../types/daymark';
+import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { TodayView } from '../TodayView';
 import { DailyHistoryView } from '../DailyHistoryView';
 import { MobileSyncConnect } from './MobileSyncConnect';
@@ -63,6 +64,7 @@ interface MobileAppShellProps {
   onSwitchToServerAdmin: () => void;
   onSwitchToDesktop?: () => void;
   onSyncComplete: (serverDocs: DailyDocument[], serverNotes: StandaloneNote[]) => void;
+  initialTab?: MobileTab;
 }
 
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
@@ -84,8 +86,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onSwitchToServerAdmin,
   onSwitchToDesktop,
   onSyncComplete,
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<MobileTab>('today');
+  const [activeTab, setActiveTab] = useState<MobileTab>(initialTab ?? 'today');
+  const isOnline = useOnlineStatus();
+  const { canInstall, install } = usePwaInstall();
   const [deviceFrameMode, setDeviceFrameMode] = useState<boolean>(() => {
     // If screen is wider than 768px, use phone frame by default on desktop; otherwise full canvas on phone
     return typeof window !== 'undefined' ? window.innerWidth >= 768 : false;
@@ -192,7 +197,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   return (
     <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col items-center justify-start sm:py-3">
       {/* Top Banner on Desktop Screen: Mode Switcher */}
-      <div className="w-full max-w-4xl px-4 py-2 flex items-center justify-between text-xs border-b border-stone-800 bg-stone-950/90 mb-2 rounded-lg">
+      <div className="hidden sm:flex w-full max-w-4xl px-4 py-2 items-center justify-between text-xs border-b border-stone-800 bg-stone-950/90 mb-2 rounded-lg">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 inline-block shadow-2xs" />
           <span className="font-bold text-stone-200">Daymark Mobile</span>
@@ -261,7 +266,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         )}
 
         {/* Mobile App Header Bar */}
-        <div className="px-4 py-2.5 bg-stone-900/90 backdrop-blur-md border-b border-stone-800 flex items-center justify-between sticky top-0 z-30">
+        <div className="px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] bg-stone-900/90 backdrop-blur-md border-b border-stone-800 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-xs bg-amber-500 inline-block" />
             <span className="font-bold text-xs tracking-tight text-white">Daymark Mobile</span>
@@ -269,6 +274,14 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {canInstall && (
+              <button
+                onClick={install}
+                className="px-2.5 min-h-[32px] rounded-md bg-amber-600 text-white text-[11px] font-semibold"
+              >
+                Install app
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('sync')}
               className="inline-flex items-center gap-1 text-[11px] font-mono text-stone-400 hover:text-amber-400 transition-colors"
@@ -282,6 +295,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             </button>
           </div>
         </div>
+
+        {!isOnline && (
+          <div role="status" className="px-4 py-1.5 bg-amber-100 text-amber-900 text-[11px] border-b border-amber-300">
+            Offline. Changes are saved on this device and nothing is lost.
+          </div>
+        )}
 
         {/* Scrollable Mobile App Body */}
         <div className="flex-1 overflow-y-auto pb-20 bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100">
@@ -628,7 +647,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
         {/* NATIVE MOBILE BOTTOM NAVIGATION BAR */}
         <div
-          className={`bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 flex items-center justify-around py-1.5 px-2 shadow-lg z-30 ${
+          className={`bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 flex items-center justify-around pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] px-2 shadow-lg z-30 ${
             deviceFrameMode ? 'absolute bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
           }`}
         >

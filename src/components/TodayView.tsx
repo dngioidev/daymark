@@ -508,6 +508,27 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   </div>
                 )}
 
+                {/* Task list */}
+                {visibleItems.length > 0 && (
+                  <div className="space-y-2">
+                    {visibleItems.map((task) => (
+                      <TaskItemCard
+                        key={task.id}
+                        task={task}
+                        currentDate={currentDocument.date}
+                        statuses={statuses}
+                        agingThresholds={agingThresholds}
+                        onUpdateTask={handleTaskUpdate}
+                        onDeleteTask={handleTaskDelete}
+                        onOpenHistoricalModal={onOpenHistoricalModal}
+                        onOpenHistoryDrawer={onOpenHistoryDrawer}
+                        onQuickHistoricalDone={onQuickHistoricalDone}
+                        onToggleAlertDismiss={handleToggleAlertDismiss}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 {/* Freeform Section Notes Card & Inline Editor */}
                 {(section.notesContent || activeNoteHeading === section.name) && (
                   <div className="mt-4 p-4 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-200 dark:border-stone-700/60 shadow-2xs space-y-3">

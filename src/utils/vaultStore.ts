@@ -1,14 +1,40 @@
-import JSZip from 'jszip';
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { serializeDailyDocument } from './markdownEngine';
+import { buildVaultZip } from './vaultArchive';
 
-const STORAGE_KEYS = {
-  SETTINGS: 'daymark_settings_v1',
-  DAILY_DOCS: 'daymark_daily_docs_v1',
-  NOTES: 'daymark_notes_v1',
-  SYNC_LOG: 'daymark_sync_log_v1',
+/**
+ * Vault persistence.
+ *
+ * Data lives in IndexedDB (no 5 MB localStorage ceiling, survives reloads, can be marked
+ * persistent). A small in-memory cache is hydrated by `initVaultStore()` before React
+ * renders, so the load*() functions stay synchronous. Writes update the cache immediately
+ * and are queued to IndexedDB; failures are reported through `subscribeStorageErrors`.
+ * If IndexedDB is unavailable (private mode, old browser) the store falls back to
+ * localStorage and reports the degraded mode once.
+ */
+
+const DB_NAME = 'daymark';
+const DB_VERSION = 1;
+const STORE = 'kv';
+
+const KEYS = {
+  SETTINGS: 'settings',
+  DAILY_DOCS: 'daily_docs',
+  NOTES: 'notes',
+  SYNC_LOG: 'sync_log',
+  ONBOARDED: 'onboarded',
+} as const;
+
+// Legacy localStorage keys (versions before IndexedDB storage)
+const LEGACY_KEYS: Record<string, string> = {
+  [KEYS.SETTINGS]: 'daymark_settings_v1',
+  [KEYS.DAILY_DOCS]: 'daymark_daily_docs_v1',
+  [KEYS.NOTES]: 'daymark_notes_v1',
+  [KEYS.SYNC_LOG]: 'daymark_sync_log_v1',
 };
+
+// The pre-Cycle-1 default for the date override; treated as "no override"
+const LEGACY_SIMULATED_DATE = '2026-10-16';
 
 export interface SyncLogEntry {
   id: string;
@@ -18,109 +44,175 @@ export interface SyncLogEntry {
   status: 'applied' | 'pending';
 }
 
-export function loadSettings(): AppSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error('Failed to parse settings from storage:', err);
-  }
-  return DEFAULT_SETTINGS;
+const cache = new Map<string, unknown>();
+let db: IDBDatabase | null = null;
+let storageMode: 'indexeddb' | 'localstorage' = 'indexeddb';
+let writeChain: Promise<void> = Promise.resolve();
+
+type ErrorListener = (message: string) => void;
+const errorListeners = new Set<ErrorListener>();
+
+export function subscribeStorageErrors(listener: ErrorListener): () => void {
+  errorListeners.add(listener);
+  return () => errorListeners.delete(listener);
 }
 
-export function saveSettings(settings: AppSettings): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-  } catch (err) {
-    console.error('Failed to save settings:', err);
-  }
+function reportError(message: string, err?: unknown) {
+  console.error(message, err);
+  errorListeners.forEach((l) => l(message));
 }
 
-export function loadDailyDocuments(): DailyDocument[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DAILY_DOCS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function readAll(database: IDBDatabase): Promise<Map<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const out = new Map<string, unknown>();
+    const req = database.transaction(STORE, 'readonly').objectStore(STORE).openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        out.set(String(cursor.key), cursor.value);
+        cursor.continue();
+      } else {
+        resolve(out);
       }
-    }
-  } catch (err) {
-    console.error('Failed to load daily docs:', err);
-  }
-  return SEED_DAILY_DOCUMENTS;
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
-export function saveDailyDocuments(docs: DailyDocument[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.DAILY_DOCS, JSON.stringify(docs));
-  } catch (err) {
-    console.error('Failed to save daily docs:', err);
-  }
+function putValue(database: IDBDatabase, key: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
 }
 
-export function loadStandaloneNotes(): StandaloneNote[] {
+function readLegacyLocalStorage(key: string): unknown {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.NOTES);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load standalone notes:', err);
-  }
-  return SEED_STANDALONE_NOTES;
-}
-
-export function saveStandaloneNotes(notes: StandaloneNote[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.NOTES, JSON.stringify(notes));
-  } catch (err) {
-    console.error('Failed to save standalone notes:', err);
-  }
-}
-
-export function loadSyncLogs(): SyncLogEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SYNC_LOG);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error('Failed to load sync log:', err);
-  }
-  return [
-    {
-      id: 'log-1',
-      timestamp: '2026-10-16T04:15:00Z',
-      action: 'snapshot_sync',
-      details: 'Synchronized 3 daily docs and 4 standalone notes with self-hosted server',
-      status: 'applied',
-    },
-    {
-      id: 'log-2',
-      timestamp: '2026-10-16T04:18:22Z',
-      action: 'rollover_reconciliation',
-      details: 'Evaluated carry-forward tasks for Oct 16. Idempotent check passed.',
-      status: 'applied',
-    },
-  ];
-}
-
-export function saveSyncLogs(logs: SyncLogEntry[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.SYNC_LOG, JSON.stringify(logs.slice(-50)));
-  } catch (err) {
-    console.error('Failed to save sync log:', err);
+    const raw = localStorage.getItem(LEGACY_KEYS[key]);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
   }
 }
 
 /**
- * Resets storage back to initial demonstration seed data.
+ * Hydrates the in-memory cache. Call once before rendering the app.
+ * Never throws: on failure the app starts in localStorage fallback mode.
+ */
+export async function initVaultStore(): Promise<void> {
+  try {
+    if (typeof indexedDB === 'undefined') throw new Error('IndexedDB is not available');
+    db = await openDb();
+    const stored = await readAll(db);
+    stored.forEach((value, key) => cache.set(key, value));
+
+    // One-time migration from the old localStorage layout. Legacy keys are left in place
+    // as a backup; IndexedDB wins as soon as it holds data.
+    if (!cache.has(KEYS.DAILY_DOCS) && !cache.has(KEYS.NOTES)) {
+      for (const key of Object.keys(LEGACY_KEYS)) {
+        const legacy = readLegacyLocalStorage(key);
+        if (legacy !== undefined) {
+          cache.set(key, legacy);
+          await putValue(db, key, legacy);
+        }
+      }
+    }
+
+    // Ask the browser not to evict the vault under storage pressure
+    navigator.storage?.persist?.().catch(() => undefined);
+  } catch (err) {
+    storageMode = 'localstorage';
+    db = null;
+    for (const key of Object.keys(LEGACY_KEYS)) {
+      const legacy = readLegacyLocalStorage(key);
+      if (legacy !== undefined) cache.set(key, legacy);
+    }
+    reportError('Browser storage (IndexedDB) is unavailable; using limited fallback storage.', err);
+  }
+}
+
+function writeValue(key: string, value: unknown): void {
+  cache.set(key, value);
+  if (storageMode === 'localstorage' || !db) {
+    const legacyKey = LEGACY_KEYS[key];
+    if (!legacyKey) return;
+    try {
+      localStorage.setItem(legacyKey, JSON.stringify(value));
+    } catch (err) {
+      reportError('Could not save your changes: browser storage is full or blocked.', err);
+    }
+    return;
+  }
+  const database = db;
+  writeChain = writeChain
+    .then(() => putValue(database, key, value))
+    .catch((err) => reportError('Could not save your changes: browser storage is full or blocked.', err));
+}
+
+function readArray<T>(key: string, fallback: T[]): T[] {
+  const value = cache.get(key);
+  return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+export function loadSettings(): AppSettings {
+  const value = cache.get(KEYS.SETTINGS) as AppSettings | undefined;
+  if (!value) return DEFAULT_SETTINGS;
+  // Older versions defaulted the date override to a fixed demo date
+  return value.simulatedToday === LEGACY_SIMULATED_DATE ? { ...value, simulatedToday: '' } : value;
+}
+
+export function saveSettings(settings: AppSettings): void {
+  writeValue(KEYS.SETTINGS, settings);
+}
+
+export function loadDailyDocuments(): DailyDocument[] {
+  return readArray<DailyDocument>(KEYS.DAILY_DOCS, []);
+}
+
+export function saveDailyDocuments(docs: DailyDocument[]): void {
+  writeValue(KEYS.DAILY_DOCS, docs);
+}
+
+export function loadStandaloneNotes(): StandaloneNote[] {
+  return readArray<StandaloneNote>(KEYS.NOTES, []);
+}
+
+export function saveStandaloneNotes(notes: StandaloneNote[]): void {
+  writeValue(KEYS.NOTES, notes);
+}
+
+export function loadSyncLogs(): SyncLogEntry[] {
+  return readArray<SyncLogEntry>(KEYS.SYNC_LOG, []);
+}
+
+export function saveSyncLogs(logs: SyncLogEntry[]): void {
+  writeValue(KEYS.SYNC_LOG, logs.slice(-50));
+}
+
+/** True once the user has chosen how to start (empty vault or sample data), or has any data. */
+export function needsOnboarding(): boolean {
+  if (cache.get(KEYS.ONBOARDED)) return false;
+  return loadDailyDocuments().length === 0 && loadStandaloneNotes().length === 0;
+}
+
+export function markOnboarded(): void {
+  writeValue(KEYS.ONBOARDED, true);
+}
+
+/**
+ * Replaces the vault with the demonstration sample data.
  */
 export function resetVaultToSeedData(): {
   settings: AppSettings;
@@ -130,6 +222,7 @@ export function resetVaultToSeedData(): {
   saveSettings(DEFAULT_SETTINGS);
   saveDailyDocuments(SEED_DAILY_DOCUMENTS);
   saveStandaloneNotes(SEED_STANDALONE_NOTES);
+  markOnboarded();
   return {
     settings: DEFAULT_SETTINGS,
     docs: SEED_DAILY_DOCUMENTS,
@@ -137,77 +230,27 @@ export function resetVaultToSeedData(): {
   };
 }
 
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /**
- * Exports the complete Daymark Vault as a standard .zip archive,
- * strictly matching the folder hierarchy in Section 5 of the PRD:
- * Daymark/
- * ├── Daily/YYYY/MM-Month/YYYY-MM-DD.md
- * ├── Notes/<Folder>/<Note>.md
- * └── .daymark/configuration.json
+ * Exports the complete Daymark Vault as a standard .zip archive (see buildVaultZip).
  */
 export async function exportVaultAsZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings
 ): Promise<void> {
-  const zip = new JSZip();
-  const root = zip.folder('Daymark');
-  if (!root) return;
-
-  const monthNames = [
-    '01-January', '02-February', '03-March', '04-April', '05-May', '06-June',
-    '07-July', '08-August', '09-September', '10-October', '11-November', '12-December',
-  ];
-
-  // 1. Daily Documents
-  const dailyFolder = root.folder('Daily');
-  for (const doc of docs) {
-    const [year, monthStr] = doc.date.split('-');
-    const monthNum = parseInt(monthStr, 10);
-    const monthFolder = monthNames[monthNum - 1] || monthStr;
-    const pathFolder = dailyFolder?.folder(year)?.folder(monthFolder);
-
-    const mdContent = serializeDailyDocument(doc);
-    pathFolder?.file(`${doc.date}.md`, mdContent);
-  }
-
-  // 2. Standalone Notes
-  const notesFolder = root.folder('Notes');
-  for (const note of notes) {
-    const folderName = note.folder || 'General';
-    const sub = notesFolder?.folder(folderName);
-    const safeTitle = note.title.replace(/[/\\?%*:|"<>]/g, '-').trim() || `note-${note.id}`;
-    sub?.file(`${safeTitle}.md`, note.content);
-  }
-
-  // 3. .daymark Metadata & Config
-  const metaFolder = root.folder('.daymark');
-  metaFolder?.file('configuration.json', JSON.stringify(settings, null, 2));
-  metaFolder?.file(
-    'vault_manifest.json',
-    JSON.stringify(
-      {
-        version: '1.0.0',
-        exportedAt: new Date().toISOString(),
-        totalDailyNotes: docs.length,
-        totalStandaloneNotes: notes.length,
-        exportFormat: 'Daymark Canonical Markdown + Metadata',
-      },
-      null,
-      2
-    )
-  );
-
-  // Generate ZIP blob and trigger download
-  const blob = await zip.generateAsync({ type: 'blob' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const bytes = await buildVaultZip(docs, notes, settings);
+  downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`);
 }
 
 /**
@@ -225,14 +268,8 @@ export function exportVaultAsJson(
     daily_documents: docs,
     standalone_notes: notes,
   };
-  const jsonStr = JSON.stringify(bundle, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `daymark-backup-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }),
+    `daymark-backup-${new Date().toISOString().split('T')[0]}.json`
+  );
 }

@@ -28,4 +28,5 @@ These rules govern how changes must be tested, validated, and verified before co
 - **Development Server**: `npm run dev` (`tsx server.ts` on port 3000)
 - **Unit Tests**: `npm test`
 - **AI Agent Config Validation**: `npm run validate:ai`
+- **PWA / Android E2E** (production build, emulated phone, offline): `npm run build && npm run test:e2e`
 - **Release Screenshots**: `node scripts/capture-screenshots.mjs <cycle>` (needs local Chrome or Edge; see the release-handoff workflow)

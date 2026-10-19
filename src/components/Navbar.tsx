@@ -20,6 +20,7 @@ interface NavbarProps {
   onExportZip: () => void;
   onSwitchToMobileApp: () => void;
   simulatedToday: string;
+  showDevTabs?: boolean;
   syncStatus: 'offline' | 'synced' | 'syncing' | 'error';
   carriedAlertCount: number;
 }
@@ -32,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportZip,
   onSwitchToMobileApp,
   simulatedToday,
+  showDevTabs = false,
   syncStatus,
   carriedAlertCount,
 }) => {
@@ -110,6 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
 
+          {showDevTabs && (
           <button
             onClick={() => onTabChange('mobile-code')}
             className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
@@ -121,6 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Smartphone className="w-4 h-4" />
             <span>Mobile & Code</span>
           </button>
+          )}
 
           <button
             onClick={onOpenSettings}

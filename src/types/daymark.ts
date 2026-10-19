@@ -91,7 +91,7 @@ export interface AppSettings {
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;
   statuses: StatusDefinition[];
-  simulatedToday: string; // YYYY-MM-DD for testing rollover & date workflows
+  simulatedToday: string; // '' = real local date; YYYY-MM-DD = developer override for testing rollover
   timeZone: string;
   syncConfig: SyncConfiguration;
 }

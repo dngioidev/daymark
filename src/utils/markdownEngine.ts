@@ -67,13 +67,15 @@ export function serializeDailyDocument(doc: DailyDocument): string {
  * ordinary Markdown checklists.
  */
 export function parseDailyDocument(markdown: string, date: string, defaultHeadings: string[] = ['Work', 'Meetings', 'Ideas', 'Attention']): DailyDocument {
-  const lines = markdown.split('\n');
+  const lines = markdown.split(/\r?\n/);
   const sections: HeadingSection[] = [];
   let currentSection: HeadingSection = {
     name: 'General',
     items: [],
     notesContent: '',
   };
+  // Sections introduced by an explicit "# Heading" line are kept even when empty
+  let currentSectionExplicit = false;
 
   let inFrontmatter = false;
   let lineIdx = 0;
@@ -131,7 +133,12 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
       currentSection.notesContent = freeNotesBuffer.join('\n').trim();
       freeNotesBuffer.length = 0;
     }
-    if (currentSection.items.length > 0 || currentSection.notesContent || defaultHeadings.includes(currentSection.name)) {
+    if (
+      currentSectionExplicit ||
+      currentSection.items.length > 0 ||
+      currentSection.notesContent ||
+      defaultHeadings.includes(currentSection.name)
+    ) {
       sections.push(currentSection);
     }
   }
@@ -150,7 +157,21 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
         items: [],
         notesContent: '',
       };
+      currentSectionExplicit = true;
       taskOrder = 1;
+      continue;
+    }
+
+    // Indented checklist line under a task is a sub-item, not a new task
+    const isIndented = /^(\s{2,}|\t)/.test(rawLine);
+    const subCheckMatch = isIndented && currentTask ? trimmed.match(/^-\s*\[([ xX])\]\s*(.+)$/) : null;
+    if (currentTask && subCheckMatch) {
+      currentTask.checklist = currentTask.checklist || [];
+      currentTask.checklist.push({
+        id: `chk-${Date.now()}-${currentTask.checklist.length}`,
+        done: subCheckMatch[1].toLowerCase() === 'x',
+        text: subCheckMatch[2].trim(),
+      });
       continue;
     }
 
@@ -193,29 +214,20 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
       continue;
     }
 
-    // Sub-item checklist inside task: "  - [ ] subitem"
-    const subCheckMatch = rawLine.match(/^\s{2,4}-\s*\[([ xX])\]\s*(.+)$/);
-    if (currentTask && subCheckMatch) {
-      currentTask.checklist = currentTask.checklist || [];
-      currentTask.checklist.push({
-        id: `chk-${Date.now()}-${currentTask.checklist.length}`,
-        done: subCheckMatch[1].toLowerCase() === 'x',
-        text: subCheckMatch[2].trim(),
-      });
-      continue;
-    }
-
     // Indented description line for current task
     if (currentTask && (rawLine.startsWith('  ') || rawLine.startsWith('\t')) && trimmed.length > 0) {
       currentTask.description = (currentTask.description ? currentTask.description + '\n' : '') + trimmed;
       continue;
     }
 
-    // Free notes line
-    if (trimmed.length > 0 && !currentTask) {
+    // A non-indented, non-empty line after a task ends that task and starts section notes
+    if (currentTask && trimmed.length > 0) {
+      finalizeCurrentTask();
+    }
+
+    // Free notes line (blank lines are kept inside notes so paragraphs survive)
+    if (!currentTask && (trimmed.length > 0 || freeNotesBuffer.length > 0)) {
       freeNotesBuffer.push(rawLine);
-    } else if (trimmed.length === 0 && currentTask) {
-      // blank line might close task or separate
     }
   }
 

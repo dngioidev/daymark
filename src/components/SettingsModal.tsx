@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { AppSettings, LifecycleAction, StatusDefinition } from '../types/daymark';
 import { SyncLogEntry } from '../utils/vaultStore';
+import { formatLocalDate } from '../utils/clock';
+import { getNextDate } from '../utils/lifecycleEngine';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -28,6 +30,7 @@ interface SettingsModalProps {
   onExportZip: () => void;
   onExportJson: () => void;
   onImportJson: (jsonStr: string) => void;
+  onImportZip: (file: File) => void;
   onResetVault: () => void;
   onTriggerSync: () => void;
 }
@@ -43,6 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onExportZip,
   onExportJson,
   onImportJson,
+  onImportZip,
   onResetVault,
   onTriggerSync,
 }) => {
@@ -137,7 +141,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      onImportZip(file);
+      onClose();
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -484,13 +494,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Interactive Date Simulator
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Test Daymark's automated rollover and aging engine by advancing the simulated clock!
+                  Developer tool. Leave empty to use your real local date. Set a date to test the rollover and aging engine.
                 </p>
               </div>
 
               <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-3 text-xs">
                 <label className="block font-semibold text-stone-800 dark:text-stone-200">
-                  Simulated Current Date (Today)
+                  Date override (empty = real date)
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -503,25 +513,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                   <button
                     type="button"
-                    onClick={() =>
-                      setDraftSettings({ ...draftSettings, simulatedToday: '2026-10-17' })
-                    }
+                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: '' })}
                     className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
                   >
-                    Jump to Oct 17
+                    Use real date
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setDraftSettings({ ...draftSettings, simulatedToday: '2026-10-18' })
-                    }
+                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: getNextDate(formatLocalDate(), 1) })}
                     className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
                   >
-                    Jump to Oct 18
+                    Real today +1 day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: getNextDate(formatLocalDate(), 2) })}
+                    className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
+                  >
+                    Real today +2 days
                   </button>
                 </div>
                 <p className="text-[11px] text-stone-500">
-                  When you advance the simulated date, opening Today will execute the idempotent rollover algorithm, carrying forward unfinished tasks and incrementing the carry-forward age.
+                  With an override set, opening Today executes the idempotent rollover algorithm, carrying forward unfinished tasks and incrementing the carry-forward age.
                 </p>
               </div>
             </div>
@@ -579,16 +592,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="p-4 border border-stone-200 dark:border-stone-800 rounded-xl flex items-center justify-between gap-4 text-xs">
                 <div>
                   <div className="font-semibold text-stone-900 dark:text-stone-100">
-                    Restore JSON Backup
+                    Restore Backup (.zip or .json)
                   </div>
                   <p className="text-[11px] text-stone-500">
-                    Upload a previously exported Daymark JSON backup file.
+                    Upload a Daymark vault ZIP, a JSON backup, or a ZIP of Markdown notes. This replaces the current vault.
                   </p>
                 </div>
                 <input
                   type="file"
                   ref={fileInputRef}
-                  accept=".json"
+                  accept=".json,.zip"
                   onChange={handleFileChange}
                   className="hidden"
                 />

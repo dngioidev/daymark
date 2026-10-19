@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     statuses: ['in-progress', 'blocked', 'waiting'],
   },
   statuses: DEFAULT_STATUSES,
-  simulatedToday: '2026-10-16',
+  simulatedToday: '', // empty = use the real local date (developer override otherwise)
   timeZone: 'America/Los_Angeles',
   syncConfig: {
     enabled: false,

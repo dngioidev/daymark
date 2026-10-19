@@ -33,9 +33,14 @@ const VIEWPORTS = {
 };
 
 // { name, viewport, prepare?(page) } - extend per cycle.
+// A fresh browser profile shows the welcome dialog; load the sample vault so shots show real content.
+const loadSample = async (page) => {
+  await page.getByRole('button', { name: /explore with sample data/i }).click();
+  await page.waitForTimeout(500);
+};
 const SHOTS = [
-  { name: 'desktop-today', viewport: 'desktop' },
-  { name: 'android-today', viewport: 'android' },
+  { name: 'desktop-today', viewport: 'desktop', prepare: loadSample },
+  { name: 'android-today', viewport: 'android', prepare: loadSample },
 ];
 
 async function waitForServer(url, ms = 30000) {

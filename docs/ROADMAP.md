@@ -59,6 +59,7 @@ ai-configs evaluation (the validator only checks structure, so also evaluate fit
 Done when: clean clone runs `npm install && npm run lint && npm test && npm run build && npm run validate:ai`; CI is green; `docs/releases/cycle-0/` exists; recalibrated token estimates are written back into this file.
 
 ## Cycle 1: Android-ready local app (PWA, single device)
+**Status: done on branch `cycle-1-android-ready-local-app`.** See [docs/releases/cycle-1](./releases/cycle-1/README.md). Beyond the plan, tests and e2e uncovered 7 bugs (including tasks not rendering in the default view); all fixed. Physical-device install not yet verified.
 Outcome: an Android user can install Daymark from Chrome and use it daily and offline, with correct dates and durable data. This is usable on its own, no server needed.
 
 1. Core correctness (Opus): fix B2 (real local date, `simulatedToday` becomes an optional dev override, default off; rollover on midnight and on visibility change). Tests for `lifecycleEngine` (rollover idempotency, dedupe, historical completion cleanup, aging) and `markdownEngine` (round-trip, `<!-- daymark: ... -->` preservation, malformed input). Fixes any bugs found.

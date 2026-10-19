@@ -6,6 +6,7 @@ import {
   ViewTab,
   TaskItem,
   AppMode,
+  MobileTab,
   ServerAuthState,
 } from './types/daymark';
 import {
@@ -20,8 +21,15 @@ import {
   exportVaultAsZip,
   exportVaultAsJson,
   resetVaultToSeedData,
+  needsOnboarding,
+  markOnboarded,
+  subscribeStorageErrors,
   SyncLogEntry,
 } from './utils/vaultStore';
+import { importVaultFromZip } from './utils/vaultArchive';
+import { resolveToday } from './utils/clock';
+import { useRealToday } from './hooks/useRealToday';
+import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
   performDailyRollover,
@@ -73,10 +81,23 @@ export default function App() {
   const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>(loadSyncLogs);
 
   // Current active date
-  const [currentDate, setCurrentDate] = useState<string>(settings.simulatedToday || '2026-10-16');
-  const [historySelectedDate, setHistorySelectedDate] = useState<string>(
-    getPreviousDate(settings.simulatedToday || '2026-10-16', 1)
-  );
+  // "Today" is the real local date (updates at midnight) unless a developer override is set
+  const realToday = useRealToday();
+  const today = resolveToday(settings.simulatedToday, realToday);
+  const [currentDate, setCurrentDate] = useState<string>(today);
+  const [historySelectedDate, setHistorySelectedDate] = useState<string>(getPreviousDate(today, 1));
+
+  // Deep link target for the mobile shell (?tab=notes from manifest shortcuts)
+  const [initialMobileTab] = useState<MobileTab | undefined>(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab === 'today' || tab === 'history' || tab === 'notes' ? tab : undefined;
+  });
+
+  // First-run welcome (empty vault) and dev-only UI
+  const [showWelcome, setShowWelcome] = useState<boolean>(needsOnboarding);
+  const devMode =
+    typeof window !== 'undefined' &&
+    (new URLSearchParams(window.location.search).has('dev') || localStorage.getItem('daymark_dev') === '1');
 
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
@@ -93,6 +114,42 @@ export default function App() {
       setToastMessage(null);
     }, 4000);
   };
+
+  // Surface storage failures instead of silently losing edits
+  useEffect(() => subscribeStorageErrors((msg) => showToast(msg)), []);
+
+  // When the day changes (midnight, or waking the phone next day), follow it if the user was
+  // viewing today, and carry unfinished tasks into the new day automatically.
+  const previousTodayRef = React.useRef(today);
+  useEffect(() => {
+    const previousToday = previousTodayRef.current;
+    previousTodayRef.current = today;
+    if (previousToday !== today) {
+      setCurrentDate((prev) => (prev === previousToday ? today : prev));
+      setHistorySelectedDate(getPreviousDate(today, 1));
+    }
+    const { updatedDocs, carriedCount } = performDailyRollover(
+      today,
+      dailyDocs,
+      settings.statuses,
+      settings.defaultHeadings
+    );
+    if (carriedCount > 0) {
+      setDailyDocs(updatedDocs);
+      showToast(
+        `${carriedCount} unfinished ${carriedCount === 1 ? 'task' : 'tasks'} carried forward to ${today}.`
+      );
+    }
+    // Runs when the effective date changes; performDailyRollover is idempotent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today]);
+
+  // Deep links from the PWA manifest shortcuts (?action=capture)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('action') === 'capture') {
+      setIsQuickCaptureOpen(true);
+    }
+  }, []);
 
   // Synchronize state changes to local storage
   useEffect(() => {
@@ -304,14 +361,28 @@ export default function App() {
     showToast('Downloaded Daymark JSON backup.');
   };
 
+  // After replacing the vault (sample data, import), carry unfinished tasks into today
+  const rolloverIntoToday = (docs: DailyDocument[], s: AppSettings): DailyDocument[] =>
+    performDailyRollover(resolveToday(s.simulatedToday, realToday), docs, s.statuses, s.defaultHeadings).updatedDocs;
+
+  // Importing replaces the whole vault, so ask first when there is existing data
+  const confirmReplaceVault = () =>
+    (dailyDocs.length === 0 && notes.length === 0) ||
+    window.confirm(
+      'Importing replaces everything currently in this vault. Export a backup first if you are unsure.\n\nReplace the current vault?'
+    );
+
   // Handler: Import JSON
   const handleImportJson = (jsonStr: string) => {
     try {
       const parsed = JSON.parse(jsonStr);
       if (parsed.daily_documents && parsed.standalone_notes) {
-        setDailyDocs(parsed.daily_documents);
+        if (!confirmReplaceVault()) return;
+        const nextSettings: AppSettings = parsed.settings || settings;
+        setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
         setNotes(parsed.standalone_notes);
         if (parsed.settings) setSettings(parsed.settings);
+        markOnboarded();
         showToast('Vault successfully restored from backup.');
       } else {
         alert('Invalid Daymark backup format.');
@@ -321,14 +392,39 @@ export default function App() {
     }
   };
 
-  // Handler: Reset to Seed Data
+  // Handler: Import vault ZIP (Daymark export or a folder of Markdown files)
+  const handleImportZip = async (file: File) => {
+    try {
+      const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
+      if (!confirmReplaceVault()) return;
+      setDailyDocs(rolloverIntoToday(snapshot.docs, snapshot.settings || settings));
+      setNotes(snapshot.notes);
+      if (snapshot.settings) setSettings(snapshot.settings);
+      markOnboarded();
+      showToast(`Imported ${snapshot.docs.length} daily notes and ${snapshot.notes.length} notes from ZIP.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not read this ZIP file.');
+    }
+  };
+
+  // Handler: Load the sample vault
   const handleResetVault = () => {
     const res = resetVaultToSeedData();
     setSettings(res.settings);
-    setDailyDocs(res.docs);
+    setDailyDocs(rolloverIntoToday(res.docs, res.settings));
     setNotes(res.notes);
-    setCurrentDate(res.settings.simulatedToday);
-    showToast('Vault reset to demonstration seed data.');
+    setCurrentDate(resolveToday(res.settings.simulatedToday, realToday));
+    showToast('Sample vault loaded.');
+  };
+
+  const handleStartEmpty = () => {
+    markOnboarded();
+    setShowWelcome(false);
+  };
+
+  const handleLoadSample = () => {
+    handleResetVault();
+    setShowWelcome(false);
   };
 
   // Handler: Mobile Sync Complete Callback from server
@@ -353,16 +449,17 @@ export default function App() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onExportZip={handleExportVaultZip}
             onSwitchToMobileApp={() => setAppMode('mobile-app')}
-            simulatedToday={settings.simulatedToday}
+            simulatedToday={today}
             syncStatus={settings.syncConfig.status}
             carriedAlertCount={carriedAlertCount}
+            showDevTabs={devMode}
           />
 
           <main className="flex-1 w-full bg-stone-900">
             {activeDesktopTab === 'today' && (
               <TodayView
                 currentDocument={currentDoc}
-                simulatedToday={settings.simulatedToday}
+                simulatedToday={today}
                 statuses={settings.statuses}
                 agingThresholds={settings.agingThresholds}
                 defaultHeadings={settings.defaultHeadings}
@@ -379,7 +476,7 @@ export default function App() {
               <DailyHistoryView
                 dailyDocuments={dailyDocs}
                 selectedDate={historySelectedDate}
-                simulatedToday={settings.simulatedToday}
+                simulatedToday={today}
                 statuses={settings.statuses}
                 onSelectDate={setHistorySelectedDate}
                 onReopenTask={handleReopenTask}
@@ -410,7 +507,7 @@ export default function App() {
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <MobileCodeHub
                   currentDocument={currentDoc}
-                  simulatedToday={settings.simulatedToday}
+                  simulatedToday={today}
                   statuses={settings.statuses}
                   onToggleTaskDone={handleToggleTaskDone}
                   onQuickHistoricalDone={handleQuickHistoricalDone}
@@ -429,7 +526,7 @@ export default function App() {
           dailyDocs={dailyDocs}
           notes={notes}
           settings={settings}
-          simulatedToday={settings.simulatedToday}
+          simulatedToday={today}
           onDateChange={setCurrentDate}
           onUpdateDocument={handleUpdateDocument}
           onUpdateNotes={setNotes}
@@ -448,6 +545,7 @@ export default function App() {
             }
           }}
           onSwitchToDesktop={() => setAppMode('desktop')}
+          initialTab={initialMobileTab}
           onSyncComplete={handleMobileSyncComplete}
         />
       )}
@@ -472,7 +570,7 @@ export default function App() {
 
       {/* Toast Feedback */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900 rounded-lg shadow-xl text-xs font-medium animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="fixed z-50 left-4 right-4 sm:left-auto sm:right-6 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] sm:bottom-6 max-w-md flex items-center gap-2 px-4 py-2.5 bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900 rounded-lg shadow-xl text-xs font-medium animate-in fade-in slide-in-from-bottom-2 duration-200">
           <Check className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -517,9 +615,12 @@ export default function App() {
         onClose={() => setIsQuickCaptureOpen(false)}
         headings={settings.defaultHeadings}
         statuses={settings.statuses}
-        simulatedToday={settings.simulatedToday}
+        simulatedToday={today}
         onCapture={handleQuickCapture}
       />
+
+      {/* First-run welcome */}
+      <WelcomeModal isOpen={showWelcome} onStartEmpty={handleStartEmpty} onLoadSample={handleLoadSample} />
 
       {/* Settings Modal */}
       <SettingsModal
@@ -529,11 +630,12 @@ export default function App() {
         syncLogs={syncLogs}
         onSaveSettings={(newSettings) => {
           setSettings(newSettings);
-          setCurrentDate(newSettings.simulatedToday);
+          setCurrentDate(resolveToday(newSettings.simulatedToday, realToday));
         }}
         onExportZip={handleExportVaultZip}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
+        onImportZip={handleImportZip}
         onResetVault={handleResetVault}
         onTriggerSync={() => {}}
       />

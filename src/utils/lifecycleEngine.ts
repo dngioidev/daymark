@@ -8,7 +8,8 @@ export function getCalendarDaysDifference(earlierDateStr: string, laterDateStr: 
   const d1 = new Date(earlierDateStr + 'T00:00:00');
   const d2 = new Date(laterDateStr + 'T00:00:00');
   const diffTime = d2.getTime() - d1.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // round, not floor: local midnights are 23h or 25h apart across DST changes
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   return Math.max(0, diffDays);
 }
 
@@ -88,17 +89,22 @@ export function performDailyRollover(
     }
   }
 
-  // Get all previous daily documents sorted ascending by date
+  // Get all previous daily documents sorted descending by date
   const pastDocs = otherDocs
     .filter((d) => d.date < targetDate)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   let carriedCount = 0;
 
-  // Process from oldest to newest so the most recent state takes precedence
+  // Process newest to oldest: the most recent version of a task decides its fate.
+  // Older copies of an already-seen task are ignored, so a task that was completed
+  // (or edited) later is never resurrected from a stale copy.
+  const seenTaskIds = new Set<string>();
   for (const pastDoc of pastDocs) {
     for (const heading of pastDoc.headings) {
       for (const task of heading.items) {
+        if (seenTaskIds.has(task.id)) continue;
+        seenTaskIds.add(task.id);
         const action = statusActionMap.get(task.status) || 'keep';
 
         // Check if task is eligible to carry forward
