@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: #0c0a09;
+    color: #f5f5f4;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.4);
+}
+
+/* ==========================================================================
+   Daymark Rich Markdown Body Styles
+   Provides clean GitHub/Obsidian-quality typography for Daily & Standalone Notes
+   ========================================================================== */
+.daymark-markdown-body {
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.daymark-markdown-body h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.25;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(150, 150, 150, 0.2);
+  color: inherit;
+}
+
+.daymark-markdown-body h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: inherit;
+}
+
+.daymark-markdown-body h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  color: inherit;
+}
+
+.daymark-markdown-body h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.daymark-markdown-body p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.7;
+}
+
+/* Standard Lists */
+.daymark-markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.daymark-markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.daymark-markdown-body li {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+  line-height: 1.6;
+}
+
+/* FIX: Task Lists & Checkboxes in Markdown (Prevents double bullet & aligns properly) */
+.daymark-markdown-body ul:has(input[type="checkbox"]) {
+  list-style-type: none !important;
+  padding-left: 0.25rem !important;
+}
+
+.daymark-markdown-body li:has(> input[type="checkbox"]),
+.daymark-markdown-body li.task-list-item {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.daymark-markdown-body input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #d97706;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.daymark-markdown-body input[type="checkbox"]:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* Blockquotes */
+.daymark-markdown-body blockquote {
+  border-left: 4px solid #d97706;
+  padding: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-style: italic;
+  background-color: rgba(245, 158, 11, 0.06);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+/* Inline Code */
+.daymark-markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.15rem 0.4rem;
+  background-color: rgba(120, 113, 108, 0.18);
+  border-radius: 0.3rem;
+  color: #d97706;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .daymark-markdown-body code {
+    color: #fbbf24;
+    background-color: rgba(120, 113, 108, 0.28);
+  }
+}
+
+/* Code Blocks */
+.daymark-markdown-body pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: 1rem;
+  background-color: #1c1917;
+  color: #f5f5f4;
+  border-radius: 0.6rem;
+  overflow-x: auto;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #292524;
+}
+
+.daymark-markdown-body pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* Horizontal Rule */
+.daymark-markdown-body hr {
+  border: 0;
+  border-top: 1px solid rgba(150, 150, 150, 0.25);
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Links */
+.daymark-markdown-body a {
+  color: #d97706;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+
+.daymark-markdown-body a:hover {
+  color: #b45309;
+}
+
+/* Tables */
+.daymark-markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.daymark-markdown-body th {
+  border: 1px solid rgba(150, 150, 150, 0.25);
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(120, 113, 108, 0.12);
+  font-weight: 600;
+  text-align: left;
+}
+
+.daymark-markdown-body td {
+  border: 1px solid rgba(150, 150, 150, 0.25);
+  padding: 0.5rem 0.75rem;
+}
+
+.daymark-markdown-body tr:nth-child(even) td {
+  background-color: rgba(120, 113, 108, 0.04);
+}
+
+/* Callout Boxes (Obsidian & GitHub style) */
+.daymark-callout {
+  border-left: 4px solid #3b82f6;
+  background-color: rgba(59, 130, 246, 0.08);
+  border-radius: 0.375rem;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.daymark-callout-header {
+  font-weight: 700;
+  font-size: 0.875rem;
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.daymark-callout-content {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.daymark-callout-note, .daymark-callout-info {
+  border-left-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.08);
+  color: #60a5fa;
+}
+
+.daymark-callout-tip {
+  border-left-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+}
+
+.daymark-callout-warning {
+  border-left-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
+}
+
+.daymark-callout-caution, .daymark-callout-important, .daymark-callout-alert {
+  border-left-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}

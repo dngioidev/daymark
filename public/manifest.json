@@ -1,0 +1,63 @@
+{
+  "name": "Daymark - Daily Markdown Notebook",
+  "short_name": "Daymark",
+  "description": "A Local-First Daily Markdown Notebook with Intelligent Task Carry-Forward and Self-Hosted Sync",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0a09",
+  "theme_color": "#d97706",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d97706'/><path d='M30 50L45 65L72 32' stroke='white' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d97706'/><path d='M30 50L45 65L72 32' stroke='white' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's Notebook",
+      "short_name": "Today",
+      "description": "Open today's daily journal and carry-forward tasks",
+      "url": "/?tab=today",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23d97706'/><text x='50' y='62' font-size='38' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>T</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Quick Capture",
+      "short_name": "Capture",
+      "description": "Rapidly capture a new task or idea",
+      "url": "/?action=capture",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%2316a34a'/><path d='M50 28V72M28 50H72' stroke='white' stroke-width='12' stroke-linecap='round'/></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Notes Vault",
+      "short_name": "Notes",
+      "description": "Search and write standalone Markdown notes",
+      "url": "/?tab=notes",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%232563eb'/><rect x='30' y='25' width='40' height='50' rx='5' fill='white'/></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

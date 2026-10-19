@@ -1,0 +1,111 @@
+/**
+ * Daymark Core Data Types
+ * A Local-First Daily Markdown Notebook with Intelligent Task Carry-Forward
+ */
+
+export type LifecycleAction = 'keep' | 'carry-forward' | 'archive' | 'warn';
+
+export interface StatusDefinition {
+  id: string;
+  label: string;
+  action: LifecycleAction;
+  color: string; // Tailwind color class or hex
+  icon: string; // Lucide icon name
+  isSystem?: boolean;
+  participatesInAging: boolean;
+}
+
+export interface TaskHistoryItem {
+  id: string;
+  timestamp: string;
+  date: string;
+  action: 'created' | 'status_changed' | 'carried_forward' | 'historical_completion' | 'reopened' | 'archived';
+  details: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: string; // maps to StatusDefinition.id
+  createdDate: string; // YYYY-MM-DD
+  originalNoteDate: string; // YYYY-MM-DD where originally created
+  carriedFromDate?: string; // YYYY-MM-DD of the immediate previous day it rolled from
+  completedDate?: string; // Effective completion date (can be historical)
+  heading: string; // e.g., 'Work', 'Meetings', 'Ideas', 'Attention'
+  order: number;
+  checklist?: ChecklistItem[];
+  tags?: string[];
+  dismissedAlertDate?: string; // If user snoozed/dismissed alert for this date
+  historyLog: TaskHistoryItem[];
+}
+
+export interface HeadingSection {
+  name: string;
+  items: TaskItem[];
+  notesContent?: string; // Free-form Markdown notes under this heading
+}
+
+export interface DailyDocument {
+  date: string; // YYYY-MM-DD
+  type: 'daily';
+  headings: HeadingSection[];
+  rawMarkdown?: string;
+  updatedAt: string;
+}
+
+export interface StandaloneNote {
+  id: string;
+  title: string;
+  folder: string; // e.g. 'Technical', 'Personal', 'Meetings'
+  content: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  pinned?: boolean;
+}
+
+export interface AgingThresholds {
+  attentionDays: number; // default 3
+  criticalDays: number; // default 7
+  enabled: boolean;
+  statuses: string[]; // default ['in-progress', 'blocked', 'waiting']
+}
+
+export interface SyncConfiguration {
+  enabled: boolean;
+  serverUrl: string;
+  deviceId: string;
+  authToken: string;
+  lastSyncAt: string | null;
+  status: 'offline' | 'synced' | 'syncing' | 'error';
+}
+
+export interface AppSettings {
+  defaultHeadings: string[];
+  agingThresholds: AgingThresholds;
+  statuses: StatusDefinition[];
+  simulatedToday: string; // YYYY-MM-DD for testing rollover & date workflows
+  timeZone: string;
+  syncConfig: SyncConfiguration;
+}
+
+export type ViewTab = 'today' | 'history' | 'notes' | 'mobile-code' | 'server' | 'settings';
+
+export type AppMode = 'desktop' | 'mobile-app' | 'web-server';
+
+export type MobileTab = 'today' | 'history' | 'notes' | 'sync' | 'settings';
+
+export interface ServerAuthState {
+  isLoggedIn: boolean;
+  username: string;
+  token: string | null;
+}
+
+export type EditorMode = 'visual' | 'split' | 'raw';
