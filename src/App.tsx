@@ -29,6 +29,8 @@ import {
 import { importVaultFromZip } from './utils/vaultArchive';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
+import { useWidgetSync } from './hooks/useWidgetSync';
+import { toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -330,19 +332,22 @@ export default function App() {
 
   // Handler: Toggle Task Done
   const handleToggleTaskDone = (taskId: string) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDoc));
-    for (const h of newDoc.headings) {
-      const task = h.items.find((t) => t.id === taskId);
-      if (task) {
-        const isDone = task.status === 'done';
-        task.status = isDone ? 'in-progress' : 'done';
-        task.completedDate = isDone ? undefined : currentDate;
-        handleUpdateDocument(newDoc);
-        showToast(isDone ? `Reopened "${task.title}"` : `Completed "${task.title}"`);
-        break;
-      }
-    }
+    const result = toggleTaskDoneInDocument(currentDoc, taskId, currentDate);
+    if (!result) return;
+    handleUpdateDocument(result.doc);
+    showToast(result.nowDone ? `Completed "${result.task.title}"` : `Reopened "${result.task.title}"`);
   };
+
+  // Android app only: apply widget checkbox taps and keep the home-screen widget up to date.
+  // Uses a functional update so several queued toggles apply in order against the latest state.
+  const handleWidgetToggle = (taskId: string) => {
+    setDailyDocs((prev) => {
+      const todayDoc = prev.find((d) => d.date === today);
+      const result = todayDoc ? toggleTaskDoneInDocument(todayDoc, taskId, today) : null;
+      return result ? prev.map((d) => (d.date === today ? result.doc : d)) : prev;
+    });
+  };
+  useWidgetSync(today, dailyDocs.find((d) => d.date === today), handleWidgetToggle);
 
   // Handler: Export Vault as ZIP
   const handleExportVaultZip = async () => {
@@ -356,9 +361,14 @@ export default function App() {
   };
 
   // Handler: Export JSON
-  const handleExportJson = () => {
-    exportVaultAsJson(dailyDocs, notes, settings);
-    showToast('Downloaded Daymark JSON backup.');
+  const handleExportJson = async () => {
+    try {
+      await exportVaultAsJson(dailyDocs, notes, settings);
+      showToast('Daymark JSON backup ready.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export the JSON backup.');
+    }
   };
 
   // After replacing the vault (sample data, import), carry unfinished tasks into today
@@ -546,6 +556,7 @@ export default function App() {
           }}
           onSwitchToDesktop={() => setAppMode('desktop')}
           initialTab={initialMobileTab}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onSyncComplete={handleMobileSyncComplete}
         />
       )}

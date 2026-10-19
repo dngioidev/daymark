@@ -34,4 +34,40 @@ for (const icon of ICONS) {
   await page.close();
   console.log('wrote', path.join('public', 'icons', icon.file));
 }
+
+// Android launcher icons (Capacitor app): legacy square + round PNGs and the adaptive-icon foreground.
+const androidRes = path.resolve('mobile', 'android', 'app', 'src', 'main', 'res');
+const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
+const glyph = (scale) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <g transform="translate(50 50) scale(${scale}) translate(-50 -50)">
+    <path d="M30 50L45 65L72 32" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g></svg>`;
+if (fs.existsSync(androidRes)) {
+  for (const [density, factor] of Object.entries(DENSITIES)) {
+    const dir = path.join(androidRes, `mipmap-${density}`);
+    const legacy = Math.round(48 * factor);
+    const adaptive = Math.round(108 * factor);
+    const shots = [
+      { file: 'ic_launcher.png', size: legacy, html: `<div style="width:100%;height:100%;background:#d97706;border-radius:18%">${glyph(1)}</div>` },
+      { file: 'ic_launcher_round.png', size: legacy, html: `<div style="width:100%;height:100%;background:#d97706;border-radius:50%">${glyph(0.8)}</div>` },
+      // Foreground sits inside the adaptive icon's central 66% safe zone on a transparent canvas
+      { file: 'ic_launcher_foreground.png', size: adaptive, html: glyph(0.6), transparent: true },
+    ];
+    for (const shot of shots) {
+      const page = await browser.newPage({ viewport: { width: shot.size, height: shot.size } });
+      await page.setContent(`<body style="margin:0;width:${shot.size}px;height:${shot.size}px;background:transparent">${shot.html}</body>`);
+      await page.screenshot({ path: path.join(dir, shot.file), omitBackground: true });
+      await page.close();
+    }
+    console.log('wrote android launcher icons for', density);
+  }
+  fs.writeFileSync(
+    path.join(androidRes, 'values', 'ic_launcher_background.xml'),
+    `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#D97706</color>
+</resources>
+`
+  );
+}
 await browser.close();

@@ -29,3 +29,8 @@ This document summarizes key architectural decisions made in Daymark, preserving
 ## ADR 7: Offline-First PWA via a Hand-Written Service Worker
 - **Decision**: Ship `public/sw.js` (precache shell, network-first navigations, cache-first hashed assets, no `/api` caching) instead of a build-plugin generated worker; register only in production.
 - **Rationale**: Few moving parts, no extra dependency, behaviour verified end to end by `scripts/e2e-android-pwa.mjs`.
+
+## ADR 8: Capacitor App Shell with a Native Glance Widget
+- **Decision**: Ship Android as a Capacitor app (WebView around the existing web build) in `mobile/android/`, plus a native Jetpack Glance widget. The web app stays the source of truth; it pushes a task snapshot to the widget through a small Capacitor plugin and applies widget checkbox taps (queued natively) when it resumes. A Trusted Web Activity was rejected because it cannot host a widget; rewriting the UI in Compose was rejected as a second implementation to maintain.
+- **Rationale**: One UI codebase for PWA and Android, no duplicated rollover logic in Kotlin, and the widget still works when the app is closed. Trade-off: widget changes show in the app only after it next opens or resumes, and the widget shows the last snapshot (it drops finished tasks on a new day until the app runs the rollover).
+- **Gotchas**: JDK 21 must not be GraalVM. Glance reuses one composition session across `update()` calls, so widget data is read inside the composition and keyed by a version in Glance state (`refreshAll`). WebView cannot do blob downloads, so exports go through Filesystem + Share in the native app.

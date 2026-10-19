@@ -65,6 +65,7 @@ interface MobileAppShellProps {
   onSwitchToDesktop?: () => void;
   onSyncComplete: (serverDocs: DailyDocument[], serverNotes: StandaloneNote[]) => void;
   initialTab?: MobileTab;
+  onOpenSettings?: () => void;
 }
 
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
@@ -87,6 +88,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onSwitchToDesktop,
   onSyncComplete,
   initialTab,
+  onOpenSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<MobileTab>(initialTab ?? 'today');
   const isOnline = useOnlineStatus();
@@ -274,6 +276,15 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                aria-label="Settings, backup and import"
+                className="inline-flex items-center justify-center w-9 h-9 -my-1 rounded-md text-stone-300 hover:text-amber-400"
+              >
+                <Settings className="w-4.5 h-4.5" />
+              </button>
+            )}
             {canInstall && (
               <button
                 onClick={install}

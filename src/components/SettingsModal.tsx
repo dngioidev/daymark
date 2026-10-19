@@ -20,6 +20,7 @@ import { AppSettings, LifecycleAction, StatusDefinition } from '../types/daymark
 import { SyncLogEntry } from '../utils/vaultStore';
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
+import { isNativeApp, requestPinWidget } from '../native/daymarkBridge';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -551,6 +552,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Export standard Markdown directories, create JSON backups, or restore data.
                 </p>
               </div>
+
+              {isNativeApp() && (
+                <div className="p-4 border border-stone-200 dark:border-stone-800 rounded-xl flex items-center justify-between gap-4 text-xs">
+                  <div>
+                    <div className="font-semibold text-stone-900 dark:text-stone-100">Home-screen widget</div>
+                    <p className="text-[11px] text-stone-500">
+                      Show today's tasks on your home screen and tick them off without opening Daymark.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await requestPinWidget();
+                      if (!ok) alert('Your launcher cannot add widgets automatically. Long-press the home screen, choose Widgets, and pick Daymark Today.');
+                    }}
+                    className="px-3.5 py-1.5 min-h-[36px] bg-amber-600 hover:bg-amber-700 rounded font-medium text-white shrink-0"
+                  >
+                    Add widget
+                  </button>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2 text-xs">

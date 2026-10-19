@@ -1,0 +1,16 @@
+{
+  "appId": "app.daymark.notes",
+  "appName": "Daymark",
+  "webDir": "dist",
+  "android": {
+    "path": "mobile/android"
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
+}

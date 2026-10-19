@@ -70,6 +70,7 @@ Outcome: an Android user can install Daymark from Chrome and use it daily and of
 Done when: Lighthouse PWA installable check passes, airplane-mode capture works in an Android Chrome emulation, export then wipe then import restores identical data, tests pass.
 
 ## Cycle 2: Android native shell and home-screen widget
+**Status: done on branch `cycle-2-android-native-shell`** (verified on an Android 16 emulator). See [docs/releases/cycle-2](./releases/cycle-2/README.md).
 Outcome: an installable APK (side-loaded) with the Glance task widget showing real data. Optional for Milestone A, but it is the "Android user" headline feature.
 
 - Decide wrapper first (recommended: Capacitor around the existing web build, since it reuses all UI; alternative is a Trusted Web Activity, which is lighter but cannot host the widget). Record the decision as an ADR in `.ai-configs/project/decisions.md`.

@@ -1,6 +1,7 @@
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
+import { isNativeApp } from '../native/daymarkBridge';
 
 /**
  * Vault persistence.
@@ -230,7 +231,33 @@ export function resetVaultToSeedData(): {
   };
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Saves a file for the user. Browsers download it; the Android app (whose WebView cannot handle
+ * blob downloads) writes it to the app cache and opens the system share sheet (Drive, Files, email...).
+ */
+async function downloadBlob(blob: Blob, filename: string): Promise<void> {
+  if (isNativeApp()) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+      import('@capacitor/filesystem'),
+      import('@capacitor/share'),
+    ]);
+    const written = await Filesystem.writeFile({
+      path: filename,
+      data: await blobToBase64(blob),
+      directory: Directory.Cache,
+    });
+    await Share.share({ title: filename, url: written.uri, dialogTitle: 'Save your Daymark backup' });
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -250,17 +277,17 @@ export async function exportVaultAsZip(
   settings: AppSettings
 ): Promise<void> {
   const bytes = await buildVaultZip(docs, notes, settings);
-  downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`);
+  await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`);
 }
 
 /**
  * Downloads full JSON snapshot backup
  */
-export function exportVaultAsJson(
+export async function exportVaultAsJson(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings
-): void {
+): Promise<void> {
   const bundle = {
     daymark_backup_version: '1.0',
     exported_at: new Date().toISOString(),
@@ -268,7 +295,7 @@ export function exportVaultAsJson(
     daily_documents: docs,
     standalone_notes: notes,
   };
-  downloadBlob(
+  await downloadBlob(
     new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }),
     `daymark-backup-${new Date().toISOString().split('T')[0]}.json`
   );

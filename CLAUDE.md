@@ -34,6 +34,7 @@ npm test             # Unit tests (vitest)
 npm run build        # Production bundle (vite build)
 npm run dev          # Express + Vite on port 3000
 npm run test:e2e      # Android PWA e2e (needs a prior build and local Chrome/Edge)
+npm run android:build   # debug APK (JDK 21 + Android SDK); add -- --test for Kotlin unit tests
 npm run validate:ai  # AI config check (structure, scripts, invariants, links)
 node scripts/capture-screenshots.mjs <cycle>  # Release-doc screenshots -> docs/releases/<cycle>/images
 ```

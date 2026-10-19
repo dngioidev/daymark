@@ -17,3 +17,22 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run validate:ai
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Build debug APK and run Kotlin unit tests
+        run: node scripts/build-android.mjs --test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daymark-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk

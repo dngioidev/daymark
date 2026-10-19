@@ -29,4 +29,6 @@ These rules govern how changes must be tested, validated, and verified before co
 - **Unit Tests**: `npm test`
 - **AI Agent Config Validation**: `npm run validate:ai`
 - **PWA / Android E2E** (production build, emulated phone, offline): `npm run build && npm run test:e2e`
+- **Android build + Kotlin unit tests**: `npm run android:build -- --test` (needs JDK 21 and the Android SDK)
+- **Native Android E2E** (booted emulator/device, widget included): `node scripts/e2e-android-native.mjs [cycle]`
 - **Release Screenshots**: `node scripts/capture-screenshots.mjs <cycle>` (needs local Chrome or Edge; see the release-handoff workflow)

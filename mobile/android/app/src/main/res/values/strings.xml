@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Daymark</string>
+    <string name="title_activity_main">Daymark</string>
+    <string name="package_name">app.daymark.notes</string>
+    <string name="custom_url_scheme">app.daymark.notes</string>
+    <string name="widget_name">Daymark Today</string>
+    <string name="widget_description">Tasks for today with carry-forward aging. Tick tasks off from your home screen.</string>
+</resources>
