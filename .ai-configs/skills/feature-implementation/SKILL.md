@@ -19,7 +19,7 @@ This skill provides a structured methodology for designing, implementing, and in
   - Feature specification, user requirements, or acceptance criteria.
   - Target architecture layers affected (UI, utility engine, server, types).
 - **Authoritative References**:
-  - `docs/specification.md` and `docs/source-code-map.md`.
+  - `.ai-configs/project/specification.md` and `.ai-configs/project/codebase-map.md`.
   - `.ai-configs/rules/engineering-standards.md`.
   - `.ai-configs/project/architecture.md`.
 

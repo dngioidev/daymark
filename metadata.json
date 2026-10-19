@@ -1,6 +1,5 @@
 {
   "name": "Daymark",
   "description": "A Local-First Daily Markdown Notebook with Intelligent Task Carry-Forward, Historical Completion Correction, and Aging Alerts.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": []
 }

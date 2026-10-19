@@ -30,9 +30,11 @@ Always read and adhere to the shared rules before modifying code:
 ## 4. Build & Verification Commands
 ```bash
 npm run lint         # TypeScript check (tsc --noEmit)
+npm test             # Unit tests (vitest)
 npm run build        # Production bundle (vite build)
 npm run dev          # Express + Vite on port 3000
-node .ai-configs/scripts/validate-configs.mjs  # AI config check
+npm run validate:ai  # AI config check (structure, scripts, invariants, links)
+node scripts/capture-screenshots.mjs <cycle>  # Release-doc screenshots -> docs/releases/<cycle>/images
 ```
 
 ## 5. Output Summary

@@ -13,8 +13,9 @@ Before modifying or creating any code, you must read and adhere to the canonical
 ## 2. Non-Negotiable Daymark Invariants
 - **Data Sovereignty**: User notes are stored in Markdown (`YYYY-MM-DD.md`) with frontmatter. Never alter notes destructively.
 - **Machine HTML Comments**: Format must remain `<!-- daymark: task_id=<id> status=<status> created=<YYYY-MM-DD> ... -->`.
-- **Rollover Idempotency**: `performDailyRollover()` must never create duplicate tasks.
+- **Rollover Idempotency**: `performDailyRollover()` in `src/utils/lifecycleEngine.ts` must never create duplicate tasks.
 - **Tailwind Palette Discipline**: Use only standard stone color classes (`stone-50` through `stone-950`). Never invent classes like `stone-850`.
+- **Strict Types**: Derive types from `src/types/daymark.ts`.
 - **Desktop Full-Width**: Desktop view must maintain full width (`max-w-[1800px]`), never collapsed into a phone mockup.
 
 ## 3. Skills & Workflows
@@ -24,8 +25,10 @@ Before modifying or creating any code, you must read and adhere to the canonical
 
 ## 4. Verification Commands
 - **Lint / Type Check**: `npm run lint` (`tsc --noEmit`)
+- **Test**: `npm test` (vitest)
 - **Build**: `npm run build` (`vite build`)
-- **Validate Configs**: `node .ai-configs/scripts/validate-configs.mjs`
+- **Validate Configs**: `npm run validate:ai`
+- **Release Screenshots**: `node scripts/capture-screenshots.mjs <cycle>` (see `docs/releases/`)
 
 ## 5. Completion Summary
 Structure your final response using the 4 sections from [`.ai-configs/rules/completion-report.md`](./.ai-configs/rules/completion-report.md):

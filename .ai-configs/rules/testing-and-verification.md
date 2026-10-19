@@ -6,7 +6,7 @@ These rules govern how changes must be tested, validated, and verified before co
 - **Identify relevant checks**: Examine `package.json`, build files, and documentation to determine the correct verification commands.
 - **Run targeted checks first**:
   - Run type checks or linting (`npm run lint` or `tsc --noEmit`).
-  - Run targeted unit or integration tests for modified functions.
+  - Run targeted unit or integration tests for modified functions (`npm test`, vitest; test files live beside sources as `*.test.ts`). Changes to `src/utils/lifecycleEngine.ts` or `src/utils/markdownEngine.ts` must add or update tests.
   - Run build checks (`npm run build` or `vite build`) when modifying components or build assets.
 - **Run broader checks**: If targeted checks pass and scope warrants, execute full suite checks.
 
@@ -26,4 +26,6 @@ These rules govern how changes must be tested, validated, and verified before co
 - **Lint / Type Check**: `npm run lint` (`tsc --noEmit`)
 - **Production Build**: `npm run build` (`vite build`)
 - **Development Server**: `npm run dev` (`tsx server.ts` on port 3000)
-- **AI Agent Config Validation**: `node .ai-configs/scripts/validate-configs.mjs`
+- **Unit Tests**: `npm test`
+- **AI Agent Config Validation**: `npm run validate:ai`
+- **Release Screenshots**: `node scripts/capture-screenshots.mjs <cycle>` (needs local Chrome or Edge; see the release-handoff workflow)

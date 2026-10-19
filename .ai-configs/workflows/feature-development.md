@@ -25,6 +25,6 @@ Before writing code, verify:
 - Visual verification in both Desktop and Mobile views.
 
 ### Documentation Update
-- If new endpoints or components were added, update `docs/source-code-map.md` and `.ai-configs/project/codebase-map.md`.
+- If new endpoints or components were added, update `.ai-configs/project/codebase-map.md`.
 
 Refer to [`.ai-configs/skills/feature-implementation/SKILL.md`](../skills/feature-implementation/SKILL.md) for detailed implementation techniques.

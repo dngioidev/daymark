@@ -31,7 +31,7 @@ This skill guides the investigation of reported issues, test failures, or unexpe
    - UI views & state (`src/components/`, `src/App.tsx`)
    - Backend sync & auth (`server.ts`)
    - Storage & export (`src/utils/vaultStore.ts`)
-2. Check existing documentation in `docs/` or `.ai-configs/project/` to confirm intended system behavior and invariants.
+2. Check existing documentation in `.ai-configs/project/` to confirm intended system behavior and invariants.
 
 ### Step 2: Reproduce the Defect
 1. Formulate a minimal reproducible example (e.g. sample markdown input or specific date sequence).

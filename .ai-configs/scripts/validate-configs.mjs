@@ -256,6 +256,9 @@ function checkMarkdownLinks(dir) {
         const [cleanTarget] = linkTarget.split('#');
         if (!cleanTarget) continue;
 
+        // Templates use placeholder screenshot paths that only exist in a real release doc
+        if (path.basename(dir) === 'templates' && cleanTarget.startsWith('./images/')) continue;
+
         const resolvedTarget = path.resolve(path.dirname(fullPath), cleanTarget);
         if (!fs.existsSync(resolvedTarget)) {
           report(
@@ -304,7 +307,77 @@ for (const adapter of rootAdapters) {
   }
 }
 
-// 8. Summary
+// 8. Verify fitness: referenced npm scripts, adapter invariants, docs links
+console.log('\n8. Checking Fitness (scripts, invariants, docs links):');
+const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+const markdownFiles = [];
+function collectMarkdown(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (['node_modules', '.git', 'dist'].includes(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collectMarkdown(full);
+    else if (entry.name.endsWith('.md')) markdownFiles.push(full);
+  }
+}
+collectMarkdown(REPO_ROOT);
+
+// 8a. Every `npm run <script>` mentioned in docs must exist in package.json
+const referencedScripts = new Map();
+for (const file of markdownFiles) {
+  const text = fs.readFileSync(file, 'utf8');
+  for (const m of text.matchAll(/npm run ([a-z0-9:_-]+)/gi)) {
+    if (!referencedScripts.has(m[1])) referencedScripts.set(m[1], path.relative(REPO_ROOT, file));
+  }
+}
+for (const [script, where] of referencedScripts) {
+  if (pkg.scripts && pkg.scripts[script]) report('PASS', `npm script exists: ${script}`);
+  else report('FAIL', `Docs reference missing npm script: ${script}`, `first seen in ${where}`);
+}
+
+// 8b. Root adapters must all state the core invariants
+const invariantKeywords = ['daymark: task_id', 'src/utils/lifecycleEngine.ts', 'stone', 'src/types/daymark.ts', 'max-w-[1800px]'];
+for (const adapter of rootAdapters) {
+  const adapterPath = path.join(REPO_ROOT, adapter);
+  if (!fs.existsSync(adapterPath)) continue;
+  const content = fs.readFileSync(adapterPath, 'utf8');
+  const missing = invariantKeywords.filter((k) => !content.includes(k));
+  if (missing.length === 0) report('PASS', `Adapter ${adapter} states all core invariants`);
+  else report('FAIL', `Adapter ${adapter} is missing invariants`, missing.join(', '));
+}
+
+// 8c. Relative links in README.md, docs/ and release docs must resolve
+const outsideConfigs = markdownFiles.filter(
+  (f) => !f.startsWith(AI_CONFIGS_DIR) && !rootAdapters.includes(path.basename(f))
+);
+let docLinkFailures = 0;
+for (const file of outsideConfigs) {
+  const text = fs.readFileSync(file, 'utf8');
+  for (const m of text.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    const target = m[1].trim().split('#')[0];
+    if (!target || /^(https?:|mailto:)/.test(target)) continue;
+    if (!fs.existsSync(path.resolve(path.dirname(file), target))) {
+      docLinkFailures++;
+      report('FAIL', `Broken link in ${path.relative(REPO_ROOT, file)}: ${target}`);
+    }
+  }
+}
+if (docLinkFailures === 0) report('PASS', `Relative links resolve in ${outsideConfigs.length} docs outside .ai-configs/`);
+
+// 8d. Each release doc must have a README and at least one screenshot
+const releasesDir = path.join(REPO_ROOT, 'docs', 'releases');
+if (fs.existsSync(releasesDir)) {
+  for (const cycle of fs.readdirSync(releasesDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+    const imagesDir = path.join(releasesDir, cycle.name, 'images');
+    const images = fs.existsSync(imagesDir) ? fs.readdirSync(imagesDir).filter((f) => f.endsWith('.png')) : [];
+    if (!fs.existsSync(path.join(releasesDir, cycle.name, 'README.md'))) {
+      report('FAIL', `Release doc ${cycle.name} is missing README.md`);
+    }
+    if (images.length > 0) report('PASS', `Release doc ${cycle.name} has ${images.length} screenshots`);
+    else report('FAIL', `Release doc ${cycle.name} has no screenshots`, 'docs/releases/<cycle>/images/*.png');
+  }
+}
+
+// 9. Summary
 console.log('\n=== Validation Summary ===');
 console.log(`Total Checks : ${checks}`);
 console.log(`Passed       : ${checks - errors - warnings}`);

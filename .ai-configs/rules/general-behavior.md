@@ -5,7 +5,7 @@ These rules govern how AI coding agents reason, plan, and execute tasks across t
 ## 1. Context & Understanding First
 - **Understand the user's request** and full repository context before making or suggesting any changes.
 - **Inspect relevant source code**, existing architectural patterns, schemas, and tests before designing or implementing a solution.
-- Read authoritative documentation in `docs/` and `.ai-configs/project/` to ground implementation decisions in established invariants.
+- Read authoritative documentation in `.ai-configs/project/` to ground implementation decisions in established invariants.
 
 ## 2. Minimal, High-Precision Interventions
 - **Prefer the smallest correct change** that cleanly satisfies the requirements.

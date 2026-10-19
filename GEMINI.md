@@ -12,7 +12,7 @@ Gemini CLI instances must consult and respect the shared rule set:
 
 ## 2. Daymark Invariants
 - **Markdown Preservation**: Preserve YAML frontmatter, headers, and `<!-- daymark: task_id=<id> status=<status> ... -->` comments.
-- **Rollover Idempotency**: Never create duplicate tasks during rollover.
+- **Rollover Idempotency**: Never create duplicate tasks during rollover (`src/utils/lifecycleEngine.ts`).
 - **Tailwind Palette**: Only standard stone tokens (`stone-50` through `stone-950`).
 - **Desktop Layout**: Keep layout container full-width (`max-w-[1800px]`) in desktop mode.
 - **Strict Types**: Derive types from `src/types/daymark.ts`.
@@ -24,8 +24,10 @@ Gemini CLI instances must consult and respect the shared rule set:
 
 ## 4. Verification Commands
 - `npm run lint` (`tsc --noEmit`)
+- `npm test` (vitest)
 - `npm run build` (`vite build`)
-- `node .ai-configs/scripts/validate-configs.mjs`
+- `npm run validate:ai`
+- `node scripts/capture-screenshots.mjs <cycle>` (release screenshots, see `docs/releases/`)
 
 ## 5. Output Format
 Conclude every response with the 4-part summary defined in [`.ai-configs/rules/completion-report.md`](./.ai-configs/rules/completion-report.md).

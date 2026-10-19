@@ -16,19 +16,19 @@ This skill provides standards and procedures for creating, updating, and auditin
 ## Prerequisites & Inputs
 - **Inputs**:
   - Source code changes or PR specifications.
-  - Existing documentation in `docs/` and `.ai-configs/project/`.
+  - Existing documentation in `.ai-configs/project/`.
 - **Authoritative Files**:
-  - `docs/source-code-map.md`: Master file list and component responsibilities.
-  - `docs/sync-and-server-api.md`: Server endpoints and payloads.
-  - `docs/architecture.md`: System topology and data flow.
+  - `.ai-configs/project/codebase-map.md`: Master file list and component responsibilities.
+  - `.ai-configs/project/api-and-sync.md`: Server endpoints and payloads.
+  - `.ai-configs/project/architecture.md`: System topology and data flow.
 
 ## Repeatable Procedure
 
 ### Step 1: Identify Documentation Touchpoints
 When a code change is made, determine affected docs:
-- API endpoints changed? Update `docs/sync-and-server-api.md`.
-- New component or utility file added? Update `docs/source-code-map.md` and `.ai-configs/project/codebase-map.md`.
-- Core algorithm altered? Update `docs/specification.md`.
+- API endpoints changed? Update `.ai-configs/project/api-and-sync.md`.
+- New component or utility file added? Update `.ai-configs/project/codebase-map.md`.
+- Core algorithm altered? Update `.ai-configs/project/specification.md`.
 - Configuration or agent rule updated? Update `.ai-configs/rules/` or `.ai-configs/README.md`.
 
 ### Step 2: Draft Clear, Truthful Documentation

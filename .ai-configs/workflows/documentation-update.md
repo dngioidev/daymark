@@ -6,10 +6,10 @@ This workflow ensures documentation throughout the repository stays synchronized
 
 | Change Type | Primary Doc | Secondary Doc |
 | :--- | :--- | :--- |
-| **New UI Component or Utility** | `docs/source-code-map.md` | `.ai-configs/project/codebase-map.md` |
-| **Data Schema or Type Modification** | `docs/specification.md` | `src/types/daymark.ts` |
-| **REST API / Auth / Sync Change** | `docs/sync-and-server-api.md` | `server.ts` |
-| **System Architecture / Operational Mode** | `docs/architecture.md` | `.ai-configs/project/architecture.md` |
+| **New UI Component or Utility** | `.ai-configs/project/codebase-map.md` | `.ai-configs/project/conventions.md` |
+| **Data Schema or Type Modification** | `.ai-configs/project/specification.md` | `src/types/daymark.ts` |
+| **REST API / Auth / Sync Change** | `.ai-configs/project/api-and-sync.md` | `server.ts` |
+| **System Architecture / Operational Mode** | `.ai-configs/project/architecture.md` | `README.md` |
 | **Agent Rule / Skill / Workflow Update** | `.ai-configs/rules/`, `.ai-configs/skills/` | `.ai-configs/README.md`, Root Adapters (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) |
 
 ## Step-by-Step Procedure

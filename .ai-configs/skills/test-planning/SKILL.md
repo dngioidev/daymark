@@ -15,7 +15,7 @@ This skill guides the creation and execution of structured test plans for Daymar
 
 ## Prerequisites & Inputs
 - **Inputs**:
-  - Specification or PRD requirements (`docs/specification.md`).
+  - Specification or PRD requirements (`.ai-configs/project/specification.md`).
   - Modified code areas (e.g. `src/utils/lifecycleEngine.ts`, `server.ts`).
 - **Tools**:
   - Node.js runtime and npm scripts (`npm run lint`, `npm run build`, `npm run dev`).

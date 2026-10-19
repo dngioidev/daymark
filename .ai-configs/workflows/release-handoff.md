@@ -7,7 +7,8 @@ This workflow guides the preparation and verification required prior to tagging 
 ### 1. Build & Compiler Verification
 - [ ] TypeScript typecheck clean: `npm run lint` (`tsc --noEmit`).
 - [ ] Vite production build completes cleanly: `npm run build` (`vite build`).
-- [ ] AI Agent configuration validation passes: `node .ai-configs/scripts/validate-configs.mjs`.
+- [ ] Unit tests pass: `npm test`.
+- [ ] AI Agent configuration validation passes: `npm run validate:ai`.
 
 ### 2. Functional & Invariant Audit
 - [ ] Local-first data integrity: vault export as Obsidian ZIP functions and unpacks cleanly.
@@ -20,7 +21,14 @@ This workflow guides the preparation and verification required prior to tagging 
 - [ ] Environment variables documented in `.env.example`.
 - [ ] Port configuration (`PORT=3000`) tested.
 
-### 4. Handoff Package & Documentation
+### 4. Release Doc with Captured Screenshots (every cycle)
+- [ ] Add the cycle's shots to `SHOTS` in `scripts/capture-screenshots.mjs` (desktop 1440x900 and Android 412x915) and run `node scripts/capture-screenshots.mjs <cycle>`.
+- [ ] Look at every captured image; confirm the right screen and size, not just that a file exists.
+- [ ] Write `docs/releases/<cycle>/README.md` from [`../templates/release-doc.md`](../templates/release-doc.md), embedding the images from `docs/releases/<cycle>/images/`.
+- [ ] Record actual session/token usage and update the estimate table in `docs/ROADMAP.md`.
+- [ ] `npm run validate:ai` must pass (it fails when a release doc has no README or screenshots).
+
+### 5. Handoff Package & Documentation
 - Document any schema changes or migration requirements in release notes.
 - Ensure `docs/` and `.ai-configs/` are up-to-date with recent changes.
 - Provide a summary report following [`.ai-configs/rules/completion-report.md`](../rules/completion-report.md).
