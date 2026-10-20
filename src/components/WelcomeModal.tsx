@@ -54,7 +54,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onStartEmpty
         </button>
 
         <p className="text-[11px] text-stone-500">
-          Already have a backup? Choose either option, then use Settings → Storage to restore it.
+          Already have a backup? Choose either option, then open Settings → Backup &amp; restore.
         </p>
       </div>
     </div>
