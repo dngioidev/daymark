@@ -1,4 +1,5 @@
-import JSZip from 'jszip';
+// JSZip is loaded on demand: it is only needed when exporting or importing
+const loadJSZip = async () => (await import('jszip')).default;
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
 
@@ -31,6 +32,7 @@ export async function buildVaultZip(
   notes: StandaloneNote[],
   settings: AppSettings
 ): Promise<Uint8Array> {
+  const JSZip = await loadJSZip();
   const zip = new JSZip();
   const root = zip.folder('Daymark')!;
   const dailyFolder = root.folder('Daily')!;
@@ -89,6 +91,7 @@ export async function importVaultFromZip(
   data: ArrayBuffer | Uint8Array | Blob,
   defaultHeadings?: string[]
 ): Promise<VaultSnapshot> {
+  const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(data);
   const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
 

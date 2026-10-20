@@ -48,9 +48,12 @@ interface TodayViewProps {
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onTriggerRollover: () => void;
+  /** Phone layout: tighter spacing, no Split view, no manual rollover (it runs automatically). */
+  compact?: boolean;
 }
 
 export const TodayView: React.FC<TodayViewProps> = ({
+  compact = false,
   currentDocument,
   simulatedToday,
   statuses,
@@ -269,9 +272,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className={compact ? 'w-full space-y-4' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6'}>
       {/* Date Navigation & View Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200 dark:border-stone-800">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between ${compact ? 'gap-3 pb-3' : 'gap-4 pb-4'} border-b border-stone-200 dark:border-stone-800`}>
         {/* Date Navigator */}
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-0.5 shadow-2xs">
@@ -308,9 +311,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">
                 {getRelativeDateLabel(currentDocument.date, simulatedToday)}
               </h1>
-              <span className="text-xs font-mono text-stone-400 dark:text-stone-500 tabular-nums">
-                ({currentDocument.date})
-              </span>
+              {!compact && (
+                <span className="text-xs font-mono text-stone-400 dark:text-stone-500 tabular-nums">
+                  ({currentDocument.date})
+                </span>
+              )}
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400">
               {formatFullDate(currentDocument.date)}
@@ -320,7 +325,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
         {/* View Mode Segmented Controls (Button tabs) */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {isToday && (
+          {isToday && !compact && (
             <button
               onClick={onTriggerRollover}
               title="Re-run daily carry-forward rollover safely"
@@ -345,6 +350,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <span>Notebook</span>
             </button>
 
+            {!compact && (
             <button
               onClick={() => handleSwitchMode('split')}
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -356,6 +362,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               <Columns className="w-3.5 h-3.5" />
               <span>Split</span>
             </button>
+            )}
 
             <button
               onClick={() => handleSwitchMode('raw')}
@@ -419,7 +426,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
       {/* MAIN CONTENT AREA */}
       {editorMode === 'visual' && (
-        <div className="space-y-8">
+        <div className={compact ? 'space-y-3' : 'space-y-5'}>
           {currentDocument.headings.map((section) => {
             const visibleItems = attentionFilterActive
               ? section.items.filter((item) => {
@@ -432,16 +439,24 @@ export const TodayView: React.FC<TodayViewProps> = ({
             if (attentionFilterActive && visibleItems.length === 0) {
               return null;
             }
+            // Empty sections collapse to a single slim row
+            const isEmptySection =
+              visibleItems.length === 0 &&
+              !section.notesContent &&
+              activeAddHeading !== section.name &&
+              activeNoteHeading !== section.name;
 
             return (
               <section
                 key={section.name}
-                className="bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 p-5 shadow-2xs space-y-4"
+                className={`bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs ${
+                  isEmptySection ? (compact ? 'px-3 py-1.5' : 'px-5 py-2') : compact ? 'p-3 space-y-3' : 'p-5 space-y-4'
+                }`}
               >
                 {/* Heading Bar */}
-                <div className="flex items-center justify-between pb-2 border-b border-stone-100 dark:border-stone-800">
+                <div className={`flex items-center justify-between ${isEmptySection ? '' : 'pb-2 border-b border-stone-100 dark:border-stone-800'}`}>
                   <div className="flex items-center gap-2.5">
-                    <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                    <h2 className={`font-bold text-stone-900 dark:text-stone-100 ${isEmptySection ? 'text-sm' : 'text-base'}`}>
                       {section.name}
                     </h2>
                     <span className="text-xs font-mono text-stone-400 dark:text-stone-500 tabular-nums">
@@ -825,7 +840,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       {/* FULL RAW MARKDOWN MODE */}
       {editorMode === 'raw' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
             <div>
               <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
                 Direct Markdown Editor ({currentDocument.date}.md)

@@ -6,7 +6,7 @@
  * - /api/*: never cached (sync must hit the server).
  * Bump CACHE_VERSION to force clients to drop old caches.
  */
-const CACHE_VERSION = 'daymark-shell-v1';
+const CACHE_VERSION = 'daymark-shell-v2';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (event) => {
@@ -17,7 +17,11 @@ self.addEventListener('install', (event) => {
       const html = await shell.clone().text();
       await cache.put('/', shell);
       const assetUrls = Array.from(html.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css|png|svg|json))"/g)).map((m) => m[1]);
-      const extras = ['/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+      // Lazy-loaded chunks (export/import, developer screens) are listed by the build
+      const built = await fetch('/asset-manifest.json', { cache: 'reload' })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
+      const extras = ['/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', ...built];
       await Promise.all(
         [...new Set([...assetUrls, ...extras])].map((url) =>
           cache.add(url).catch(() => undefined) // a missing optional asset must not block install

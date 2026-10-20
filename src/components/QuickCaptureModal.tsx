@@ -68,7 +68,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4">
       <div className="relative w-full max-w-lg bg-white dark:bg-stone-900 rounded-xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-stone-200 dark:border-stone-800">
@@ -140,7 +140,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
               >
                 {statuses.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.label} ({s.action})
+                    {s.label}
                   </option>
                 ))}
               </select>
@@ -148,8 +148,8 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="pt-2 flex items-center justify-between border-t border-stone-200 dark:border-stone-800">
-            <span className="text-[11px] text-stone-400 flex items-center gap-1 font-mono">
+          <div className="pt-2 flex items-center justify-end sm:justify-between border-t border-stone-200 dark:border-stone-800">
+            <span className="text-[11px] text-stone-400 hidden sm:flex items-center gap-1 font-mono">
               <CornerDownLeft className="w-3 h-3" /> Press Enter to capture
             </span>
 
@@ -163,7 +163,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-5 min-h-[44px] sm:min-h-0 sm:py-1.5 text-sm sm:text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Capture</span>

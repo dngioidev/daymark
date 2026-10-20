@@ -73,6 +73,9 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   const isSnoozed = isAlertDismissedForDate(task, currentDate);
 
   const prevDate = task.carriedFromDate || getPreviousDate(currentDate, 1);
+  const confirmDelete = () => {
+    if (window.confirm(`Delete "${task.title}"? This removes it from this day.`)) onDeleteTask(task.id);
+  };
   const prevDateLabel = getRelativeDateLabel(prevDate, currentDate);
 
   const handleToggleDone = () => {
@@ -157,7 +160,8 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
         <button
           type="button"
           onClick={handleToggleDone}
-          className={`mt-0.5 w-4.5 h-4.5 rounded-sm flex items-center justify-center border transition-colors shrink-0 ${
+          aria-label={isDone ? `Mark "${task.title}" not done` : `Mark "${task.title}" done`}
+          className={`relative mt-0.5 w-5 h-5 rounded-sm flex items-center justify-center border transition-colors shrink-0 before:absolute before:-inset-3 before:content-[''] ${
             isDone
               ? 'bg-emerald-600 border-emerald-600 text-white'
               : 'border-stone-300 dark:border-stone-600 hover:border-stone-400 dark:hover:border-stone-500 bg-white dark:bg-stone-800'
@@ -298,7 +302,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           {!isDone && (task.carriedFromDate || ageDays > 0) && (
             <div className="mt-2.5 pt-2 border-t border-stone-100 dark:border-stone-800/80 flex items-center gap-2 flex-wrap">
               <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                Actually finished yesterday?
+                {prevDate === getPreviousDate(currentDate, 1) ? 'Finished yesterday?' : 'Finished earlier?'}
               </span>
               <button
                 type="button"
@@ -417,7 +421,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => onDeleteTask(task.id)}
+                    onClick={() => confirmDelete()}
                     className="inline-flex items-center gap-1 text-stone-400 hover:text-rose-600 transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -479,7 +483,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
               <button
                 onClick={() => {
                   setShowOptionsMenu(false);
-                  onDeleteTask(task.id);
+                  confirmDelete();
                 }}
                 className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
               >

@@ -1,39 +1,23 @@
 # Daymark
 
-> **A Local-First Daily Markdown Notebook with Intelligent Task Carry-Forward, Historical Completion Correction, and Aging Alerts.**
+> **A local-first daily Markdown notebook that carries unfinished tasks forward, lets you record when work was really done, and warns you about tasks that keep slipping.**
 
-Daymark bridges the gap between plain-text Markdown notes (Obsidian, VS Code) and intelligent task management. It treats daily notes as human-readable Markdown files while providing automated task rollover, retroactive completion correction, aging stagnation alerts, and self-hosted multi-device synchronization.
+Each day is a plain Markdown note. Unfinished tasks move to today automatically, keeping their history; tasks that keep getting carried get amber and red aging alerts. Notes stay on your device, work offline, export as an Obsidian-compatible vault, and can optionally sync between your phone and computers through a server you run yourself.
 
----
-
-## 📖 Documentation
-
-Complete technical, architectural, and operational documentation is unified under [`.ai-configs/project/`](./.ai-configs/project/) as the single, high-density source of truth for both developers and AI coding agents:
-
-- **[`architecture.md`](./.ai-configs/project/architecture.md)** — System topology, Tri-Mode paradigm (Desktop Workspace, Mobile App, Self-Hosted Server), data flow, and native mobile widgets.
-- **[`specification.md`](./.ai-configs/project/specification.md)** — Functional PRD, schemas, lifecycle rollover algorithms, historical correction, and canonical Markdown specification.
-- **[`api-and-sync.md`](./.ai-configs/project/api-and-sync.md)** — Self-hosted Express sync gateway, REST API endpoints, authentication, and deployment guide.
-- **[`codebase-map.md`](./.ai-configs/project/codebase-map.md)** — File-by-file codebase guide, utility functions, and component hierarchy.
-- **[`conventions.md`](./.ai-configs/project/conventions.md)** — Development commands and critical Daymark engineering invariants.
-- **[`decisions.md`](./.ai-configs/project/decisions.md)** — Architectural decision records (ADRs) explaining core design rationale.
+Version **1.0.0**. Release notes per cycle: [`docs/releases/`](./docs/releases/).
 
 ---
 
-## 🚀 Quick Start
+## Get it
 
-### Development
-```bash
-# Install dependencies
-npm install
-
-# Run the development server (runs full-stack Express + Vite on port 3000)
-npm run dev
-```
-
-Visit `http://localhost:3000` to access Daymark.
+| Platform | How |
+| :--- | :--- |
+| **Android app** (with home-screen widget) | `npm run android:build`, then install `mobile/android/app/build/outputs/apk/debug/app-debug.apk` (USB: `adb install -r …`, or copy the file to the phone). Debug build, sideloaded. |
+| **Any browser / installable PWA** | Open the server address (below) in Chrome, Edge or Safari and choose *Install* / *Add to Home Screen*. Works offline after the first visit. |
+| **Self-hosted server** (sync + serves the PWA) | `DAYMARK_PASSWORD='choose-a-strong-one' docker compose up -d` |
 
 ### Self-hosting the sync server
-The server stores your vault in plain JSON files under `./data` and also serves the web app (installable as a PWA).
+The server stores your vault in plain JSON files under `./data` and also serves the web app.
 
 **Docker (recommended)**
 ```bash
@@ -46,18 +30,44 @@ npm ci && npm run build
 DAYMARK_PASSWORD='choose-a-strong-one' npm start
 ```
 
-Then on each device open **Sync** (phone) or **Self-Hosted Server** (desktop), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
+Then on each device open **Sync** (phone tab or desktop menu), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
+
+### Your data
+- Stored in the browser/app (IndexedDB) on each device; nothing leaves the device unless you connect a sync server.
+- **Settings → Backup & restore**: download a vault ZIP (Markdown files + a full snapshot) or a JSON backup, and restore either. On Android the file opens in the share sheet (save to Drive, Files, email…).
+- Uninstalling the app or clearing site data deletes the local vault, so keep a backup or use sync.
 
 ---
 
-## 📱 Mobile & Native Widgets
+## Develop
 
-- **Web / PWA**: Responsive mobile app shell accessible on iOS Safari and Android Chrome with home-screen installability.
-- **Android Glance Widget**: Native Android home-screen widget in `mobile/android/DaymarkGlanceWidget.kt`.
-- **iOS WidgetKit**: Native iOS small, medium, and lock-screen widget in `mobile/ios/DaymarkWidget.swift`.
+```bash
+npm install
+npm run dev            # Express + Vite on http://localhost:3000 (dev password: daymark-dev)
+npm run lint           # TypeScript
+npm test               # unit + in-process server tests
+npm run build          # production bundle
+npm run test:e2e       # PWA on an emulated Android phone, incl. offline
+npm run test:sync      # two devices syncing through a fresh server
+npm run android:build  # debug APK (JDK 21 + Android SDK); -- --test for Kotlin tests
+node scripts/e2e-android-native.mjs   # app + widget + sync on a booted emulator
+node scripts/ux-audit.mjs <cycle>     # screenshots of every screen, phone/desktop, light/dark
+```
 
----
+AI agents: start at [`CLAUDE.md`](./CLAUDE.md) / [`AGENTS.md`](./AGENTS.md).
 
-## 📄 License & Sovereignty
+## Documentation
+Project knowledge lives in [`.ai-configs/project/`](./.ai-configs/project/):
+- [`architecture.md`](./.ai-configs/project/architecture.md): system topology, data flow, PWA, Android shell, sync.
+- [`specification.md`](./.ai-configs/project/specification.md): schemas, rollover, historical completion, aging, Markdown format.
+- [`api-and-sync.md`](./.ai-configs/project/api-and-sync.md): server configuration, REST API, sync protocol, deployment.
+- [`codebase-map.md`](./.ai-configs/project/codebase-map.md): file-by-file guide.
+- [`decisions.md`](./.ai-configs/project/decisions.md): architecture decision records.
+- [`docs/ROADMAP.md`](./docs/ROADMAP.md): the cycles that took the prototype to 1.0.
 
-Daymark is local-first. Your notes are stored as standard Markdown files (`.md`) on your device and can be exported as a complete Obsidian-compatible vault ZIP at any time. Zero telemetry, zero proprietary lock-in.
+## Mobile notes
+- **Android**: Capacitor app around the web build plus a native Jetpack Glance widget (`mobile/android/`). See [`mobile/README.md`](./mobile/README.md).
+- **iOS**: use the PWA (Add to Home Screen in Safari). `mobile/ios/` holds WidgetKit sketches that are not built or tested.
+
+## Sovereignty
+Daily notes are standard Markdown (`YYYY-MM-DD.md`) with task metadata in HTML comments (`<!-- daymark: task_id=… -->`) that other Markdown apps ignore. Export everything at any time. No telemetry.

@@ -39,11 +39,12 @@ import {
   TaskItem,
 } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
+import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
 import { DailyHistoryView } from '../DailyHistoryView';
 import { SyncStatus } from '../../hooks/useSync';
 import { MarkdownPreview } from '../MarkdownPreview';
-import { formatFullDate, getNextDate, getPreviousDate } from '../../utils/lifecycleEngine';
+import { formatFullDate, getMostRecentPastDate, getNextDate, getPreviousDate } from '../../utils/lifecycleEngine';
 
 interface MobileAppShellProps {
   currentDocument: DailyDocument;
@@ -108,13 +109,20 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
     // If screen is wider than 768px, use phone frame by default on desktop; otherwise full canvas on phone
     return typeof window !== 'undefined' ? window.innerWidth >= 768 : false;
   });
-  const [historySelectedDate, setHistorySelectedDate] = useState<string>(
-    getPreviousDate(simulatedToday, 1)
+  const [historySelectedDate, setHistorySelectedDate] = useState<string>(() =>
+    getMostRecentPastDate(dailyDocs, simulatedToday)
   );
 
   // Dedicated Mobile Notes State
   const [mobileSelectedNoteId, setMobileSelectedNoteId] = useState<string | null>(notes[0]?.id || null);
   const [mobileNoteView, setMobileNoteView] = useState<'list' | 'editor'>('list');
+
+  // Android Back: editor -> notes list -> Today, then leave the app
+  useBackHandler(() => {
+    if (activeTab === 'notes' && mobileNoteView === 'editor') return (setMobileNoteView('list'), true);
+    if (activeTab !== 'today') return (setActiveTab('today'), true);
+    return false;
+  });
   const [mobileFolderFilter, setMobileFolderFilter] = useState<string>('all');
   const [mobileSearchQuery, setMobileSearchQuery] = useState('');
   const [mobileEditorTab, setMobileEditorTab] = useState<'edit' | 'preview'>('edit');
@@ -282,8 +290,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         <div className="px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] bg-stone-900/90 backdrop-blur-md border-b border-stone-800 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-xs bg-amber-500 inline-block" />
-            <span className="font-bold text-xs tracking-tight text-white">Daymark Mobile</span>
-            <span className="text-[10px] font-mono text-stone-400">({simulatedToday})</span>
+            <span className="font-bold text-sm tracking-tight text-white">Daymark</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -326,6 +333,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           {activeTab === 'today' && (
             <div className="p-3 sm:p-4 space-y-4">
               <TodayView
+                compact
                 currentDocument={currentDocument}
                 simulatedToday={simulatedToday}
                 statuses={settings.statuses}
@@ -676,7 +684,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('history')}
+            onClick={() => {
+              setActiveTab('history');
+              if (!dailyDocs.some((d) => d.date === historySelectedDate)) {
+                setHistorySelectedDate(getMostRecentPastDate(dailyDocs, simulatedToday));
+              }
+            }}
             className={`flex flex-col items-center justify-center p-1 min-w-[50px] min-h-[44px] rounded-lg text-[10px] font-medium transition-colors ${
               activeTab === 'history'
                 ? 'text-amber-600 dark:text-amber-400 font-bold'

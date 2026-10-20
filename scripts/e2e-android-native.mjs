@@ -222,6 +222,26 @@ try {
   const { token } = await loginRes.json();
   const stats = await (await fetch(`http://127.0.0.1:${SYNC_PORT}/api/server/stats`, { headers: { Authorization: `Bearer ${token}` } })).json();
   check(stats.dailyNotes >= 1, 'the phone vault reached the server', `${stats.dailyNotes} daily notes, ${stats.notes} notes`);
+
+  // ---- Android Back button ----
+  const focused = () =>
+    /app\.daymark\.notes/.test(
+      adb('shell', 'dumpsys', 'window', 'displays')
+        .split('\n')
+        .filter((l) => /mCurrentFocus|mFocusedApp/.test(l))
+        .join(' ')
+    );
+  await clickButton(/settings, backup and import/i);
+  await waitFor(`!!document.querySelector('[role=dialog][aria-label=Settings]')`, 'settings open');
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+  await sleep(1200);
+  check(!(await evaluate(`!!document.querySelector('[role=dialog][aria-label=Settings]')`)) && focused(), 'Back closes Settings and keeps the app open');
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); // from the Sync tab
+  await sleep(1200);
+  check((await evaluate(`document.body.innerText.includes('Finished earlier') || document.body.innerText.includes('carried-forward')`)) && focused(), 'Back from the Sync tab returns to Today');
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); // on Today
+  await sleep(1500);
+  check(!focused() && adb('shell', 'pidof', PKG).trim().length > 0, 'Back on Today minimises the app (not killed)');
 } catch (err) {
   console.error('E2E aborted:', err);
   failures++;

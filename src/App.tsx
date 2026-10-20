@@ -34,17 +34,20 @@ import {
   reopenTask,
   getAgingSeverity,
   getPreviousDate,
+  getMostRecentPastDate,
 } from './utils/lifecycleEngine';
 import { Navbar } from './components/Navbar';
 import { TodayView } from './components/TodayView';
 import { DailyHistoryView } from './components/DailyHistoryView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
-import { MobileCodeHub } from './components/MobileCodeHub';
+// Developer-only screen (large embedded code samples): loaded on demand
+const MobileCodeHub = React.lazy(() => import('./components/MobileCodeHub').then((m) => ({ default: m.MobileCodeHub })));
 import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { ServerDashboard } from './components/server/ServerDashboard';
 import { SyncPanel } from './components/sync/SyncPanel';
 import { useSync } from './hooks/useSync';
 import { isNativeApp } from './native/daymarkBridge';
+import { useBackHandler } from './native/backButton';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { HistoricalCompletionModal } from './components/HistoricalCompletionModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
@@ -73,7 +76,7 @@ export default function App() {
   const realToday = useRealToday();
   const today = resolveToday(settings.simulatedToday, realToday);
   const [currentDate, setCurrentDate] = useState<string>(today);
-  const [historySelectedDate, setHistorySelectedDate] = useState<string>(getPreviousDate(today, 1));
+  const [historySelectedDate, setHistorySelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
 
   // Deep link target for the mobile shell (?tab=notes from manifest shortcuts)
   const [initialMobileTab] = useState<MobileTab | undefined>(() => {
@@ -114,7 +117,7 @@ export default function App() {
     previousTodayRef.current = today;
     if (previousToday !== today) {
       setCurrentDate((prev) => (prev === previousToday ? today : prev));
-      setHistorySelectedDate(getPreviousDate(today, 1));
+      setHistorySelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
     const { updatedDocs, carriedCount } = performDailyRollover(
       today,
@@ -131,6 +134,23 @@ export default function App() {
     // Runs when the effective date changes; performDailyRollover is idempotent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
+
+  // Android Back closes the topmost dialog first
+  useBackHandler(() => {
+    if (isQuickCaptureOpen) return (setIsQuickCaptureOpen(false), true);
+    if (historicalModalTask) return (setHistoricalModalTask(null), true);
+    if (historyDrawerTask) return (setHistoryDrawerTask(null), true);
+    if (isSettingsOpen) return (setIsSettingsOpen(false), true);
+    return false;
+  });
+
+  // History opens on the latest day that actually has a note
+  useEffect(() => {
+    if (activeDesktopTab === 'history' && !dailyDocs.some((d) => d.date === historySelectedDate)) {
+      setHistorySelectedDate(getMostRecentPastDate(dailyDocs, today));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDesktopTab]);
 
   // Deep links from the PWA manifest shortcuts (?action=capture)
   useEffect(() => {
@@ -436,7 +456,7 @@ export default function App() {
   const navbarSyncStatus = ({ off: 'offline', idle: 'synced', syncing: 'syncing', offline: 'offline', error: 'error' } as const)[sync.status];
 
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col">
       {/* 1. PRIMARY DESKTOP MODE: FULL WIDTH NOTES APPLICATION */}
       {appMode === 'desktop' && (
         <div className="flex flex-col min-h-screen w-full">
@@ -456,7 +476,7 @@ export default function App() {
             showDevTabs={devMode}
           />
 
-          <main className="flex-1 w-full bg-stone-900">
+          <main className="flex-1 w-full bg-stone-50 dark:bg-stone-950">
             {activeDesktopTab === 'today' && (
               <TodayView
                 currentDocument={currentDoc}
@@ -492,14 +512,16 @@ export default function App() {
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <MobileCodeHub
-                  currentDocument={currentDoc}
-                  simulatedToday={today}
-                  statuses={settings.statuses}
-                  onToggleTaskDone={handleToggleTaskDone}
-                  onQuickHistoricalDone={handleQuickHistoricalDone}
-                  onQuickAddTask={handleQuickAddTaskFromHub}
-                />
+                <React.Suspense fallback={null}>
+                  <MobileCodeHub
+                    currentDocument={currentDoc}
+                    simulatedToday={today}
+                    statuses={settings.statuses}
+                    onToggleTaskDone={handleToggleTaskDone}
+                    onQuickHistoricalDone={handleQuickHistoricalDone}
+                    onQuickAddTask={handleQuickAddTaskFromHub}
+                  />
+                </React.Suspense>
               </div>
             )}
           </main>

@@ -32,4 +32,5 @@ These rules govern how changes must be tested, validated, and verified before co
 - **Android build + Kotlin unit tests**: `npm run android:build -- --test` (needs JDK 21 and the Android SDK)
 - **Native Android E2E** (booted emulator/device, widget included): `node scripts/e2e-android-native.mjs [cycle]`
 - **Sync E2E** (production build, two browser devices, server restart): `npm run build && npm run test:sync`
+- **UI audit** (after UI changes): `npm run build && node scripts/ux-audit.mjs <cycle>`, then look at the phone and desktop shots in light and dark mode.
 - **Release Screenshots**: `node scripts/capture-screenshots.mjs <cycle>` (needs local Chrome or Edge; see the release-handoff workflow)

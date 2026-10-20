@@ -345,6 +345,12 @@ export function getPreviousDate(dateStr: string, daysAgo = 1): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** Latest date before `today` that has a daily note (falls back to yesterday). */
+export function getMostRecentPastDate(docs: DailyDocument[], today: string): string {
+  const past = docs.map((d) => d.date).filter((d) => d < today).sort();
+  return past.length ? past[past.length - 1] : getPreviousDate(today, 1);
+}
+
 /**
  * Helper to get next date string (YYYY-MM-DD).
  */

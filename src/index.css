@@ -286,3 +286,14 @@
   background-color: rgba(239, 68, 68, 0.08);
   color: #f87171;
 }
+
+/* Code and raw Markdown: show characters literally ("<!--" must not render as an arrow ligature) */
+.font-mono,
+code,
+pre,
+kbd,
+samp,
+textarea {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}

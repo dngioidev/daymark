@@ -84,7 +84,8 @@ try {
   // Real date, not the old demo date
   const today = localToday();
   const bodyText = await page.locator('body').innerText();
-  check(bodyText.includes(today), 'header shows the real local date', today);
+  const longToday = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  check(bodyText.includes(today) || bodyText.includes(longToday), 'page shows the real local date', longToday);
   check(!bodyText.includes('2026-10-16') || today === '2026-10-16', 'demo date is not shown');
 
   // Quick capture and persistence
@@ -121,6 +122,13 @@ try {
   await shot('android-3-offline-capture');
   await page.reload({ waitUntil: 'domcontentloaded' });
   check(await page.getByText('Captured offline (e2e)').first().isVisible().catch(() => false), 'offline capture survives offline reload');
+  // Export works offline too (JSZip is a lazy chunk the service worker precaches)
+  await page.getByRole('button', { name: /settings, backup and import/i }).click();
+  const download = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
+  await page.getByRole('button', { name: /download vault zip/i }).click();
+  const file = await download;
+  check(!!file && /.zip$/.test(file.suggestedFilename()), 'offline vault ZIP export works', file ? file.suggestedFilename() : 'no download');
+  await page.getByRole('button', { name: /^done$/i }).click().catch(() => {});
   await context.setOffline(false);
 
   // Deep link from manifest shortcut

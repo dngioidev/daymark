@@ -72,7 +72,13 @@ export class FileStore {
 
   /** Loads all files. Creates the admin account from `initialPassword` if none exists yet. */
   init(username: string, initialPassword: string | null): { createdAccount: boolean } {
-    fs.mkdirSync(this.dir, { recursive: true });
+    // Owner-only: auth.json holds the password hash and the token signing secret
+    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(this.dir, 0o700); // tighten a directory created earlier (no-op on Windows)
+    } catch {
+      // not permitted on some volume types; the file modes below still apply
+    }
     const auth = this.read<AuthRecord | null>('auth.json', null);
     let createdAccount = false;
     if (auth) {
@@ -96,7 +102,7 @@ export class FileStore {
   private writeNow(name: string, data: unknown) {
     const target = this.file(name);
     const tmp = `${target}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(data));
+    fs.writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
     fs.renameSync(tmp, target);
   }
 

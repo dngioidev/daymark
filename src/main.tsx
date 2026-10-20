@@ -3,10 +3,12 @@ import App from './App.tsx';
 import './index.css';
 import { initVaultStore } from './utils/vaultStore';
 import { isNativeApp } from './native/daymarkBridge';
+import { installBackButton } from './native/backButton';
 
 // Hydrate the vault from IndexedDB before the first render so the app never flashes empty data
 initVaultStore().finally(() => {
   createRoot(document.getElementById('root')!).render(<App />);
+  void installBackButton();
 
   // Offline support: only in production browser builds. A dev service worker would cache stale
   // modules, and the Android app already bundles every asset locally.

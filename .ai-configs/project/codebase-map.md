@@ -36,6 +36,8 @@ daymark/
 | `public/sw.js`, `public/manifest.json`, `public/icons/` | PWA | Offline app-shell service worker, install manifest, PNG icons (regenerate with `node scripts/generate-icons.mjs`). |
 | `mobile/android/` | Native | Capacitor Android project: `DaymarkBridgePlugin`, `WidgetStore`, `WidgetModel` (JVM unit tests), `DaymarkGlanceWidget`. Build with `npm run android:build`. |
 | `src/native/daymarkBridge.ts`, `src/hooks/useWidgetSync.ts`, `src/utils/widgetSnapshot.ts`, `src/utils/taskActions.ts` | Native bridge | JS side of the widget: snapshot builder, queued-action handling, shared task toggle. No-ops in the browser. |
+| `src/native/backButton.ts` | Native | Android Back handling: dialogs, editor and tabs register handlers; otherwise the app minimises. |
+| `scripts/ux-audit.mjs` | Tooling | Screenshots of every main screen (phone/desktop, light/dark) for UI review. |
 | `src/components/WelcomeModal.tsx` | UI | First-run choice: empty vault or sample data. |
 | `src/components/TodayView.tsx` | UI | Daily notebook view with visual, split, and raw markdown modes. |
 | `src/components/StandaloneNotesView.tsx` | UI | 3-column evergreen notes workspace with folder navigation and editor. |

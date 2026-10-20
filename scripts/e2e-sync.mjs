@@ -77,7 +77,7 @@ try {
   await laptop.getByRole('button', { name: /quick capture/i }).click();
   await laptop.getByPlaceholder(/what did you work on/i).fill('Written on the laptop');
   await laptop.getByRole('button', { name: /^capture$/i }).click();
-  await laptop.getByRole('button', { name: /self-hosted server/i }).click();
+  await laptop.getByRole('button', { name: /^\s*sync\s*$/i }).click();
   await connect(laptop, 'Laptop');
   check(true, 'laptop connected and synced');
   await shot(laptop, 'sync-1-laptop-connected');
@@ -111,7 +111,7 @@ try {
   await shot(laptop, 'sync-4-laptop-today');
 
   // Server dashboard lists both devices
-  await laptop.getByRole('button', { name: /self-hosted server/i }).click();
+  await laptop.getByRole('button', { name: /^\s*sync\s*$/i }).click();
   await laptop.getByText('Phone', { exact: true }).waitFor({ timeout: 10000 }).catch(() => {});
   check(await laptop.getByText('Phone', { exact: true }).isVisible().catch(() => false), 'server lists the phone as a connected device');
   await shot(laptop, 'sync-5-server-dashboard');
@@ -124,7 +124,7 @@ try {
   const third = await thirdCtx.newPage();
   await third.goto(base, { waitUntil: 'networkidle' });
   await third.getByRole('button', { name: /start with an empty vault/i }).click();
-  await third.getByRole('button', { name: /self-hosted server/i }).click();
+  await third.getByRole('button', { name: /^\s*sync\s*$/i }).click();
   await connect(third, 'Desktop 2');
   await third.getByRole('button', { name: /^today/i }).first().click();
   const both = (await third.getByText('Written on the laptop').count()) > 0 && (await third.getByText('Written on the phone').count()) > 0;

@@ -187,3 +187,10 @@ describe('sync between two devices', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('data files', () => {
+  it.skipIf(process.platform === 'win32')('are written owner-only', () => {
+    expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
+    expect(fs.statSync(path.join(dir, 'auth.json')).mode & 0o777).toBe(0o600);
+  });
+});

@@ -92,6 +92,7 @@ Outcome: safe self-hosting plus multi-device sync (desktop browser and Android a
 Done when: server restart keeps data, unauthenticated calls return 401, two clients converge, Docker image runs from a clean machine.
 
 ## Cycle 4: The rest (desktop polish, iOS, v1.0)
+**Status: done on branch `cycle-4-ux-polish-v1`; version 1.0.0.** See [docs/releases/cycle-4](./releases/cycle-4/README.md). iOS stays PWA-only; the large-component split was deferred.
 - Desktop: code-split the 586 kB bundle (lazy-load Settings, admin dashboard, jszip), split the largest components (`TodayView` 835 lines, `SettingsModal` 753, `MobileAppShell` 698), accessibility and keyboard pass, empty and error states, optional File System Access API folder-of-`.md` storage.
 - iOS: PWA parity verified on Safari viewport; WidgetKit wrapper only if wanted for v1 (otherwise marked experimental).
 - Release: refresh README and `.ai-configs/project` docs, tag `v1.0.0`, final screenshot set.
@@ -114,3 +115,11 @@ Done when: server restart keeps data, unauthenticated calls return 401, two clie
 - Android wrapper: Capacitor (recommended) or TWA.
 - Server storage: JSON files (simplest) or SQLite.
 - iOS WidgetKit in v1 or deferred.
+
+## After 1.0: suggested follow-ups
+- Install the 1.0 APK on your own phone and note anything awkward; feed it into a short polish cycle.
+- Push the branches and let CI run (lint, tests, PWA and sync e2e, APK build); fix anything Linux-specific.
+- Release signing for the APK (keystore, `assembleRelease`) if you want to share it or publish to Play.
+- HTTPS by default for the server (Caddy example in compose).
+- Split `TodayView`, `SettingsModal` and `MobileAppShell` into smaller components before adding features.
+- Widget: quick-add task, and open the app on a specific day.

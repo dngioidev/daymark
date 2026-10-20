@@ -106,10 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <Server className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>Self-Hosted Server</span>
-            <span className="hidden lg:inline text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold">
-              Advance
-            </span>
+            <span>Sync</span>
           </button>
 
           {showDevTabs && (
@@ -166,7 +163,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Quick Capture</span>
-            <span className="hidden lg:inline text-[10px] opacity-75 font-mono ml-0.5">⌘K</span>
+            <span className="hidden lg:inline text-[10px] opacity-75 font-mono ml-0.5">
+              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
+            </span>
           </button>
         </div>
       </div>

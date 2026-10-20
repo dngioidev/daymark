@@ -1,11 +1,23 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, type Plugin} from 'vite';
+
+/** Emits /asset-manifest.json (every built JS/CSS file) so the service worker can precache lazy chunks too. */
+const assetManifest = (): Plugin => ({
+  name: 'daymark-asset-manifest',
+  apply: 'build',
+  generateBundle(_options, bundle) {
+    const files = Object.keys(bundle)
+      .filter((f) => f.startsWith('assets/'))
+      .map((f) => `/${f}`);
+    this.emitFile({ type: 'asset', fileName: 'asset-manifest.json', source: JSON.stringify(files) });
+  },
+});
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), assetManifest()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

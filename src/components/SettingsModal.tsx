@@ -37,6 +37,15 @@ interface SettingsModalProps {
 
 type SettingsTab = 'lifecycle' | 'aging' | 'headings' | 'storage' | 'sync' | 'simulation';
 
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'storage', label: 'Backup & restore' },
+  { id: 'sync', label: 'Sync' },
+  { id: 'lifecycle', label: 'Statuses' },
+  { id: 'aging', label: 'Aging alerts' },
+  { id: 'headings', label: 'Headings' },
+  { id: 'simulation', label: 'Developer' },
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -51,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('lifecycle');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('storage');
   const [draftSettings, setDraftSettings] = useState<AppSettings>(JSON.parse(JSON.stringify(settings)));
 
   // Add new status state
@@ -159,91 +168,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="relative w-full max-w-3xl bg-white dark:bg-stone-900 rounded-xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-stretch sm:items-center justify-center sm:p-4">
+      <div role="dialog" aria-modal="true" aria-label="Settings" className="relative w-full max-w-3xl bg-white dark:bg-stone-900 sm:rounded-xl shadow-2xl sm:border border-stone-200 dark:border-stone-800 overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] pt-[env(safe-area-inset-top)] sm:pt-0">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-stone-200 dark:border-stone-800">
           <div className="flex items-center gap-2.5">
             <Settings className="w-5 h-5 text-amber-600 dark:text-amber-500" />
             <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
-              Daymark Preferences & Rules
+              Settings
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
+            aria-label="Close settings"
+            className="p-2 -m-1 rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center border-b border-stone-200 dark:border-stone-800 px-4 overflow-x-auto text-xs bg-stone-50/50 dark:bg-stone-900/50">
-          <button
-            onClick={() => setActiveTab('lifecycle')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'lifecycle'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Statuses & Lifecycle
-          </button>
-
-          <button
-            onClick={() => setActiveTab('aging')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'aging'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Carry-Forward Aging
-          </button>
-
-          <button
-            onClick={() => setActiveTab('headings')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'headings'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Default Headings
-          </button>
-
-          <button
-            onClick={() => setActiveTab('simulation')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'simulation'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Date Simulator
-          </button>
-
-          <button
-            onClick={() => setActiveTab('storage')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'storage'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Vault & Backup
-          </button>
-
-          <button
-            onClick={() => setActiveTab('sync')}
-            className={`py-3 px-3 font-semibold border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'sync'
-                ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
-          >
-            Self-Hosted Sync
-          </button>
+        {/* Tab Navigation: wraps so every section is reachable on a phone */}
+        <div className="flex flex-wrap gap-1.5 border-b border-stone-200 dark:border-stone-800 px-3 py-2.5 text-xs bg-stone-50/50 dark:bg-stone-900/50">
+          {SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              className={`min-h-[36px] px-3 rounded-full font-semibold whitespace-nowrap transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Tab Body */}
@@ -637,23 +596,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="p-4 border border-rose-200 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/20 rounded-xl flex items-center justify-between gap-4 text-xs">
                 <div>
                   <div className="font-semibold text-rose-900 dark:text-rose-200">
-                    Reset to Demonstration Seed Data
+                    Replace with sample data
                   </div>
                   <p className="text-[11px] text-stone-500">
-                    Replaces local storage with the original October 14–16 seed notes and carry-forward demo tasks.
+                    Replaces everything in this vault with demo notes and tasks. Export a backup first if you want to keep your notes.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm('Reset all daily notes and standalone files to default seed data?')) {
+                    if (confirm('Replace ALL notes and tasks in this vault with sample data? This cannot be undone unless you have a backup.')) {
                       onResetVault();
                       onClose();
                     }
                   }}
                   className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium shadow-2xs"
                 >
-                  Reset Vault
+                  Replace
                 </button>
               </div>
             </div>
@@ -664,21 +623,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/50 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3.5 py-2 text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-2xs transition-colors"
-          >
-            Save Preferences
-          </button>
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/50 flex items-center justify-end gap-3">
+          {activeTab === 'storage' || activeTab === 'sync' ? (
+            // These tabs act immediately; nothing to save
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[40px] px-5 py-2 text-sm font-semibold text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 rounded-md"
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="min-h-[40px] px-3.5 py-2 text-sm font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="min-h-[40px] px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-2xs transition-colors"
+              >
+                Save changes
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
