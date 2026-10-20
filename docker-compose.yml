@@ -1,0 +1,13 @@
+# Start:  DAYMARK_PASSWORD='choose-a-strong-one' docker compose up -d
+# The password is only used to create the account on first start (stored hashed in ./data).
+services:
+  daymark:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DAYMARK_USER: ${DAYMARK_USER:-admin}
+      DAYMARK_PASSWORD: ${DAYMARK_PASSWORD:-}
+    volumes:
+      - ./data:/data

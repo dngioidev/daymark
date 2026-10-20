@@ -17,7 +17,6 @@ import {
   Layers,
 } from 'lucide-react';
 import { AppSettings, LifecycleAction, StatusDefinition } from '../types/daymark';
-import { SyncLogEntry } from '../utils/vaultStore';
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
 import { isNativeApp, requestPinWidget } from '../native/daymarkBridge';
@@ -26,14 +25,14 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
-  syncLogs: SyncLogEntry[];
   onSaveSettings: (settings: AppSettings) => void;
   onExportZip: () => void;
   onExportJson: () => void;
   onImportJson: (jsonStr: string) => void;
   onImportZip: (file: File) => void;
   onResetVault: () => void;
-  onTriggerSync: () => void;
+  /** Rendered in the Sync tab (connection to the self-hosted server). */
+  syncPanel: React.ReactNode;
 }
 
 type SettingsTab = 'lifecycle' | 'aging' | 'headings' | 'storage' | 'sync' | 'simulation';
@@ -42,14 +41,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   settings,
-  syncLogs,
   onSaveSettings,
   onExportZip,
   onExportJson,
   onImportJson,
   onImportZip,
   onResetVault,
-  onTriggerSync,
+  syncPanel,
 }) => {
   if (!isOpen) return null;
 
@@ -662,107 +660,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* TAB 6: SELF-HOSTED SYNC */}
-          {activeTab === 'sync' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
-                  <Server className="w-4 h-4 text-amber-600" />
-                  <span>Self-Hosted Synchronization Protocol</span>
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Synchronize your Markdown notebook with a private server under your control (Section 9.3 of PRD).
-                </p>
-              </div>
-
-              <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-3 text-xs">
-                <div>
-                  <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                    Self-Hosted Server URL
-                  </label>
-                  <input
-                    type="text"
-                    value={draftSettings.syncConfig.serverUrl}
-                    onChange={(e) =>
-                      setDraftSettings({
-                        ...draftSettings,
-                        syncConfig: { ...draftSettings.syncConfig, serverUrl: e.target.value },
-                      })
-                    }
-                    className="w-full px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded font-mono text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                      Device Identifier
-                    </label>
-                    <input
-                      type="text"
-                      value={draftSettings.syncConfig.deviceId}
-                      onChange={(e) =>
-                        setDraftSettings({
-                          ...draftSettings,
-                          syncConfig: { ...draftSettings.syncConfig, deviceId: e.target.value },
-                        })
-                      }
-                      className="w-full px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                      Bearer Auth Token
-                    </label>
-                    <input
-                      type="password"
-                      value={draftSettings.syncConfig.authToken}
-                      onChange={(e) =>
-                        setDraftSettings({
-                          ...draftSettings,
-                          syncConfig: { ...draftSettings.syncConfig, authToken: e.target.value },
-                        })
-                      }
-                      className="w-full px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-[11px] text-stone-500 font-mono">
-                    Last sync: {draftSettings.syncConfig.lastSyncAt || 'Never'}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onTriggerSync}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium flex items-center gap-1.5 shadow-2xs"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Sync Now</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Sync Log Entries */}
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-                  Recent Sync Audit Log
-                </h4>
-                <div className="space-y-1.5 font-mono text-[11px]">
-                  {syncLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="p-2 bg-stone-50 dark:bg-stone-800/50 rounded border border-stone-200 dark:border-stone-800 flex items-center justify-between"
-                    >
-                      <span className="text-stone-700 dark:text-stone-300 truncate">{log.details}</span>
-                      <span className="text-stone-400 shrink-0 ml-2">
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === 'sync' && <div className="space-y-4">{syncPanel}</div>}
         </div>
 
         {/* Footer */}

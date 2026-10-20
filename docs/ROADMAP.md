@@ -81,6 +81,7 @@ Outcome: an installable APK (side-loaded) with the Glance task widget showing re
 Done when: the APK builds in CI and installs; widget shows today's tasks. Risk: needs the Android SDK locally; if unavailable, this cycle is partly verifiable only through CI.
 
 ## Cycle 3: Self-hosted server and sync
+**Status: done on branch `cycle-3-self-hosted-sync`.** See [docs/releases/cycle-3](./releases/cycle-3/README.md).
 Outcome: safe self-hosting plus multi-device sync (desktop browser and Android app) with no lost data.
 
 1. Secure persistent server (Opus): fix B4 and B5. Refuse to start without `DAYMARK_PASSWORD`; hashed password; signed expiring tokens; auth middleware on all `/api/*` except `health` and `login`; login rate limiting; persistence to `DATA_DIR` (JSON files, or SQLite if you prefer); remove fake devices and logs; Dockerfile and compose example.

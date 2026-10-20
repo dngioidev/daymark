@@ -41,7 +41,7 @@ import {
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { TodayView } from '../TodayView';
 import { DailyHistoryView } from '../DailyHistoryView';
-import { MobileSyncConnect } from './MobileSyncConnect';
+import { SyncStatus } from '../../hooks/useSync';
 import { MarkdownPreview } from '../MarkdownPreview';
 import { formatFullDate, getNextDate, getPreviousDate } from '../../utils/lifecycleEngine';
 
@@ -63,10 +63,20 @@ interface MobileAppShellProps {
   onTriggerRollover: () => void;
   onSwitchToServerAdmin: () => void;
   onSwitchToDesktop?: () => void;
-  onSyncComplete: (serverDocs: DailyDocument[], serverNotes: StandaloneNote[]) => void;
+  syncStatus: SyncStatus;
+  /** Content of the Sync tab (sync connection + server management). */
+  syncTab: React.ReactNode;
   initialTab?: MobileTab;
   onOpenSettings?: () => void;
 }
+
+const SYNC_PILL: Record<SyncStatus, { dot: string; label: string }> = {
+  off: { dot: 'bg-stone-500', label: 'Local only' },
+  idle: { dot: 'bg-emerald-500', label: 'Synced' },
+  syncing: { dot: 'bg-amber-500 animate-pulse', label: 'Syncing' },
+  offline: { dot: 'bg-amber-500', label: 'Offline' },
+  error: { dot: 'bg-rose-500', label: 'Sync error' },
+};
 
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   currentDocument,
@@ -86,7 +96,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onTriggerRollover,
   onSwitchToServerAdmin,
   onSwitchToDesktop,
-  onSyncComplete,
+  syncStatus,
+  syncTab,
   initialTab,
   onOpenSettings,
 }) => {
@@ -297,12 +308,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               onClick={() => setActiveTab('sync')}
               className="inline-flex items-center gap-1 text-[11px] font-mono text-stone-400 hover:text-amber-400 transition-colors"
             >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  settings.syncConfig.status === 'synced' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                }`}
-              />
-              <span className="capitalize">{settings.syncConfig.status}</span>
+              <span className={`w-2 h-2 rounded-full ${SYNC_PILL[syncStatus].dot}`} />
+              <span>{SYNC_PILL[syncStatus].label}</span>
             </button>
           </div>
         </div>
@@ -604,13 +611,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
           {/* TAB 4: MOBILE SYNC CONNECT */}
           {activeTab === 'sync' && (
-            <MobileSyncConnect
-              settings={settings}
-              dailyDocs={dailyDocs}
-              notes={notes}
-              onSaveSettings={onSaveSettings}
-              onSyncComplete={onSyncComplete}
-            />
+            <div className="p-3 sm:p-4">{syncTab}</div>
           )}
 
           {/* TAB 5: MOBILE SETTINGS */}

@@ -32,17 +32,21 @@ npm run dev
 
 Visit `http://localhost:3000` to access Daymark.
 
-### Production Build & Self-Hosting
-```bash
-# Build the client application
-npm run build
+### Self-hosting the sync server
+The server stores your vault in plain JSON files under `./data` and also serves the web app (installable as a PWA).
 
-# Start the self-hosted sync server
-export DAYMARK_USER="admin"
-export DAYMARK_PASSWORD="your-secure-password"
-export PORT=3000
-npm start
+**Docker (recommended)**
+```bash
+DAYMARK_PASSWORD='choose-a-strong-one' docker compose up -d
 ```
+
+**Node 20+**
+```bash
+npm ci && npm run build
+DAYMARK_PASSWORD='choose-a-strong-one' npm start
+```
+
+Then on each device open **Sync** (phone) or **Self-Hosted Server** (desktop), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
 
 ---
 

@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 .forge/
+
+# Self-hosted server data (vault, account, devices)
+data/

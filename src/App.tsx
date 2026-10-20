@@ -7,7 +7,6 @@ import {
   TaskItem,
   AppMode,
   MobileTab,
-  ServerAuthState,
 } from './types/daymark';
 import {
   loadSettings,
@@ -16,15 +15,12 @@ import {
   saveDailyDocuments,
   loadStandaloneNotes,
   saveStandaloneNotes,
-  loadSyncLogs,
-  saveSyncLogs,
   exportVaultAsZip,
   exportVaultAsJson,
   resetVaultToSeedData,
   needsOnboarding,
   markOnboarded,
   subscribeStorageErrors,
-  SyncLogEntry,
 } from './utils/vaultStore';
 import { importVaultFromZip } from './utils/vaultArchive';
 import { resolveToday } from './utils/clock';
@@ -45,8 +41,10 @@ import { DailyHistoryView } from './components/DailyHistoryView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 import { MobileCodeHub } from './components/MobileCodeHub';
 import { MobileAppShell } from './components/mobile/MobileAppShell';
-import { ServerAdminDashboard } from './components/server/ServerAdminDashboard';
-import { ServerAuthModal } from './components/server/ServerAuthModal';
+import { ServerDashboard } from './components/server/ServerDashboard';
+import { SyncPanel } from './components/sync/SyncPanel';
+import { useSync } from './hooks/useSync';
+import { isNativeApp } from './native/daymarkBridge';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { HistoricalCompletionModal } from './components/HistoricalCompletionModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
@@ -65,22 +63,10 @@ export default function App() {
   // Desktop active tab
   const [activeDesktopTab, setActiveDesktopTab] = useState<ViewTab>('today');
 
-  // Server Authentication State
-  const [serverAuth, setServerAuth] = useState<ServerAuthState>(() => {
-    try {
-      const saved = localStorage.getItem('daymark_server_auth');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { isLoggedIn: false, username: '', token: null };
-  });
-
-  const [isServerAuthModalOpen, setIsServerAuthModalOpen] = useState(false);
-
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
-  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>(loadSyncLogs);
 
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
@@ -166,15 +152,6 @@ export default function App() {
     saveSettings(settings);
   }, [settings]);
 
-  useEffect(() => {
-    saveSyncLogs(syncLogs);
-  }, [syncLogs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('daymark_server_auth', JSON.stringify(serverAuth));
-    } catch (e) {}
-  }, [serverAuth]);
 
   // Ensure document exists for currentDate
   const currentDoc = useMemo(() => {
@@ -437,12 +414,26 @@ export default function App() {
     setShowWelcome(false);
   };
 
-  // Handler: Mobile Sync Complete Callback from server
-  const handleMobileSyncComplete = (serverDocs: DailyDocument[], serverNotes: StandaloneNote[]) => {
-    if (serverDocs && serverDocs.length > 0) setDailyDocs(serverDocs);
-    if (serverNotes && serverNotes.length > 0) setNotes(serverNotes);
-    showToast('Vault reconciled with self-hosted server.');
-  };
+  // Self-hosted sync: merges this vault with the server in the background
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings }), [dailyDocs, notes, settings]);
+  const sync = useSync(
+    vaultForSync,
+    (next) => {
+      setDailyDocs(next.docs);
+      setNotes(next.notes);
+      setSettings(next.settings);
+    },
+    (conflicts) =>
+      showToast(conflicts.length === 1 ? conflicts[0] : `${conflicts.length} edits made on two devices were merged; nothing was lost.`),
+    isNativeApp() ? 'android' : 'web'
+  );
+  const defaultDeviceName = useMemo(() => {
+    if (isNativeApp()) return 'Android phone';
+    const ua = navigator.userAgent;
+    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iPhone' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : 'Linux';
+    return `${os} browser`;
+  }, []);
+  const navbarSyncStatus = ({ off: 'offline', idle: 'synced', syncing: 'syncing', offline: 'offline', error: 'error' } as const)[sync.status];
 
   return (
     <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col">
@@ -460,7 +451,7 @@ export default function App() {
             onExportZip={handleExportVaultZip}
             onSwitchToMobileApp={() => setAppMode('mobile-app')}
             simulatedToday={today}
-            syncStatus={settings.syncConfig.status}
+            syncStatus={navbarSyncStatus}
             carriedAlertCount={carriedAlertCount}
             showDevTabs={devMode}
           />
@@ -497,21 +488,7 @@ export default function App() {
               <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} />
             )}
 
-            {activeDesktopTab === 'server' && (
-              <ServerAdminDashboard
-                username={serverAuth.username || 'admin'}
-                onLogout={() => {
-                  setServerAuth({ isLoggedIn: false, username: '', token: null });
-                  showToast('Signed out of Self-Hosted Server.');
-                }}
-                onSwitchToMobile={() => setAppMode('mobile-app')}
-                onSwitchToDesktop={() => setActiveDesktopTab('today')}
-                dailyDocs={dailyDocs}
-                notes={notes}
-                settings={settings}
-                onExportZip={handleExportVaultZip}
-              />
-            )}
+            {activeDesktopTab === 'server' && <ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -548,36 +525,17 @@ export default function App() {
           onReopenTask={handleReopenTask}
           onTriggerRollover={handleTriggerRollover}
           onSwitchToServerAdmin={() => {
-            if (serverAuth.isLoggedIn) {
-              setAppMode('web-server');
-            } else {
-              setIsServerAuthModalOpen(true);
-            }
+            setAppMode('desktop');
+            setActiveDesktopTab('server');
           }}
           onSwitchToDesktop={() => setAppMode('desktop')}
           initialTab={initialMobileTab}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onSyncComplete={handleMobileSyncComplete}
+          syncStatus={sync.status}
+          syncTab={<ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} compact />}
         />
       )}
 
-      {/* 3. ADVANCED WEB SERVER VIEW: SELF-HOSTED DASHBOARD */}
-      {appMode === 'web-server' && (
-        <ServerAdminDashboard
-          username={serverAuth.username || 'admin'}
-          onLogout={() => {
-            setServerAuth({ isLoggedIn: false, username: '', token: null });
-            setAppMode('desktop');
-            showToast('Signed out of Self-Hosted Server.');
-          }}
-          onSwitchToMobile={() => setAppMode('mobile-app')}
-          onSwitchToDesktop={() => setAppMode('desktop')}
-          dailyDocs={dailyDocs}
-          notes={notes}
-          settings={settings}
-          onExportZip={handleExportVaultZip}
-        />
-      )}
 
       {/* Toast Feedback */}
       {toastMessage && (
@@ -587,16 +545,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Server Authentication Modal */}
-      <ServerAuthModal
-        isOpen={isServerAuthModalOpen}
-        onClose={() => setIsServerAuthModalOpen(false)}
-        onLoginSuccess={(user) => {
-          setServerAuth({ isLoggedIn: true, username: user.username, token: user.token });
-          setAppMode('web-server');
-          showToast(`Logged into Self-Hosted Server as ${user.username}`);
-        }}
-      />
 
       {/* Historical Completion Modal */}
       <HistoricalCompletionModal
@@ -638,7 +586,6 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
-        syncLogs={syncLogs}
         onSaveSettings={(newSettings) => {
           setSettings(newSettings);
           setCurrentDate(resolveToday(newSettings.simulatedToday, realToday));
@@ -648,7 +595,7 @@ export default function App() {
         onImportJson={handleImportJson}
         onImportZip={handleImportZip}
         onResetVault={handleResetVault}
-        onTriggerSync={() => {}}
+        syncPanel={<SyncPanel sync={sync} defaultDeviceName={defaultDeviceName} />}
       />
     </div>
   );

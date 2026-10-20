@@ -29,6 +29,7 @@ Daymark operates across three primary environments:
    - Primary persistence in the browser uses IndexedDB (`vaultStore.ts`): an in-memory cache is hydrated by `initVaultStore()` before first render, writes are queued to IndexedDB, failures surface as toasts. Legacy `localStorage` data is migrated once; `localStorage` is only a degraded fallback.
    - A service worker (`public/sw.js`, registered in production builds only) caches the app shell so the PWA works offline; `/api/*` is never cached.
    - Android: a Capacitor shell (`mobile/android`) loads the same web build inside a WebView; `src/native/daymarkBridge.ts` talks to the `DaymarkBridge` plugin (snapshot for the home-screen widget, queued widget actions, pin widget). In the shell the service worker is skipped and exports use Filesystem + Share.
+   - Sync (optional): `useSync` pushes changed entities to the self-hosted server and merges results (ADR 9, `api-and-sync.md`). The vault always works fully offline; sync is additive.
    - A fresh profile starts with an empty vault and a welcome dialog (empty vs. sample data).
    - Notes are stored in canonical Markdown format (`YYYY-MM-DD.md`) with YAML frontmatter.
    - Machine metadata is embedded via unobtrusive HTML comments:

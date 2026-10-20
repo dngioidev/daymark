@@ -11,6 +11,9 @@
   "plugins": {
     "SystemBars": {
       "style": "DARK"
+    },
+    "CapacitorHttp": {
+      "enabled": true
     }
   }
 }

@@ -5,12 +5,16 @@
  * Prerequisites: `npm run android:build` and a booted emulator or USB device (adb devices).
  * Usage: node scripts/e2e-android-native.mjs [cycle-name]    (with a cycle name, also saves screenshots)
  *
+ * Flow (sync): a production server is started on this machine and the app connects to it at
+ * http://10.0.2.2:<port> (the emulator's address for the host), exercising native HTTP + cleartext.
+ *
  * Flow: install fresh -> load sample vault -> app pushes snapshot -> pin widget from Settings ->
  * widget shows today's tasks -> tap a widget checkbox -> reopen app -> the toggle is applied to the vault.
  * The WebView is driven over Chrome DevTools (adb forward), the widget via adb input + uiautomator.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const PKG = 'app.daymark.notes';
@@ -33,6 +37,7 @@ const shot = (name) => {
 
 // ---- WebView over DevTools -------------------------------------------------------------
 let ws;
+let syncServer;
 let msgId = 0;
 const pending = new Map();
 async function connect() {
@@ -175,6 +180,48 @@ try {
   check(!/<string name="actions">/.test(leftover), 'action queue is cleared after applying');
   await sleep(1500);
   shot('native-7-app-after-widget-tick');
+
+  // ---- Sync with a self-hosted server running on this machine ----
+  const SYNC_PORT = 3104;
+  const SYNC_PASSWORD = 'native-e2e-password';
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-native-sync-'));
+  syncServer = spawn('npx', ['tsx', 'server.ts', '--production'], {
+    env: { ...process.env, PORT: String(SYNC_PORT), DATA_DIR: dataDir, DAYMARK_PASSWORD: SYNC_PASSWORD },
+    shell: true,
+    stdio: 'ignore',
+  });
+  for (let i = 0; i < 60; i++) {
+    try {
+      if ((await fetch(`http://127.0.0.1:${SYNC_PORT}/api/health`)).ok) break;
+    } catch {}
+    await sleep(500);
+  }
+  check(await clickButton(/^\s*sync\s*$/i), 'phone Sync tab opens');
+  await sleep(800);
+  await evaluate(`(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    const fill = (label, value) => {
+      const el = [...document.querySelectorAll('label')].find((l) => l.textContent.includes(label)).querySelector('input');
+      setter.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    fill('Server address', 'http://10.0.2.2:${SYNC_PORT}');
+    fill('Password', '${SYNC_PASSWORD}');
+    fill('Name for this device', 'Emulator phone');
+    return true;
+  })()`);
+  await clickButton(/connect and sync/i);
+  check(await waitFor(`document.body.innerText.toLowerCase().includes('up to date')`, 'native sync'), 'native app connects to the server over http and syncs');
+  await sleep(1500);
+  shot('native-8-synced-with-server');
+  const loginRes = await fetch(`http://127.0.0.1:${SYNC_PORT}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: SYNC_PASSWORD, deviceName: 'e2e check', platform: 'test' }),
+  });
+  const { token } = await loginRes.json();
+  const stats = await (await fetch(`http://127.0.0.1:${SYNC_PORT}/api/server/stats`, { headers: { Authorization: `Bearer ${token}` } })).json();
+  check(stats.dailyNotes >= 1, 'the phone vault reached the server', `${stats.dailyNotes} daily notes, ${stats.notes} notes`);
 } catch (err) {
   console.error('E2E aborted:', err);
   failures++;
@@ -182,6 +229,10 @@ try {
   try {
     ws?.close();
   } catch {}
+  if (syncServer) {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(syncServer.pid), '/T', '/F'], { stdio: 'ignore' });
+    else syncServer.kill();
+  }
 }
 
 console.log(failures === 0 ? '\nAll native e2e checks passed' : `\n${failures} native e2e check(s) failed`);

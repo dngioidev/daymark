@@ -1,6 +1,7 @@
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
+import type { SyncState } from '../sync/syncClient';
 import { isNativeApp } from '../native/daymarkBridge';
 
 /**
@@ -22,7 +23,7 @@ const KEYS = {
   SETTINGS: 'settings',
   DAILY_DOCS: 'daily_docs',
   NOTES: 'notes',
-  SYNC_LOG: 'sync_log',
+  SYNC_STATE: 'sync_state',
   ONBOARDED: 'onboarded',
 } as const;
 
@@ -31,19 +32,10 @@ const LEGACY_KEYS: Record<string, string> = {
   [KEYS.SETTINGS]: 'daymark_settings_v1',
   [KEYS.DAILY_DOCS]: 'daymark_daily_docs_v1',
   [KEYS.NOTES]: 'daymark_notes_v1',
-  [KEYS.SYNC_LOG]: 'daymark_sync_log_v1',
 };
 
 // The pre-Cycle-1 default for the date override; treated as "no override"
 const LEGACY_SIMULATED_DATE = '2026-10-16';
-
-export interface SyncLogEntry {
-  id: string;
-  timestamp: string;
-  action: string;
-  details: string;
-  status: 'applied' | 'pending';
-}
 
 const cache = new Map<string, unknown>();
 let db: IDBDatabase | null = null;
@@ -194,12 +186,13 @@ export function saveStandaloneNotes(notes: StandaloneNote[]): void {
   writeValue(KEYS.NOTES, notes);
 }
 
-export function loadSyncLogs(): SyncLogEntry[] {
-  return readArray<SyncLogEntry>(KEYS.SYNC_LOG, []);
+/** Per-device sync bookkeeping (server, token, last agreed versions); never synced itself. */
+export function loadSyncState(): SyncState | null {
+  return (cache.get(KEYS.SYNC_STATE) as SyncState | undefined) ?? null;
 }
 
-export function saveSyncLogs(logs: SyncLogEntry[]): void {
-  writeValue(KEYS.SYNC_LOG, logs.slice(-50));
+export function saveSyncState(state: SyncState | null): void {
+  writeValue(KEYS.SYNC_STATE, state);
 }
 
 /** True once the user has chosen how to start (empty vault or sample data), or has any data. */

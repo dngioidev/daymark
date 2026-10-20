@@ -12,6 +12,7 @@
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
@@ -29,7 +30,8 @@ const check = (ok, label, detail = '') => {
 };
 
 const server = spawn('npx', ['tsx', 'server.ts'], {
-  env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT) },
+  // Fresh data dir + password: the production server refuses to start without an account
+  env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-e2e-pwa-')), DAYMARK_PASSWORD: 'e2e-password-123' },
   shell: true,
   stdio: 'ignore',
 });

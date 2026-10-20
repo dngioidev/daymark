@@ -17,7 +17,8 @@ daymark/
 │   └── main.tsx          # Client bootstrap
 ├── .ai-configs/          # Canonical universal AI agent configuration
 ├── package.json          # Dependencies & build scripts
-├── server.ts             # Express REST server & Vite middleware host
+├── server.ts             # Server entry: config, account bootstrap, Vite (dev) or dist/ (prod)
+├── server/               # Sync server: config, auth (scrypt, HMAC tokens, rate limit), file store, REST API
 └── vite.config.ts        # Vite configuration
 ```
 
@@ -41,4 +42,8 @@ daymark/
 | `src/components/DailyHistoryView.tsx` | UI | Historical calendar archive with heat-map and task reopen capabilities. |
 | `src/components/TaskItemCard.tsx` | UI | Interactive task card with aging badges, status picker, and subtasks. |
 | `src/components/MarkdownPreview.tsx` | UI | Markdown renderer supporting GFM checklists, callouts, and wikilinks. |
-| `server.ts` | Backend | Express REST gateway (auth, devices, sync, health) and Vite development middleware. |
+| `server.ts`, `server/app.ts` | Backend | Express API (auth, devices, sync, stats, log) built by `createApp(config, store)`; tested in-process by `server/app.test.ts`. |
+| `server/store.ts` | Backend | Atomic JSON-file persistence in `DATA_DIR` (account, vault entities with revisions, devices, audit log). |
+| `src/sync/merge.ts` | Sync | Three-way merge for daily notes (per task), notes (conflict copies) and settings; shared by server and client. |
+| `src/sync/syncClient.ts`, `src/hooks/useSync.ts` | Sync | Client protocol (push changes vs. bases, apply results) and the React hook with auto-sync triggers. |
+| `src/components/sync/SyncPanel.tsx`, `src/components/server/ServerDashboard.tsx` | UI | Connect/disconnect, status; server stats, devices, activity, password. |
