@@ -5,7 +5,7 @@
  *
  * Usage: npm run build && node scripts/ux-audit.mjs cycle-4 [--only=phone|desktop] [--scheme=light|dark]
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,7 +25,7 @@ const server = spawn('npx', ['tsx', 'server.ts', '--production'], {
   stdio: 'ignore',
 });
 const killServer = () =>
-  process.platform === 'win32' ? spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' }) : server.kill();
+  process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' }) : server.kill();
 
 async function waitForServer() {
   for (let i = 0; i < 75; i++) {

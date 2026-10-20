@@ -1,0 +1,629 @@
+{
+ "ranAt": "2026-10-20T15:07:31.808Z",
+ "results": [
+  {
+   "id": "GL-01",
+   "title": "First launch shows welcome",
+   "env": "P412",
+   "status": "warn",
+   "details": "24 controls behind the dialog are still keyboard-focusable (background not inert)",
+   "ms": 2887
+  },
+  {
+   "id": "GL-02",
+   "title": "Start empty",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3035
+  },
+  {
+   "id": "GL-03",
+   "title": "Load sample",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 1978
+  },
+  {
+   "id": "GL-04",
+   "title": "Welcome not repeated",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2953
+  },
+  {
+   "id": "GL-05",
+   "title": "Real date shown",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4353
+  },
+  {
+   "id": "GL-07",
+   "title": "Toast behaviour",
+   "env": "P412",
+   "status": "pass",
+   "details": "visible ~4 s, above nav",
+   "ms": 6909
+  },
+  {
+   "id": "NAV-01",
+   "title": "Bottom nav tabs",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 4072
+  },
+  {
+   "id": "NAV-02",
+   "title": "Centre + opens Quick Capture with focus",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2986
+  },
+  {
+   "id": "NAV-03",
+   "title": "Header gear opens full-screen Settings",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2463
+  },
+  {
+   "id": "NAV-04",
+   "title": "Header sync pill",
+   "env": "P412",
+   "status": "warn",
+   "details": "pill target 78x17 px",
+   "ms": 2149
+  },
+  {
+   "id": "NAV-05",
+   "title": "Desktop navbar items",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 3564
+  },
+  {
+   "id": "NAV-06",
+   "title": "Logo",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2427
+  },
+  {
+   "id": "NAV-07",
+   "title": "Mobile App View and back",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 3069
+  },
+  {
+   "id": "NAV-08",
+   "title": "Export ZIP (navbar)",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2076
+  },
+  {
+   "id": "NAV-09",
+   "title": "Quick Capture via button and Ctrl K",
+   "env": "D1440",
+   "status": "fail",
+   "details": "Ctrl K did not open",
+   "ms": 2857
+  },
+  {
+   "id": "NAV-11",
+   "title": "Deep links",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 4378
+  },
+  {
+   "id": "TD-01",
+   "title": "Previous / next day",
+   "env": "P412",
+   "status": "warn",
+   "details": "next day is titled \"Oct 21\" (no \"Tomorrow\" label); day arrows are 28/28 px wide (< 44)",
+   "ms": 2167
+  },
+  {
+   "id": "TD-02",
+   "title": "Today button returns",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2516
+  },
+  {
+   "id": "TD-03",
+   "title": "View modes",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 5075
+  },
+  {
+   "id": "TD-04",
+   "title": "Reconcile Rollover",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2768
+  },
+  {
+   "id": "TD-05",
+   "title": "Attention filter toggles",
+   "env": "P412",
+   "status": "pass",
+   "details": "all 4, filtered 4; toggle label \"Show All Sections\"",
+   "ms": 2875
+  },
+  {
+   "id": "TD-06",
+   "title": "Section + Task inline add",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 32847
+  },
+  {
+   "id": "TD-07",
+   "title": "Section + Note editor and toolbar",
+   "env": "P412",
+   "status": "fail",
+   "details": "bold toolbar produced \"hello**bold text**\"",
+   "ms": 3144
+  },
+  {
+   "id": "TD-08",
+   "title": "Section notes Clear asks first (DS-03)",
+   "env": "P412",
+   "status": "warn",
+   "details": "no Clear button visible on phone",
+   "ms": 2671
+  },
+  {
+   "id": "TD-09",
+   "title": "Add section heading",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 7009
+  },
+  {
+   "id": "TD-10",
+   "title": "Empty sections compact",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3127
+  },
+  {
+   "id": "TK-01",
+   "title": "Complete / reopen",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3679
+  },
+  {
+   "id": "TK-02",
+   "title": "Status menu",
+   "env": "P412",
+   "status": "warn",
+   "details": "menu items 28 px tall; tapping outside does not close the menu",
+   "ms": 3583
+  },
+  {
+   "id": "TK-03",
+   "title": "Details expand / hide",
+   "env": "P412",
+   "status": "warn",
+   "details": "\"Details\" target 33x15 px",
+   "ms": 3516
+  },
+  {
+   "id": "TK-04",
+   "title": "Edit description persists",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 4073
+  },
+  {
+   "id": "TK-05",
+   "title": "Checklist add / toggle / delete",
+   "env": "P412",
+   "status": "warn",
+   "details": "subtask delete button is invisible until mouse hover (unreachable on touch)",
+   "ms": 3348
+  },
+  {
+   "id": "TK-06",
+   "title": "Inspect audit log drawer",
+   "env": "P412",
+   "status": "warn",
+   "details": "drawer close button has no accessible name",
+   "ms": 3994
+  },
+  {
+   "id": "TK-07",
+   "title": "Snooze alert and restore",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3677
+  },
+  {
+   "id": "TK-08",
+   "title": "Delete from details asks first (DS-01)",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3705
+  },
+  {
+   "id": "TK-09",
+   "title": "Options menu visible on touch for every task",
+   "env": "P412",
+   "status": "warn",
+   "details": "\"…\" button has no accessible name; \"…\" target 24 px",
+   "ms": 3125
+  },
+  {
+   "id": "TK-10",
+   "title": "Rename task",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3821
+  },
+  {
+   "id": "TK-11",
+   "title": "Quick \"Done on <date>\"",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3462
+  },
+  {
+   "id": "TK-12",
+   "title": "Other past date modal",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3890
+  },
+  {
+   "id": "TK-13",
+   "title": "Aging badges",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3112
+  },
+  {
+   "id": "TK-14",
+   "title": "Long title wraps on 360 px",
+   "env": "P360",
+   "status": "pass",
+   "details": "",
+   "ms": 4245
+  },
+  {
+   "id": "QC-01",
+   "title": "Quick Capture layout and labels",
+   "env": "P412",
+   "status": "warn",
+   "details": "4 fields without an accessible label; close (X) button has no accessible name",
+   "ms": 3445
+  },
+  {
+   "id": "QC-02",
+   "title": "Capture with Enter and button",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3693
+  },
+  {
+   "id": "QC-03",
+   "title": "Empty title rejected with feedback",
+   "env": "P412",
+   "status": "warn",
+   "details": "nothing happens and no message explains why",
+   "ms": 3451
+  },
+  {
+   "id": "QC-04",
+   "title": "Heading and status selects",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3430
+  },
+  {
+   "id": "QC-05",
+   "title": "Close via Cancel / X / Esc / backdrop",
+   "env": "D1440",
+   "status": "warn",
+   "details": "tapping the backdrop does not close",
+   "ms": 3830
+  },
+  {
+   "id": "HI-01",
+   "title": "History opens on the latest note",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 6838
+  },
+  {
+   "id": "HI-02",
+   "title": "Calendar day select",
+   "env": "P412",
+   "status": "warn",
+   "details": "empty day says \"No daily document exists for 2026-10-03\" (technical wording, no action offered)",
+   "ms": 3571
+  },
+  {
+   "id": "HI-03",
+   "title": "Month navigation",
+   "env": "P412",
+   "status": "warn",
+   "details": "month arrows have no accessible name; month arrows 24 px wide",
+   "ms": 4566
+  },
+  {
+   "id": "HI-04",
+   "title": "Recorded notes list",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3937
+  },
+  {
+   "id": "NO-01",
+   "title": "Notes list",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3186
+  },
+  {
+   "id": "NO-02",
+   "title": "Search and empty result",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3512
+  },
+  {
+   "id": "NO-03",
+   "title": "Folder chips",
+   "env": "P412",
+   "status": "warn",
+   "details": "folder chips 23 px tall",
+   "ms": 3419
+  },
+  {
+   "id": "NO-04",
+   "title": "New note opens editor with title focused",
+   "env": "P412",
+   "status": "warn",
+   "details": "focus on BODY, not the title",
+   "ms": 3443
+  },
+  {
+   "id": "NO-05",
+   "title": "Edit title / folder / body persists",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 4483
+  },
+  {
+   "id": "NO-06",
+   "title": "Note toolbar inserts Markdown",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 6605
+  },
+  {
+   "id": "NO-07",
+   "title": "Preview modes",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 7007
+  },
+  {
+   "id": "NO-08",
+   "title": "Pin note",
+   "env": "D1440",
+   "status": "fail",
+   "details": "pinned note not moved to the top",
+   "ms": 3550
+  },
+  {
+   "id": "NO-09",
+   "title": "Delete note asks first (DS-02)",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3499
+  },
+  {
+   "id": "NO-10",
+   "title": "New folder",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 3589
+  },
+  {
+   "id": "NO-11",
+   "title": "Back to list",
+   "env": "P412",
+   "status": "warn",
+   "details": "back link 50x16 px",
+   "ms": 3479
+  },
+  {
+   "id": "SY-01",
+   "title": "Sync form labels and input types",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3635
+  },
+  {
+   "id": "SY-02",
+   "title": "Unreachable server",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3370
+  },
+  {
+   "id": "SY-03",
+   "title": "Wrong password",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3476
+  },
+  {
+   "id": "SY-04",
+   "title": "Connect, status pill, Sync now",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3597
+  },
+  {
+   "id": "SY-05",
+   "title": "Server view: devices, activity, password validation",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4166
+  },
+  {
+   "id": "SY-06",
+   "title": "Disconnect this device asks first (DS-06)",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3605
+  },
+  {
+   "id": "SE-01",
+   "title": "Settings tabs",
+   "env": "P412+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 6687
+  },
+  {
+   "id": "SE-02",
+   "title": "Close settings (X, Done, Esc)",
+   "env": "P412+D1440",
+   "status": "warn",
+   "details": "Esc does not close Settings",
+   "ms": 3364
+  },
+  {
+   "id": "SE-03",
+   "title": "Download Vault ZIP and JSON",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3189
+  },
+  {
+   "id": "SE-04",
+   "title": "Restore JSON / ZIP / invalid file (DS-05)",
+   "env": "P412",
+   "status": "warn",
+   "details": "messages use browser alert()/confirm() (\"Invalid Daymark backup format.\")",
+   "ms": 4604
+  },
+  {
+   "id": "SE-05",
+   "title": "Replace with sample asks first (DS-04)",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3417
+  },
+  {
+   "id": "SE-06",
+   "title": "Statuses: change, add, save, cancel",
+   "env": "D1440+P412",
+   "status": "warn",
+   "details": "Statuses tab content runs past the right edge on phones (add-status row clipped)",
+   "ms": 6824
+  },
+  {
+   "id": "SE-07",
+   "title": "Aging thresholds",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 3528
+  },
+  {
+   "id": "SE-08",
+   "title": "Headings add / remove",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4028
+  },
+  {
+   "id": "SE-09",
+   "title": "Developer date override",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4221
+  },
+  {
+   "id": "AX-06",
+   "title": "Dialog semantics, focus, inert background",
+   "env": "P412",
+   "status": "warn",
+   "details": "Quick Capture: no role=dialog; Quick Capture: background not inert; Settings: focus not moved into dialog; Settings: background not inert; Other past date: no role=dialog; Other past date: focus not moved into dialog; Other past date: background not inert",
+   "ms": 6668
+  },
+  {
+   "id": "AX-07",
+   "title": "Keyboard focus visible",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 3105
+  },
+  {
+   "id": "GL-09",
+   "title": "Console clean",
+   "env": "all",
+   "status": "pass",
+   "details": ""
+  }
+ ],
+ "consoleErrors": []
+}

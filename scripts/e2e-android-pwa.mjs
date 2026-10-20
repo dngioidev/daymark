@@ -10,7 +10,7 @@
  * service worker control, offline reload, offline capture persisting, manifest/icons.
  * Exits non-zero on any failed check.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -139,7 +139,7 @@ try {
   failures++;
 } finally {
   await browser?.close();
-  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
   else server.kill();
 }
 

@@ -12,7 +12,7 @@
  * widget shows today's tasks -> tap a widget checkbox -> reopen app -> the toggle is applied to the vault.
  * The WebView is driven over Chrome DevTools (adb forward), the widget via adb input + uiautomator.
  */
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -250,7 +250,7 @@ try {
     ws?.close();
   } catch {}
   if (syncServer) {
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(syncServer.pid), '/T', '/F'], { stdio: 'ignore' });
+    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(syncServer.pid), '/T', '/F'], { stdio: 'ignore' });
     else syncServer.kill();
   }
 }

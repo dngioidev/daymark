@@ -9,7 +9,7 @@
  * installed Chrome/Edge (no browser download). Shots are defined in SHOTS below;
  * add per-cycle shots there as features land.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
@@ -80,7 +80,7 @@ try {
 } finally {
   await browser?.close();
   if (server) {
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
     else server.kill();
   }
 }
