@@ -38,33 +38,32 @@ async function waitForServer() {
 }
 
 const tryClick = async (locator) => {
-  try {
-    await locator.first().click({ timeout: 3000 });
-    return true;
-  } catch {
-    return false;
-  }
+  await locator.first().click({ timeout: 10000 });
+  return true;
 };
 
 const PHONE = [
   ['today', async () => {}],
   ['today-scrolled', async (p) => p.mouse.wheel(0, 1400)],
-  ['quick-capture', async (p) => tryClick(p.getByTitle('Quick Capture'))],
-  ['task-details', async (p) => tryClick(p.getByText('Details'))],
+  ['quick-capture', async (p) => tryClick(p.getByRole('button', { name: /^new task$/i }))],
+  ['task-details', async (p) => tryClick(p.getByRole('button', { name: 'Investigate build pipeline failure', exact: true }))],
   ['history', async (p) => tryClick(p.getByRole('button', { name: /^\s*history\s*$/i }))],
   ['notes', async (p) => tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))],
   ['note-editor', async (p) => (await tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))) && tryClick(p.getByText('Weekly Sprint Sync Notes'))],
-  ['sync', async (p) => tryClick(p.getByRole('button', { name: /^\s*sync\s*$/i }))],
-  ['settings', async (p) => tryClick(p.getByRole('button', { name: /settings, backup and import/i }))],
-  ['markdown-mode', async (p) => tryClick(p.getByRole('button', { name: /^\s*markdown\s*$/i }))],
+  ['sync', async (p) => tryClick(p.getByRole('button', { name: /open sync settings/i }))],
+  ['settings', async (p) => tryClick(p.getByRole('button', { name: /^settings$/i }))],
+  ['markdown-mode', async (p) => {
+    await tryClick(p.getByRole('button', { name: 'More options for this day' }));
+    await tryClick(p.getByRole('menuitem', { name: 'Edit as Markdown' }));
+  }],
 ];
 const DESKTOP = [
   ['today', async () => {}],
   ['history', async (p) => tryClick(p.getByRole('button', { name: /^\s*history\s*$/i }))],
   ['notes', async (p) => tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))],
-  ['server', async (p) => tryClick(p.getByRole('button', { name: /^\s*sync\s*$/i }))],
+  ['server', async (p) => tryClick(p.getByRole('button', { name: /open sync settings/i }))],
   ['settings', async (p) => tryClick(p.getByRole('button', { name: /^\s*settings\s*$/i }))],
-  ['quick-capture', async (p) => tryClick(p.getByRole('button', { name: /quick capture/i }))],
+  ['quick-capture', async (p) => tryClick(p.getByRole('button', { name: /^new task/i }))],
   ['split-mode', async (p) => tryClick(p.getByRole('button', { name: /^\s*split\s*$/i }))],
 ];
 
@@ -83,11 +82,13 @@ try {
         const ctx = await browser.newContext({ ...opts, colorScheme: scheme });
         const page = await ctx.newPage();
         await page.goto(base, { waitUntil: 'networkidle' });
-        await tryClick(page.getByRole('button', { name: /explore with sample data/i }));
+        await tryClick(page.getByRole('button', { name: /try it with sample data/i }));
+        await page.getByRole('dialog', { name: 'Welcome to Daymark' }).waitFor({ state: 'hidden' });
         await page.waitForTimeout(800);
         await action(page);
         await page.waitForTimeout(700);
         await page.screenshot({ path: path.join(outDir, `${scheme}-${vpName}-${screen}.png`) });
+        console.log('Captured', `${scheme}-${vpName}-${screen}`);
         await ctx.close();
       }
     }

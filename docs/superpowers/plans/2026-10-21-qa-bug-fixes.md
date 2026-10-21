@@ -10,6 +10,10 @@
 
 **Spec:** `docs/reports/qa-e2e/2026-10-21-qa-report.md` (bug IDs, evidence, root causes). Read it first.
 
+## Continuation status (2026-10-21)
+
+Tasks 1-15 are complete on qa-fixes-2026-10-21. Historical step checkboxes below are the original plan; the verified task record is in the [QA handoff](../../releases/qa-fixes/README.md) and [review decisions](../../releases/qa-fixes/review-decisions.md). Tasks 11, 12, 13: ae4128b, ebde4a3, fa73d5c. Final review fixes: 41d5e50. Final checks: 133 unit tests passed, one skipped; PWA 16/16, sync 7/7, QA 42/42; 34 UI audit images inspected. The branch has not been merged, pushed, or tagged.
+
 ## Global Constraints
 
 - Markdown task comment format is unchanged: `<!-- daymark: task_id=<id> status=<status> created=<YYYY-MM-DD> [carried_from=<YYYY-MM-DD>] [completed=<YYYY-MM-DD>] -->`.
