@@ -82,13 +82,17 @@ await run('B2', async () => {
   const text = await area.inputValue();
   await area.fill(text.replace('Today item', 'Today item EDITED IN MARKDOWN'));
   await page.getByRole('button', { name: 'Previous day' }).click();
+  await settle(page, 300);
+  const asks = (await page.getByRole('dialog').count()) + (await page.getByRole('alertdialog').count()) > 0;
+  await page.locator('[role=dialog],[role=alertdialog]').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await settle(page, 300);
+  const stillToday = await page.getByRole('heading', { level: 1, name: 'Today' }).isVisible();
+  const keptDraft = (await page.locator('textarea').first().inputValue().catch(() => '')).includes('EDITED IN MARKDOWN');
+  check('B2a', asks && stillToday && keptDraft, 'changing day with unsaved Markdown asks first; Cancel stays on the same day and keeps the draft', `asked=${asks}, still today=${stillToday}, draft kept=${keptDraft}`);
+  await page.getByRole('button', { name: /^save/i }).first().click();
   await settle(page);
-  const shownDraft = await page.locator('textarea').first().inputValue().catch(() => '');
-  check('B2a', !shownDraft.includes('EDITED IN MARKDOWN') || false, 'changing day with unsaved Markdown asks or keeps the draft with its own day', `yesterday's editor shows today's draft`);
-  const save = page.getByRole('button', { name: /^save/i }).first();
-  if (await save.isVisible().catch(() => false)) { await save.click(); await settle(page); }
   const docs = await readDocs(page);
-  check('B2b', !titlesOn(docs, Y1).some((t) => t.includes('Today item')), "saving after changing day does not overwrite yesterday with today's content", JSON.stringify(titlesOn(docs, Y1)));
+  check('B2b', !titlesOn(docs, Y1).some((t) => t.includes('Today item')) && titlesOn(docs, TODAY).some((t) => t.includes('EDITED IN MARKDOWN')), "saving after Cancel lands on today and does not overwrite yesterday", JSON.stringify({ y: titlesOn(docs, Y1), t: titlesOn(docs, TODAY) }));
   await context.close();
 });
 

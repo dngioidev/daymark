@@ -92,6 +92,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
   const [rawDraft, setRawDraft] = useState('');
   const [rawDirty, setRawDirty] = useState(false);
+  // The day the Markdown draft was opened from; the draft is only ever saved back to this day
+  const [draftDate, setDraftDate] = useState(currentDocument.date);
   const hiddenTags = useRef<Map<string, string[]>>(new Map());
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [newSectionTitle, setNewSectionTitle] = useState('');
@@ -135,6 +137,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     hiddenTags.current = tags;
     setRawDraft(text);
     setRawDirty(false);
+    setDraftDate(date);
     setEditorMode(mode);
   };
 
@@ -144,27 +147,49 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const { text, tags } = hideTaskTags(canonicalMarkdown);
     hiddenTags.current = tags;
     setRawDraft(text);
+    setDraftDate(date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canonicalMarkdown]);
 
+  // Safety net for day changes we did not ask about (History, midnight, Settings): an unsaved draft never follows the user to another day
+  useEffect(() => {
+    if (!rawDirty || draftDate === date) return;
+    showToast(`Unsaved Markdown for ${formatDay(draftDate, simulatedToday)} was discarded.`, { tone: 'error' });
+    const { text, tags } = hideTaskTags(canonicalMarkdown);
+    hiddenTags.current = tags;
+    setRawDraft(text);
+    setRawDirty(false);
+    setDraftDate(date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  /** True when it is fine to leave the draft behind (nothing unsaved, or the user agreed to discard it). */
+  const confirmLeaveDraft = async () => {
+    if (!rawDirty) return true;
+    const discard = await confirmDialog({
+      title: 'Discard your Markdown changes?',
+      message: 'You edited the Markdown but did not save it.',
+      confirmLabel: 'Discard',
+      danger: true,
+    });
+    if (discard) setRawDirty(false);
+    return discard;
+  };
+
   const switchMode = async (mode: EditorMode) => {
-    if (mode === editorMode) return;
-    if (rawDirty) {
-      const discard = await confirmDialog({
-        title: 'Discard your Markdown changes?',
-        message: 'You edited the Markdown but did not save it.',
-        confirmLabel: 'Discard',
-        danger: true,
-      });
-      if (!discard) return;
-    }
-    if (mode === 'visual') {
-      setRawDirty(false);
-      setEditorMode('visual');
-    } else openMarkdown(mode);
+    if (mode === editorMode) return true;
+    if (!(await confirmLeaveDraft())) return false;
+    if (mode === 'visual') setEditorMode('visual');
+    else openMarkdown(mode);
+    return true;
+  };
+
+  const changeDay = async (target: string) => {
+    if (await confirmLeaveDraft()) onDateChange(target);
   };
 
   const saveMarkdown = () => {
+    if (draftDate !== date) return;
     const restored = restoreTaskTags(rawDraft, hiddenTags.current, date);
     const parsed = applyMarkdownEdit(currentDocument, keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument));
     onUpdateDocument(parsed);
@@ -332,18 +357,18 @@ export const TodayView: React.FC<TodayViewProps> = ({
   // ---------- Header ----------
   const header = (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={() => onDateChange(getPreviousDate(date))} aria-label="Previous day" className={iconBtn}>
+      <button type="button" onClick={() => changeDay(getPreviousDate(date))} aria-label="Previous day" className={iconBtn}>
         <ChevronLeft className="w-5 h-5" />
       </button>
       <div className="min-w-0 flex-1 sm:flex-none text-center sm:text-left sm:min-w-56">
         <h1 className="text-xl font-bold leading-tight text-stone-900 dark:text-stone-50">{formatDay(date, simulatedToday)}</h1>
         <p className="text-sm text-stone-600 dark:text-stone-400 truncate">{formatLongDate(date)}</p>
       </div>
-      <button type="button" onClick={() => onDateChange(getNextDate(date))} aria-label="Next day" className={iconBtn}>
+      <button type="button" onClick={() => changeDay(getNextDate(date))} aria-label="Next day" className={iconBtn}>
         <ChevronRight className="w-5 h-5" />
       </button>
       {!isToday && (
-        <button type="button" onClick={() => onDateChange(simulatedToday)} className={`${buttonClass.secondary} ml-1`}>
+        <button type="button" onClick={() => changeDay(simulatedToday)} className={`${buttonClass.secondary} ml-1`}>
           Today
         </button>
       )}
@@ -381,7 +406,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   },
                 ]
               : []),
-            { label: 'New section', icon: <Plus className="w-4 h-4" />, onSelect: () => (setEditorMode('visual'), setShowAddSection(true)) },
+            { label: 'New section', icon: <Plus className="w-4 h-4" />, onSelect: async () => { if (await switchMode('visual')) setShowAddSection(true); } },
           ]}
           trigger={(props) => (
             <button type="button" {...props} aria-label="More options for this day" className={iconBtn}>
