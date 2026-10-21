@@ -142,6 +142,13 @@ describe('settings and helpers', () => {
     expect(mergeSettings(base, ours, theirs).value!.defaultHeadings).toEqual(['B']);
   });
 
+  it('fresh device adopts server settings', () => {
+    const server = toSyncedSettings({ ...DEFAULT_SETTINGS, defaultHeadings: ['Deep work', 'Admin'] });
+    const r = mergeSettings(null, server, toSyncedSettings(DEFAULT_SETTINGS));
+    expect(r.value?.defaultHeadings).toEqual(['Deep work', 'Admin']);
+    expect(r.conflicts).toEqual(['This device now uses the settings from your other devices.']);
+  });
+
   it('canonical JSON ignores key order and undefined fields', () => {
     expect(canonicalJson({ b: 1, a: { d: 2, c: undefined } })).toBe(canonicalJson({ a: { d: 2 }, b: 1 }));
   });

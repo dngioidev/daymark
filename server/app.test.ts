@@ -201,6 +201,17 @@ describe('sync between two devices', () => {
     expect(laptop.vault.settings.syncConfig.serverUrl).toBe(DEFAULT_SETTINGS.syncConfig.serverUrl);
   });
 
+  it('a newly connected device adopts the existing settings', async () => {
+    const laptop = { vault: vault([]), state: await connect('Laptop') };
+    laptop.vault.settings = { ...DEFAULT_SETTINGS, defaultHeadings: ['Deep work', 'Admin'] };
+    await sync(laptop);
+    const phone = { vault: vault([]), state: await connect('Phone') };
+    await sync(phone);
+    await sync(laptop);
+    expect(phone.vault.settings.defaultHeadings).toEqual(['Deep work', 'Admin']);
+    expect(laptop.vault.settings.defaultHeadings).toEqual(['Deep work', 'Admin']);
+  });
+
   it('keeps data across a server restart', async () => {
     const phone = { vault: vault([day([task('a')])]), state: await connect('Phone') };
     await sync(phone);

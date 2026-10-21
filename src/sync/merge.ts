@@ -183,6 +183,8 @@ export function mergeSettings(
 ): MergeResult<SyncedSettings> {
   const r = pick3(base, ours, theirs);
   if (r.kind === 'value') return { value: r.value, conflicts: [] };
+  // No shared base: a device that has never synced. The server copy (ours) is the established one.
+  if (base === null) return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
   return { value: theirs, conflicts: ['Settings were changed on two devices; kept the latest change'] };
 }
 
