@@ -19,6 +19,8 @@ export interface DeviceRecord {
   lastSyncAt: string | null;
   lastIp: string;
   revoked: boolean;
+  /** Random id the app keeps per install, so signing in again reuses this record. */
+  installId?: string;
 }
 
 export interface StoredEntity {

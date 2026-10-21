@@ -31,6 +31,8 @@ export interface LoginRequest {
   password: string;
   deviceName: string;
   platform: string;
+  /** Stable per-install id; a repeat sign-in from the same install replaces its old device entry. */
+  installId?: string;
 }
 
 export interface LoginResponse {

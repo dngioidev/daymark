@@ -1,516 +1,434 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FolderOpen,
-  FolderPlus,
-  FilePlus,
-  FileText,
-  Search,
-  Pin,
-  Trash2,
+  ArrowLeft,
+  Bold,
+  CheckSquare,
+  Code,
+  Columns,
   Edit2,
   Eye,
-  Columns,
-  Code,
-  CheckSquare,
-  Heading1,
+  FilePlus,
+  FolderPlus,
   Heading2,
-  Bold,
   Italic,
-  Link2,
+  ListChecks,
+  MoreHorizontal,
+  Pin,
+  Search,
+  Trash2,
 } from 'lucide-react';
 import { StandaloneNote } from '../types/daymark';
 import { MarkdownPreview } from './MarkdownPreview';
+import { Menu } from './ui/Menu';
+import { buttonClass } from './ui/Dialog';
+import { confirmDialog, showToast } from './ui/feedback';
+import { useBackHandler } from '../native/backButton';
+import { formatNoteDate, noteChecklist, notePreview, sortNotes } from '../utils/notes';
 
 interface StandaloneNotesViewProps {
   notes: StandaloneNote[];
   onUpdateNotes: (notes: StandaloneNote[]) => void;
+  /** Phone shell: one pane at a time, no outer page padding. */
+  compact?: boolean;
 }
 
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({
-  notes,
-  onUpdateNotes,
-}) => {
-  const [selectedNoteId, setSelectedNoteId] = useState<string>(notes[0]?.id || '');
+type ViewMode = 'edit' | 'split' | 'preview';
+
+/** Notes: searchable list (pinned first) and a Markdown editor with preview. */
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false }) => {
+  const sorted = useMemo(() => sortNotes(notes), [notes]);
+  const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
-  const [noteViewMode, setNoteViewMode] = useState<'editor' | 'split' | 'preview'>('split');
+  const [viewMode, setViewMode] = useState<ViewMode>(compact ? 'preview' : 'split');
   const [newFolderInput, setNewFolderInput] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [pane, setPane] = useState<'list' | 'editor'>('list');
+  const titleRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const focusTitle = useRef(false);
 
-  // Extract all unique folders
-  const allFolders = useMemo(() => {
-    const set = new Set<string>();
-    for (const n of notes) {
-      if (n.folder) set.add(n.folder);
-    }
-    return Array.from(set).sort();
-  }, [notes]);
+  // Android Back: editor -> list
+  useBackHandler(() => (setPane('list'), true), pane === 'editor');
 
-  // Filter notes by search & folder
+  const allFolders = useMemo(() => [...new Set(notes.map((n) => n.folder).filter(Boolean))].sort(), [notes]);
+
   const filteredNotes = useMemo(() => {
-    return notes.filter((n) => {
-      const matchFolder = selectedFolder === 'all' || n.folder === selectedFolder;
-      const q = searchQuery.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        n.title.toLowerCase().includes(q) ||
-        n.content.toLowerCase().includes(q) ||
-        n.tags.some((t) => t.toLowerCase().includes(q));
-      return matchFolder && matchSearch;
-    });
-  }, [notes, selectedFolder, searchQuery]);
+    const q = searchQuery.toLowerCase().trim();
+    return sorted.filter(
+      (n) =>
+        (selectedFolder === 'all' || n.folder === selectedFolder) &&
+        (!q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)))
+    );
+  }, [sorted, selectedFolder, searchQuery]);
 
   const activeNote = notes.find((n) => n.id === selectedNoteId) || filteredNotes[0] || null;
 
-  const handleUpdateActiveNote = (updates: Partial<StandaloneNote>) => {
-    if (!activeNote) return;
-    const updatedList = notes.map((n) =>
-      n.id === activeNote.id
-        ? { ...n, ...updates, updatedAt: new Date().toISOString() }
-        : n
-    );
-    onUpdateNotes(updatedList);
-  };
-
-  const handleCreateNewNote = () => {
-    const newNote: StandaloneNote = {
-      id: `note-${Date.now()}`,
-      title: 'Untitled Note',
-      folder: selectedFolder === 'all' ? 'Technical' : selectedFolder,
-      content: '# Untitled Note\n\nWrite your thoughts, technical references, or architecture decisions here...',
-      tags: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      pinned: false,
-    };
-    onUpdateNotes([newNote, ...notes]);
-    setSelectedNoteId(newNote.id);
-  };
-
-  const handleDeleteNote = (noteId: string) => {
-    if (confirm('Are you sure you want to delete this note?')) {
-      const updated = notes.filter((n) => n.id !== noteId);
-      onUpdateNotes(updated);
-      if (selectedNoteId === noteId) {
-        setSelectedNoteId(updated[0]?.id || '');
-      }
+  useEffect(() => {
+    if (focusTitle.current && titleRef.current) {
+      focusTitle.current = false;
+      titleRef.current.focus();
+      titleRef.current.select();
     }
+  });
+
+  const updateActive = (updates: Partial<StandaloneNote>) => {
+    if (!activeNote) return;
+    onUpdateNotes(notes.map((n) => (n.id === activeNote.id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)));
   };
 
-  const handleCreateFolder = (e: React.FormEvent) => {
+  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled') => {
+    const now = new Date().toISOString();
+    const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content: '', tags: [], createdAt: now, updatedAt: now, pinned: false };
+    onUpdateNotes([note, ...notes]);
+    setSelectedNoteId(note.id);
+    setViewMode(compact ? 'edit' : 'split');
+    setPane('editor');
+    focusTitle.current = true;
+    return note;
+  };
+
+  const deleteNote = async (note: StandaloneNote) => {
+    const ok = await confirmDialog({ title: 'Delete this note?', message: <>“{note.title}” will be deleted.</>, confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
+    const before = notes;
+    const remaining = notes.filter((n) => n.id !== note.id);
+    onUpdateNotes(remaining);
+    setSelectedNoteId(sortNotes(remaining)[0]?.id || '');
+    setPane('list');
+    showToast(`Deleted “${note.title}”`, { action: { label: 'Undo', onClick: () => onUpdateNotes(before) } });
+  };
+
+  const createFolder = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFolderInput.trim()) return;
-    const folderName = newFolderInput.trim();
-    // Create an initial note in this folder
-    const initialNote: StandaloneNote = {
-      id: `note-${Date.now()}`,
-      title: `${folderName} Overview`,
-      folder: folderName,
-      content: `# ${folderName}\n\nFolder description and index.`,
-      tags: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    onUpdateNotes([initialNote, ...notes]);
-    setSelectedFolder(folderName);
-    setSelectedNoteId(initialNote.id);
+    const name = newFolderInput.trim();
+    if (!name) return;
+    createNote(name, `${name} overview`);
+    setSelectedFolder(name);
     setNewFolderInput('');
     setShowNewFolder(false);
   };
 
-  const handleInternalLinkClick = (noteTitle: string) => {
+  const openLinkedNote = (noteTitle: string) => {
     const target = notes.find((n) => n.title.toLowerCase().trim() === noteTitle.toLowerCase().trim());
     if (target) {
       setSelectedNoteId(target.id);
       setSelectedFolder('all');
-    } else {
-      const newNote: StandaloneNote = {
-        id: `note-${Date.now()}`,
-        title: noteTitle,
-        folder: activeNote?.folder || 'Technical',
-        content: `# ${noteTitle}\n\nLinked note content...`,
-        tags: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      onUpdateNotes([newNote, ...notes]);
-      setSelectedNoteId(newNote.id);
-    }
+      setPane('editor');
+    } else createNote(activeNote?.folder || 'General', noteTitle);
   };
 
-  // Quick formatting insert
-  const insertFormatting = (prefix: string, suffix = '') => {
+  // Wraps the selection (or a placeholder) and keeps it selected
+  const format = (before: string, after = '', placeholder = 'text') => {
     if (!activeNote) return;
-    const textarea = document.getElementById('note-editor-textarea') as HTMLTextAreaElement | null;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const current = activeNote.content;
-    const selected = current.substring(start, end);
-
-    const replacement = `${prefix}${selected || 'text'}${suffix}`;
-    const newContent = current.substring(0, start) + replacement + current.substring(end);
-    handleUpdateActiveNote({ content: newContent });
+    const el = editorRef.current;
+    const start = el?.selectionStart ?? activeNote.content.length;
+    const end = el?.selectionEnd ?? activeNote.content.length;
+    const selected = activeNote.content.slice(start, end) || placeholder;
+    updateActive({ content: activeNote.content.slice(0, start) + before + selected + after + activeNote.content.slice(end) });
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + before.length, start + before.length + selected.length);
+    });
   };
 
-  // Interactive checklist toggle in active note
-  const handleToggleCheckboxInActiveNote = (taskIndex: number, newChecked: boolean) => {
+  const toggleCheckbox = (index: number, checked: boolean) => {
     if (!activeNote) return;
     let count = 0;
-    const updatedContent = activeNote.content.replace(/([-*]\s*\[)([ xX])(\])/g, (match, prefix, cur, suffix) => {
-      if (count === taskIndex) {
-        count++;
-        return `${prefix}${newChecked ? 'x' : ' '}${suffix}`;
-      }
-      count++;
-      return match;
+    updateActive({
+      content: activeNote.content.replace(/([-*]\s*\[)([ xX])(\])/g, (m, p, _c, s) => (count++ === index ? `${p}${checked ? 'x' : ' '}${s}` : m)),
     });
-    handleUpdateActiveNote({ content: updatedContent });
   };
 
-  // Mobile navigation state: 'list' vs 'editor'
-  const [mobilePane, setMobilePane] = useState<'list' | 'editor'>('list');
+  const iconBtn =
+    'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
+  const chip = (active: boolean) =>
+    `min-h-11 sm:min-h-8 px-3 rounded-full text-sm font-medium whitespace-nowrap ${
+      active ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
+    }`;
+  const seg = (active: boolean) =>
+    `inline-flex items-center gap-1.5 px-2.5 min-h-9 rounded-md text-sm ${
+      active ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+    }`;
 
-  return (
-    <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-3 h-[calc(100vh-4.5rem)] flex flex-col space-y-3">
-      {/* Top action bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-stone-200 dark:border-stone-800">
-        <div>
-          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
-            <FolderOpen className="w-5 h-5 text-amber-600 dark:text-amber-500" />
-            <span>Standalone Markdown Notes</span>
-          </h1>
-          <p className="text-xs text-stone-500 dark:text-stone-400">
-            Unrestricted Markdown documents organized in folder hierarchies.
-          </p>
+  const list = (
+    <div className={`flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
+      <div className="p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
+        <div className="relative">
+          <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <label htmlFor="notes-search" className="sr-only">
+            Search notes
+          </label>
+          <input
+            id="notes-search"
+            type="search"
+            placeholder="Search notes"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800/80 border border-stone-300 dark:border-stone-700 rounded-lg placeholder:text-stone-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+          />
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNewFolder(!showNewFolder)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-stone-300 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 rounded-md transition-colors"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span>New Folder</span>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Folders">
+          <button type="button" aria-pressed={selectedFolder === 'all'} onClick={() => setSelectedFolder('all')} className={chip(selectedFolder === 'all')}>
+            All ({notes.length})
           </button>
-
-          <button
-            onClick={handleCreateNewNote}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-2xs transition-colors"
-          >
-            <FilePlus className="w-3.5 h-3.5" />
-            <span>New Note</span>
-          </button>
+          {allFolders.map((f) => (
+            <button key={f} type="button" aria-pressed={selectedFolder === f} onClick={() => setSelectedFolder(f)} className={chip(selectedFolder === f)}>
+              {f}
+            </button>
+          ))}
         </div>
+        {showNewFolder && (
+          <form onSubmit={createFolder} className="flex gap-2">
+            <label htmlFor="new-folder" className="sr-only">
+              Folder name
+            </label>
+            <input
+              id="new-folder"
+              type="text"
+              placeholder="Folder name"
+              value={newFolderInput}
+              onChange={(e) => setNewFolderInput(e.target.value)}
+              className="flex-1 min-w-0 px-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg"
+              autoFocus
+            />
+            <button type="submit" disabled={!newFolderInput.trim()} className={buttonClass.secondary}>
+              Create
+            </button>
+          </form>
+        )}
       </div>
 
-      {/* Main Responsive Workspace Layout: Expansive Desktop 3-Column / Mobile Single-Pane */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Column 1 & 2: Folder Sidebar & Note List */}
-        <div
-          className={`lg:col-span-4 xl:col-span-3 flex flex-col h-full bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden shadow-2xs ${
-            mobilePane === 'editor' ? 'hidden lg:flex' : 'flex'
-          }`}
-        >
-          {/* Search Bar */}
-          <div className="p-3 border-b border-stone-200 dark:border-stone-800">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-2.5" />
+      <ul className="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
+        {filteredNotes.length > 0 ? (
+          filteredNotes.map((note) => {
+            const checklist = noteChecklist(note.content);
+            const preview = notePreview(note.content.replace(new RegExp(`^#\\s+${note.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), ''));
+            return (
+              <li key={note.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedNoteId(note.id);
+                    setPane('editor');
+                  }}
+                  aria-current={note.id === activeNote?.id && !compact ? 'true' : undefined}
+                  className={`w-full text-left px-3 py-2.5 ${
+                    note.id === activeNote?.id && !compact ? 'bg-amber-50 dark:bg-amber-950/30' : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="flex-1 min-w-0 font-semibold text-[15px] sm:text-sm text-stone-900 dark:text-stone-100 truncate">{note.title || 'Untitled'}</span>
+                    {note.pinned && <Pin className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" aria-label="Pinned" />}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
+                    <span className="font-medium">{note.folder}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{formatNoteDate(note.updatedAt)}</span>
+                    {checklist && (
+                      <span className="inline-flex items-center gap-1">
+                        <ListChecks className="w-3.5 h-3.5" /> {checklist.done}/{checklist.total}
+                      </span>
+                    )}
+                  </div>
+                  {preview && <p className="mt-1 text-sm text-stone-600 dark:text-stone-400 line-clamp-2">{preview}</p>}
+                </button>
+              </li>
+            );
+          })
+        ) : (
+          <li className="p-8 text-center text-stone-600 dark:text-stone-400">
+            {notes.length === 0 ? 'No notes yet. Tap New note to write one.' : 'No notes match your search.'}
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+
+  const editor = (
+    <div className={`flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' ? 'hidden lg:flex' : 'flex'}`}>
+      {activeNote ? (
+        <>
+          <div className="px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setPane('list')} aria-label="Back to notes" className={`${iconBtn} lg:hidden`}>
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <label htmlFor="note-title" className="sr-only">
+                Title
+              </label>
               <input
+                id="note-title"
+                ref={titleRef}
                 type="text"
-                placeholder="Search notes or tags..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 rounded-md text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                value={activeNote.title}
+                onChange={(e) => updateActive({ title: e.target.value })}
+                placeholder="Title"
+                enterKeyHint="next"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setViewMode((m) => (m === 'preview' ? 'edit' : m));
+                    requestAnimationFrame(() => editorRef.current?.focus());
+                  }
+                }}
+                className="flex-1 min-w-0 px-2 min-h-11 text-lg font-bold bg-transparent rounded-lg border border-transparent hover:border-stone-200 focus:border-stone-300 dark:hover:border-stone-700 focus:outline-hidden text-stone-900 dark:text-stone-50"
+              />
+              <button
+                type="button"
+                onClick={() => updateActive({ pinned: !activeNote.pinned })}
+                aria-pressed={Boolean(activeNote.pinned)}
+                aria-label={activeNote.pinned ? 'Unpin note' : 'Pin note to the top'}
+                title={activeNote.pinned ? 'Unpin' : 'Pin to the top'}
+                className={`${iconBtn} ${activeNote.pinned ? 'text-amber-700 dark:text-amber-400' : ''}`}
+              >
+                <Pin className={`w-4 h-4 ${activeNote.pinned ? 'fill-current' : ''}`} />
+              </button>
+              <Menu
+                align="right"
+                items={[{ label: 'Delete note', icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => deleteNote(activeNote) }]}
+                trigger={(props) => (
+                  <button type="button" {...props} aria-label="More note actions" className={iconBtn}>
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                )}
               />
             </div>
 
-            {/* Folder filter pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto mt-2.5 pb-1 text-xs">
-              <button
-                onClick={() => setSelectedFolder('all')}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium whitespace-nowrap transition-colors ${
-                  selectedFolder === 'all'
-                    ? 'bg-amber-600 text-white font-semibold'
-                    : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
-                }`}
-              >
-                All ({notes.length})
-              </button>
-              {allFolders.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setSelectedFolder(f)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium whitespace-nowrap transition-colors ${
-                    selectedFolder === f
-                      ? 'bg-amber-600 text-white font-semibold'
-                      : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
-                  }`}
+            <div className="flex flex-wrap items-center gap-1 px-1">
+              <label className="flex items-center gap-1.5 text-sm text-stone-600 dark:text-stone-400 mr-1">
+                Folder
+                <select
+                  value={activeNote.folder}
+                  onChange={(e) => updateActive({ folder: e.target.value })}
+                  className="px-2 min-h-9 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100"
                 >
-                  {f}
+                  {[...new Set([...allFolders, activeNote.folder])].map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-0.5 p-0.5 bg-stone-100 dark:bg-stone-800 rounded-lg ml-auto" role="group" aria-label="View">
+                <button type="button" aria-pressed={viewMode === 'edit'} onClick={() => setViewMode('edit')} className={seg(viewMode === 'edit')}>
+                  <Edit2 className="w-4 h-4" /> Edit
                 </button>
-              ))}
+                {!compact && (
+                  <button type="button" aria-pressed={viewMode === 'split'} onClick={() => setViewMode('split')} className={`${seg(viewMode === 'split')} hidden md:inline-flex`}>
+                    <Columns className="w-4 h-4" /> Split
+                  </button>
+                )}
+                <button type="button" aria-pressed={viewMode === 'preview'} onClick={() => setViewMode('preview')} className={seg(viewMode === 'preview')}>
+                  <Eye className="w-4 h-4" /> Read
+                </button>
+              </div>
             </div>
 
-            {/* Inline New Folder Input */}
-            {showNewFolder && (
-              <form onSubmit={handleCreateFolder} className="mt-2 flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Folder name..."
-                  value={newFolderInput}
-                  onChange={(e) => setNewFolderInput(e.target.value)}
-                  className="flex-1 text-xs px-2.5 py-1 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded text-stone-900 dark:text-stone-100"
-                  autoFocus
+            {viewMode !== 'preview' && (
+              <div className="flex items-center gap-0.5 overflow-x-auto" role="toolbar" aria-label="Formatting">
+                {(
+                  [
+                    ['Heading', <Heading2 className="w-4 h-4" />, '## ', '', 'Heading'],
+                    ['Bold', <Bold className="w-4 h-4" />, '**', '**', 'bold text'],
+                    ['Italic', <Italic className="w-4 h-4" />, '*', '*', 'italic text'],
+                    ['Checklist item', <CheckSquare className="w-4 h-4" />, '- [ ] ', '', 'to do'],
+                    ['Code', <Code className="w-4 h-4" />, '`', '`', 'code'],
+                  ] as const
+                ).map(([label, icon, before, after, ph]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-label={label}
+                    title={label}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => format(before, after, ph)}
+                    className={iconBtn}
+                  >
+                    {icon}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-label="Link to another note"
+                  title="Link to another note"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => format('[[', ']]', 'Note title')}
+                  className={`${iconBtn} w-auto sm:w-auto px-2 text-sm font-semibold`}
+                >
+                  [[ ]]
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'grid grid-cols-1 md:grid-cols-2 divide-x divide-stone-200 dark:divide-stone-800' : 'flex flex-col'}`}>
+            {viewMode !== 'preview' && (
+              <>
+                <label htmlFor="note-editor-textarea" className="sr-only">
+                  Note text (Markdown)
+                </label>
+                <textarea
+                  id="note-editor-textarea"
+                  ref={editorRef}
+                  value={activeNote.content}
+                  onChange={(e) => updateActive({ content: e.target.value })}
+                  className={`w-full flex-1 p-4 sm:p-5 text-[15px] sm:text-sm leading-relaxed bg-transparent border-0 focus:outline-hidden text-stone-900 dark:text-stone-100 resize-none placeholder:text-stone-500 ${compact ? 'min-h-[60dvh]' : ''}`}
+                  placeholder="Start writing… Markdown works: # heading, - [ ] checklist, **bold**"
                 />
-                <button
-                  type="submit"
-                  className="px-2.5 py-1 text-xs bg-stone-800 text-white rounded font-medium"
-                >
-                  Create
-                </button>
-              </form>
+              </>
             )}
-          </div>
-
-          {/* Notes list */}
-          <div className="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800/80">
-            {filteredNotes.length > 0 ? (
-              filteredNotes.map((note) => {
-                const isSelected = note.id === activeNote?.id;
-                return (
-                  <button
-                    key={note.id}
-                    onClick={() => {
-                      setSelectedNoteId(note.id);
-                      setMobilePane('editor');
-                    }}
-                    className={`w-full text-left p-3 transition-colors ${
-                      isSelected
-                        ? 'bg-amber-50/50 dark:bg-amber-950/20'
-                        : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold text-xs text-stone-900 dark:text-stone-100 truncate">
-                        {note.title}
-                      </div>
-                      {note.pinned && <Pin className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />}
-                    </div>
-
-                    <div className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-2">
-                      <span className="font-medium text-amber-700 dark:text-amber-400">{note.folder}</span>
-                      <span>·</span>
-                      <span className="font-mono text-[10px]">
-                        {new Date(note.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-[11px] text-stone-400 line-clamp-2">
-                      {note.content.replace(/^#+\s+/gm, '').replace(/\n+/g, ' ')}
-                    </p>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="p-8 text-center text-xs text-stone-400">
-                No notes found matching your filter.
+            {viewMode !== 'edit' && (
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                {activeNote.content.trim() ? (
+                  <MarkdownPreview content={activeNote.content} onInternalLinkClick={openLinkedNote} onToggleTaskItem={toggleCheckbox} />
+                ) : (
+                  <p className="text-stone-600 dark:text-stone-400">This note is empty. Tap Edit to write.</p>
+                )}
               </div>
             )}
           </div>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-stone-600 dark:text-stone-400">
+          <p>Select a note, or start a new one.</p>
+          <button type="button" onClick={() => createNote()} className={buttonClass.primary}>
+            <FilePlus className="w-4 h-4" /> New note
+          </button>
         </div>
+      )}
+    </div>
+  );
 
-        {/* Column 3: Active Note Editor & Preview (Expansive desktop workspace) */}
-        <div
-          className={`lg:col-span-8 xl:col-span-9 flex flex-col h-full bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden shadow-2xs ${
-            mobilePane === 'list' ? 'hidden lg:flex' : 'flex'
-          }`}
-        >
-          {activeNote ? (
-            <>
-              {/* Note Header Toolbar */}
-              <div className="p-3 border-b border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 bg-stone-50/50 dark:bg-stone-900/50">
-                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  {/* Mobile Back Button to Notes List */}
-                  <button
-                    onClick={() => setMobilePane('list')}
-                    className="lg:hidden inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded mr-1"
-                  >
-                    ← Notes
-                  </button>
-
-                  <select
-                    value={activeNote.folder}
-                    onChange={(e) => handleUpdateActiveNote({ folder: e.target.value })}
-                    className="text-xs px-2 py-1 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded text-stone-700 dark:text-stone-300 font-medium"
-                  >
-                    {allFolders.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-
-                  <input
-                    type="text"
-                    value={activeNote.title}
-                    onChange={(e) => handleUpdateActiveNote({ title: e.target.value })}
-                    className="flex-1 text-sm font-bold bg-transparent border-0 focus:outline-hidden text-stone-900 dark:text-stone-100"
-                    placeholder="Note Title"
-                  />
-                </div>
-
-                {/* Formatting Tools & View Modes */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => insertFormatting('# ')}
-                    title="Heading 1"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <Heading1 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => insertFormatting('## ')}
-                    title="Heading 2"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <Heading2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => insertFormatting('**', '**')}
-                    title="Bold"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <Bold className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => insertFormatting('*', '*')}
-                    title="Italic"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <Italic className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => insertFormatting('- [ ] ')}
-                    title="Checklist item"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => insertFormatting('```\n', '\n```')}
-                    title="Code block"
-                    className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
-                  >
-                    <Code className="w-3.5 h-3.5" />
-                  </button>
-
-                  <div className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
-
-                  <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-md">
-                    <button
-                      onClick={() => setNoteViewMode('editor')}
-                      title="Editor only"
-                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-                        noteViewMode === 'editor'
-                          ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                          : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-                      }`}
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Edit</span>
-                    </button>
-
-                    <button
-                      onClick={() => setNoteViewMode('split')}
-                      title="Side-by-side split"
-                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-                        noteViewMode === 'split'
-                          ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                          : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-                      }`}
-                    >
-                      <Columns className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Split</span>
-                    </button>
-
-                    <button
-                      onClick={() => setNoteViewMode('preview')}
-                      title="Rendered preview"
-                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-                        noteViewMode === 'preview'
-                          ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                          : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-                      }`}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Preview</span>
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => handleUpdateActiveNote({ pinned: !activeNote.pinned })}
-                    title="Pin Note"
-                    className={`p-1.5 rounded transition-colors ${
-                      activeNote.pinned
-                        ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/60'
-                        : 'text-stone-400 hover:text-stone-700'
-                    }`}
-                  >
-                    <Pin className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={() => handleDeleteNote(activeNote.id)}
-                    title="Delete Note"
-                    className="p-1.5 text-stone-400 hover:text-rose-600 rounded transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Editor & Preview Panes */}
-              <div
-                className={`flex-1 min-h-0 ${
-                  noteViewMode === 'split'
-                    ? 'grid grid-cols-1 md:grid-cols-2 divide-x divide-stone-200 dark:divide-stone-800'
-                    : 'flex flex-col'
-                }`}
-              >
-                {/* Editor Textarea */}
-                {noteViewMode !== 'preview' && (
-                  <div className="h-full flex flex-col flex-1">
-                    <textarea
-                      id="note-editor-textarea"
-                      value={activeNote.content}
-                      onChange={(e) => handleUpdateActiveNote({ content: e.target.value })}
-                      className="w-full flex-1 p-5 text-sm font-mono leading-relaxed bg-transparent border-0 focus:outline-hidden text-stone-900 dark:text-stone-100 resize-none selection:bg-amber-500/30"
-                      placeholder="Write your Markdown document here..."
-                    />
-                  </div>
-                )}
-
-                {/* Live Rich Markdown Preview with Interactive Checkboxes */}
-                {noteViewMode !== 'editor' && (
-                  <div className="h-full p-6 overflow-y-auto bg-stone-50/50 dark:bg-stone-950/50 flex-1">
-                    <MarkdownPreview
-                      content={activeNote.content}
-                      onInternalLinkClick={handleInternalLinkClick}
-                      onToggleTaskItem={handleToggleCheckboxInActiveNote}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-xs text-stone-400">
-              Select or create a note to begin editing.
-            </div>
-          )}
+  return (
+    <div
+      className={
+        compact
+          ? 'flex flex-col gap-3 text-sm'
+          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 h-[calc(100dvh-3.5rem)] flex flex-col gap-3 text-sm'
+      }
+    >
+      {(pane === 'list' || !compact) && (
+        <div className={`flex items-center gap-2 ${pane === 'editor' ? 'hidden lg:flex' : ''}`}>
+          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-50 mr-auto">Notes</h1>
+          <button type="button" onClick={() => setShowNewFolder(!showNewFolder)} className={buttonClass.ghost}>
+            <FolderPlus className="w-4 h-4" /> <span className="hidden sm:inline">New folder</span>
+            <span className="sm:hidden">Folder</span>
+          </button>
+          <button type="button" onClick={() => createNote()} className={buttonClass.primary}>
+            <FilePlus className="w-4 h-4" /> New note
+          </button>
         </div>
-      </div>
+      )}
+
+      {compact ? (
+        pane === 'list' ? list : editor
+      ) : (
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-4 xl:col-span-3 min-h-0 flex flex-col">{list}</div>
+          <div className="lg:col-span-8 xl:col-span-9 min-h-0 flex flex-col">{editor}</div>
+        </div>
+      )}
     </div>
   );
 };

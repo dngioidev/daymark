@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument } from '../types/daymark';
-import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
+import { hideTaskTags, parseDailyDocument, restoreTaskTags, serializeDailyDocument } from './markdownEngine';
 
 const sample: DailyDocument = {
   date: '2026-10-16',
@@ -93,5 +93,34 @@ describe('markdown parsing edge cases', () => {
   it('keeps an explicitly written empty custom heading', () => {
     const parsed = parseDailyDocument('# Errands\n\n# Work\n', '2026-10-16');
     expect(parsed.headings.map((h) => h.name)).toContain('Errands');
+  });
+});
+
+describe('hidden task tags in the Markdown view', () => {
+  const md = [
+    '# Work',
+    '',
+    '- [ ] Write report',
+    '  <!-- daymark: task_id=t1 status=in-progress created=2026-10-14 carried_from=2026-10-19 -->',
+    '  Some context',
+    '',
+    '- [x] Ship it',
+    '  <!-- daymark: task_id=t2 status=done created=2026-10-20 completed=2026-10-20 -->',
+    '',
+  ].join('\n');
+
+  it('hides the tags and restores them unchanged', () => {
+    const { text, tags } = hideTaskTags(md);
+    expect(text).not.toContain('daymark:');
+    expect(restoreTaskTags(text, tags, '2026-10-20')).toBe(md);
+  });
+
+  it('keeps identity and syncs status with the checkbox', () => {
+    const { text, tags } = hideTaskTags(md);
+    const edited = text.replace('- [ ] Write report', '- [x] Write report').replace('- [x] Ship it', '- [ ] Ship it');
+    const doc = parseDailyDocument(restoreTaskTags(edited, tags, '2026-10-20'), '2026-10-20');
+    const [a, b] = doc.headings[0].items;
+    expect(a).toMatchObject({ id: 't1', status: 'done', completedDate: '2026-10-20', carriedFromDate: '2026-10-19' });
+    expect(b).toMatchObject({ id: 't2', status: 'in-progress', completedDate: undefined });
   });
 });

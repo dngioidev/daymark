@@ -247,3 +247,52 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
     updatedAt: new Date().toISOString(),
   };
 }
+
+const TASK_LINE = /^-\s*\[([ xX])\]\s*(.+)$/;
+const TAG_LINE = /^\s*<!--\s*daymark:.*-->\s*$/;
+
+/**
+ * For the Markdown view: removes the `<!-- daymark: … -->` lines (task identity, status,
+ * carry-forward dates) so people edit plain Markdown and cannot break them by accident.
+ * Tags are remembered per task title and put back by restoreTaskTags.
+ */
+export function hideTaskTags(markdown: string): { text: string; tags: Map<string, string[]> } {
+  const tags = new Map<string, string[]>();
+  const out: string[] = [];
+  for (const line of markdown.split(/\r?\n/)) {
+    const prev = out[out.length - 1]?.match(TASK_LINE);
+    if (prev && TAG_LINE.test(line)) {
+      const key = prev[2].trim();
+      tags.set(key, [...(tags.get(key) ?? []), line]);
+      continue;
+    }
+    out.push(line);
+  }
+  return { text: out.join('\n'), tags };
+}
+
+/**
+ * Puts hidden tags back under the task lines whose title is unchanged, and makes the tag agree
+ * with the checkbox (ticking "[x]" marks the task done on `date`; unticking reopens it).
+ * A renamed task line gets no tag and is treated as a new task.
+ */
+export function restoreTaskTags(text: string, tags: Map<string, string[]>, date: string): string {
+  const pending = new Map([...tags].map(([k, v]) => [k, [...v]]));
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    out.push(line);
+    const m = line.match(TASK_LINE);
+    const tag = m ? pending.get(m[2].trim())?.shift() : undefined;
+    if (!m || !tag) continue;
+    const checked = m[1].toLowerCase() === 'x';
+    const isDone = /\bstatus=done\b/.test(tag);
+    let next = tag;
+    if (checked && !isDone) {
+      next = next.replace(/\bstatus=\S+/, 'status=done').replace(/\s*\bcompleted=\S+/, '').replace(/\s*-->/, ` completed=${date} -->`);
+    } else if (!checked && isDone) {
+      next = next.replace(/\bstatus=done\b/, 'status=in-progress').replace(/\s*\bcompleted=\S+/, '');
+    }
+    out.push(next);
+  }
+  return out.join('\n');
+}

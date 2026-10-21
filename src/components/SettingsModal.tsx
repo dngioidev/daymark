@@ -1,25 +1,14 @@
-import React, { useState } from 'react';
-import {
-  Settings,
-  X,
-  Sliders,
-  Clock,
-  HardDrive,
-  RefreshCw,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Download,
-  Upload,
-  Server,
-  Layers,
-} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Download, FlaskConical, LayoutGrid, Plus, Upload, X } from 'lucide-react';
 import { AppSettings, LifecycleAction, StatusDefinition } from '../types/daymark';
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
+import { formatDateTime } from '../utils/dateFormat';
 import { isNativeApp, requestPinWidget } from '../native/daymarkBridge';
+import { Dialog, buttonClass } from './ui/Dialog';
+import { alertDialog, confirmDialog } from './ui/feedback';
+
+export type SettingsTab = 'storage' | 'sync' | 'lifecycle' | 'aging' | 'headings' | 'advanced';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -33,18 +22,38 @@ interface SettingsModalProps {
   onResetVault: () => void;
   /** Rendered in the Sync tab (connection to the self-hosted server). */
   syncPanel: React.ReactNode;
+  initialTab?: SettingsTab;
+  /** True when this device syncs with a server (changes what restore/sample data do). */
+  isSynced?: boolean;
+  /** ISO time of the last backup made on this device. */
+  lastBackupAt?: string | null;
 }
-
-type SettingsTab = 'lifecycle' | 'aging' | 'headings' | 'storage' | 'sync' | 'simulation';
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'storage', label: 'Backup & restore' },
   { id: 'sync', label: 'Sync' },
   { id: 'lifecycle', label: 'Statuses' },
-  { id: 'aging', label: 'Aging alerts' },
-  { id: 'headings', label: 'Headings' },
-  { id: 'simulation', label: 'Developer' },
+  { id: 'aging', label: 'Old-task warnings' },
+  { id: 'headings', label: 'Sections' },
+  { id: 'advanced', label: 'Advanced' },
 ];
+
+const ACTION_LABELS: Record<LifecycleAction, string> = {
+  'carry-forward': 'Move to today',
+  keep: 'Leave on that day',
+  archive: 'Archive',
+  warn: 'Leave, and warn',
+};
+
+const card = 'p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900';
+const input =
+  'px-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100';
+const hint = 'text-sm text-stone-600 dark:text-stone-400';
+
+const daysAgo = (iso: string) => {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+};
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -57,94 +66,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportZip,
   onResetVault,
   syncPanel,
+  initialTab = 'storage',
+  isSynced = false,
+  lastBackupAt = null,
 }) => {
-  if (!isOpen) return null;
-
-  const [activeTab, setActiveTab] = useState<SettingsTab>('storage');
-  const [draftSettings, setDraftSettings] = useState<AppSettings>(JSON.parse(JSON.stringify(settings)));
-
-  // Add new status state
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [draft, setDraft] = useState<AppSettings>(settings);
+  const [error, setError] = useState<string | null>(null);
   const [newStatusLabel, setNewStatusLabel] = useState('');
   const [newStatusAction, setNewStatusAction] = useState<LifecycleAction>('carry-forward');
   const [newStatusAging, setNewStatusAging] = useState(true);
+  const [newHeading, setNewHeading] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Add new heading state
-  const [newHeadingInput, setNewHeadingInput] = useState('');
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveTab(initialTab);
+    setDraft(JSON.parse(JSON.stringify(settings)));
+    setError(null);
+  }, [isOpen, initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Import file ref
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const actsImmediately = activeTab === 'storage' || activeTab === 'sync';
 
-  const handleSave = () => {
-    // Validate aging thresholds
-    if (draftSettings.agingThresholds.criticalDays <= draftSettings.agingThresholds.attentionDays) {
-      alert('Critical aging threshold must be greater than Attention threshold.');
-      return;
-    }
-    onSaveSettings(draftSettings);
+  const close = async () => {
+    if (dirty && !(await confirmDialog({ title: 'Discard unsaved changes?', confirmLabel: 'Discard', danger: true }))) return;
     onClose();
   };
 
-  const handleAddStatus = (e: React.FormEvent) => {
+  const save = () => {
+    if (draft.agingThresholds.criticalDays <= draft.agingThresholds.attentionDays) {
+      setActiveTab('aging');
+      setError('"Urgent" must be more days than "Needs attention".');
+      return;
+    }
+    onSaveSettings(draft);
+    onClose();
+  };
+
+  const setStatus = (id: string, patch: Partial<StatusDefinition>) =>
+    setDraft({ ...draft, statuses: draft.statuses.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+
+  const addStatus = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStatusLabel.trim()) return;
-    const id = newStatusLabel.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const newStatus: StatusDefinition = {
-      id,
-      label: newStatusLabel.trim(),
-      action: newStatusAction,
-      color: 'text-stone-700 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-200',
-      icon: 'Circle',
-      isSystem: false,
-      participatesInAging: newStatusAging,
-    };
-    setDraftSettings({
-      ...draftSettings,
-      statuses: [...draftSettings.statuses, newStatus],
+    const label = newStatusLabel.trim();
+    if (!label) return;
+    const id = label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `status-${Date.now()}`;
+    if (draft.statuses.some((s) => s.id === id)) return setError(`There is already a status called "${label}".`);
+    setDraft({
+      ...draft,
+      statuses: [
+        ...draft.statuses,
+        {
+          id,
+          label,
+          action: newStatusAction,
+          color: 'text-stone-700 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:border-stone-700',
+          icon: 'Circle',
+          isSystem: false,
+          participatesInAging: newStatusAging,
+        },
+      ],
     });
     setNewStatusLabel('');
+    setError(null);
   };
 
-  const handleDeleteStatus = (id: string) => {
-    setDraftSettings({
-      ...draftSettings,
-      statuses: draftSettings.statuses.filter((s) => s.id !== id),
-    });
-  };
-
-  const handleUpdateStatusAction = (id: string, action: LifecycleAction) => {
-    setDraftSettings({
-      ...draftSettings,
-      statuses: draftSettings.statuses.map((s) => (s.id === id ? { ...s, action } : s)),
-    });
-  };
-
-  const handleToggleStatusAging = (id: string) => {
-    setDraftSettings({
-      ...draftSettings,
-      statuses: draftSettings.statuses.map((s) =>
-        s.id === id ? { ...s, participatesInAging: !s.participatesInAging } : s
-      ),
-    });
-  };
-
-  const handleAddHeading = (e: React.FormEvent) => {
+  const addHeading = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newHeadingInput.trim()) return;
-    const h = newHeadingInput.trim();
-    if (!draftSettings.defaultHeadings.includes(h)) {
-      setDraftSettings({
-        ...draftSettings,
-        defaultHeadings: [...draftSettings.defaultHeadings, h],
-      });
-    }
-    setNewHeadingInput('');
-  };
-
-  const handleDeleteHeading = (name: string) => {
-    setDraftSettings({
-      ...draftSettings,
-      defaultHeadings: draftSettings.defaultHeadings.filter((h) => h !== name),
-    });
+    const h = newHeading.trim();
+    if (h && !draft.defaultHeadings.includes(h)) setDraft({ ...draft, defaultHeadings: [...draft.defaultHeadings, h] });
+    setNewHeading('');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,492 +159,326 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reader.readAsText(file);
   };
 
+  const replaceWithSample = async () => {
+    const ok = await confirmDialog({
+      title: 'Replace everything with sample data?',
+      message: 'All days, tasks and notes on this device are replaced with demo content. Back up first if you want to keep them.',
+      confirmLabel: 'Replace',
+      danger: true,
+    });
+    if (ok) {
+      onResetVault();
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-stretch sm:items-center justify-center sm:p-4">
-      <div role="dialog" aria-modal="true" aria-label="Settings" className="relative w-full max-w-3xl bg-white dark:bg-stone-900 sm:rounded-xl shadow-2xl sm:border border-stone-200 dark:border-stone-800 overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] pt-[env(safe-area-inset-top)] sm:pt-0">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-stone-200 dark:border-stone-800">
-          <div className="flex items-center gap-2.5">
-            <Settings className="w-5 h-5 text-amber-600 dark:text-amber-500" />
-            <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
-              Settings
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close settings"
-            className="p-2 -m-1 rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
-          >
-            <X className="w-5 h-5" />
+    <Dialog
+      isOpen={isOpen}
+      onClose={close}
+      variant="fullscreen-mobile"
+      size="xl"
+      title="Settings"
+      footer={
+        actsImmediately ? (
+          <button type="button" onClick={onClose} className={buttonClass.primary}>
+            Done
           </button>
-        </div>
-
-        {/* Tab Navigation: wraps so every section is reachable on a phone */}
-        <div className="flex flex-wrap gap-1.5 border-b border-stone-200 dark:border-stone-800 px-3 py-2.5 text-xs bg-stone-50/50 dark:bg-stone-900/50">
-          {SETTINGS_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              aria-pressed={activeTab === tab.id}
-              className={`min-h-[36px] px-3 rounded-full font-semibold whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              {tab.label}
+        ) : (
+          <>
+            <button type="button" onClick={close} className={buttonClass.ghost}>
+              Cancel
             </button>
-          ))}
-        </div>
+            <button type="button" onClick={save} disabled={!dirty} className={buttonClass.primary}>
+              Save changes
+            </button>
+          </>
+        )
+      }
+    >
+      <div role="tablist" aria-label="Settings sections" className="flex flex-wrap gap-1.5 px-4 py-3 border-b border-stone-200 dark:border-stone-800">
+        {SETTINGS_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`min-h-11 sm:min-h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
+                : 'bg-stone-100 text-stone-700 hover:text-stone-900 dark:bg-stone-800 dark:text-stone-300 dark:hover:text-stone-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Tab Body */}
-        <div className="p-5 flex-1 overflow-y-auto space-y-6">
-          {/* TAB 1: STATUSES & LIFECYCLE */}
-          {activeTab === 'lifecycle' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                  Task Statuses and Rollover Lifecycle Rules
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Configure what happens during daily rollover for each status: keep in note, carry forward to tomorrow, or archive.
-                </p>
-              </div>
+      <div role="tabpanel" className="p-4 sm:p-5 space-y-4 text-sm">
+        {error && (
+          <p role="alert" className="p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900">
+            {error}
+          </p>
+        )}
 
-              {/* Status table */}
-              <div className="border border-stone-200 dark:border-stone-800 rounded-lg overflow-hidden text-xs">
-                <table className="w-full divide-y divide-stone-200 dark:divide-stone-800">
-                  <thead className="bg-stone-50 dark:bg-stone-800/60 text-stone-500">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold">Status Name</th>
-                      <th className="px-3 py-2 text-left font-semibold">Daily Lifecycle Action</th>
-                      <th className="px-3 py-2 text-center font-semibold">Participates in Aging</th>
-                      <th className="px-3 py-2 text-right font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100 dark:divide-stone-800/80">
-                    {draftSettings.statuses.map((status) => (
-                      <tr key={status.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/30">
-                        <td className="px-3 py-2 font-medium text-stone-900 dark:text-stone-100">
-                          {status.label}
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={status.action}
-                            disabled={status.id === 'done'}
-                            onChange={(e) =>
-                              handleUpdateStatusAction(status.id, e.target.value as LifecycleAction)
-                            }
-                            className="px-2 py-1 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded text-stone-800 dark:text-stone-200 disabled:opacity-50"
-                          >
-                            <option value="keep">Keep in current note</option>
-                            <option value="carry-forward">Carry forward</option>
-                            <option value="archive">Archive</option>
-                            <option value="warn">Warn only</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={status.participatesInAging}
-                            disabled={status.id === 'done' || status.id === 'note'}
-                            onChange={() => handleToggleStatusAging(status.id)}
-                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 disabled:opacity-40"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {!status.isSystem && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteStatus(status.id)}
-                              className="text-stone-400 hover:text-rose-500"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        {activeTab === 'storage' && (
+          <>
+            <div className={card}>
+              <h3 className="font-semibold text-base">Back up</h3>
+              <p className={`${hint} mt-1`}>
+                Saves all your days and notes as plain Markdown files in a .zip you can open anywhere.{' '}
+                <span className="font-medium text-stone-800 dark:text-stone-200">
+                  {lastBackupAt ? `Last backup on this device: ${daysAgo(lastBackupAt)}.` : 'No backup made on this device yet.'}
+                </span>
+              </p>
+              <button type="button" onClick={onExportZip} className={`${buttonClass.primary} mt-3 w-full sm:w-auto`}>
+                <Download className="w-4 h-4" /> Back up now
+              </button>
+            </div>
 
-              {/* Add custom status */}
-              <form
-                onSubmit={handleAddStatus}
-                className="p-3 bg-stone-50 dark:bg-stone-800/40 rounded-lg border border-stone-200 dark:border-stone-800 flex items-center gap-3 text-xs"
-              >
-                <input
-                  type="text"
-                  placeholder="New status name (e.g. In Review, Delegated)"
-                  value={newStatusLabel}
-                  onChange={(e) => setNewStatusLabel(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded text-stone-900 dark:text-stone-100"
-                />
-                <select
-                  value={newStatusAction}
-                  onChange={(e) => setNewStatusAction(e.target.value as LifecycleAction)}
-                  className="px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded text-stone-800 dark:text-stone-200"
-                >
-                  <option value="carry-forward">Carry forward</option>
-                  <option value="keep">Keep in note</option>
-                  <option value="archive">Archive</option>
-                </select>
-                <label className="flex items-center gap-1.5 text-stone-600 dark:text-stone-400">
-                  <input
-                    type="checkbox"
-                    checked={newStatusAging}
-                    onChange={(e) => setNewStatusAging(e.target.checked)}
-                    className="rounded text-amber-600"
-                  />
-                  <span>Track Aging</span>
-                </label>
+            <div className={card}>
+              <h3 className="font-semibold text-base">Restore</h3>
+              <p className={`${hint} mt-1`}>
+                Open a Daymark backup (.zip or .json) or a .zip of Markdown files.{' '}
+                {isSynced
+                  ? 'Because sync is on, it is merged with your server; nothing on your other devices is deleted.'
+                  : 'It replaces what is on this device.'}
+              </p>
+              <input type="file" ref={fileInputRef} accept=".json,.zip" onChange={handleFileChange} className="hidden" aria-label="Backup file" />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className={`${buttonClass.secondary} mt-3 w-full sm:w-auto`}>
+                <Upload className="w-4 h-4" /> Choose a backup file…
+              </button>
+            </div>
+
+            {isNativeApp() && (
+              <div className={card}>
+                <h3 className="font-semibold text-base">Home-screen widget</h3>
+                <p className={`${hint} mt-1`}>See today's tasks on your home screen, tick them off and add new ones without opening Daymark.</p>
                 <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-stone-800 dark:bg-stone-700 text-white rounded font-medium hover:bg-stone-900"
+                  type="button"
+                  onClick={async () => {
+                    if (!(await requestPinWidget()))
+                      await alertDialog(
+                        'Add the widget from your home screen',
+                        'Your launcher cannot add widgets automatically. Long-press the home screen, choose Widgets, and pick Daymark Today.'
+                      );
+                  }}
+                  className={`${buttonClass.secondary} mt-3 w-full sm:w-auto`}
                 >
-                  Add Status
+                  <LayoutGrid className="w-4 h-4" /> Add widget
                 </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB 2: AGING THRESHOLDS */}
-          {activeTab === 'aging' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                  Carry-Forward Aging & Alerts
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Configure calendar-day thresholds for deferred work indicators (Section 8 of PRD).
-                </p>
               </div>
+            )}
+          </>
+        )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
-                  <label className="block text-xs font-semibold text-stone-800 dark:text-stone-200">
-                    Attention Warning Threshold
+        {activeTab === 'sync' && syncPanel}
+
+        {activeTab === 'lifecycle' && (
+          <>
+            <p className={hint}>Choose what happens each morning to tasks left in each status.</p>
+            <ul className="space-y-2">
+              {draft.statuses.map((status) => (
+                <li key={status.id} className={`${card} flex flex-wrap items-center gap-x-4 gap-y-2`}>
+                  <span className={`inline-flex px-2 py-0.5 rounded-md border text-xs font-semibold ${status.color}`}>{status.label}</span>
+                  <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-48 basis-full sm:basis-auto">
+                    <span className="text-stone-700 dark:text-stone-300 whitespace-nowrap">Each morning</span>
+                    <select
+                      value={status.action}
+                      disabled={status.id === 'done'}
+                      onChange={(e) => setStatus(status.id, { action: e.target.value as LifecycleAction })}
+                      className={`${input} flex-1 min-w-0 disabled:opacity-60`}
+                    >
+                      {(Object.keys(ACTION_LABELS) as LifecycleAction[]).map((a) => (
+                        <option key={a} value={a}>
+                          {ACTION_LABELS[a]}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                  <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 min-h-11 sm:min-h-9">
                     <input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={draftSettings.agingThresholds.attentionDays}
-                      onChange={(e) =>
-                        setDraftSettings({
-                          ...draftSettings,
-                          agingThresholds: {
-                            ...draftSettings.agingThresholds,
-                            attentionDays: parseInt(e.target.value, 10) || 1,
-                          },
-                        })
-                      }
-                      className="w-24 px-3 py-1.5 text-xs bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md font-mono"
+                      type="checkbox"
+                      checked={status.participatesInAging}
+                      disabled={status.id === 'done' || status.id === 'note'}
+                      onChange={() => setStatus(status.id, { participatesInAging: !status.participatesInAging })}
+                      className="w-5 h-5 accent-amber-700"
                     />
-                    <span className="text-xs text-stone-500">days carried forward</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Displays amber accent and attention indicator on the task.
-                  </p>
-                </div>
-
-                <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
-                  <label className="block text-xs font-semibold text-stone-800 dark:text-stone-200">
-                    Critical Alert Threshold
+                    <span className="text-stone-700 dark:text-stone-300">Warn when it gets old</span>
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={draftSettings.agingThresholds.attentionDays + 1}
-                      max={60}
-                      value={draftSettings.agingThresholds.criticalDays}
-                      onChange={(e) =>
-                        setDraftSettings({
-                          ...draftSettings,
-                          agingThresholds: {
-                            ...draftSettings.agingThresholds,
-                            criticalDays: parseInt(e.target.value, 10) || 1,
-                          },
-                        })
-                      }
-                      className="w-24 px-3 py-1.5 text-xs bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md font-mono"
-                    />
-                    <span className="text-xs text-stone-500">days carried forward</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Displays prominent critical indicator and banner alert.
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-amber-50/60 dark:bg-amber-950/30 rounded-xl border border-amber-200/80 dark:border-amber-900/60 text-xs text-amber-950 dark:text-amber-200 space-y-1">
-                <span className="font-semibold">Aging Rules Compliance:</span>
-                <p className="text-[11px] text-stone-600 dark:text-stone-400">
-                  Task age is derived from its tracking origin date and calendar days elapsed. Changing status between active states (e.g. In progress → Blocked) does NOT reset the counter. Completed tasks stop aging.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: DEFAULT HEADINGS */}
-          {activeTab === 'headings' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                  Default Daily Notebook Headings
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  When a new daily document is created, these Markdown section headings are auto-populated.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                {draftSettings.defaultHeadings.map((heading) => (
-                  <div
-                    key={heading}
-                    className="flex items-center justify-between p-2.5 bg-stone-50 dark:bg-stone-800/40 border border-stone-200 dark:border-stone-800 rounded-lg text-xs"
-                  >
-                    <span className="font-semibold text-stone-800 dark:text-stone-200">#{heading}</span>
+                  {!status.isSystem && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteHeading(heading)}
-                      className="text-stone-400 hover:text-rose-500"
+                      aria-label={`Remove status ${status.label}`}
+                      onClick={() => setDraft({ ...draft, statuses: draft.statuses.filter((s) => s.id !== status.id) })}
+                      className="ml-auto inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <X className="w-4 h-4" />
                     </button>
-                  </div>
-                ))}
-              </div>
+                  )}
+                </li>
+              ))}
+            </ul>
 
-              <form onSubmit={handleAddHeading} className="flex gap-2 text-xs">
-                <input
-                  type="text"
-                  placeholder="New heading name (e.g. Follow-ups, Learning)"
-                  value={newHeadingInput}
-                  onChange={(e) => setNewHeadingInput(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded text-stone-900 dark:text-stone-100"
-                />
-                <button
-                  type="submit"
-                  className="px-3.5 py-1.5 bg-stone-800 dark:bg-stone-700 text-white rounded font-medium"
-                >
-                  Add Heading
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB 4: DATE SIMULATION */}
-          {activeTab === 'simulation' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                  Interactive Date Simulator
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Developer tool. Leave empty to use your real local date. Set a date to test the rollover and aging engine.
-                </p>
-              </div>
-
-              <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-3 text-xs">
-                <label className="block font-semibold text-stone-800 dark:text-stone-200">
-                  Date override (empty = real date)
+            <form onSubmit={addStatus} className={`${card} space-y-2`}>
+              <h3 className="font-semibold">Add a status</h3>
+              <label htmlFor="new-status" className="sr-only">
+                Status name
+              </label>
+              <input
+                id="new-status"
+                type="text"
+                placeholder="Name, e.g. In review"
+                value={newStatusLabel}
+                onChange={(e) => setNewStatusLabel(e.target.value)}
+                className={`${input} w-full`}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-48 basis-full sm:basis-auto">
+                  <span className="whitespace-nowrap text-stone-700 dark:text-stone-300">Each morning</span>
+                  <select value={newStatusAction} onChange={(e) => setNewStatusAction(e.target.value as LifecycleAction)} className={`${input} flex-1 min-w-0`}>
+                    {(['carry-forward', 'keep', 'archive'] as LifecycleAction[]).map((a) => (
+                      <option key={a} value={a}>
+                        {ACTION_LABELS[a]}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 min-h-11 sm:min-h-9">
+                  <input type="checkbox" checked={newStatusAging} onChange={(e) => setNewStatusAging(e.target.checked)} className="w-5 h-5 accent-amber-700" />
+                  <span className="text-stone-700 dark:text-stone-300">Warn when it gets old</span>
+                </label>
+                <button type="submit" disabled={!newStatusLabel.trim()} className={buttonClass.secondary}>
+                  <Plus className="w-4 h-4" /> Add status
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+
+        {activeTab === 'aging' && (
+          <>
+            <p className={hint}>
+              Tasks that keep moving to the next day get a warning so they don't drift forever. Age counts calendar days since the task was
+              created; changing its status doesn't reset it.
+            </p>
+            {(
+              [
+                ['attentionDays', 'Needs attention after', 'Amber marker on the task.', 1, 30],
+                ['criticalDays', 'Urgent after', 'Red marker, and counted in the banner on Today.', draft.agingThresholds.attentionDays + 1, 60],
+              ] as const
+            ).map(([key, label, help, min, max]) => (
+              <div key={key} className={card}>
+                <label htmlFor={`aging-${key}`} className="block font-semibold">
+                  {label}
+                </label>
+                <div className="mt-2 flex items-center gap-2">
                   <input
-                    type="date"
-                    value={draftSettings.simulatedToday}
-                    onChange={(e) =>
-                      setDraftSettings({ ...draftSettings, simulatedToday: e.target.value })
-                    }
-                    className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md font-mono text-sm"
+                    id={`aging-${key}`}
+                    type="number"
+                    inputMode="numeric"
+                    min={min}
+                    max={max}
+                    value={draft.agingThresholds[key]}
+                    onChange={(e) => setDraft({ ...draft, agingThresholds: { ...draft.agingThresholds, [key]: parseInt(e.target.value, 10) || 1 } })}
+                    className={`${input} w-24`}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: '' })}
-                    className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
-                  >
-                    Use real date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: getNextDate(formatLocalDate(), 1) })}
-                    className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
-                  >
-                    Real today +1 day
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDraftSettings({ ...draftSettings, simulatedToday: getNextDate(formatLocalDate(), 2) })}
-                    className="px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded text-xs font-mono"
-                  >
-                    Real today +2 days
-                  </button>
+                  <span className="text-stone-700 dark:text-stone-300">days</span>
                 </div>
-                <p className="text-[11px] text-stone-500">
-                  With an override set, opening Today executes the idempotent rollover algorithm, carrying forward unfinished tasks and incrementing the carry-forward age.
-                </p>
+                <p className={`${hint} mt-1`}>{help}</p>
               </div>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'headings' && (
+          <>
+            <p className={hint}>Every new day starts with these sections.</p>
+            <ul className="space-y-2">
+              {draft.defaultHeadings.map((heading) => (
+                <li key={heading} className={`${card} py-1.5 flex items-center justify-between`}>
+                  <span className="font-semibold">{heading}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove section ${heading}`}
+                    onClick={() => setDraft({ ...draft, defaultHeadings: draft.defaultHeadings.filter((h) => h !== heading) })}
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <form onSubmit={addHeading} className="flex gap-2">
+              <label htmlFor="new-heading" className="sr-only">
+                New section name
+              </label>
+              <input
+                id="new-heading"
+                type="text"
+                placeholder="New section, e.g. Follow-ups"
+                value={newHeading}
+                onChange={(e) => setNewHeading(e.target.value)}
+                className={`${input} flex-1 min-w-0`}
+              />
+              <button type="submit" disabled={!newHeading.trim()} className={buttonClass.secondary}>
+                Add
+              </button>
+            </form>
+          </>
+        )}
+
+        {activeTab === 'advanced' && (
+          <>
+            <div className={card}>
+              <h3 className="font-semibold">Technical backup (.json)</h3>
+              <p className={`${hint} mt-1`}>One file with everything, including settings. Restore it the same way as a .zip backup.</p>
+              <button type="button" onClick={onExportJson} className={`${buttonClass.secondary} mt-3`}>
+                <Download className="w-4 h-4" /> Download .json
+              </button>
             </div>
-          )}
 
-          {/* TAB 5: VAULT STORAGE & BACKUP */}
-          {activeTab === 'storage' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                  Local-First Vault & Portability
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Export standard Markdown directories, create JSON backups, or restore data.
-                </p>
-              </div>
+            <div className={card}>
+              <h3 className="font-semibold">Sample data</h3>
+              <p className={`${hint} mt-1`}>
+                {isSynced
+                  ? 'Not available while sync is on: the demo content would be added to your server and every device. Disconnect first.'
+                  : 'Replace everything on this device with demo days, tasks and notes to explore Daymark.'}
+              </p>
+              <button type="button" onClick={replaceWithSample} disabled={isSynced} className={`${buttonClass.secondary} mt-3 text-rose-700 dark:text-rose-400 disabled:opacity-50`}>
+                Replace with sample data…
+              </button>
+            </div>
 
-              {isNativeApp() && (
-                <div className="p-4 border border-stone-200 dark:border-stone-800 rounded-xl flex items-center justify-between gap-4 text-xs">
-                  <div>
-                    <div className="font-semibold text-stone-900 dark:text-stone-100">Home-screen widget</div>
-                    <p className="text-[11px] text-stone-500">
-                      Show today's tasks on your home screen and tick them off without opening Daymark.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const ok = await requestPinWidget();
-                      if (!ok) alert('Your launcher cannot add widgets automatically. Long-press the home screen, choose Widgets, and pick Daymark Today.');
-                    }}
-                    className="px-3.5 py-1.5 min-h-[36px] bg-amber-600 hover:bg-amber-700 rounded font-medium text-white shrink-0"
-                  >
-                    Add widget
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2 text-xs">
-                  <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
-                    <Download className="w-4 h-4 text-amber-600" />
-                    <span>Export Full Vault (.zip)</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Exports pure Markdown folder structure: <code>Daily/YYYY/MM-Month/YYYY-MM-DD.md</code>, <code>Notes/...</code>, and <code>.daymark/configuration.json</code>.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={onExportZip}
-                    className="w-full mt-2 py-2 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-semibold rounded-md hover:opacity-90"
-                  >
-                    Download Vault ZIP
-                  </button>
-                </div>
-
-                <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2 text-xs">
-                  <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
-                    <HardDrive className="w-4 h-4 text-amber-600" />
-                    <span>JSON Snapshot Backup</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Complete state snapshot for disaster recovery and cross-device migration.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={onExportJson}
-                    className="w-full mt-2 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-semibold rounded-md border border-stone-300 dark:border-stone-700"
-                  >
-                    Download JSON Backup
-                  </button>
-                </div>
-              </div>
-
-              {/* Restore & Reset */}
-              <div className="p-4 border border-stone-200 dark:border-stone-800 rounded-xl flex items-center justify-between gap-4 text-xs">
-                <div>
-                  <div className="font-semibold text-stone-900 dark:text-stone-100">
-                    Restore Backup (.zip or .json)
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Upload a Daymark vault ZIP, a JSON backup, or a ZIP of Markdown notes. This replaces the current vault.
-                  </p>
-                </div>
+            <div className={card}>
+              <h3 className="font-semibold flex items-center gap-2">
+                <FlaskConical className="w-4 h-4" /> Pretend it's another day
+              </h3>
+              <p className={`${hint} mt-1`}>For testing how unfinished tasks move to the next day. Leave empty to use the real date.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label htmlFor="date-override" className="sr-only">
+                  Date override
+                </label>
                 <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".json,.zip"
-                  onChange={handleFileChange}
-                  className="hidden"
+                  id="date-override"
+                  type="date"
+                  value={draft.simulatedToday}
+                  onChange={(e) => setDraft({ ...draft, simulatedToday: e.target.value })}
+                  className={input}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 rounded font-medium text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-700"
-                >
-                  Select File...
+                <button type="button" onClick={() => setDraft({ ...draft, simulatedToday: '' })} className={buttonClass.ghost}>
+                  Use real date
                 </button>
-              </div>
-
-              <div className="p-4 border border-rose-200 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/20 rounded-xl flex items-center justify-between gap-4 text-xs">
-                <div>
-                  <div className="font-semibold text-rose-900 dark:text-rose-200">
-                    Replace with sample data
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Replaces everything in this vault with demo notes and tasks. Export a backup first if you want to keep your notes.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm('Replace ALL notes and tasks in this vault with sample data? This cannot be undone unless you have a backup.')) {
-                      onResetVault();
-                      onClose();
-                    }
-                  }}
-                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium shadow-2xs"
-                >
-                  Replace
+                <button type="button" onClick={() => setDraft({ ...draft, simulatedToday: getNextDate(formatLocalDate(), 1) })} className={buttonClass.ghost}>
+                  Tomorrow
                 </button>
               </div>
             </div>
-          )}
 
-          {/* TAB 6: SELF-HOSTED SYNC */}
-          {activeTab === 'sync' && <div className="space-y-4">{syncPanel}</div>}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/50 flex items-center justify-end gap-3">
-          {activeTab === 'storage' || activeTab === 'sync' ? (
-            // These tabs act immediately; nothing to save
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-h-[40px] px-5 py-2 text-sm font-semibold text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 rounded-md"
-            >
-              Done
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={onClose}
-                className="min-h-[40px] px-3.5 py-2 text-sm font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                className="min-h-[40px] px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-2xs transition-colors"
-              >
-                Save changes
-              </button>
-            </>
-          )}
-        </div>
+            <p className={hint}>Daymark {__APP_VERSION__}{lastBackupAt ? ` · last backup ${formatDateTime(lastBackupAt)}` : ''}</p>
+          </>
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 };

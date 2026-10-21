@@ -13,6 +13,7 @@ object WidgetStore {
     private const val PREFS = "daymark_widget"
     private const val KEY_SNAPSHOT = "snapshot"
     private const val KEY_ACTIONS = "actions"
+    private const val KEY_CAPTURE = "capture_requested"
     private val lock = Any()
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -54,6 +55,18 @@ object WidgetStore {
             val actions = readActions(context) + taskId
             prefs(context).edit().putString(KEY_ACTIONS, JSONArray(actions).toString()).apply()
         }
+    }
+
+    /** The widget's + button was tapped; the app opens its new-task sheet when it reads this. */
+    fun requestCapture(context: Context) {
+        synchronized(lock) { prefs(context).edit().putBoolean(KEY_CAPTURE, true).apply() }
+    }
+
+    /** True once after [requestCapture]. */
+    fun consumeCaptureRequest(context: Context): Boolean = synchronized(lock) {
+        val requested = prefs(context).getBoolean(KEY_CAPTURE, false)
+        if (requested) prefs(context).edit().remove(KEY_CAPTURE).apply()
+        requested
     }
 
     /** Returns queued toggle task ids in order and clears the queue. */

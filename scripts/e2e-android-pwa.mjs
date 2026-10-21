@@ -79,7 +79,7 @@ try {
   await page.goto(base, { waitUntil: 'networkidle' });
   check(await page.getByRole('dialog', { name: /welcome to daymark/i }).isVisible(), 'first-run welcome is shown');
   await shot('android-1-welcome');
-  await page.getByRole('button', { name: /start with an empty vault/i }).click();
+  await page.getByRole('button', { name: /start fresh/i }).click();
 
   // Real date, not the old demo date
   const today = localToday();
@@ -89,9 +89,9 @@ try {
   check(!bodyText.includes('2026-10-16') || today === '2026-10-16', 'demo date is not shown');
 
   // Quick capture and persistence
-  await page.getByTitle('Quick Capture').click();
-  await page.getByPlaceholder(/what did you work on/i).fill('Buy milk (e2e)');
-  await page.getByRole('button', { name: /^capture$/i }).click();
+  await page.getByRole('button', { name: /^new task$/i }).click();
+  await page.getByPlaceholder(/what do you need to do/i).fill('Buy milk (e2e)');
+  await page.getByRole('button', { name: /^add task$/i }).click();
   await page.getByText('Buy milk (e2e)').first().waitFor();
   check(true, 'task captured');
   await shot('android-2-today-with-task');
@@ -115,17 +115,17 @@ try {
   await page.getByText('Buy milk (e2e)').first().waitFor({ timeout: 10000 }).catch(() => {});
   check(await page.getByText('Buy milk (e2e)').first().isVisible().catch(() => false), 'offline reload shows saved task');
   check(await page.getByRole('status').filter({ hasText: /offline/i }).isVisible().catch(() => false), 'offline banner is shown');
-  await page.getByTitle('Quick Capture').click();
-  await page.getByPlaceholder(/what did you work on/i).fill('Captured offline (e2e)');
-  await page.getByRole('button', { name: /^capture$/i }).click();
+  await page.getByRole('button', { name: /^new task$/i }).click();
+  await page.getByPlaceholder(/what do you need to do/i).fill('Captured offline (e2e)');
+  await page.getByRole('button', { name: /^add task$/i }).click();
   await page.getByText('Captured offline (e2e)').first().waitFor();
   await shot('android-3-offline-capture');
   await page.reload({ waitUntil: 'domcontentloaded' });
   check(await page.getByText('Captured offline (e2e)').first().isVisible().catch(() => false), 'offline capture survives offline reload');
   // Export works offline too (JSZip is a lazy chunk the service worker precaches)
-  await page.getByRole('button', { name: /settings, backup and import/i }).click();
+  await page.getByRole('button', { name: /^settings$/i }).click();
   const download = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
-  await page.getByRole('button', { name: /download vault zip/i }).click();
+  await page.getByRole('button', { name: /back up now/i }).click();
   const file = await download;
   check(!!file && /.zip$/.test(file.suggestedFilename()), 'offline vault ZIP export works', file ? file.suggestedFilename() : 'no download');
   await page.getByRole('button', { name: /^done$/i }).click().catch(() => {});
@@ -133,7 +133,7 @@ try {
 
   // Deep link from manifest shortcut
   await page.goto(`${base}/?action=capture`, { waitUntil: 'networkidle' });
-  check(await page.getByPlaceholder(/what did you work on/i).isVisible().catch(() => false), 'shortcut ?action=capture opens quick capture');
+  check(await page.getByPlaceholder(/what do you need to do/i).isVisible().catch(() => false), 'shortcut ?action=capture opens quick capture');
 } catch (err) {
   console.error('E2E aborted:', err);
   failures++;

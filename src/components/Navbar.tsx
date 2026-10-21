@@ -1,171 +1,134 @@
 import React from 'react';
-import {
-  Calendar,
-  FileText,
-  FolderOpen,
-  Smartphone,
-  Settings,
-  Plus,
-  Server,
-  HardDriveDownload,
-  Monitor,
-} from 'lucide-react';
+import { Calendar, FileText, FolderOpen, Plus, Settings, Smartphone } from 'lucide-react';
 import { ViewTab } from '../types/daymark';
+
+export type NavSyncStatus = 'off' | 'synced' | 'syncing' | 'offline' | 'error';
 
 interface NavbarProps {
   activeTab: ViewTab;
   onTabChange: (tab: ViewTab) => void;
   onOpenQuickCapture: () => void;
   onOpenSettings: () => void;
-  onExportZip: () => void;
+  /** Opens Settings on the Sync tab. */
+  onOpenSync: () => void;
   onSwitchToMobileApp: () => void;
-  simulatedToday: string;
+  /** Developer-only extras (phone preview, code samples). */
   showDevTabs?: boolean;
-  syncStatus: 'offline' | 'synced' | 'syncing' | 'error';
+  syncStatus: NavSyncStatus;
   carriedAlertCount: number;
 }
+
+export const SYNC_LABELS: Record<NavSyncStatus, { dot: string; label: string }> = {
+  off: { dot: 'bg-stone-400', label: 'Not synced' },
+  synced: { dot: 'bg-emerald-500', label: 'Synced' },
+  syncing: { dot: 'bg-amber-500 animate-pulse', label: 'Syncing' },
+  offline: { dot: 'bg-amber-500', label: 'Offline' },
+  error: { dot: 'bg-rose-500', label: 'Sync problem' },
+};
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
   onOpenQuickCapture,
   onOpenSettings,
-  onExportZip,
+  onOpenSync,
   onSwitchToMobileApp,
-  simulatedToday,
   showDevTabs = false,
   syncStatus,
   carriedAlertCount,
 }) => {
+  const link = (tab: ViewTab, icon: React.ReactNode, label: string, extra?: React.ReactNode) => (
+    <button
+      type="button"
+      onClick={() => onTabChange(tab)}
+      aria-current={activeTab === tab ? 'page' : undefined}
+      className={`flex items-center gap-1.5 min-h-9 px-3 rounded-lg whitespace-nowrap ${
+        activeTab === tab
+          ? 'text-stone-950 dark:text-stone-50 font-semibold bg-stone-200/80 dark:bg-stone-800'
+          : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-stone-50 hover:bg-stone-100 dark:hover:bg-stone-900'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+      {extra}
+    </button>
+  );
+
+  const sync = SYNC_LABELS[syncStatus];
+
   return (
     <header className="sticky top-0 z-40 bg-stone-50/95 dark:bg-stone-950/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800">
-      <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 lg:px-8 py-2.5">
-        {/* Brand & Date */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={() => onTabChange('today')}
-            className="text-lg font-bold tracking-tight text-stone-900 dark:text-stone-100 hover:text-amber-600 dark:hover:text-amber-400 transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 text-left"
-          >
-            <span className="w-3 h-3 rounded-sm bg-amber-600 dark:bg-amber-500 inline-block shadow-2xs"></span>
-            <span>Daymark</span>
-          </button>
-          <span className="hidden xl:inline text-xs font-mono text-stone-500 dark:text-stone-400 tabular-nums px-2 py-0.5 rounded bg-stone-200/50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-800">
-            {simulatedToday}
-          </span>
-        </div>
+      <div className="w-full max-w-[1800px] mx-auto flex items-center gap-3 lg:gap-6 px-4 sm:px-6 lg:px-8 py-2">
+        <button
+          type="button"
+          onClick={() => onTabChange('today')}
+          className="text-lg font-bold tracking-tight text-stone-900 dark:text-stone-100 flex items-center gap-2 shrink-0"
+        >
+          <span className="w-3 h-3 rounded-sm bg-amber-600 dark:bg-amber-500" aria-hidden="true" />
+          Daymark
+        </button>
 
-        {/* Desktop Navigation Links */}
-        <nav className="flex items-center gap-1 sm:gap-2 lg:gap-3 text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-400 overflow-x-auto py-1">
-          <button
-            onClick={() => onTabChange('today')}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 relative ${
-              activeTab === 'today'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Today</span>
-            {carriedAlertCount > 0 && (
-              <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-bold text-amber-700 bg-amber-100 dark:bg-amber-950 dark:text-amber-300 rounded-sm">
+        <nav aria-label="Main" className="flex items-center gap-1 text-sm font-medium">
+          {link(
+            'today',
+            <Calendar className="w-4 h-4" />,
+            'Today',
+            carriedAlertCount > 0 && (
+              <span
+                title={`${carriedAlertCount} ${carriedAlertCount === 1 ? 'task needs' : 'tasks need'} attention`}
+                aria-label={`${carriedAlertCount} ${carriedAlertCount === 1 ? 'task needs' : 'tasks need'} attention`}
+                className="inline-flex items-center justify-center min-w-5 h-5 px-1 text-xs font-bold text-amber-950 bg-amber-200 dark:bg-amber-900 dark:text-amber-100 rounded-full"
+              >
                 {carriedAlertCount}
               </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => onTabChange('history')}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'history'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>History</span>
-          </button>
-
-          <button
-            onClick={() => onTabChange('notes')}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'notes'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <FolderOpen className="w-4 h-4" />
-            <span>Notes</span>
-          </button>
-
-          <button
-            onClick={() => onTabChange('server')}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'server'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <Server className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>Sync</span>
-          </button>
-
-          {showDevTabs && (
-          <button
-            onClick={() => onTabChange('mobile-code')}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'mobile-code'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <Smartphone className="w-4 h-4" />
-            <span>Mobile & Code</span>
-          </button>
+            )
           )}
-
-          <button
-            onClick={onOpenSettings}
-            className={`flex items-center gap-1.5 py-1 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'settings'
-                ? 'text-stone-950 dark:text-stone-50 font-bold bg-stone-200/70 dark:bg-stone-800/80 shadow-2xs'
-                : 'hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Settings</span>
-          </button>
+          {link('history', <FileText className="w-4 h-4" />, 'History')}
+          {link('notes', <FolderOpen className="w-4 h-4" />, 'Notes')}
+          {showDevTabs && link('mobile-code', <Smartphone className="w-4 h-4" />, 'Mobile & Code')}
         </nav>
 
-        {/* Right Zone: Switch to Mobile View + Quick Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Switch to Dedicated Mobile App View */}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <button
-            onClick={onSwitchToMobileApp}
-            title="Switch to dedicated Mobile App View"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-stone-200/80 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 transition-colors shadow-2xs"
+            type="button"
+            onClick={onOpenSync}
+            aria-label={`Sync: ${sync.label}. Open sync settings`}
+            className="inline-flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
           >
-            <Smartphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span className="hidden sm:inline">Mobile App View</span>
+            <span className={`w-2 h-2 rounded-full ${sync.dot}`} aria-hidden="true" />
+            <span className="hidden lg:inline">{sync.label}</span>
           </button>
-
+          {showDevTabs && (
+            <button
+              type="button"
+              onClick={onSwitchToMobileApp}
+              aria-label="Phone layout preview"
+              title="Phone layout preview"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
+            >
+              <Smartphone className="w-4 h-4" />
+            </button>
+          )}
           <button
-            onClick={onExportZip}
-            title="Export complete Daymark Vault as Markdown ZIP"
-            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 dark:text-stone-300 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 rounded-md transition-colors whitespace-nowrap shrink-0 border border-stone-200 dark:border-stone-700"
+            type="button"
+            onClick={onOpenSettings}
+            aria-label="Settings"
+            title="Settings"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
           >
-            <HardDriveDownload className="w-3.5 h-3.5" />
-            <span>Export ZIP</span>
+            <Settings className="w-4 h-4" />
           </button>
-
           <button
+            type="button"
             onClick={onOpenQuickCapture}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-xs transition-colors whitespace-nowrap shrink-0"
+            aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
+            className="inline-flex items-center gap-1.5 min-h-9 px-3 text-sm font-semibold rounded-lg text-white bg-amber-700 hover:bg-amber-800 dark:bg-amber-500 dark:text-stone-950 dark:hover:bg-amber-400 whitespace-nowrap"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Quick Capture</span>
-            <span className="hidden lg:inline text-[10px] opacity-75 font-mono ml-0.5">
-              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
-            </span>
+            <Plus className="w-4 h-4" />
+            <span>New task</span>
+            <kbd className="hidden lg:inline ml-1 px-1 rounded bg-white/20 dark:bg-stone-950/15 text-xs font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
         </div>
       </div>

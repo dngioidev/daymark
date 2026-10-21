@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import {defineConfig, type Plugin} from 'vite';
 
@@ -18,6 +19,9 @@ const assetManifest = (): Plugin => ({
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss(), assetManifest()],
+    define: {
+      __APP_VERSION__: JSON.stringify(JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

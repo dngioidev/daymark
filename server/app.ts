@@ -70,16 +70,23 @@ export function createApp(config: ServerConfig, store: FileStore) {
       return res.status(401).json({ error: 'Wrong username or password.' });
     }
     limiter.reset(ip);
-    const device: DeviceRecord = {
+    const installId = typeof body.installId === 'string' && /^[\w-]{8,64}$/.test(body.installId) ? body.installId : undefined;
+    const name = String(body.deviceName || 'Unnamed device').slice(0, 80);
+    const platform = String(body.platform || 'web').slice(0, 20);
+    // Signing in again from the same install reuses its entry instead of adding a duplicate
+    const existing = installId ? store.devices.find((d) => d.installId === installId && !d.revoked) : undefined;
+    const device: DeviceRecord = existing ?? {
       id: `dev-${crypto.randomUUID()}`,
-      name: String(body.deviceName || 'Unnamed device').slice(0, 80),
-      platform: String(body.platform || 'web').slice(0, 20),
+      name,
+      platform,
       createdAt: new Date().toISOString(),
       lastSyncAt: null,
       lastIp: ip,
       revoked: false,
+      installId,
     };
-    store.devices.push(device);
+    if (existing) Object.assign(existing, { name, platform, lastIp: ip });
+    else store.devices.push(device);
     store.addLog({ deviceId: device.id, deviceName: device.name, action: 'device_connected', details: `Signed in (${device.platform})` });
     await store.persist('devices.json', 'sync-log.json');
     res.json({ token: issueToken(device.id), username: store.auth.username, device: { id: device.id, name: device.name } });

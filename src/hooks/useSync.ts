@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
-import { applySyncOutcome, login, SyncHttpError, SyncState, syncOnce, VaultData } from '../sync/syncClient';
+import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, VaultData } from '../sync/syncClient';
 import { loadSyncState, saveSyncState } from '../utils/vaultStore';
+
+/** Random id kept for the lifetime of this install (lets the server recognise a repeat sign-in). */
+function getInstallId(): string {
+  const KEY = 'daymark_install_id';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = `inst-${crypto.randomUUID()}`;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -19,6 +30,8 @@ export interface UseSyncResult {
   connect: (serverUrl: string, username: string, password: string, deviceName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   syncNow: () => void;
+  /** Call right after the whole local vault was replaced (restore, sample data). */
+  rebaseAfterReplace: () => void;
   token: string | null;
 }
 
@@ -49,6 +62,7 @@ export function useSync(
   const running = useRef(false);
   const rerun = useRef(false);
   const blocked = useRef(false); // set after the server rejected our token
+  const epoch = useRef(0); // bumped when the vault is replaced; stale in-flight results are dropped
 
   const persistState = (next: SyncState | null) => {
     stateRef.current = next;
@@ -68,7 +82,13 @@ export function useSync(
     try {
       do {
         rerun.current = false;
+        const startedAt = epoch.current;
         const outcome = await syncOnce(fetch, vaultRef.current, stateRef.current!);
+        if (startedAt !== epoch.current) {
+          // The vault was replaced while this round was in flight: start over from fresh bases
+          rerun.current = true;
+          continue;
+        }
         if (outcome.serverValues.size > 0) {
           const before = vaultRef.current;
           const next = applySyncOutcome(before, outcome);
@@ -131,7 +151,7 @@ export function useSync(
     async (serverUrl: string, username: string, password: string, deviceName: string) => {
       setError(null);
       try {
-        const session = await login(fetch, serverUrl, { username, password, deviceName, platform });
+        const session = await login(fetch, serverUrl, { username, password, deviceName, platform, installId: getInstallId() });
         blocked.current = false;
         // Fresh bases: the first sync merges this device's vault with the server's
         persistState({ ...session, lastRev: 0, bases: {}, lastSyncAt: null });
@@ -170,6 +190,11 @@ export function useSync(
     syncNow: () => {
       blocked.current = false;
       void run();
+    },
+    rebaseAfterReplace: () => {
+      if (!stateRef.current) return;
+      epoch.current++;
+      persistState(rebaseAfterVaultReplace(stateRef.current));
     },
     token: state?.token ?? null,
   };

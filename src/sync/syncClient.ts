@@ -68,6 +68,16 @@ export function collectChanges(local: EntityMap, state: SyncState): SyncChange[]
   return changes;
 }
 
+/**
+ * After the whole vault was replaced locally (restore a backup, load sample data), the old
+ * bases no longer describe this device's history: diffing against them would turn every
+ * missing entity into a deletion on the server. Forget them so the next sync is a fresh
+ * merge that adds the new vault to the server and keeps what other devices have.
+ */
+export function rebaseAfterVaultReplace(state: SyncState): SyncState {
+  return { ...state, bases: {}, lastRev: 0 };
+}
+
 export class SyncHttpError extends Error {
   constructor(
     message: string,

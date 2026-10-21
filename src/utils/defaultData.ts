@@ -5,7 +5,7 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'note',
     label: 'Note',
     action: 'keep',
-    color: 'text-stone-500 bg-stone-100 dark:bg-stone-800 dark:text-stone-400',
+    color: 'text-stone-700 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700',
     icon: 'FileText',
     isSystem: true,
     participatesInAging: false,
@@ -14,7 +14,7 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'not-started',
     label: 'Not started',
     action: 'keep',
-    color: 'text-stone-600 bg-stone-100 dark:bg-stone-800 dark:text-stone-300',
+    color: 'text-stone-700 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:border-stone-700',
     icon: 'Circle',
     isSystem: true,
     participatesInAging: false,
@@ -23,7 +23,7 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'in-progress',
     label: 'In progress',
     action: 'carry-forward',
-    color: 'text-sky-700 bg-sky-50 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
+    color: 'text-sky-800 bg-sky-50 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
     icon: 'PlayCircle',
     isSystem: true,
     participatesInAging: true,
@@ -32,16 +32,16 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'blocked',
     label: 'Blocked',
     action: 'carry-forward',
-    color: 'text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
+    color: 'text-amber-900 bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
     icon: 'AlertCircle',
     isSystem: true,
     participatesInAging: true,
   },
   {
     id: 'waiting',
-    label: 'Waiting / Dependency',
+    label: 'Waiting',
     action: 'carry-forward',
-    color: 'text-purple-700 bg-purple-50 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800',
+    color: 'text-purple-800 bg-purple-50 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800',
     icon: 'Clock',
     isSystem: true,
     participatesInAging: true,
@@ -50,7 +50,7 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'done',
     label: 'Done',
     action: 'keep',
-    color: 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800',
+    color: 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800',
     icon: 'CheckCircle2',
     isSystem: true,
     participatesInAging: false,
@@ -59,12 +59,27 @@ export const DEFAULT_STATUSES: StatusDefinition[] = [
     id: 'archived',
     label: 'Archived',
     action: 'archive',
-    color: 'text-stone-400 bg-stone-100 dark:bg-stone-800 dark:text-stone-500',
+    color: 'text-stone-600 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:border-stone-700',
     icon: 'Archive',
     isSystem: true,
     participatesInAging: false,
   },
 ];
+
+/**
+ * Brings settings saved by older versions up to date: built-in statuses get the current
+ * (accessible) colours, and the old "Waiting / Dependency" label becomes "Waiting".
+ * User-renamed labels and custom statuses are left alone.
+ */
+export function normalizeSettings(settings: AppSettings): AppSettings {
+  const statuses = settings.statuses.map((s) => {
+    const builtIn = DEFAULT_STATUSES.find((d) => d.id === s.id);
+    if (!builtIn) return s;
+    const label = s.id === 'waiting' && s.label === 'Waiting / Dependency' ? builtIn.label : s.label;
+    return label === s.label && s.color === builtIn.color ? s : { ...s, label, color: builtIn.color };
+  });
+  return statuses.every((s, i) => s === settings.statuses[i]) ? settings : { ...settings, statuses };
+}
 
 export const DEFAULT_HEADINGS = ['Work', 'Meetings', 'Ideas', 'Attention'];
 

@@ -1,5 +1,5 @@
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
-import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
+import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
 import { isNativeApp } from '../native/daymarkBridge';
@@ -163,7 +163,7 @@ export function loadSettings(): AppSettings {
   const value = cache.get(KEYS.SETTINGS) as AppSettings | undefined;
   if (!value) return DEFAULT_SETTINGS;
   // Older versions defaulted the date override to a fixed demo date
-  return value.simulatedToday === LEGACY_SIMULATED_DATE ? { ...value, simulatedToday: '' } : value;
+  return normalizeSettings(value.simulatedToday === LEGACY_SIMULATED_DATE ? { ...value, simulatedToday: '' } : value);
 }
 
 export function saveSettings(settings: AppSettings): void {
@@ -237,7 +237,7 @@ function blobToBase64(blob: Blob): Promise<string> {
  * Saves a file for the user. Browsers download it; the Android app (whose WebView cannot handle
  * blob downloads) writes it to the app cache and opens the system share sheet (Drive, Files, email...).
  */
-async function downloadBlob(blob: Blob, filename: string): Promise<void> {
+async function downloadBlob(blob: Blob, filename: string): Promise<boolean> {
   if (isNativeApp()) {
     const [{ Filesystem, Directory }, { Share }] = await Promise.all([
       import('@capacitor/filesystem'),
@@ -248,8 +248,14 @@ async function downloadBlob(blob: Blob, filename: string): Promise<void> {
       data: await blobToBase64(blob),
       directory: Directory.Cache,
     });
-    await Share.share({ title: filename, url: written.uri, dialogTitle: 'Save your Daymark backup' });
-    return;
+    try {
+      await Share.share({ title: filename, url: written.uri, dialogTitle: 'Save your Daymark backup' });
+    } catch (err) {
+      // Closing the share sheet without picking a target is a choice, not a failure
+      if (isShareCancel(err)) return false;
+      throw err;
+    }
+    return true;
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -259,6 +265,21 @@ async function downloadBlob(blob: Blob, filename: string): Promise<void> {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  return true;
+}
+
+export const isShareCancel = (err: unknown): boolean => /cancel/i.test(err instanceof Error ? err.message : String(err));
+
+const LAST_BACKUP_KEY = 'daymark_last_backup';
+
+/** ISO date of the last completed export on this device, or null. */
+export function getLastBackupDate(): string | null {
+  return localStorage.getItem(LAST_BACKUP_KEY);
+}
+
+function recordBackup(saved: boolean): boolean {
+  if (saved) localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
+  return saved;
 }
 
 /**
@@ -268,9 +289,9 @@ export async function exportVaultAsZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings
-): Promise<void> {
+): Promise<boolean> {
   const bytes = await buildVaultZip(docs, notes, settings);
-  await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`);
+  return recordBackup(await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`));
 }
 
 /**
@@ -280,7 +301,7 @@ export async function exportVaultAsJson(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings
-): Promise<void> {
+): Promise<boolean> {
   const bundle = {
     daymark_backup_version: '1.0',
     exported_at: new Date().toISOString(),
@@ -288,8 +309,10 @@ export async function exportVaultAsJson(
     daily_documents: docs,
     standalone_notes: notes,
   };
-  await downloadBlob(
-    new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }),
-    `daymark-backup-${new Date().toISOString().split('T')[0]}.json`
+  return recordBackup(
+    await downloadBlob(
+      new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }),
+      `daymark-backup-${new Date().toISOString().split('T')[0]}.json`
+    )
   );
 }

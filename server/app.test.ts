@@ -6,7 +6,7 @@ import { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DailyDocument, StandaloneNote, TaskItem } from '../src/types/daymark';
 import { DEFAULT_SETTINGS } from '../src/utils/defaultData';
-import { applySyncOutcome, login, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
+import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { FileStore } from './store';
@@ -119,6 +119,16 @@ describe('auth', () => {
     expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200);
   });
 
+  it('a repeat sign-in from the same install does not add a duplicate device', async () => {
+    const creds = { username: 'admin', password: PASSWORD, deviceName: 'Phone', platform: 'android', installId: 'install-abc12345' };
+    const first = await login(fetch, base, creds);
+    const second = await login(fetch, base, { ...creds, deviceName: 'Pixel' });
+    expect(second.deviceId).toBe(first.deviceId);
+    const other = await connect('Laptop');
+    const res = await (await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${other.token}` } })).json();
+    expect(res.devices.map((d: { name: string }) => d.name).sort()).toEqual(['Laptop', 'Pixel']);
+  });
+
   it('rejects weak new passwords', async () => {
     const a = await connect('Phone');
     const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'short' }, a.token);
@@ -160,6 +170,24 @@ describe('sync between two devices', () => {
     const contents = (v: VaultData) => v.notes.map((n) => n.content).sort();
     expect(contents(laptop.vault)).toEqual(['laptop edit', 'phone edit']);
     expect(contents(phone.vault)).toEqual(contents(laptop.vault));
+  });
+
+  it('restoring a backup on a synced device merges instead of deleting server data', async () => {
+    const phone = { vault: vault([day([task('a')])], [note('n1', 'one'), note('n2', 'two')]), state: await connect('Phone') };
+    const laptop = { vault: vault([]), state: await connect('Laptop') };
+    await sync(phone);
+    await sync(laptop);
+
+    // The phone restores an older backup that only has n3
+    phone.vault = vault([], [note('n3', 'from backup')]);
+    phone.state = rebaseAfterVaultReplace(phone.state);
+    await sync(phone);
+    await sync(laptop);
+
+    const ids = (v: VaultData) => v.notes.map((n) => n.id).sort();
+    expect(ids(laptop.vault)).toEqual(['n1', 'n2', 'n3']);
+    expect(ids(phone.vault)).toEqual(['n1', 'n2', 'n3']);
+    expect(statuses(laptop.vault)).toEqual(['a:in-progress']);
   });
 
   it('does not sync the device-local sync config', async () => {

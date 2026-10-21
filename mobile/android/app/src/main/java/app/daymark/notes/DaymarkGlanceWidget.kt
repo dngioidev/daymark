@@ -43,40 +43,48 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import java.time.LocalDate
 
 private val Surface = Color(0xFF1C1917)
-private val Checkbox = Color(0xFF292524)
-private val TextPrimary = Color(0xFFE7E5E4)
-private val TextMuted = Color(0xFFA8A29E)
+private val Checkbox = Color(0xFF44403C)
+private val TextPrimary = Color(0xFFF5F5F4)
+private val TextMuted = Color(0xFFD6D3D1)
 private val Amber = Color(0xFFF59E0B)
-private val Red = Color(0xFFEF4444)
+private val Red = Color(0xFFF87171)
 private val Green = Color(0xFF16A34A)
 
-/** Tapping the widget header opens the app. */
+private const val ROW_HEIGHT_DP = 30
+private const val HEADER_HEIGHT_DP = 60
+
+/** Tapping the header or a task title opens the app. */
 @Composable
 private fun openAppAction() = actionStartActivity(Intent(LocalContext.current, MainActivity::class.java))
+
+/** The + button opens the app straight into the new-task sheet (MainActivity hands it to the web app). */
+@Composable
+private fun captureAction() = actionStartActivity(
+    Intent(LocalContext.current, MainActivity::class.java)
+        .putExtra(MainActivity.EXTRA_ACTION, MainActivity.ACTION_CAPTURE)
+        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+)
 
 private val TaskIdKey = ActionParameters.Key<String>("taskId")
 
 /**
- * Daymark home-screen widget (Jetpack Glance). Shows today's tasks from the snapshot the app
- * wrote; ticking a checkbox queues a toggle that the app applies the next time it opens.
- * Tapping the header opens the app.
+ * Daymark home-screen widget (Jetpack Glance). Shows today's open tasks from the snapshot the
+ * app wrote, as many as fit, with "+N more" when some don't. Ticking a checkbox queues a toggle
+ * the app applies when it next opens; + opens the new-task sheet.
  */
 class DaymarkGlanceWidget : GlanceAppWidget() {
 
-    override val sizeMode = SizeMode.Responsive(
-        setOf(
-            DpSize(120.dp, 120.dp), // small
-            DpSize(260.dp, 120.dp), // medium
-            DpSize(260.dp, 260.dp), // large
-        )
-    )
+    override val sizeMode = SizeMode.Exact
 
     // Glance keeps one composition session alive across update() calls and does not call
     // provideGlance again, so data is read inside the composition, keyed by a version that
@@ -89,13 +97,9 @@ class DaymarkGlanceWidget : GlanceAppWidget() {
             val today = remember(version) { LocalDate.now() }
             val snapshot = remember(version) { WidgetStore.loadSnapshot(context) }
             val tasks = remember(version) { snapshot?.let { WidgetModel.tasksForDisplay(it, today) } ?: emptyList() }
-            val hasData = snapshot != null
             val size = LocalSize.current
-            when {
-                size.width < 180.dp -> SmallContent(tasks, hasData)
-                size.height < 180.dp -> MediumContent(tasks, today, hasData)
-                else -> LargeContent(tasks, today, hasData)
-            }
+            if (size.width < 180.dp) SmallContent(tasks, snapshot != null)
+            else ListContent(tasks, today, snapshot != null, size)
         }
     }
 }
@@ -107,81 +111,99 @@ private fun SmallContent(tasks: List<WidgetTask>, hasData: Boolean) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(Surface)
-            .padding(12.dp)
-            .cornerRadius(16.dp)
-            .clickable(openAppAction()),
+            .padding(10.dp)
+            .cornerRadius(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = if (hasData) "$pending" else "–",
-            style = TextStyle(color = ColorProvider(Amber), fontSize = 28.sp, fontWeight = FontWeight.Bold),
-        )
-        Text(
-            text = if (hasData) "Active tasks" else "Open Daymark",
-            style = TextStyle(color = ColorProvider(TextMuted), fontSize = 11.sp),
-        )
+        Column(
+            modifier = GlanceModifier.clickable(openAppAction()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = if (hasData) "$pending" else "–",
+                style = TextStyle(color = ColorProvider(Amber), fontSize = 28.sp, fontWeight = FontWeight.Bold),
+            )
+            Text(
+                text = if (!hasData) "Open Daymark" else if (pending == 1) "task left" else "tasks left",
+                style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+            )
+        }
+        Spacer(modifier = GlanceModifier.height(6.dp))
+        AddButton()
     }
 }
 
 @Composable
-private fun MediumContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean) {
+private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean, size: DpSize) {
     val active = tasks.filter { !it.isDone }
-    Column(
-        modifier = GlanceModifier.fillMaxSize().background(Surface).padding(12.dp).cornerRadius(16.dp),
-    ) {
-        Header(done = tasks.count { it.isDone }, total = tasks.size, title = "Daymark Today")
-        Spacer(modifier = GlanceModifier.height(8.dp))
+    val done = tasks.size - active.size
+    // As many rows as the widget height allows; the last row becomes "+N more" when needed
+    val capacity = ((size.height.value - HEADER_HEIGHT_DP) / ROW_HEIGHT_DP).toInt().coerceAtLeast(1)
+    val shown = if (active.size > capacity) active.take(capacity - 1) else active
+    val hidden = active.size - shown.size
+
+    Column(modifier = GlanceModifier.fillMaxSize().background(Surface).padding(12.dp).cornerRadius(16.dp)) {
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = GlanceModifier.defaultWeight().clickable(openAppAction()), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = GlanceModifier.size(8.dp).background(Color(0xFFD97706)).cornerRadius(2.dp)) {}
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                Text(
+                    text = "Today",
+                    style = TextStyle(color = ColorProvider(TextPrimary), fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                )
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                if (hasData) {
+                    Text(
+                        text = if (active.isEmpty()) "all done" else "${active.size} left · $done done",
+                        style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                    )
+                }
+            }
+            AddButton()
+        }
+        Spacer(modifier = GlanceModifier.height(6.dp))
         when {
             !hasData -> EmptyMessage("Open Daymark to load today")
-            active.isEmpty() -> EmptyMessage("All daily work completed")
-            else -> Column(modifier = GlanceModifier.fillMaxWidth()) {
-                active.take(3).forEach { TaskRow(it, today) }
+            active.isEmpty() -> EmptyMessage(if (tasks.isEmpty()) "Nothing planned yet. Tap + to add a task." else "All done for today")
+            else -> LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                items(shown) { TaskRow(it, today) }
+                if (hidden > 0) {
+                    item {
+                        Text(
+                            text = "+$hidden more",
+                            modifier = GlanceModifier.fillMaxWidth().padding(start = 30.dp, top = 4.dp).clickable(openAppAction()),
+                            style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun LargeContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean) {
-    Column(
-        modifier = GlanceModifier.fillMaxSize().background(Surface).padding(12.dp).cornerRadius(16.dp),
+private fun AddButton() {
+    Box(
+        modifier = GlanceModifier
+            .size(36.dp)
+            .background(Amber)
+            .cornerRadius(18.dp)
+            .clickable(captureAction())
+            .semantics { contentDescription = "New task" },
+        contentAlignment = Alignment.Center,
     ) {
-        Header(done = tasks.count { it.isDone }, total = tasks.size, title = "Daymark · Priority list")
-        Spacer(modifier = GlanceModifier.height(8.dp))
-        if (!hasData) {
-            EmptyMessage("Open Daymark to load today")
-        } else if (tasks.isEmpty()) {
-            EmptyMessage("Nothing planned for today")
-        } else {
-            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(tasks) { TaskRow(it, today) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Header(done: Int, total: Int, title: String) {
-    Row(
-        modifier = GlanceModifier.fillMaxWidth().clickable(openAppAction()),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = GlanceModifier.size(8.dp).background(Color(0xFFD97706)).cornerRadius(2.dp)) {}
-        Spacer(modifier = GlanceModifier.width(6.dp))
         Text(
-            text = title,
-            style = TextStyle(color = ColorProvider(Color(0xFFF5F5F4)), fontSize = 13.sp, fontWeight = FontWeight.Bold),
+            text = "+",
+            style = TextStyle(color = ColorProvider(Color(0xFF1C1917)), fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
         )
-        Spacer(modifier = GlanceModifier.defaultWeight())
-        Text(text = "$done/$total done", style = TextStyle(color = ColorProvider(TextMuted), fontSize = 11.sp))
     }
 }
 
 @Composable
 private fun EmptyMessage(text: String) {
-    Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = text, style = TextStyle(color = ColorProvider(Color(0xFF78716C)), fontSize = 11.sp))
+    Box(modifier = GlanceModifier.fillMaxSize().clickable(openAppAction()), contentAlignment = Alignment.Center) {
+        Text(text = text, style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp, textAlign = TextAlign.Center))
     }
 }
 
@@ -189,25 +211,23 @@ private fun EmptyMessage(text: String) {
 private fun TaskRow(task: WidgetTask, today: LocalDate) {
     val age = WidgetModel.ageDays(task.createdDate, today)
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = GlanceModifier.fillMaxWidth().height(ROW_HEIGHT_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = GlanceModifier
-                .size(18.dp)
+                .size(22.dp)
                 .background(if (task.isDone) Green else Checkbox)
-                .cornerRadius(4.dp)
-                .clickable(actionRunCallback<ToggleTaskActionCallback>(actionParametersOf(TaskIdKey to task.id))),
+                .cornerRadius(5.dp)
+                .clickable(actionRunCallback<ToggleTaskActionCallback>(actionParametersOf(TaskIdKey to task.id)))
+                .semantics { contentDescription = "Mark ${task.title} done" },
         ) {}
         Spacer(modifier = GlanceModifier.width(8.dp))
         Text(
             text = task.title,
             maxLines = 1,
-            style = TextStyle(
-                color = ColorProvider(if (task.isDone) Color(0xFF78716C) else TextPrimary),
-                fontSize = 12.sp,
-            ),
-            modifier = GlanceModifier.defaultWeight(),
+            style = TextStyle(color = ColorProvider(if (task.isDone) TextMuted else TextPrimary), fontSize = 13.sp),
+            modifier = GlanceModifier.defaultWeight().clickable(openAppAction()),
         )
         if (!task.isDone && age > 0) {
             val color = when (WidgetModel.severity(age)) {
@@ -216,8 +236,8 @@ private fun TaskRow(task: WidgetTask, today: LocalDate) {
                 WidgetModel.Severity.NORMAL -> TextMuted
             }
             Text(
-                text = "+${age}d",
-                style = TextStyle(color = ColorProvider(color), fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                text = "${age}d",
+                style = TextStyle(color = ColorProvider(color), fontSize = 12.sp, fontWeight = FontWeight.Bold),
             )
         }
     }

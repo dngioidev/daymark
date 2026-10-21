@@ -1,62 +1,57 @@
 import React from 'react';
-import { BookOpen, FileText } from 'lucide-react';
+import { BookOpen, FileText, Upload } from 'lucide-react';
+import { Dialog } from './ui/Dialog';
 
 interface WelcomeModalProps {
   isOpen: boolean;
   onStartEmpty: () => void;
   onLoadSample: () => void;
+  /** Start empty and open Backup & restore. */
+  onRestore?: () => void;
 }
 
-export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onStartEmpty, onLoadSample }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="welcome-title"
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-2xl p-6 space-y-4"
+export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onStartEmpty, onLoadSample, onRestore }) => (
+  <Dialog
+    isOpen={isOpen}
+    onClose={onStartEmpty}
+    dismissible={false}
+    size="sm"
+    title="Welcome to Daymark"
+    description="Plan each day as a simple list. Anything you don't finish moves to tomorrow on its own. Everything stays on this device as plain Markdown."
+  >
+    <div className="p-5 space-y-3 text-sm">
+      <button
+        type="button"
+        data-autofocus
+        onClick={onStartEmpty}
+        className="w-full flex items-center gap-3 px-4 py-3 min-h-14 rounded-xl text-left font-semibold text-white bg-amber-700 hover:bg-amber-800 dark:bg-amber-500 dark:text-stone-950 dark:hover:bg-amber-400"
       >
-        <div>
-          <h2 id="welcome-title" className="text-lg font-bold text-stone-900 dark:text-stone-100">
-            Welcome to Daymark
-          </h2>
-          <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-            A daily Markdown notebook that carries unfinished tasks forward. Your notes stay on this device and export as
-            plain Markdown at any time.
-          </p>
-        </div>
-
+        <FileText className="w-5 h-5 shrink-0" />
+        <span>
+          Start fresh
+          <span className="block font-normal opacity-90">An empty notebook for real use</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onLoadSample}
+        className="w-full flex items-center gap-3 px-4 py-3 min-h-14 rounded-xl text-left font-semibold border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800"
+      >
+        <BookOpen className="w-5 h-5 shrink-0 text-stone-600 dark:text-stone-400" />
+        <span>
+          Try it with sample data
+          <span className="block font-normal text-stone-600 dark:text-stone-400">Demo tasks and notes; replace them any time</span>
+        </span>
+      </button>
+      {onRestore && (
         <button
           type="button"
-          onClick={onStartEmpty}
-          className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-sm text-left"
+          onClick={onRestore}
+          className="w-full flex items-center gap-3 px-4 min-h-12 rounded-xl text-left font-medium text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
         >
-          <FileText className="w-5 h-5 shrink-0" />
-          <span>
-            Start with an empty vault
-            <span className="block text-xs font-normal text-amber-100">Recommended for real use</span>
-          </span>
+          <Upload className="w-5 h-5 shrink-0 text-stone-600 dark:text-stone-400" />I have a backup to restore
         </button>
-
-        <button
-          type="button"
-          onClick={onLoadSample}
-          className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 font-semibold text-sm text-left"
-        >
-          <BookOpen className="w-5 h-5 shrink-0 text-stone-500" />
-          <span>
-            Explore with sample data
-            <span className="block text-xs font-normal text-stone-500">
-              Demo notes and tasks; you can reset them later in Settings
-            </span>
-          </span>
-        </button>
-
-        <p className="text-[11px] text-stone-500">
-          Already have a backup? Choose either option, then open Settings → Backup &amp; restore.
-        </p>
-      </div>
+      )}
     </div>
-  );
-};
+  </Dialog>
+);

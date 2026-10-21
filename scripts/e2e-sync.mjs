@@ -73,45 +73,46 @@ try {
 
   // Laptop: start empty, capture a task, connect
   await laptop.goto(base, { waitUntil: 'networkidle' });
-  await laptop.getByRole('button', { name: /start with an empty vault/i }).click();
-  await laptop.getByRole('button', { name: /quick capture/i }).click();
-  await laptop.getByPlaceholder(/what did you work on/i).fill('Written on the laptop');
-  await laptop.getByRole('button', { name: /^capture$/i }).click();
-  await laptop.getByRole('button', { name: /^\s*sync\s*$/i }).click();
+  await laptop.getByRole('button', { name: /start fresh/i }).click();
+  await laptop.getByRole('button', { name: /^new task/i }).click();
+  await laptop.getByPlaceholder(/what do you need to do/i).fill('Written on the laptop');
+  await laptop.getByRole('button', { name: /^add task$/i }).click();
+  await laptop.getByRole('button', { name: /open sync settings/i }).click();
   await connect(laptop, 'Laptop');
   check(true, 'laptop connected and synced');
   await shot(laptop, 'sync-1-laptop-connected');
 
   // Phone: start empty, connect from the Sync tab, receive the laptop's task
   await phone.goto(base, { waitUntil: 'networkidle' });
-  await phone.getByRole('button', { name: /start with an empty vault/i }).click();
-  await phone.getByRole('button', { name: /^sync$/i }).click();
+  await phone.getByRole('button', { name: /start fresh/i }).click();
+  await phone.getByRole('button', { name: /open sync settings/i }).click();
   await shot(phone, 'sync-2-phone-connect-form');
   await connect(phone, 'Phone');
-  await phone.getByRole('button', { name: /^today$/i }).last().click();
+  await phone.getByRole('button', { name: /^done$/i }).click();
   await phone.getByText('Written on the laptop').first().waitFor({ timeout: 15000 });
   check(true, 'phone received the laptop task');
 
   // Phone: tick it off and add another; auto-sync pushes it within a few seconds
-  await phone.getByTitle('Mark completed today').first().click();
-  await phone.getByTitle('Quick Capture').click();
-  await phone.getByPlaceholder(/what did you work on/i).fill('Written on the phone');
-  await phone.getByRole('button', { name: /^capture$/i }).click();
+  await phone.getByRole('button', { name: /^mark ".*" done$/i }).first().click();
+  await phone.getByRole('button', { name: /^new task$/i }).click();
+  await phone.getByPlaceholder(/what do you need to do/i).fill('Written on the phone');
+  await phone.getByRole('button', { name: /^add task$/i }).click();
   await phone.waitForTimeout(5000);
   await shot(phone, 'sync-3-phone-today');
 
   // Laptop: sync and check both changes arrived
   await laptop.getByRole('button', { name: /sync now/i }).click();
   await laptop.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-  await laptop.getByRole('button', { name: /^today/i }).first().click();
+  await laptop.getByRole('button', { name: /^done$/i }).click();
   await laptop.getByText('Written on the phone').first().waitFor({ timeout: 15000 });
   check(true, 'laptop received the phone task');
-  const doneOnLaptop = await laptop.getByTitle('Mark uncompleted').count();
-  check(doneOnLaptop === 1, 'completion made on the phone shows on the laptop', `${doneOnLaptop} done`);
+  // Finished tasks are grouped under a collapsed "Done (n)" row
+  const doneOnLaptop = await laptop.getByRole('button', { name: /^done \(1\)$/i }).count();
+  check(doneOnLaptop === 1, 'completion made on the phone shows on the laptop', `${doneOnLaptop} done group`);
   await shot(laptop, 'sync-4-laptop-today');
 
   // Server dashboard lists both devices
-  await laptop.getByRole('button', { name: /^\s*sync\s*$/i }).click();
+  await laptop.getByRole('button', { name: /open sync settings/i }).click();
   await laptop.getByText('Phone', { exact: true }).waitFor({ timeout: 10000 }).catch(() => {});
   check(await laptop.getByText('Phone', { exact: true }).isVisible().catch(() => false), 'server lists the phone as a connected device');
   await shot(laptop, 'sync-5-server-dashboard');
@@ -123,10 +124,11 @@ try {
   const thirdCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const third = await thirdCtx.newPage();
   await third.goto(base, { waitUntil: 'networkidle' });
-  await third.getByRole('button', { name: /start with an empty vault/i }).click();
-  await third.getByRole('button', { name: /^\s*sync\s*$/i }).click();
+  await third.getByRole('button', { name: /start fresh/i }).click();
+  await third.getByRole('button', { name: /open sync settings/i }).click();
   await connect(third, 'Desktop 2');
-  await third.getByRole('button', { name: /^today/i }).first().click();
+  await third.getByRole('button', { name: /^done$/i }).click();
+  await third.getByRole('button', { name: /^done \(1\)$/i }).click().catch(() => {});
   const both = (await third.getByText('Written on the laptop').count()) > 0 && (await third.getByText('Written on the phone').count()) > 0;
   check(both, 'after a server restart a new device receives everything');
 

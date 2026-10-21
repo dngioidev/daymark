@@ -2,10 +2,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { WidgetSnapshot } from '../utils/widgetSnapshot';
 
 /** An action the user performed on the Android home-screen widget while the app was closed. */
-export interface WidgetAction {
-  type: 'toggle';
-  taskId: string;
-}
+export type WidgetAction = { type: 'toggle'; taskId: string } | { type: 'capture' };
 
 interface DaymarkBridgePlugin {
   setSnapshot(snapshot: WidgetSnapshot): Promise<void>;

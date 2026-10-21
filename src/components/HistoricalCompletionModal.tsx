@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Calendar, AlertCircle, X, History, ArrowRight } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { TaskItem } from '../types/daymark';
-import { formatFullDate, getCalendarDaysDifference, getPreviousDate, getRelativeDateLabel } from '../utils/lifecycleEngine';
+import { getPreviousDate } from '../utils/lifecycleEngine';
+import { formatDay, formatLongDate } from '../utils/dateFormat';
+import { Dialog, buttonClass } from './ui/Dialog';
 
 interface HistoricalCompletionModalProps {
   task: TaskItem | null;
@@ -11,6 +12,7 @@ interface HistoricalCompletionModalProps {
   onConfirm: (taskId: string, effectiveCompletedDate: string, note?: string) => void;
 }
 
+/** "Mark done on…": record that a carried task was actually finished on an earlier day. */
 export const HistoricalCompletionModal: React.FC<HistoricalCompletionModalProps> = ({
   task,
   currentDate,
@@ -18,181 +20,107 @@ export const HistoricalCompletionModal: React.FC<HistoricalCompletionModalProps>
   onClose,
   onConfirm,
 }) => {
-  if (!isOpen || !task) return null;
+  const yesterday = getPreviousDate(currentDate, 1);
+  const defaultDate = task?.carriedFromDate && task.carriedFromDate < currentDate ? task.carriedFromDate : yesterday;
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [note, setNote] = useState('');
 
-  // Default past completion date to yesterday or the day it was carried from
-  const defaultPastDate = task.carriedFromDate || getPreviousDate(currentDate, 1);
-  const [selectedDate, setSelectedDate] = useState<string>(defaultPastDate);
-  const [completionNote, setCompletionNote] = useState<string>('');
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedDate(defaultDate);
+      setNote('');
+    }
+  }, [isOpen, task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const yesterdayStr = getPreviousDate(currentDate, 1);
-  const twoDaysAgoStr = getPreviousDate(currentDate, 2);
+  if (!task) return <Dialog isOpen={false} onClose={onClose} title="">{null}</Dialog>;
 
-  const handleApply = (e: React.FormEvent) => {
+  // Quick picks: yesterday, the day before, and the day it was last carried from
+  const presets = [...new Set([yesterday, getPreviousDate(currentDate, 2), task.carriedFromDate].filter(Boolean) as string[])]
+    .filter((d) => d < currentDate && d >= task.createdDate)
+    .sort()
+    .reverse();
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate) return;
-    onConfirm(task.id, selectedDate, completionNote.trim() || undefined);
+    onConfirm(task.id, selectedDate, note.trim() || undefined);
     onClose();
   };
 
-  const daysBack = getCalendarDaysDifference(selectedDate, currentDate);
-
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg bg-white dark:bg-stone-900 rounded-xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-stone-200 dark:border-stone-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 flex items-center justify-center">
-              <History className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
-                Correct Historical Completion
-              </h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                Mark task done on the actual day it was completed
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      variant="sheet"
+      title="When did you finish it?"
+      description={task.title}
+      footer={
+        <>
+          <button type="button" className={buttonClass.ghost} onClick={onClose}>
+            Cancel
           </button>
+          <button type="submit" form="mark-done-form" className={buttonClass.primary}>
+            Mark done
+          </button>
+        </>
+      }
+    >
+      <form id="mark-done-form" onSubmit={submit} className="px-5 py-4 space-y-4 text-sm">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick picks">
+          {presets.map((d) => (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={selectedDate === d}
+              onClick={() => setSelectedDate(d)}
+              className={`min-h-11 sm:min-h-9 px-3.5 rounded-full border font-medium ${
+                selectedDate === d
+                  ? 'bg-amber-700 border-amber-700 text-white dark:bg-amber-500 dark:border-amber-500 dark:text-stone-950'
+                  : 'bg-white border-stone-300 text-stone-800 hover:bg-stone-50 dark:bg-stone-800 dark:border-stone-700 dark:text-stone-100'
+              }`}
+            >
+              {formatDay(d, currentDate)}
+              {d === task.carriedFromDate && d !== yesterday && ' (last carried)'}
+            </button>
+          ))}
         </div>
 
-        <form onSubmit={handleApply} className="p-5 space-y-4">
-          {/* Target Task Box */}
-          <div className="p-3.5 bg-stone-50 dark:bg-stone-800/40 rounded-lg border border-stone-200 dark:border-stone-800">
-            <div className="text-xs text-stone-500 dark:text-stone-400 mb-1 flex items-center gap-1.5">
-              <span>Carried forward from</span>
-              <span className="font-mono font-medium text-stone-700 dark:text-stone-300">
-                {task.carriedFromDate || task.createdDate}
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-              {task.title}
-            </div>
-          </div>
+        <div>
+          <label htmlFor="mark-done-date" className="block font-semibold mb-1.5">
+            Or pick a date
+          </label>
+          <input
+            id="mark-done-date"
+            type="date"
+            value={selectedDate}
+            max={yesterday}
+            min={task.createdDate || undefined}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full px-3 min-h-11 text-[15px] sm:text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg"
+          />
+        </div>
 
-          {/* Quick Date Presets */}
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-2">
-              Select Effective Completion Date
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setSelectedDate(yesterdayStr)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                  selectedDate === yesterdayStr
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                    : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700'
-                }`}
-              >
-                Yesterday ({getRelativeDateLabel(yesterdayStr, currentDate)})
-              </button>
+        <div>
+          <label htmlFor="mark-done-note" className="block font-semibold mb-1.5">
+            Note <span className="font-normal text-stone-600 dark:text-stone-400">(optional)</span>
+          </label>
+          <input
+            id="mark-done-note"
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. Finished late, forgot to tick it"
+            enterKeyHint="done"
+            className="w-full px-3 min-h-11 text-[15px] sm:text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg placeholder:text-stone-500"
+          />
+        </div>
 
-              {task.createdDate <= twoDaysAgoStr && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate(twoDaysAgoStr)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                    selectedDate === twoDaysAgoStr
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700'
-                  }`}
-                >
-                  2 Days Ago ({getRelativeDateLabel(twoDaysAgoStr, currentDate)})
-                </button>
-              )}
-
-              {task.carriedFromDate &&
-                task.carriedFromDate !== yesterdayStr &&
-                task.carriedFromDate !== twoDaysAgoStr && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(task.carriedFromDate!)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                      selectedDate === task.carriedFromDate
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                        : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700'
-                    }`}
-                  >
-                    Carried Day ({task.carriedFromDate})
-                  </button>
-                )}
-            </div>
-
-            {/* Custom Date Input */}
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <input
-                type="date"
-                value={selectedDate}
-                max={yesterdayStr}
-                min={task.createdDate || undefined}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
-              />
-            </div>
-            <div className="mt-1 text-xs text-stone-500 dark:text-stone-400 flex items-center justify-between">
-              <span>{formatFullDate(selectedDate)}</span>
-              <span className="font-mono tabular-nums">{daysBack} {daysBack === 1 ? 'day' : 'days'} before today</span>
-            </div>
-          </div>
-
-          {/* Optional reason / note */}
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
-              Correction Note (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Finished late yesterday, forgot to mark done"
-              value={completionNote}
-              onChange={(e) => setCompletionNote(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500 placeholder:text-stone-400"
-            />
-          </div>
-
-          {/* Consequence explanation according to PRD section 7 */}
-          <div className="p-3 bg-amber-50/70 dark:bg-amber-950/40 rounded-md border border-amber-200/80 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-            <div className="font-semibold flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>What happens next:</span>
-            </div>
-            <ul className="list-disc pl-4 space-y-0.5 text-stone-600 dark:text-stone-300 text-[11px]">
-              <li>Records <strong>{selectedDate}</strong> as the canonical completion date.</li>
-              <li>Updates historical note for <strong>{selectedDate}</strong> to show as completed.</li>
-              <li>Removes this task from <strong>{currentDate}</strong> and future active daily notes.</li>
-              <li>Preserves full audit trail and original creation timestamp.</li>
-            </ul>
-          </div>
-
-          {/* Action buttons */}
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-stone-200 dark:border-stone-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 rounded-md shadow-xs transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Record Done on {getRelativeDateLabel(selectedDate, currentDate)}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {selectedDate && (
+          <p className="text-stone-700 dark:text-stone-300">
+            It will show as done on <strong>{formatLongDate(selectedDate)}</strong> and leave today’s list.
+          </p>
+        )}
+      </form>
+    </Dialog>
   );
 };

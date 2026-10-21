@@ -1,40 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calendar,
+  AlertTriangle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Plus,
-  AlertTriangle,
-  AlertCircle,
+  Columns,
+  Edit3,
   FileCode,
   Layout,
-  Columns,
+  MoreHorizontal,
+  Plus,
   RotateCw,
-  CheckCircle2,
-  Clock,
-  Filter,
-  Eye,
-  Edit3,
-  FileText,
+  X,
 } from 'lucide-react';
-import {
-  AgingThresholds,
-  DailyDocument,
-  EditorMode,
-  StatusDefinition,
-  TaskItem,
-} from '../types/daymark';
-import { TaskItemCard } from './TaskItemCard';
-import {
-  calculateTaskAge,
-  formatFullDate,
-  getAgingSeverity,
-  getNextDate,
-  getPreviousDate,
-  getRelativeDateLabel,
-} from '../utils/lifecycleEngine';
-import { parseDailyDocument, serializeDailyDocument } from '../utils/markdownEngine';
+import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
+import { TaskItemCard, pickableStatuses } from './TaskItemCard';
+import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
+import { formatDay, formatLongDate } from '../utils/dateFormat';
+import { hideTaskTags, parseDailyDocument, restoreTaskTags, serializeDailyDocument } from '../utils/markdownEngine';
 import { MarkdownPreview } from './MarkdownPreview';
+import { Menu } from './ui/Menu';
+import { buttonClass } from './ui/Dialog';
+import { confirmDialog, showToast } from './ui/feedback';
 
 interface TodayViewProps {
   currentDocument: DailyDocument;
@@ -48,8 +35,40 @@ interface TodayViewProps {
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onTriggerRollover: () => void;
-  /** Phone layout: tighter spacing, no Split view, no manual rollover (it runs automatically). */
+  /** Phone layout: tighter spacing, no Split view, no manual refresh (rollover runs automatically). */
   compact?: boolean;
+}
+
+const clone = (doc: DailyDocument): DailyDocument => JSON.parse(JSON.stringify(doc));
+const touch = (doc: DailyDocument) => ({ ...doc, updatedAt: new Date().toISOString() });
+
+/**
+ * Keeps what Markdown cannot express (history, snoozes, tags) for tasks that survived an edit
+ * in the Markdown view, matched by task id.
+ */
+function keepTaskMetadata(parsed: DailyDocument, previous: DailyDocument): DailyDocument {
+  const byId = new Map(previous.headings.flatMap((h) => h.items).map((t) => [t.id, t]));
+  for (const h of parsed.headings) {
+    h.items = h.items.map((t) => {
+      const old = byId.get(t.id);
+      return old ? { ...t, historyLog: old.historyLog, originalNoteDate: old.originalNoteDate, dismissedAlertDate: old.dismissedAlertDate, tags: old.tags } : t;
+    });
+  }
+  return parsed;
+}
+
+/** Wraps the current selection of a textarea (or inserts a placeholder) and keeps it selected. */
+function wrapSelection(el: HTMLTextAreaElement | null, value: string, before: string, after: string, placeholder: string) {
+  const start = el?.selectionStart ?? value.length;
+  const end = el?.selectionEnd ?? value.length;
+  const selected = value.slice(start, end) || placeholder;
+  const next = value.slice(0, start) + before + selected + after + value.slice(end);
+  requestAnimationFrame(() => {
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(start + before.length, start + before.length + selected.length);
+  });
+  return next;
 }
 
 export const TodayView: React.FC<TodayViewProps> = ({
@@ -67,805 +86,692 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onTriggerRollover,
 }) => {
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
-  const [splitRightTab, setSplitRightTab] = useState<'rendered' | 'raw'>('rendered');
-  const [rawMarkdownDraft, setRawMarkdownDraft] = useState<string>('');
-  const [isEditingRaw, setIsEditingRaw] = useState(false);
-  const [attentionFilterActive, setAttentionFilterActive] = useState(false);
+  const [rawDraft, setRawDraft] = useState('');
+  const [rawDirty, setRawDirty] = useState(false);
+  const hiddenTags = useRef<Map<string, string[]>>(new Map());
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
+  const [openDone, setOpenDone] = useState<Set<string>>(new Set());
 
-  // Quick add state per section
   const [activeAddHeading, setActiveAddHeading] = useState<string | null>(null);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
-  const [quickTaskStatus, setQuickTaskStatus] = useState('in-progress');
+  const [quickTaskStatus, setQuickTaskStatus] = useState('not-started');
 
-  // Quick note state per section
   const [activeNoteHeading, setActiveNoteHeading] = useState<string | null>(null);
   const [quickNoteContent, setQuickNoteContent] = useState('');
+  const noteAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isToday = currentDocument.date === simulatedToday;
+  const date = currentDocument.date;
+  const isToday = date === simulatedToday;
+  const allTasks = useMemo(() => currentDocument.headings.flatMap((h) => h.items), [currentDocument]);
 
-  // Flatten all tasks in this document
-  const allTasks = useMemo(() => {
-    return currentDocument.headings.flatMap((h) => h.items);
-  }, [currentDocument]);
+  const severityOf = (task: TaskItem) =>
+    task.status === 'done' || task.status === 'archived' || task.dismissedAlertDate === date
+      ? 'normal'
+      : getAgingSeverity(task, date, agingThresholds, statuses);
 
-  // Evaluate aging tasks
-  const agingAlerts = useMemo(() => {
-    const attentionTasks: TaskItem[] = [];
-    const criticalTasks: TaskItem[] = [];
-
-    for (const task of allTasks) {
-      if (task.status === 'done' || task.status === 'archived') continue;
-      if (task.dismissedAlertDate === currentDocument.date) continue;
-      const severity = getAgingSeverity(task, currentDocument.date, agingThresholds, statuses);
-      if (severity === 'critical') criticalTasks.push(task);
-      else if (severity === 'attention') attentionTasks.push(task);
+  const alerts = useMemo(() => {
+    let critical = 0;
+    let attention = 0;
+    for (const t of allTasks) {
+      const s = severityOf(t);
+      if (s === 'critical') critical++;
+      else if (s === 'attention') attention++;
     }
+    return { critical, attention, total: critical + attention };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTasks, date, agingThresholds, statuses]);
 
-    return {
-      attentionCount: attentionTasks.length,
-      criticalCount: criticalTasks.length,
-      totalAlerts: attentionTasks.length + criticalTasks.length,
-      criticalTasks,
-      attentionTasks,
-    };
-  }, [allTasks, currentDocument.date, agingThresholds, statuses]);
+  // ---------- Markdown view ----------
+  const canonicalMarkdown = useMemo(() => serializeDailyDocument(currentDocument), [currentDocument]);
 
-  // Synchronize raw markdown when opening raw/split mode
-  const currentCanonicalMarkdown = useMemo(() => {
-    return serializeDailyDocument(currentDocument);
-  }, [currentDocument]);
-
-  const handleSwitchMode = (mode: EditorMode) => {
-    if (mode === 'raw' || mode === 'split') {
-      setRawMarkdownDraft(currentCanonicalMarkdown);
-    }
+  const openMarkdown = (mode: EditorMode) => {
+    const { text, tags } = hideTaskTags(canonicalMarkdown);
+    hiddenTags.current = tags;
+    setRawDraft(text);
+    setRawDirty(false);
     setEditorMode(mode);
   };
 
-  const handleSaveRawMarkdown = () => {
-    const parsed = parseDailyDocument(rawMarkdownDraft, currentDocument.date, defaultHeadings);
-    onUpdateDocument(parsed);
-    setIsEditingRaw(false);
+  // Keep an unedited Markdown pane in step with changes made in the list (Split view)
+  useEffect(() => {
+    if (editorMode === 'visual' || rawDirty) return;
+    const { text, tags } = hideTaskTags(canonicalMarkdown);
+    hiddenTags.current = tags;
+    setRawDraft(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canonicalMarkdown]);
+
+  const switchMode = async (mode: EditorMode) => {
+    if (mode === editorMode) return;
+    if (rawDirty) {
+      const discard = await confirmDialog({
+        title: 'Discard your Markdown changes?',
+        message: 'You edited the Markdown but did not save it.',
+        confirmLabel: 'Discard',
+        danger: true,
+      });
+      if (!discard) return;
+    }
+    if (mode === 'visual') {
+      setRawDirty(false);
+      setEditorMode('visual');
+    } else openMarkdown(mode);
   };
 
+  const saveMarkdown = () => {
+    const restored = restoreTaskTags(rawDraft, hiddenTags.current, date);
+    const parsed = keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument);
+    onUpdateDocument(parsed);
+    const { text, tags } = hideTaskTags(serializeDailyDocument(parsed));
+    hiddenTags.current = tags;
+    setRawDraft(text);
+    setRawDirty(false);
+    showToast('Markdown saved.');
+  };
+
+  // ---------- Task edits ----------
   const handleTaskUpdate = (updatedTask: TaskItem) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
+    const before = currentDocument;
+    const newDoc = clone(currentDocument);
+    let previous: TaskItem | undefined;
     for (const h of newDoc.headings) {
       const idx = h.items.findIndex((t) => t.id === updatedTask.id);
       if (idx !== -1) {
+        previous = h.items[idx];
         h.items[idx] = updatedTask;
         break;
       }
     }
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
+    onUpdateDocument(touch(newDoc));
+    if (previous && previous.status !== 'done' && updatedTask.status === 'done') {
+      showToast(`Done: ${updatedTask.title}`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
+    }
   };
 
   const handleTaskDelete = (taskId: string) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
-    for (const h of newDoc.headings) {
-      h.items = h.items.filter((t) => t.id !== taskId);
-    }
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
+    const before = currentDocument;
+    const task = allTasks.find((t) => t.id === taskId);
+    const newDoc = clone(currentDocument);
+    for (const h of newDoc.headings) h.items = h.items.filter((t) => t.id !== taskId);
+    onUpdateDocument(touch(newDoc));
+    showToast(`Deleted “${task?.title ?? 'task'}”`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
   };
 
   const handleToggleAlertDismiss = (taskId: string) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
+    const newDoc = clone(currentDocument);
     for (const h of newDoc.headings) {
       const found = h.items.find((t) => t.id === taskId);
       if (found) {
-        found.dismissedAlertDate =
-          found.dismissedAlertDate === currentDocument.date ? undefined : currentDocument.date;
+        found.dismissedAlertDate = found.dismissedAlertDate === date ? undefined : date;
         break;
       }
     }
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
+    onUpdateDocument(touch(newDoc));
+  };
+
+  const openAdd = (headingName: string) => {
+    setActiveAddHeading(headingName);
+    setActiveNoteHeading(null);
+    setQuickTaskTitle('');
   };
 
   const handleQuickAddTask = (headingName: string) => {
     if (!quickTaskTitle.trim()) return;
-
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
+    const newDoc = clone(currentDocument);
     let heading = newDoc.headings.find((h) => h.name === headingName);
     if (!heading) {
       heading = { name: headingName, items: [], notesContent: '' };
       newDoc.headings.push(heading);
     }
-
-    const newTask: TaskItem = {
+    heading.items.push({
       id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title: quickTaskTitle.trim(),
       status: quickTaskStatus,
-      createdDate: currentDocument.date,
-      originalNoteDate: currentDocument.date,
+      createdDate: date,
+      originalNoteDate: date,
       heading: headingName,
       order: heading.items.length + 1,
       historyLog: [
-        {
-          id: `hist-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          date: currentDocument.date,
-          action: 'created',
-          details: `Created in #${headingName}`,
-        },
+        { id: `hist-${Date.now()}`, timestamp: new Date().toISOString(), date, action: 'created', details: `Added to ${headingName}` },
       ],
-    };
-
-    heading.items.push(newTask);
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
-
+    });
+    onUpdateDocument(touch(newDoc));
+    // Stay open for the next task; the field keeps focus
     setQuickTaskTitle('');
-    setActiveAddHeading(null);
   };
 
-  const handleSaveQuickNote = (headingName: string) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
-    let heading = newDoc.headings.find((h) => h.name === headingName);
+  const saveSectionNotes = (sectionName: string) => {
+    const newDoc = clone(currentDocument);
+    let heading = newDoc.headings.find((h) => h.name === sectionName);
     if (!heading) {
-      heading = { name: headingName, items: [], notesContent: '' };
+      heading = { name: sectionName, items: [], notesContent: '' };
       newDoc.headings.push(heading);
     }
-
-    const existing = heading.notesContent ? heading.notesContent + '\n\n' : '';
-    heading.notesContent = existing + quickNoteContent.trim();
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
-
-    setQuickNoteContent('');
+    heading.notesContent = quickNoteContent.trim();
+    onUpdateDocument(touch(newDoc));
     setActiveNoteHeading(null);
   };
 
   const handleAddSection = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSectionTitle.trim()) return;
-
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
-    if (!newDoc.headings.some((h) => h.name.toLowerCase() === newSectionTitle.trim().toLowerCase())) {
-      newDoc.headings.push({
-        name: newSectionTitle.trim(),
-        items: [],
-        notesContent: '',
-      });
-      newDoc.updatedAt = new Date().toISOString();
-      onUpdateDocument(newDoc);
+    const name = newSectionTitle.trim();
+    if (!name) return;
+    if (!currentDocument.headings.some((h) => h.name.toLowerCase() === name.toLowerCase())) {
+      const newDoc = clone(currentDocument);
+      newDoc.headings.push({ name, items: [], notesContent: '' });
+      onUpdateDocument(touch(newDoc));
     }
     setNewSectionTitle('');
     setShowAddSection(false);
+    openAdd(name);
   };
 
-  // Helper to toggle checkbox in a section's markdown notes
-  const handleToggleSectionNoteCheckbox = (sectionName: string, taskIndex: number, newChecked: boolean) => {
-    const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
+  const toggleSectionNoteCheckbox = (sectionName: string, index: number, checked: boolean) => {
+    const newDoc = clone(currentDocument);
     const heading = newDoc.headings.find((h) => h.name === sectionName);
-    if (!heading || !heading.notesContent) return;
-
+    if (!heading?.notesContent) return;
     let count = 0;
-    heading.notesContent = heading.notesContent.replace(/([-*]\s*\[)([ xX])(\])/g, (match, prefix, cur, suffix) => {
-      if (count === taskIndex) {
-        count++;
-        return `${prefix}${newChecked ? 'x' : ' '}${suffix}`;
-      }
-      count++;
-      return match;
-    });
-
-    newDoc.updatedAt = new Date().toISOString();
-    onUpdateDocument(newDoc);
+    heading.notesContent = heading.notesContent.replace(/([-*]\s*\[)([ xX])(\])/g, (match, prefix, _cur, suffix) =>
+      count++ === index ? `${prefix}${checked ? 'x' : ' '}${suffix}` : match
+    );
+    onUpdateDocument(touch(newDoc));
   };
 
-  // Helper to delete/clear notes in a section
-  const handleClearSectionNotes = (sectionName: string) => {
-    if (confirm(`Clear all freeform notes in #${sectionName}?`)) {
-      const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
-      const heading = newDoc.headings.find((h) => h.name === sectionName);
-      if (heading) {
-        heading.notesContent = '';
-        newDoc.updatedAt = new Date().toISOString();
-        onUpdateDocument(newDoc);
-      }
-    }
+  const clearSectionNotes = async (sectionName: string) => {
+    const ok = await confirmDialog({ title: `Clear the ${sectionName} notes?`, confirmLabel: 'Clear', danger: true });
+    if (!ok) return;
+    const before = currentDocument;
+    const newDoc = clone(currentDocument);
+    const heading = newDoc.headings.find((h) => h.name === sectionName);
+    if (heading) heading.notesContent = '';
+    onUpdateDocument(touch(newDoc));
+    showToast(`Cleared ${sectionName} notes`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
   };
 
-  return (
-    <div className={compact ? 'w-full space-y-4' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6'}>
-      {/* Date Navigation & View Controls Bar */}
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between ${compact ? 'gap-3 pb-3' : 'gap-4 pb-4'} border-b border-stone-200 dark:border-stone-800`}>
-        {/* Date Navigator */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-0.5 shadow-2xs">
-            <button
-              onClick={() => onDateChange(getPreviousDate(currentDocument.date))}
-              title="Previous Day"
-              className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+  const cardProps = {
+    currentDate: date,
+    statuses,
+    agingThresholds,
+    onUpdateTask: handleTaskUpdate,
+    onDeleteTask: handleTaskDelete,
+    onOpenHistoricalModal,
+    onOpenHistoryDrawer,
+    onQuickHistoricalDone,
+    onToggleAlertDismiss: handleToggleAlertDismiss,
+  };
 
-            <button
-              onClick={() => onDateChange(simulatedToday)}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                isToday
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
-              }`}
-            >
-              Today
-            </button>
+  const iconBtn =
+    'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
+  const segBtn = (active: boolean) =>
+    `inline-flex items-center gap-1.5 px-3 min-h-9 text-sm font-medium rounded-md ${
+      active ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-2xs' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+    }`;
 
-            <button
-              onClick={() => onDateChange(getNextDate(currentDocument.date))}
-              title="Next Day"
-              className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">
-                {getRelativeDateLabel(currentDocument.date, simulatedToday)}
-              </h1>
-              {!compact && (
-                <span className="text-xs font-mono text-stone-400 dark:text-stone-500 tabular-nums">
-                  ({currentDocument.date})
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-stone-500 dark:text-stone-400">
-              {formatFullDate(currentDocument.date)}
-            </p>
-          </div>
-        </div>
-
-        {/* View Mode Segmented Controls (Button tabs) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {isToday && !compact && (
-            <button
-              onClick={onTriggerRollover}
-              title="Re-run daily carry-forward rollover safely"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 bg-stone-100 dark:bg-stone-900 hover:bg-stone-200 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 rounded-md transition-colors"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Reconcile Rollover</span>
-            </button>
-          )}
-
-          {/* Segmented Control */}
-          <div className="flex items-center gap-0.5 p-1 bg-stone-100 dark:bg-stone-900 rounded-lg border border-stone-200/60 dark:border-stone-800">
-            <button
-              onClick={() => handleSwitchMode('visual')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                editorMode === 'visual'
-                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-2xs font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span>Notebook</span>
-            </button>
-
-            {!compact && (
-            <button
-              onClick={() => handleSwitchMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                editorMode === 'split'
-                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-2xs font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              <Columns className="w-3.5 h-3.5" />
-              <span>Split</span>
-            </button>
-            )}
-
-            <button
-              onClick={() => handleSwitchMode('raw')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                editorMode === 'raw'
-                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 shadow-2xs font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              <FileCode className="w-3.5 h-3.5" />
-              <span>Markdown</span>
-            </button>
-          </div>
-        </div>
+  // ---------- Header ----------
+  const header = (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={() => onDateChange(getPreviousDate(date))} aria-label="Previous day" className={iconBtn}>
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <div className="min-w-0 flex-1 sm:flex-none text-center sm:text-left sm:min-w-56">
+        <h1 className="text-xl font-bold leading-tight text-stone-900 dark:text-stone-50">{formatDay(date, simulatedToday)}</h1>
+        <p className="text-sm text-stone-600 dark:text-stone-400 truncate">{formatLongDate(date)}</p>
       </div>
-
-      {/* Carry-Forward Aging Alert Banner (Section 8 of PRD) */}
-      {agingAlerts.totalAlerts > 0 && (
-        <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-start gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-amber-200/80 dark:bg-amber-900/80 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-semibold text-amber-950 dark:text-amber-100">
-                {agingAlerts.totalAlerts} carried-forward {agingAlerts.totalAlerts === 1 ? 'task needs' : 'tasks need'} attention
-              </div>
-              <div className="text-stone-600 dark:text-stone-300 mt-0.5 flex items-center gap-2 flex-wrap">
-                {agingAlerts.criticalCount > 0 && (
-                  <span className="text-rose-600 dark:text-rose-400 font-medium">
-                    {agingAlerts.criticalCount} critical (≥{agingThresholds.criticalDays} days)
-                  </span>
-                )}
-                {agingAlerts.criticalCount > 0 && agingAlerts.attentionCount > 0 && (
-                  <span>·</span>
-                )}
-                {agingAlerts.attentionCount > 0 && (
-                  <span className="text-amber-700 dark:text-amber-300">
-                    {agingAlerts.attentionCount} pending review (≥{agingThresholds.attentionDays} days)
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              onClick={() => setAttentionFilterActive(!attentionFilterActive)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors ${
-                attentionFilterActive
-                  ? 'bg-amber-600 text-white font-semibold'
-                  : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              <Filter className="w-3.5 h-3.5" />
-              <span>{attentionFilterActive ? 'Show All Sections' : 'Filter Attention Tasks'}</span>
-            </button>
-          </div>
-        </div>
+      <button type="button" onClick={() => onDateChange(getNextDate(date))} aria-label="Next day" className={iconBtn}>
+        <ChevronRight className="w-5 h-5" />
+      </button>
+      {!isToday && (
+        <button type="button" onClick={() => onDateChange(simulatedToday)} className={`${buttonClass.secondary} ml-1`}>
+          Today
+        </button>
       )}
 
-      {/* MAIN CONTENT AREA */}
-      {editorMode === 'visual' && (
-        <div className={compact ? 'space-y-3' : 'space-y-5'}>
-          {currentDocument.headings.map((section) => {
-            const visibleItems = attentionFilterActive
-              ? section.items.filter((item) => {
-                  const s = getAgingSeverity(item, currentDocument.date, agingThresholds, statuses);
-                  return s === 'attention' || s === 'critical';
-                })
-              : section.items;
-
-            // If filtering by attention and this section has no matching tasks and no notes, we can skip or show minimal
-            if (attentionFilterActive && visibleItems.length === 0) {
-              return null;
-            }
-            // Empty sections collapse to a single slim row
-            const isEmptySection =
-              visibleItems.length === 0 &&
-              !section.notesContent &&
-              activeAddHeading !== section.name &&
-              activeNoteHeading !== section.name;
-
-            return (
-              <section
-                key={section.name}
-                className={`bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs ${
-                  isEmptySection ? (compact ? 'px-3 py-1.5' : 'px-5 py-2') : compact ? 'p-3 space-y-3' : 'p-5 space-y-4'
-                }`}
-              >
-                {/* Heading Bar */}
-                <div className={`flex items-center justify-between ${isEmptySection ? '' : 'pb-2 border-b border-stone-100 dark:border-stone-800'}`}>
-                  <div className="flex items-center gap-2.5">
-                    <h2 className={`font-bold text-stone-900 dark:text-stone-100 ${isEmptySection ? 'text-sm' : 'text-base'}`}>
-                      {section.name}
-                    </h2>
-                    <span className="text-xs font-mono text-stone-400 dark:text-stone-500 tabular-nums">
-                      {visibleItems.length} {visibleItems.length === 1 ? 'task' : 'tasks'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        setActiveAddHeading(activeAddHeading === section.name ? null : section.name);
-                        setActiveNoteHeading(null);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-md transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Task</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setActiveNoteHeading(activeNoteHeading === section.name ? null : section.name);
-                        setActiveAddHeading(null);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-md transition-colors"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Note</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Inline Quick Add Task Box */}
-                {activeAddHeading === section.name && (
-                  <div className="p-3 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-amber-200 dark:border-amber-900/60 space-y-2 animate-in fade-in duration-100">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="What needs to be done?"
-                        value={quickTaskTitle}
-                        onChange={(e) => setQuickTaskTitle(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleQuickAddTask(section.name)}
-                        className="flex-1 text-xs px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
-                        autoFocus
-                      />
-                      <select
-                        value={quickTaskStatus}
-                        onChange={(e) => setQuickTaskStatus(e.target.value)}
-                        className="text-xs px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md text-stone-700 dark:text-stone-300"
-                      >
-                        {statuses.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => handleQuickAddTask(section.name)}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
-                      >
-                        Add Task
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Task list */}
-                {visibleItems.length > 0 && (
-                  <div className="space-y-2">
-                    {visibleItems.map((task) => (
-                      <TaskItemCard
-                        key={task.id}
-                        task={task}
-                        currentDate={currentDocument.date}
-                        statuses={statuses}
-                        agingThresholds={agingThresholds}
-                        onUpdateTask={handleTaskUpdate}
-                        onDeleteTask={handleTaskDelete}
-                        onOpenHistoricalModal={onOpenHistoricalModal}
-                        onOpenHistoryDrawer={onOpenHistoryDrawer}
-                        onQuickHistoricalDone={onQuickHistoricalDone}
-                        onToggleAlertDismiss={handleToggleAlertDismiss}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Freeform Section Notes Card & Inline Editor */}
-                {(section.notesContent || activeNoteHeading === section.name) && (
-                  <div className="mt-4 p-4 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-200 dark:border-stone-700/60 shadow-2xs space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-stone-200/60 dark:border-stone-800">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-amber-600 dark:text-amber-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300">
-                          {section.name} Notes
-                        </span>
-                        <span className="text-[10px] text-stone-400">· Markdown</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {activeNoteHeading !== section.name && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setQuickNoteContent(section.notesContent || '');
-                                setActiveNoteHeading(section.name);
-                              }}
-                              className="px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors inline-flex items-center gap-1"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Edit</span>
-                            </button>
-                            {section.notesContent && (
-                              <button
-                                onClick={() => handleClearSectionNotes(section.name)}
-                                className="px-2 py-1 text-xs text-stone-400 hover:text-rose-500 rounded transition-colors"
-                                title="Clear Section Notes"
-                              >
-                                Clear
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Inline Editor Form */}
-                    {activeNoteHeading === section.name ? (
-                      <div className="space-y-2.5 pt-1 animate-in fade-in duration-100">
-                        {/* Quick formatting toolbar */}
-                        <div className="flex flex-wrap items-center gap-1 pb-1 text-xs border-b border-stone-200 dark:border-stone-800">
-                          <button
-                            type="button"
-                            onClick={() => setQuickNoteContent((prev) => prev + '**bold text**')}
-                            className="px-2 py-0.5 rounded text-[11px] font-bold text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
-                            title="Bold"
-                          >
-                            B
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickNoteContent((prev) => prev + '*italic text*')}
-                            className="px-2 py-0.5 rounded text-[11px] italic text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
-                            title="Italic"
-                          >
-                            I
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickNoteContent((prev) => prev + '\n- [ ] Checklist item')}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
-                            title="Checklist item"
-                          >
-                            ☑ Checkbox
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickNoteContent((prev) => prev + '\n- Bullet point')}
-                            className="px-2 py-0.5 rounded text-[11px] text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
-                            title="Bullet list"
-                          >
-                            • Bullet
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickNoteContent((prev) => prev + '\n> [!NOTE]\n> Note callout text\n')}
-                            className="px-2 py-0.5 rounded text-[11px] text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
-                            title="Callout"
-                          >
-                            💬 Callout
-                          </button>
-                        </div>
-
-                        <textarea
-                          placeholder="Write rich Markdown notes, considerations, or meeting bullet points..."
-                          value={quickNoteContent}
-                          onChange={(e) => setQuickNoteContent(e.target.value)}
-                          rows={5}
-                          className="w-full text-xs sm:text-sm font-mono p-3 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500 leading-relaxed"
-                          autoFocus
-                        />
-
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setActiveNoteHeading(null)}
-                            className="px-3 py-1.5 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newDoc: DailyDocument = JSON.parse(JSON.stringify(currentDocument));
-                              let heading = newDoc.headings.find((h) => h.name === section.name);
-                              if (!heading) {
-                                heading = { name: section.name, items: [], notesContent: '' };
-                                newDoc.headings.push(heading);
-                              }
-                              heading.notesContent = quickNoteContent.trim();
-                              newDoc.updatedAt = new Date().toISOString();
-                              onUpdateDocument(newDoc);
-                              setActiveNoteHeading(null);
-                            }}
-                            className="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
-                          >
-                            Save Section Notes
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Rendered Markdown Preview with Interactive Checkboxes */
-                      <div className="pt-1">
-                        <MarkdownPreview
-                          content={section.notesContent || ''}
-                          onToggleTaskItem={(taskIdx, checked) =>
-                            handleToggleSectionNoteCheckbox(section.name, taskIdx, checked)
-                          }
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-
-          {/* Add Custom Section Button */}
-          {showAddSection ? (
-            <form
-              onSubmit={handleAddSection}
-              className="p-4 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center gap-3"
-            >
-              <input
-                type="text"
-                placeholder="New section name (e.g. Learning, Follow-ups)"
-                value={newSectionTitle}
-                onChange={(e) => setNewSectionTitle(e.target.value)}
-                className="flex-1 text-xs px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-md text-stone-900 dark:text-stone-100"
-                autoFocus
-              />
-              <button
-                type="submit"
-                className="px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md"
-              >
-                Add Section
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddSection(false)}
-                className="px-3 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => setShowAddSection(true)}
-              className="w-full py-2.5 border border-dashed border-stone-300 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-700 rounded-xl text-xs font-medium text-stone-500 hover:text-stone-800 dark:hover:text-stone-300 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Section Heading</span>
+      <div className="ml-auto flex items-center gap-2">
+        {!compact && (
+          <div className="flex items-center gap-0.5 p-0.5 bg-stone-100 dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-800" role="group" aria-label="View">
+            <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => switchMode('visual')} className={segBtn(editorMode === 'visual')}>
+              <Layout className="w-4 h-4" /> List
+            </button>
+            <button type="button" aria-pressed={editorMode === 'split'} onClick={() => switchMode('split')} className={segBtn(editorMode === 'split')}>
+              <Columns className="w-4 h-4" /> Split
+            </button>
+            <button type="button" aria-pressed={editorMode === 'raw'} onClick={() => switchMode('raw')} className={segBtn(editorMode === 'raw')}>
+              <FileCode className="w-4 h-4" /> Markdown
+            </button>
+          </div>
+        )}
+        <Menu
+          align="right"
+          items={[
+            ...(compact
+              ? [
+                  editorMode === 'visual'
+                    ? { label: 'Edit as Markdown', icon: <FileCode className="w-4 h-4" />, onSelect: () => switchMode('raw') }
+                    : { label: 'Back to list', icon: <Layout className="w-4 h-4" />, onSelect: () => switchMode('visual') },
+                ]
+              : []),
+            ...(isToday
+              ? [
+                  {
+                    label: "Refresh today's list",
+                    icon: <RotateCw className="w-4 h-4" />,
+                    onSelect: onTriggerRollover,
+                  },
+                ]
+              : []),
+            { label: 'New section', icon: <Plus className="w-4 h-4" />, onSelect: () => (setEditorMode('visual'), setShowAddSection(true)) },
+          ]}
+          trigger={(props) => (
+            <button type="button" {...props} aria-label="More options for this day" className={iconBtn}>
+              <MoreHorizontal className="w-5 h-5" />
             </button>
           )}
-        </div>
-      )}
+        />
+      </div>
+    </div>
+  );
 
-      {/* SPLIT VIEW MODE: Visual on Left, Live Synchronized Canonical Markdown on Right */}
-      {editorMode === 'split' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Visual Column */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
-                Visual Notebook
-              </span>
-              <span className="text-xs text-stone-400">Interactive controls</span>
-            </div>
+  // ---------- Attention chip ----------
+  const attentionBar = alerts.total > 0 && (
+    <div className="flex items-center gap-3 pl-3 pr-1.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/70 text-sm">
+      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800 dark:text-amber-300" />
+      <p className="flex-1 min-w-0 text-amber-950 dark:text-amber-100">
+        <span className="font-semibold">
+          {alerts.total} {alerts.total === 1 ? 'task needs' : 'tasks need'} attention
+        </span>
+        {alerts.critical > 0 && (
+          <span className="text-amber-900 dark:text-amber-200">
+            {' '}
+            · {alerts.critical} over {agingThresholds.criticalDays} days old
+          </span>
+        )}
+      </p>
+      <button
+        type="button"
+        aria-pressed={attentionOnly}
+        onClick={() => setAttentionOnly(!attentionOnly)}
+        className="shrink-0 min-h-11 sm:min-h-9 px-3 rounded-lg font-semibold text-amber-950 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900/50"
+      >
+        {attentionOnly ? 'Show all' : 'Show'}
+      </button>
+    </div>
+  );
 
-            <div className="space-y-6">
-              {currentDocument.headings.map((section) => (
-                <div
-                  key={section.name}
-                  className="bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 p-4 space-y-3"
-                >
-                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                    #{section.name}
-                  </h3>
-                  <div className="space-y-2">
-                    {section.items.map((task) => (
-                      <TaskItemCard
-                        key={task.id}
-                        task={task}
-                        currentDate={currentDocument.date}
-                        statuses={statuses}
-                        agingThresholds={agingThresholds}
-                        onUpdateTask={handleTaskUpdate}
-                        onDeleteTask={handleTaskDelete}
-                        onOpenHistoricalModal={onOpenHistoricalModal}
-                        onOpenHistoryDrawer={onOpenHistoryDrawer}
-                        onQuickHistoricalDone={onQuickHistoricalDone}
-                        onToggleAlertDismiss={handleToggleAlertDismiss}
-                      />
-                    ))}
-                  </div>
-                  {section.notesContent && (
-                    <div className="p-2.5 bg-stone-50 dark:bg-stone-800/40 rounded border border-stone-100 dark:border-stone-800">
-                      <MarkdownPreview content={section.notesContent} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+  // ---------- Sections ----------
+  const isEmpty = (s: DailyDocument['headings'][number]) =>
+    s.items.length === 0 && !s.notesContent && activeAddHeading !== s.name && activeNoteHeading !== s.name;
+  const shownSections = currentDocument.headings.filter((s) => !isEmpty(s));
+  const emptySections = currentDocument.headings.filter(isEmpty);
+  const nothingYet = allTasks.length === 0 && currentDocument.headings.every((h) => !h.notesContent);
+
+  const renderSection = (section: DailyDocument['headings'][number]) => {
+    const items = attentionOnly ? section.items.filter((t) => severityOf(t) !== 'normal') : section.items;
+    if (attentionOnly && items.length === 0) return null;
+    const open = items.filter((t) => t.status !== 'done');
+    const done = items.filter((t) => t.status === 'done');
+    const doneOpen = openDone.has(section.name);
+    const addingHere = activeAddHeading === section.name;
+    const editingNotes = activeNoteHeading === section.name;
+
+    return (
+      <section
+        key={section.name}
+        aria-labelledby={`sec-${section.name}`}
+        className={`bg-white/60 dark:bg-stone-900/40 rounded-xl border border-stone-200 dark:border-stone-800 ${compact ? 'p-2.5' : 'p-4'} space-y-2`}
+      >
+        <div className="flex items-center gap-2">
+          <h2 id={`sec-${section.name}`} className="text-base font-bold text-stone-900 dark:text-stone-50">
+            {section.name}
+          </h2>
+          <span className="text-sm text-stone-600 dark:text-stone-400" aria-label={`${open.length} open`}>
+            {open.length || ''}
+          </span>
+          <div className="ml-auto flex items-center">
+            <button type="button" onClick={() => (addingHere ? setActiveAddHeading(null) : openAdd(section.name))} className={buttonClass.ghost}>
+              <Plus className="w-4 h-4" /> Task
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setQuickNoteContent(section.notesContent || '');
+                setActiveNoteHeading(editingNotes ? null : section.name);
+                setActiveAddHeading(null);
+              }}
+              className={buttonClass.ghost}
+            >
+              <Edit3 className="w-4 h-4" /> Note
+            </button>
           </div>
+        </div>
 
-          {/* Document Preview & Canonical Markdown Column */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-              <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-md">
-                <button
-                  onClick={() => setSplitRightTab('rendered')}
-                  className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1.5 ${
-                    splitRightTab === 'rendered'
-                      ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-                  }`}
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Rendered Document</span>
-                </button>
-                <button
-                  onClick={() => setSplitRightTab('raw')}
-                  className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1.5 ${
-                    splitRightTab === 'raw'
-                      ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-                  }`}
-                >
-                  <FileCode className="w-3.5 h-3.5" />
-                  <span>Raw Markdown (.md)</span>
-                </button>
+        {addingHere && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleQuickAddTask(section.name);
+            }}
+            className="p-2.5 rounded-lg bg-stone-50 dark:bg-stone-800/50 border border-amber-300 dark:border-amber-800 space-y-2"
+          >
+            <label htmlFor={`add-${section.name}`} className="sr-only">
+              New task in {section.name}
+            </label>
+            <input
+              id={`add-${section.name}`}
+              type="text"
+              placeholder="What needs to be done?"
+              value={quickTaskTitle}
+              onChange={(e) => setQuickTaskTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setActiveAddHeading(null)}
+              enterKeyHint="done"
+              autoComplete="off"
+              className="w-full min-w-0 px-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 placeholder:text-stone-500"
+              autoFocus
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor={`add-status-${section.name}`} className="sr-only">
+                Status
+              </label>
+              <select
+                id={`add-status-${section.name}`}
+                value={quickTaskStatus}
+                onChange={(e) => setQuickTaskStatus(e.target.value)}
+                className="min-w-0 flex-1 sm:flex-none px-2.5 min-h-11 sm:min-h-9 text-sm bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg"
+              >
+                {pickableStatuses(statuses).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setActiveAddHeading(null)} className={buttonClass.ghost}>
+                Close
+              </button>
+              <button type="submit" disabled={!quickTaskTitle.trim()} className={buttonClass.primary}>
+                Add task
+              </button>
+            </div>
+          </form>
+        )}
+
+        {open.length > 0 && (
+          <div className="space-y-1.5">
+            {open.map((task) => (
+              <TaskItemCard key={task.id} task={task} {...cardProps} />
+            ))}
+          </div>
+        )}
+
+        {done.length > 0 && (
+          <div>
+            <button
+              type="button"
+              aria-expanded={doneOpen}
+              onClick={() =>
+                setOpenDone((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(section.name)) next.delete(section.name);
+                  else next.add(section.name);
+                  return next;
+                })
+              }
+              className="inline-flex items-center gap-1 min-h-11 sm:min-h-8 px-1 text-sm font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
+            >
+              <ChevronDown className={`w-4 h-4 transition-transform ${doneOpen ? '' : '-rotate-90'}`} />
+              Done ({done.length})
+            </button>
+            {doneOpen && (
+              <div className="space-y-1.5 mt-1">
+                {done.map((task) => (
+                  <TaskItemCard key={task.id} task={task} {...cardProps} />
+                ))}
               </div>
+            )}
+          </div>
+        )}
 
-              {splitRightTab === 'raw' && (
-                <button
-                  onClick={handleSaveRawMarkdown}
-                  className="px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
-                >
-                  Save Changes
-                </button>
+        {(section.notesContent || editingNotes) && (
+          <div className="p-3 rounded-lg bg-stone-50 dark:bg-stone-800/40 border border-stone-200 dark:border-stone-700/60 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">Notes</span>
+              {!editingNotes && (
+                <div className="ml-auto flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickNoteContent(section.notesContent || '');
+                      setActiveNoteHeading(section.name);
+                    }}
+                    className={buttonClass.ghost}
+                  >
+                    <Edit3 className="w-4 h-4" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => clearSectionNotes(section.name)}
+                    aria-label={`Clear ${section.name} notes`}
+                    className={iconBtn}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
 
-            {splitRightTab === 'rendered' ? (
-              <div className="p-5 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 max-h-[750px] overflow-y-auto">
-                <div className="text-xs text-stone-500 dark:text-stone-400 font-mono mb-3 pb-2 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
-                  <span>Document: {currentDocument.date}.md</span>
-                  <span>Markdown Render Mode</span>
+            {editingNotes ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Formatting">
+                  {(
+                    [
+                      ['Bold', 'B', '**', '**', 'bold text', 'font-bold'],
+                      ['Italic', 'I', '*', '*', 'italic text', 'italic'],
+                      ['Checklist item', '☐ Item', '\n- [ ] ', '', 'to do', ''],
+                      ['Bullet', '• List', '\n- ', '', 'point', ''],
+                    ] as const
+                  ).map(([label, text, before, after, placeholder, cls]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-label={label}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setQuickNoteContent((v) => wrapSelection(noteAreaRef.current, v, before, after, placeholder))}
+                      className={`min-h-11 sm:min-h-8 min-w-11 sm:min-w-8 px-2 rounded-md text-sm text-stone-700 hover:bg-stone-200 dark:text-stone-300 dark:hover:bg-stone-700 ${cls}`}
+                    >
+                      {text}
+                    </button>
+                  ))}
                 </div>
-                <MarkdownPreview content={currentCanonicalMarkdown} />
+                <label htmlFor={`notes-${section.name}`} className="sr-only">
+                  {section.name} notes
+                </label>
+                <textarea
+                  id={`notes-${section.name}`}
+                  ref={noteAreaRef}
+                  placeholder="Notes, decisions, links… (Markdown works)"
+                  value={quickNoteContent}
+                  onChange={(e) => setQuickNoteContent(e.target.value)}
+                  rows={5}
+                  className="w-full p-3 text-[15px] sm:text-sm leading-relaxed bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 placeholder:text-stone-500"
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" onClick={() => setActiveNoteHeading(null)} className={buttonClass.ghost}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => saveSectionNotes(section.name)} className={buttonClass.primary}>
+                    Save notes
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <textarea
-                  value={rawMarkdownDraft}
-                  onChange={(e) => setRawMarkdownDraft(e.target.value)}
-                  rows={28}
-                  className="w-full p-4 font-mono text-xs leading-relaxed bg-stone-900 text-stone-100 rounded-xl border border-stone-800 focus:outline-hidden focus:ring-2 focus:ring-amber-500 selection:bg-amber-900/80"
-                  spellCheck={false}
-                />
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                  Notice the HTML comment metadata tags (<code>&lt;!-- daymark: task_id=... --&gt;</code>).
-                  These allow full round-trip preservation in Obsidian, VS Code, and Typora.
-                </p>
-              </div>
+              <MarkdownPreview content={section.notesContent || ''} onToggleTaskItem={(i, c) => toggleSectionNoteCheckbox(section.name, i, c)} />
             )}
           </div>
+        )}
+      </section>
+    );
+  };
+
+  const listView = (
+    <div className={compact ? 'space-y-2.5' : 'space-y-4'}>
+      {nothingYet && isToday && !attentionOnly && (
+        <div className="p-4 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-sm text-stone-700 dark:text-stone-300">
+          <p className="font-semibold text-stone-900 dark:text-stone-100">Your day starts here.</p>
+          <p className="mt-1">Add what you plan to do today. Anything you don't finish moves to tomorrow automatically.</p>
         </div>
       )}
 
-      {/* FULL RAW MARKDOWN MODE */}
-      {editorMode === 'raw' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
-            <div>
-              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                Direct Markdown Editor ({currentDocument.date}.md)
-              </h2>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                Edit raw Markdown directly. Daymark metadata comments preserve task IDs, statuses, and carry-forward state.
-              </p>
-            </div>
+      {shownSections.map(renderSection)}
+
+      {!attentionOnly && emptySections.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="text-stone-600 dark:text-stone-400 mr-1">Add to</span>
+          {emptySections.map((s) => (
             <button
-              onClick={handleSaveRawMarkdown}
-              className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs"
+              key={s.name}
+              type="button"
+              onClick={() => openAdd(s.name)}
+              className="inline-flex items-center gap-1 min-h-11 sm:min-h-8 px-3 rounded-full border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
             >
-              Apply Changes to Notebook
+              <Plus className="w-3.5 h-3.5" /> {s.name}
             </button>
-          </div>
-
-          <textarea
-            value={rawMarkdownDraft}
-            onChange={(e) => setRawMarkdownDraft(e.target.value)}
-            rows={24}
-            className="w-full p-5 font-mono text-xs leading-relaxed bg-stone-900 text-stone-100 rounded-xl border border-stone-800 focus:outline-hidden focus:ring-2 focus:ring-amber-500 selection:bg-amber-900/80"
-            spellCheck={false}
-          />
+          ))}
         </div>
       )}
+
+      {showAddSection ? (
+        <form onSubmit={handleAddSection} className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+          <label htmlFor="new-section" className="sr-only">
+            New section name
+          </label>
+          <input
+            id="new-section"
+            type="text"
+            placeholder="Section name, e.g. Follow-ups"
+            value={newSectionTitle}
+            onChange={(e) => setNewSectionTitle(e.target.value)}
+            enterKeyHint="done"
+            className="flex-1 min-w-0 basis-full sm:basis-auto px-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg"
+            autoFocus
+          />
+          <button type="button" onClick={() => setShowAddSection(false)} className={buttonClass.ghost}>
+            Cancel
+          </button>
+          <button type="submit" disabled={!newSectionTitle.trim()} className={buttonClass.primary}>
+            Add section
+          </button>
+        </form>
+      ) : (
+        !attentionOnly && (
+          <button type="button" onClick={() => setShowAddSection(true)} className={`${buttonClass.ghost} text-stone-600 dark:text-stone-400`}>
+            <Plus className="w-4 h-4" /> New section
+          </button>
+        )
+      )}
+    </div>
+  );
+
+  // Desktop side panel: the day in numbers, and what was finished
+  const doneToday = allTasks.filter((t) => t.status === 'done');
+  const glance = (
+    <aside aria-label="Day at a glance" className="hidden xl:block sticky top-20 space-y-3 text-sm">
+      <div className="p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+        <h2 className="font-semibold text-stone-900 dark:text-stone-50">{isToday ? 'Today at a glance' : 'This day at a glance'}</h2>
+        <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+          {(
+            [
+              ['Open', allTasks.length - doneToday.length],
+              ['Done', doneToday.length],
+              ['Old', alerts.total],
+            ] as const
+          ).map(([label, n]) => (
+            <div key={label} className="p-2 rounded-lg bg-stone-100 dark:bg-stone-800/70">
+              <dd className="text-lg font-bold text-stone-900 dark:text-stone-50">{n}</dd>
+              <dt className="text-xs text-stone-600 dark:text-stone-400">{label}</dt>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <div className="p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+        <h2 className="font-semibold text-stone-900 dark:text-stone-50">Finished</h2>
+        {doneToday.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {doneToday.map((t) => (
+              <li key={t.id} className="flex gap-2 text-stone-700 dark:text-stone-300">
+                <span aria-hidden="true" className="text-emerald-700 dark:text-emerald-400">✓</span>
+                <span className="min-w-0 break-words">{t.title}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-stone-600 dark:text-stone-400">Nothing yet. Tick a task when it's done.</p>
+        )}
+      </div>
+    </aside>
+  );
+
+  const markdownEditor = (rows: number, stickyBar: boolean) => (
+    <div className="space-y-2">
+      <label htmlFor="day-markdown" className="sr-only">
+        Markdown for {formatLongDate(date)}
+      </label>
+      <textarea
+        id="day-markdown"
+        value={rawDraft}
+        onChange={(e) => {
+          setRawDraft(e.target.value);
+          setRawDirty(true);
+        }}
+        rows={rows}
+        spellCheck={false}
+        className="w-full p-4 font-mono text-sm leading-relaxed bg-stone-900 text-stone-100 rounded-xl border border-stone-800 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+      />
+      <p className="text-sm text-stone-600 dark:text-stone-400">
+        Task links (IDs, status, carry-over dates) are kept for you and hidden here. Rename tasks in the list to keep their history.
+      </p>
+      <div
+        className={`${stickyBar ? 'sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] sm:bottom-2' : ''} flex items-center justify-end gap-2 p-2 rounded-xl bg-white/90 dark:bg-stone-900/90 backdrop-blur border border-stone-200 dark:border-stone-800`}
+      >
+        {rawDirty && <span className="mr-auto pl-2 text-sm text-stone-600 dark:text-stone-400">Unsaved changes</span>}
+        <button type="button" onClick={() => switchMode('visual')} className={buttonClass.ghost}>
+          {rawDirty ? 'Cancel' : 'Back to list'}
+        </button>
+        <button type="button" onClick={saveMarkdown} disabled={!rawDirty} className={buttonClass.primary}>
+          Save
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={compact ? 'w-full space-y-3' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4'}>
+      <div className={editorMode === 'split' || compact ? '' : 'max-w-4xl'}>{header}</div>
+      {editorMode !== 'raw' && attentionBar && <div className={editorMode === 'split' || compact ? '' : 'max-w-4xl'}>{attentionBar}</div>}
+
+      {editorMode === 'visual' &&
+        (compact ? (
+          listView
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,56rem)_18rem] gap-6 items-start">
+            {listView}
+            {glance}
+          </div>
+        ))}
+
+      {editorMode === 'split' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {listView}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
+              <FileCode className="w-4 h-4" /> Markdown ({date}.md)
+            </div>
+            {markdownEditor(22, false)}
+          </div>
+        </div>
+      )}
+
+      {editorMode === 'raw' && <div className={compact ? '' : 'max-w-4xl'}>{markdownEditor(compact ? 18 : 26, true)}</div>}
     </div>
   );
 };

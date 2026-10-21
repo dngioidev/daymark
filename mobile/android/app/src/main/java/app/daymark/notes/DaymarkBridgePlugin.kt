@@ -47,6 +47,7 @@ class DaymarkBridgePlugin : Plugin() {
         for (taskId in WidgetStore.consumeActions(context)) {
             actions.put(JSObject().put("type", "toggle").put("taskId", taskId))
         }
+        if (WidgetStore.consumeCaptureRequest(context)) actions.put(JSObject().put("type", "capture"))
         call.resolve(JSObject().put("actions", actions))
     }
 }
