@@ -148,7 +148,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           <button
             type="button"
             onClick={() => onOpenHistoryDrawer(task)}
-            className={`block w-full text-left text-[15px] sm:text-sm leading-snug font-medium break-words ${
+            className={`relative block w-full min-h-6 text-left text-[15px] sm:text-sm leading-snug font-medium break-words before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${
               isDone
                 ? 'line-through text-stone-500 dark:text-stone-400'
                 : 'text-stone-900 dark:text-stone-100 hover:text-amber-800 dark:hover:text-amber-300'
@@ -201,14 +201,14 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           )}
 
           {checklist.length > 0 && (
-            <span className="inline-flex items-center gap-1" aria-label={`${checklist.filter((c) => c.done).length} of ${checklist.length} checklist items done`}>
+            <span className="inline-flex items-center gap-1" role="img" aria-label={`${checklist.filter((c) => c.done).length} of ${checklist.length} checklist items done`}>
               <ListChecks className="w-3.5 h-3.5" />
               {checklist.filter((c) => c.done).length}/{checklist.length}
             </span>
           )}
 
           {task.description && (
-            <span className="inline-flex items-center" title="Has notes" aria-label="Has notes">
+            <span className="inline-flex items-center" title="Has notes" role="img" aria-label="Has notes">
               <FileText className="w-3.5 h-3.5" />
             </span>
           )}

@@ -118,7 +118,7 @@ try {
   shot('native-1-first-run');
 
   // Sample vault -> carried-forward tasks for today
-  await clickButton(/explore with sample data/i);
+  await clickButton(/sample data/i);
   const TITLE = 'Investigate build pipeline failure';
   check(await waitFor(`document.body.innerText.includes(${JSON.stringify(TITLE)})`, 'sample tasks'), 'sample vault rolls tasks into today');
   await sleep(1500);
@@ -129,10 +129,8 @@ try {
   check(prefs.includes(TITLE), 'snapshot for the widget was written natively');
 
   // Settings is reachable on a phone; add the widget from there
-  check(await clickButton(/settings, backup and import/i), 'phone header has a Settings button');
+  check(await clickButton(/^\s*settings\s*$/i), 'bottom bar has a Settings button');
   await sleep(800);
-  await clickButton(/storage|vault/i);
-  await sleep(500);
   shot('native-3-settings-add-widget');
   check(await clickButton(/^\s*add widget/i), 'Add widget button is shown in the native app');
   await sleep(2000);
@@ -148,7 +146,7 @@ try {
 
   // Widget on the home screen shows today's tasks
   let nodes = uiNodes();
-  check(nodes.some((n) => n.text === 'Daymark Today'), 'widget is on the home screen');
+  check(nodes.some((n) => /^\d+ left · \d+ done$/.test(n.text)), 'widget is on the home screen');
   const titleNode = nodes.find((n) => n.text === TITLE);
   check(!!titleNode, 'widget lists a carried-forward task');
   shot('native-5-widget-home');
@@ -159,7 +157,7 @@ try {
     await sleep(2000);
     nodes = uiNodes();
     check(!nodes.some((n) => n.text === TITLE), 'ticked task disappears from the widget list');
-    check(nodes.some((n) => /^1\/\d+ done$/.test(n.text)), 'widget counter shows 1 done');
+    check(nodes.some((n) => /· 1 done$/.test(n.text)), 'widget counter shows 1 done');
     shot('native-6-widget-after-tick');
   }
   const queued = adb('shell', 'run-as', PKG, 'cat', 'shared_prefs/daymark_widget.xml');
@@ -181,6 +179,23 @@ try {
   await sleep(1500);
   shot('native-7-app-after-widget-tick');
 
+  // The widget's + opens the app straight into the new-task sheet
+  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+  await sleep(2000);
+  const xml = adb('exec-out', 'uiautomator', 'dump', '/dev/tty');
+  const plus = xml.match(/content-desc="New task"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+  check(!!plus, 'widget has a + (New task) button');
+  if (plus) {
+    tap((Number(plus[1]) + Number(plus[3])) / 2, (Number(plus[2]) + Number(plus[4])) / 2);
+    check(
+      await waitFor(`!!document.querySelector('input[placeholder="What do you need to do?"]')`, 'new-task sheet from widget', 15000),
+      'widget + opens the new-task sheet'
+    );
+    shot('native-9-widget-plus-new-task');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+    await sleep(800);
+  }
+
   // ---- Sync with a self-hosted server running on this machine ----
   const SYNC_PORT = 3104;
   const SYNC_PASSWORD = 'native-e2e-password';
@@ -196,18 +211,18 @@ try {
     } catch {}
     await sleep(500);
   }
-  check(await clickButton(/^\s*sync\s*$/i), 'phone Sync tab opens');
+  check(await clickButton(/open sync settings/i), 'header sync status opens Sync settings');
   await sleep(800);
   await evaluate(`(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    const fill = (label, value) => {
-      const el = [...document.querySelectorAll('label')].find((l) => l.textContent.includes(label)).querySelector('input');
+    const fill = (id, value) => {
+      const el = document.getElementById(id);
       setter.call(el, value);
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
-    fill('Server address', 'http://10.0.2.2:${SYNC_PORT}');
-    fill('Password', '${SYNC_PASSWORD}');
-    fill('Name for this device', 'Emulator phone');
+    fill('sync-url', 'http://10.0.2.2:${SYNC_PORT}');
+    fill('sync-pass', '${SYNC_PASSWORD}');
+    fill('sync-device', 'Emulator phone');
     return true;
   })()`);
   await clickButton(/connect and sync/i);
@@ -231,14 +246,19 @@ try {
         .filter((l) => /mCurrentFocus|mFocusedApp/.test(l))
         .join(' ')
     );
-  await clickButton(/settings, backup and import/i);
-  await waitFor(`!!document.querySelector('[role=dialog][aria-label=Settings]')`, 'settings open');
+  // Settings (with Sync) is still open from the step above
+  await waitFor(`!!document.querySelector('[role=dialog]')`, 'settings open');
+  // Close the soft keyboard left open by the sync form, so Back reaches the app
+  await evaluate(`(document.activeElement && document.activeElement.blur(), true)`);
+  await sleep(800);
   adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
   await sleep(1200);
-  check(!(await evaluate(`!!document.querySelector('[role=dialog][aria-label=Settings]')`)) && focused(), 'Back closes Settings and keeps the app open');
-  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); // from the Sync tab
+  check(!(await evaluate(`!!document.querySelector('[role=dialog]')`)) && focused(), 'Back closes Settings and keeps the app open');
+  await clickButton(/^\s*notes\s*$/i);
+  await sleep(800);
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); // from the Notes tab
   await sleep(1200);
-  check((await evaluate(`document.body.innerText.includes('Finished earlier') || document.body.innerText.includes('carried-forward')`)) && focused(), 'Back from the Sync tab returns to Today');
+  check((await evaluate(`/days old|need attention/.test(document.body.innerText)`)) && focused(), 'Back from the Notes tab returns to Today');
   adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); // on Today
   await sleep(1500);
   check(!focused() && adb('shell', 'pidof', PKG).trim().length > 0, 'Back on Today minimises the app (not killed)');

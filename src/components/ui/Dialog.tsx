@@ -66,11 +66,10 @@ export const Dialog: React.FC<DialogProps> = ({
     setAppInert(true);
 
     // Focus the element marked autoFocus/data-autofocus, else the first field, else the panel
-    const target =
-      panel.querySelector<HTMLElement>('[data-autofocus], [autofocus]') ??
-      panel.querySelector<HTMLElement>('input, select, textarea') ??
-      panel;
-    requestAnimationFrame(() => target.focus());
+    const firstVisible = (selector: string) =>
+      [...panel.querySelectorAll<HTMLElement>(selector)].find((el) => el.offsetParent !== null);
+    const target = firstVisible('[data-autofocus], [autofocus]') ?? firstVisible('input, select, textarea') ?? panel;
+    requestAnimationFrame(() => target.focus({ preventScroll: true }));
 
     const onKey = (e: KeyboardEvent) => {
       if (stack[stack.length - 1] !== panel) return;

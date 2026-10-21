@@ -128,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>New task</span>
-            <kbd className="hidden lg:inline ml-1 px-1 rounded bg-white/20 dark:bg-stone-950/15 text-xs font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+            <kbd className="hidden lg:inline ml-1 px-1 rounded bg-amber-950/35 dark:bg-stone-950/15 text-xs font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
         </div>
       </div>

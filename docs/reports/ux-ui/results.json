@@ -1,13 +1,13 @@
 {
- "ranAt": "2026-10-20T15:07:31.808Z",
+ "ranAt": "2026-10-21T07:59:40.834Z",
  "results": [
   {
    "id": "GL-01",
    "title": "First launch shows welcome",
    "env": "P412",
-   "status": "warn",
-   "details": "24 controls behind the dialog are still keyboard-focusable (background not inert)",
-   "ms": 2887
+   "status": "pass",
+   "details": "",
+   "ms": 2024
   },
   {
    "id": "GL-02",
@@ -15,7 +15,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3035
+   "ms": 2123
   },
   {
    "id": "GL-03",
@@ -23,7 +23,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1978
+   "ms": 1586
   },
   {
    "id": "GL-04",
@@ -31,23 +31,23 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2953
+   "ms": 2655
   },
   {
    "id": "GL-05",
-   "title": "Real date shown",
+   "title": "Real date shown, no ISO dates on Today",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4353
+   "ms": 3121
   },
   {
    "id": "GL-07",
    "title": "Toast behaviour",
    "env": "P412",
    "status": "pass",
-   "details": "visible ~4 s, above nav",
-   "ms": 6909
+   "details": "visible ~4 s, above nav, dismissible",
+   "ms": 6133
   },
   {
    "id": "NAV-01",
@@ -55,71 +55,71 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4072
+   "ms": 3136
   },
   {
    "id": "NAV-02",
-   "title": "Centre + opens Quick Capture with focus",
+   "title": "Centre + opens the new-task sheet with focus",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2986
+   "ms": 2133
   },
   {
    "id": "NAV-03",
-   "title": "Header gear opens full-screen Settings",
+   "title": "Settings opens full screen on phones",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2463
+   "ms": 1692
   },
   {
    "id": "NAV-04",
-   "title": "Header sync pill",
+   "title": "Header sync status opens Sync settings",
    "env": "P412",
-   "status": "warn",
-   "details": "pill target 78x17 px",
-   "ms": 2149
+   "status": "pass",
+   "details": "",
+   "ms": 1683
   },
   {
    "id": "NAV-05",
-   "title": "Desktop navbar items",
-   "env": "D1440",
+   "title": "Desktop navbar items fit at 1024-1920 px",
+   "env": "D1024+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3564
+   "ms": 3483
   },
   {
    "id": "NAV-06",
-   "title": "Logo",
+   "title": "Logo returns to Today",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2427
+   "ms": 2009
   },
   {
    "id": "NAV-07",
-   "title": "Mobile App View and back",
+   "title": "Phone preview is a developer tool",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3069
+   "ms": 3284
   },
   {
    "id": "NAV-08",
-   "title": "Export ZIP (navbar)",
+   "title": "Back up now",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2076
+   "ms": 2093
   },
   {
    "id": "NAV-09",
-   "title": "Quick Capture via button and Ctrl K",
+   "title": "New task via button and Ctrl K",
    "env": "D1440",
-   "status": "fail",
-   "details": "Ctrl K did not open",
-   "ms": 2857
+   "status": "pass",
+   "details": "",
+   "ms": 2172
   },
   {
    "id": "NAV-11",
@@ -127,15 +127,15 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4378
+   "ms": 3802
   },
   {
    "id": "TD-01",
    "title": "Previous / next day",
    "env": "P412",
-   "status": "warn",
-   "details": "next day is titled \"Oct 21\" (no \"Tomorrow\" label); day arrows are 28/28 px wide (< 44)",
-   "ms": 2167
+   "status": "pass",
+   "details": "",
+   "ms": 1790
   },
   {
    "id": "TD-02",
@@ -143,143 +143,143 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2516
+   "ms": 1746
   },
   {
    "id": "TD-03",
-   "title": "View modes",
+   "title": "View modes; Markdown hides task tags",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5075
+   "ms": 3605
   },
   {
    "id": "TD-04",
-   "title": "Reconcile Rollover",
+   "title": "Refresh today's list",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2768
+   "ms": 1733
   },
   {
    "id": "TD-05",
-   "title": "Attention filter toggles",
+   "title": "Attention chip filters",
    "env": "P412",
    "status": "pass",
-   "details": "all 4, filtered 4; toggle label \"Show All Sections\"",
-   "ms": 2875
+   "details": "",
+   "ms": 1748
   },
   {
    "id": "TD-06",
-   "title": "Section + Task inline add",
-   "env": "P412",
-   "status": "fail",
-   "details": "inline add row does not fit on screen (Add Task button off-screen)",
-   "ms": 32847
+   "title": "Section + Task inline add fits on phones",
+   "env": "P360+P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3670
   },
   {
    "id": "TD-07",
-   "title": "Section + Note editor and toolbar",
+   "title": "Section notes editor; toolbar wraps the selection",
    "env": "P412",
-   "status": "fail",
-   "details": "bold toolbar produced \"hello**bold text**\"",
-   "ms": 3144
+   "status": "pass",
+   "details": "",
+   "ms": 2034
   },
   {
    "id": "TD-08",
-   "title": "Section notes Clear asks first (DS-03)",
+   "title": "Section notes Clear asks first, with Undo (DS-03)",
    "env": "P412",
-   "status": "warn",
-   "details": "no Clear button visible on phone",
-   "ms": 2671
+   "status": "pass",
+   "details": "",
+   "ms": 1955
   },
   {
    "id": "TD-09",
-   "title": "Add section heading",
+   "title": "New section",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 7009
+   "ms": 1798
   },
   {
    "id": "TD-10",
-   "title": "Empty sections compact",
+   "title": "Empty sections collapse into \"Add to\" chips",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3127
+   "ms": 1687
   },
   {
    "id": "TK-01",
-   "title": "Complete / reopen",
+   "title": "Complete, Done group, Undo",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3679
+   "ms": 1763
   },
   {
    "id": "TK-02",
-   "title": "Status menu",
+   "title": "Status menu: options, outside tap and Esc close it",
    "env": "P412",
-   "status": "warn",
-   "details": "menu items 28 px tall; tapping outside does not close the menu",
-   "ms": 3583
+   "status": "pass",
+   "details": "",
+   "ms": 1795
   },
   {
    "id": "TK-03",
-   "title": "Details expand / hide",
+   "title": "Tap title opens details sheet",
    "env": "P412",
-   "status": "warn",
-   "details": "\"Details\" target 33x15 px",
-   "ms": 3516
+   "status": "pass",
+   "details": "",
+   "ms": 1746
   },
   {
    "id": "TK-04",
-   "title": "Edit description persists",
+   "title": "Edit notes persists",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4073
+   "ms": 2409
   },
   {
    "id": "TK-05",
-   "title": "Checklist add / toggle / delete",
+   "title": "Checklist add / toggle / remove on touch",
    "env": "P412",
-   "status": "warn",
-   "details": "subtask delete button is invisible until mouse hover (unreachable on touch)",
-   "ms": 3348
+   "status": "pass",
+   "details": "",
+   "ms": 1848
   },
   {
    "id": "TK-06",
-   "title": "Inspect audit log drawer",
+   "title": "History in details",
    "env": "P412",
-   "status": "warn",
-   "details": "drawer close button has no accessible name",
-   "ms": 3994
+   "status": "pass",
+   "details": "",
+   "ms": 1747
   },
   {
    "id": "TK-07",
-   "title": "Snooze alert and restore",
+   "title": "Hide warning today and show again",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3677
+   "ms": 1788
   },
   {
    "id": "TK-08",
-   "title": "Delete from details asks first (DS-01)",
+   "title": "Delete asks first, Undo restores (DS-01)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3705
+   "ms": 1858
   },
   {
    "id": "TK-09",
-   "title": "Options menu visible on touch for every task",
+   "title": "Options button on every task, touch-sized",
    "env": "P412",
-   "status": "warn",
-   "details": "\"…\" button has no accessible name; \"…\" target 24 px",
-   "ms": 3125
+   "status": "pass",
+   "details": "",
+   "ms": 1692
   },
   {
    "id": "TK-10",
@@ -287,31 +287,31 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3821
+   "ms": 1737
   },
   {
    "id": "TK-11",
-   "title": "Quick \"Done on <date>\"",
+   "title": "Quick \"Mark done on <carried day>\"",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3462
+   "ms": 1788
   },
   {
    "id": "TK-12",
-   "title": "Other past date modal",
+   "title": "\"Mark done on another day\" dialog",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3890
+   "ms": 1790
   },
   {
    "id": "TK-13",
-   "title": "Aging badges",
+   "title": "Age labels",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3112
+   "ms": 1674
   },
   {
    "id": "TK-14",
@@ -319,87 +319,87 @@
    "env": "P360",
    "status": "pass",
    "details": "",
-   "ms": 4245
+   "ms": 2304
   },
   {
    "id": "QC-01",
-   "title": "Quick Capture layout and labels",
+   "title": "New-task sheet layout and labels",
    "env": "P412",
-   "status": "warn",
-   "details": "4 fields without an accessible label; close (X) button has no accessible name",
-   "ms": 3445
+   "status": "pass",
+   "details": "",
+   "ms": 1697
   },
   {
    "id": "QC-02",
-   "title": "Capture with Enter and button",
+   "title": "Add with Enter and with the button",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3693
+   "ms": 2253
   },
   {
    "id": "QC-03",
-   "title": "Empty title rejected with feedback",
-   "env": "P412",
-   "status": "warn",
-   "details": "nothing happens and no message explains why",
-   "ms": 3451
-  },
-  {
-   "id": "QC-04",
-   "title": "Heading and status selects",
+   "title": "Empty title cannot be added",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3430
+   "ms": 1789
+  },
+  {
+   "id": "QC-04",
+   "title": "Defaults and remembered section/status",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2487
   },
   {
    "id": "QC-05",
    "title": "Close via Cancel / X / Esc / backdrop",
    "env": "D1440",
-   "status": "warn",
-   "details": "tapping the backdrop does not close",
-   "ms": 3830
+   "status": "pass",
+   "details": "",
+   "ms": 2012
   },
   {
    "id": "HI-01",
-   "title": "History opens on the latest note",
+   "title": "History opens on the latest day",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 6838
+   "ms": 3528
   },
   {
    "id": "HI-02",
-   "title": "Calendar day select",
+   "title": "Calendar day select, empty day wording",
    "env": "P412",
-   "status": "warn",
-   "details": "empty day says \"No daily document exists for 2026-10-03\" (technical wording, no action offered)",
-   "ms": 3571
+   "status": "pass",
+   "details": "",
+   "ms": 1839
   },
   {
    "id": "HI-03",
    "title": "Month navigation",
    "env": "P412",
-   "status": "warn",
-   "details": "month arrows have no accessible name; month arrows 24 px wide",
-   "ms": 4566
+   "status": "pass",
+   "details": "",
+   "ms": 1894
   },
   {
    "id": "HI-04",
-   "title": "Recorded notes list",
-   "env": "P412",
+   "title": "Recent days list and \"Open this day\"",
+   "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3937
+   "ms": 1788
   },
   {
    "id": "NO-01",
-   "title": "Notes list",
+   "title": "Notes list: pinned first, plain previews",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3186
+   "ms": 1805
   },
   {
    "id": "NO-02",
@@ -407,23 +407,23 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3512
+   "ms": 1796
   },
   {
    "id": "NO-03",
    "title": "Folder chips",
    "env": "P412",
-   "status": "warn",
-   "details": "folder chips 23 px tall",
-   "ms": 3419
+   "status": "pass",
+   "details": "",
+   "ms": 1776
   },
   {
    "id": "NO-04",
-   "title": "New note opens editor with title focused",
+   "title": "New note focuses the title",
    "env": "P412",
-   "status": "warn",
-   "details": "focus on BODY, not the title",
-   "ms": 3443
+   "status": "pass",
+   "details": "",
+   "ms": 1980
   },
   {
    "id": "NO-05",
@@ -431,39 +431,39 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4483
+   "ms": 2549
   },
   {
    "id": "NO-06",
-   "title": "Note toolbar inserts Markdown",
+   "title": "Toolbar wraps the selection",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 6605
+   "ms": 3886
   },
   {
    "id": "NO-07",
-   "title": "Preview modes",
+   "title": "Edit / Read (/ Split) modes",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 7007
+   "ms": 3660
   },
   {
    "id": "NO-08",
-   "title": "Pin note",
+   "title": "Pin moves a note to the top",
    "env": "D1440",
-   "status": "fail",
-   "details": "pinned note not moved to the top",
-   "ms": 3550
+   "status": "pass",
+   "details": "",
+   "ms": 1880
   },
   {
    "id": "NO-09",
-   "title": "Delete note asks first (DS-02)",
+   "title": "Delete note asks first, Undo restores (DS-02)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3499
+   "ms": 1922
   },
   {
    "id": "NO-10",
@@ -471,15 +471,15 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3589
+   "ms": 1928
   },
   {
    "id": "NO-11",
-   "title": "Back to list",
+   "title": "Back to list (button and Android Back)",
    "env": "P412",
-   "status": "warn",
-   "details": "back link 50x16 px",
-   "ms": 3479
+   "status": "pass",
+   "details": "",
+   "ms": 1865
   },
   {
    "id": "SY-01",
@@ -487,7 +487,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3635
+   "ms": 1804
   },
   {
    "id": "SY-02",
@@ -495,7 +495,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3370
+   "ms": 1844
   },
   {
    "id": "SY-03",
@@ -503,31 +503,47 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3476
+   "ms": 2149
   },
   {
    "id": "SY-04",
-   "title": "Connect, status pill, Sync now",
+   "title": "Connect, header status, Sync now",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3597
+   "ms": 2275
   },
   {
    "id": "SY-05",
-   "title": "Server view: devices, activity, password validation",
+   "title": "Devices, activity, password validation",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4166
+   "ms": 3235
   },
   {
    "id": "SY-06",
-   "title": "Disconnect this device asks first (DS-06)",
+   "title": "Disconnect asks first (DS-06)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3605
+   "ms": 2241
+  },
+  {
+   "id": "SY-07",
+   "title": "Restore on a synced device keeps server data",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 10892
+  },
+  {
+   "id": "SY-08",
+   "title": "Repeat sign-in does not duplicate the device",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 2491
   },
   {
    "id": "SE-01",
@@ -535,79 +551,79 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 6687
+   "ms": 4166
   },
   {
    "id": "SE-02",
-   "title": "Close settings (X, Done, Esc)",
-   "env": "P412+D1440",
-   "status": "warn",
-   "details": "Esc does not close Settings",
-   "ms": 3364
+   "title": "Close settings (X, Done, Esc, backdrop)",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2132
   },
   {
    "id": "SE-03",
-   "title": "Download Vault ZIP and JSON",
+   "title": "Back up (.zip) and technical backup (.json)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3189
+   "ms": 2055
   },
   {
    "id": "SE-04",
-   "title": "Restore JSON / ZIP / invalid file (DS-05)",
+   "title": "Restore asks first; invalid file explained in-app (DS-05)",
    "env": "P412",
-   "status": "warn",
-   "details": "messages use browser alert()/confirm() (\"Invalid Daymark backup format.\")",
-   "ms": 4604
+   "status": "pass",
+   "details": "",
+   "ms": 2412
   },
   {
    "id": "SE-05",
-   "title": "Replace with sample asks first (DS-04)",
+   "title": "Sample data asks first; unavailable while synced (DS-04)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3417
+   "ms": 2600
   },
   {
    "id": "SE-06",
-   "title": "Statuses: change, add, save, cancel",
+   "title": "Statuses: add, save; fits on phones",
    "env": "D1440+P412",
-   "status": "warn",
-   "details": "Statuses tab content runs past the right edge on phones (add-status row clipped)",
-   "ms": 6824
+   "status": "pass",
+   "details": "",
+   "ms": 4265
   },
   {
    "id": "SE-07",
-   "title": "Aging thresholds",
+   "title": "Old-task warning thresholds, inline validation",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3528
+   "ms": 2355
   },
   {
    "id": "SE-08",
-   "title": "Headings add / remove",
+   "title": "Sections add / remove",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4028
+   "ms": 2018
   },
   {
    "id": "SE-09",
-   "title": "Developer date override",
+   "title": "Pretend it is another day (Advanced)",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4221
+   "ms": 2278
   },
   {
    "id": "AX-06",
    "title": "Dialog semantics, focus, inert background",
    "env": "P412",
-   "status": "warn",
-   "details": "Quick Capture: no role=dialog; Quick Capture: background not inert; Settings: focus not moved into dialog; Settings: background not inert; Other past date: no role=dialog; Other past date: focus not moved into dialog; Other past date: background not inert",
-   "ms": 6668
+   "status": "pass",
+   "details": "",
+   "ms": 4016
   },
   {
    "id": "AX-07",
@@ -615,7 +631,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3105
+   "ms": 1783
   },
   {
    "id": "GL-09",

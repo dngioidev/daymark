@@ -236,9 +236,9 @@ export const DailyHistoryView: React.FC<DailyHistoryViewProps> = ({
                         return (
                           <li key={task.id} className="flex flex-wrap items-start gap-x-2.5 gap-y-1 p-2.5 rounded-lg border border-stone-200 dark:border-stone-800">
                             {isDone ? (
-                              <Check className="mt-0.5 w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-label="Done" />
+                              <Check className="mt-0.5 w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" role="img" aria-label="Done" />
                             ) : (
-                              <Circle className="mt-0.5 w-4 h-4 shrink-0 text-stone-400" aria-label="Not done" />
+                              <Circle className="mt-0.5 w-4 h-4 shrink-0 text-stone-400" role="img" aria-label="Not done" />
                             )}
                             <div className="flex-1 min-w-48">
                               <div className={isDone ? 'text-stone-600 dark:text-stone-400 line-through' : 'font-medium text-stone-900 dark:text-stone-100'}>

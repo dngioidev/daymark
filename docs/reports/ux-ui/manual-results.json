@@ -1,0 +1,20 @@
+{
+  "GL-08": ["not run", "Loading placeholder not re-checked (unchanged since 1.0.0)"],
+  "NAV-10": ["pass", "Badge has a tooltip and accessible name: \"4 tasks need attention\""],
+  "NAV-12": ["pass", "Native suite: Back closes Settings, Notes tab -> Today, Today -> minimise"],
+  "TD-11": ["not run", "Unchanged since 1.0.0"],
+  "HI-05": ["not run", "Unchanged since 1.0.0"],
+  "SE-10": ["pass", "Native suite (Add widget -> Android pin prompt)"],
+  "RS-02": ["pass", "Phone shell below 768 px, desktop from 768 px"],
+  "AX-08": ["not run", "Zoom 200% not re-checked"],
+  "AN-01": ["pass", "Native suite"],
+  "AN-02": ["pass", "Emulator: dark header on every tab; Settings has a dark strip behind the status icons"],
+  "AN-03": ["pass", "New-task bottom sheet and note editor stay above the keyboard (emulator)"],
+  "AN-04": ["pass", "Back up now opens the share sheet (emulator)"],
+  "AN-05": ["pass", "Choose a backup file opens the system picker (emulator, unchanged flow)"],
+  "AN-06": ["pass", "Native suite: widget added, tick applied, + opens the new-task sheet, \"N left · N done\" header"],
+  "AN-07": ["pass", "Same as AN-02"],
+  "AN-08": ["pass", "Dismissing the share sheet after Back up now shows no error (emulator)"],
+  "AN-09": ["pass", "Task, checklist and sheet fields use enterkeyhint=done"],
+  "DS-07": ["pass", "Status and section removal happen in a draft; Cancel discards and closing with changes asks first"]
+}

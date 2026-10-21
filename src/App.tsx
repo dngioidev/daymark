@@ -162,12 +162,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDesktopTab]);
 
-  // Deep links from the PWA manifest shortcuts (?action=capture)
+  // Deep links from the PWA manifest shortcuts (?action=capture); on a first launch the
+  // welcome choice comes first and the new-task sheet opens right after it
+  const captureFromLink = React.useRef(new URLSearchParams(window.location.search).get('action') === 'capture');
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('action') === 'capture') {
+    if (captureFromLink.current && !showWelcome) {
+      captureFromLink.current = false;
       setIsQuickCaptureOpen(true);
     }
-  }, []);
+  }, [showWelcome]);
 
   // Synchronize state changes to local storage
   useEffect(() => {

@@ -30,11 +30,11 @@ npm ci && npm run build
 DAYMARK_PASSWORD='choose-a-strong-one' npm start
 ```
 
-Then on each device open **Sync** (phone tab or desktop menu), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
+Then on each device open **Settings → Sync** (or tap the sync status in the header), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
 
 ### Your data
 - Stored in the browser/app (IndexedDB) on each device; nothing leaves the device unless you connect a sync server.
-- **Settings → Backup & restore**: download a vault ZIP (Markdown files + a full snapshot) or a JSON backup, and restore either. On Android the file opens in the share sheet (save to Drive, Files, email…).
+- **Settings → Backup & restore → Back up now** saves a ZIP of Markdown files (plus a full snapshot); **Choose a backup file…** restores one. A technical JSON backup is under **Advanced**. On Android the file opens in the share sheet (save to Drive, Files, email…). Restoring while sync is on merges the backup with your server instead of deleting anything.
 - Uninstalling the app or clearing site data deletes the local vault, so keep a backup or use sync.
 
 ---
@@ -52,6 +52,7 @@ npm run test:sync      # two devices syncing through a fresh server
 npm run android:build  # debug APK (JDK 21 + Android SDK); -- --test for Kotlin tests
 node scripts/e2e-android-native.mjs   # app + widget + sync on a booted emulator
 node scripts/ux-audit.mjs <cycle>     # screenshots of every screen, phone/desktop, light/dark
+node scripts/ux-suite.mjs             # UX/UI test suite (docs/testing) + accessibility scans
 ```
 
 AI agents: start at [`CLAUDE.md`](./CLAUDE.md) / [`AGENTS.md`](./AGENTS.md).

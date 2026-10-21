@@ -67,7 +67,7 @@ tags: [dev, sprint]
 ## 4. Core Lifecycle Algorithms (`src/utils/lifecycleEngine.ts`)
 
 ### 4.1 Daily Rollover (`performDailyRollover`)
-- **Trigger**: Automatically when the effective "today" changes (app start, local midnight, or waking the device on a new day) and after loading sample data or importing a vault; or explicitly via "Reconcile Rollover". "Today" is the real local date unless `settings.simulatedToday` holds a developer override (empty = real date).
+- **Trigger**: Automatically when the effective "today" changes (app start, local midnight, or waking the device on a new day) and after loading sample data or importing a vault; or explicitly via "Refresh today's list" (desktop Today "…" menu). "Today" is the real local date unless `settings.simulatedToday` holds a developer override (empty = real date).
 - **Selection**: Scans past daily notes from **newest to oldest**. The first (most recent) version of each task id decides its fate; older copies of the same id are ignored. A task is carried only if that newest version has an action of `carry-forward`, is not `done`/`archived`, and has no `completedDate`. This prevents resurrecting a task that was completed later, and carries the latest edits rather than a stale copy.
 - **Deduplication**: Gathers all task IDs existing in the target note (`Set<string>`). Only tasks whose IDs are not in the target note are added, so repeated runs are idempotent.
 - **Attributes**: In the new note, `carriedFromDate` is set to the date of the note holding the newest version; `originalNoteDate` is preserved.

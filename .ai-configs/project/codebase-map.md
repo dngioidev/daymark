@@ -38,11 +38,16 @@ daymark/
 | `src/native/daymarkBridge.ts`, `src/hooks/useWidgetSync.ts`, `src/utils/widgetSnapshot.ts`, `src/utils/taskActions.ts` | Native bridge | JS side of the widget: snapshot builder, queued-action handling, shared task toggle. No-ops in the browser. |
 | `src/native/backButton.ts` | Native | Android Back handling: dialogs, editor and tabs register handlers; otherwise the app minimises. |
 | `scripts/ux-audit.mjs` | Tooling | Screenshots of every main screen (phone/desktop, light/dark) for UI review. |
-| `src/components/WelcomeModal.tsx` | UI | First-run choice: empty vault or sample data. |
+| `src/components/WelcomeModal.tsx` | UI | First-run choice: start fresh, sample data, or restore a backup. |
+| `src/components/ui/Dialog.tsx` | UI | Shared accessible dialog/sheet (focus trap, Esc, backdrop, inert app) and button styles. |
+| `src/components/ui/Menu.tsx` | UI | Dropdown menu that closes on outside tap/Esc, keyboard navigable. |
+| `src/components/ui/feedback.tsx` | UI | In-app `confirmDialog`/`alertDialog` and `showToast` (with Undo); mount `<FeedbackHost />` once. |
+| `src/utils/dateFormat.ts` | Logic | The UI's date vocabulary: Today/Yesterday/Tomorrow, "Fri 16 Oct", long dates, ages. No ISO dates on screen. |
+| `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, checklist counts, pinned-first sorting. |
 | `src/components/TodayView.tsx` | UI | Daily notebook view with visual, split, and raw markdown modes. |
 | `src/components/StandaloneNotesView.tsx` | UI | 3-column evergreen notes workspace with folder navigation and editor. |
-| `src/components/DailyHistoryView.tsx` | UI | Historical calendar archive with heat-map and task reopen capabilities. |
-| `src/components/TaskItemCard.tsx` | UI | Interactive task card with aging badges, status picker, and subtasks. |
+| `src/components/DailyHistoryView.tsx` | UI | History: calendar with completion markers, 7-day summary, past-day view with Reopen / Done this day. |
+| `src/components/TaskItemCard.tsx` | UI | Compact task row: checkbox, title (opens details), status menu, age, "…" menu (Mark done on…, Rename, Delete). Details live in `TaskHistoryDrawer.tsx` (the task details sheet). |
 | `src/components/MarkdownPreview.tsx` | UI | Markdown renderer supporting GFM checklists, callouts, and wikilinks. |
 | `server.ts`, `server/app.ts` | Backend | Express API (auth, devices, sync, stats, log) built by `createApp(config, store)`; tested in-process by `server/app.test.ts`. |
 | `server/store.ts` | Backend | Atomic JSON-file persistence in `DATA_DIR` (account, vault entities with revisions, devices, audit log). |

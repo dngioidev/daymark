@@ -97,6 +97,15 @@ Done when: server restart keeps data, unauthenticated calls return 401, two clie
 - iOS: PWA parity verified on Safari viewport; WidgetKit wrapper only if wanted for v1 (otherwise marked experimental).
 - Release: refresh README and `.ai-configs/project` docs, tag `v1.0.0`, final screenshot set.
 
+## Cycle 5: UX redesign from the real-phone review (v1.1)
+**Status: done on branch `cycle-5-ux-redesign`; version 1.1.0.** See [docs/releases/cycle-5](./releases/cycle-5/README.md).
+Input: the UX/UI test report and the business review in [docs/reports/ux-ui](./reports/ux-ui/). Delivered in five waves:
+- **Wave 0, safety:** restore/sample data on a synced device no longer deletes server data; Ctrl/⌘ K; "+ Task" row on phones; share-sheet cancel; status bar on full-screen dialogs; duplicate devices.
+- **Wave 1, words, dates and type:** one date vocabulary, plain-language labels, monospace only for code, accessible colours, 12 px minimum text.
+- **Wave 2, Today:** compact task rows, details sheet, one "Mark done on…" flow, attention chip, Done groups, bottom-sheet new task.
+- **Wave 3, structure:** Settings replaces Sync in the bottom bar, Sync inside Settings, server set-up behind a help link, protected Markdown view, accessible dialogs, in-app confirmations, toasts with Undo.
+- **Wave 4, review value:** History summary and completion markers, Notes pinned-first with plain previews, device naming, widget + button and "+N more".
+
 ---
 
 ## Per-cycle ritual (how an agent runs it)
@@ -110,6 +119,7 @@ Done when: server restart keeps data, unauthenticated calls return 401, two clie
 - **B (after Cycle 2):** native Android app with widget.
 - **C (after Cycle 3):** self-hosted multi-device sync.
 - **v1.0 (after Cycle 4).**
+- **v1.1 (after Cycle 5):** redesigned daily flow from real-phone use.
 
 ## Decisions still open
 - Android wrapper: Capacitor (recommended) or TWA.
@@ -121,5 +131,5 @@ Done when: server restart keeps data, unauthenticated calls return 401, two clie
 - Push the branches and let CI run (lint, tests, PWA and sync e2e, APK build); fix anything Linux-specific.
 - Release signing for the APK (keystore, `assembleRelease`) if you want to share it or publish to Play.
 - HTTPS by default for the server (Caddy example in compose).
-- Split `TodayView`, `SettingsModal` and `MobileAppShell` into smaller components before adding features.
-- Widget: quick-add task, and open the app on a specific day.
+- ~~Split `MobileAppShell`~~ (done in Cycle 5: notes moved to the shared `StandaloneNotesView`); `TodayView` and `SettingsModal` could still be split.
+- ~~Widget quick-add~~ (done in Cycle 5). Still open: open the app on a specific day from the widget.

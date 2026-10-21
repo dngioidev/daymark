@@ -196,7 +196,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )
       }
     >
-      <div role="tablist" aria-label="Settings sections" className="flex flex-wrap gap-1.5 px-4 py-3 border-b border-stone-200 dark:border-stone-800">
+      <div role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 flex flex-wrap gap-1.5 px-4 py-3 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
         {SETTINGS_TABS.map((tab) => (
           <button
             key={tab.id}

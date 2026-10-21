@@ -15,6 +15,8 @@ import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
 
 const require = createRequire(import.meta.url);
+// A step that fails mid-test can leave a waitForEvent promise behind; don't let it kill the run
+process.on('unhandledRejection', () => {});
 const AXE = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 const OUT = path.resolve('docs', 'reports', 'ux-ui');
 const SHOTS = path.join(OUT, 'screens');
@@ -25,6 +27,11 @@ const skipScans = process.argv.includes('--skip-scans');
 const PORT = 3108;
 const BASE = `http://localhost:${PORT}`;
 const PASSWORD = 'ux-suite-password';
+// A server left over from an aborted run would answer instead of a fresh one (and keep old data)
+if (await fetch(`${BASE}/api/health`).then(() => true, () => false)) {
+  console.error(`Port ${PORT} is already in use (a leftover test server?). Stop it and run again.`);
+  process.exit(1);
+}
 const server = spawn('npx', ['tsx', 'server.ts', '--production'], {
   env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-ux-')), DAYMARK_PASSWORD: PASSWORD },
   shell: true,
@@ -71,9 +78,11 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
   });
   page.on('pageerror', (e) => consoleErrors.push({ env, url: page.url(), text: `pageerror: ${e.message}`.slice(0, 300) }));
   await page.goto(url, { waitUntil: 'networkidle' });
-  if (start === 'sample') await page.getByRole('button', { name: /explore with sample data/i }).click();
-  if (start === 'empty') await page.getByRole('button', { name: /start with an empty vault/i }).click();
+  if (start === 'sample') await page.getByRole('button', { name: /sample data/i }).click();
+  if (start === 'empty') await page.getByRole('button', { name: /start fresh/i }).click();
   await page.waitForTimeout(400);
+  // The "loaded" toast would cover content in scans and screenshots
+  await page.getByRole('button', { name: 'Dismiss' }).click({ timeout: 500 }).catch(() => {});
   return { ctx, page, dialogs };
 }
 
@@ -104,8 +113,11 @@ const count = (loc) => loc.count();
 const taskCheckbox = (page, title) => page.getByRole('button', { name: `Mark "${title}" done` });
 const T1 = 'Investigate build pipeline failure';
 const T2 = 'Prepare QA test scenarios for offline sync';
-const optionsButton = (page, title) =>
-  page.locator('div.group').filter({ hasText: title }).first().locator('button:has(svg.lucide-ellipsis), button:has(svg.lucide-more-horizontal)').first();
+const optionsButton = (page, title) => page.getByRole('button', { name: `More actions for "${title}"` });
+const taskTitle = (page, title) => page.getByRole('button', { name: title, exact: true });
+const statusChip = (page, title) =>
+  page.locator('div.group').filter({ has: taskTitle(page, title) }).getByRole('button', { name: /^status:/i });
+const newTask = (page) => page.getByRole('button', { name: /^new task/i }).first();
 
 // ---------------------------------------------------------------- scans
 function inPageAnalysis(minTarget) {
@@ -146,7 +158,9 @@ function inPageAnalysis(minTarget) {
   for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button]')) {
     if (!visible(el) || blocked(el)) continue;
     const r = el.getBoundingClientRect();
-    const enlarged = /before:-inset/.test(el.className || '');
+    // Pseudo-element hit areas, and inputs inside a full-size label (the label is the target)
+    const label = el.closest('label')?.getBoundingClientRect();
+    const enlarged = /before:-inset/.test(el.className || '') || (label && label.height >= minTarget && label.width >= minTarget);
     if (!enlarged && !['TEXTAREA'].includes(el.tagName) && (r.width < minTarget || r.height < minTarget)) {
       smallTargets.push({ name: nameOf(el) || `<${el.tagName.toLowerCase()}>`, w: Math.round(r.width), h: Math.round(r.height) });
     }
@@ -161,7 +175,7 @@ function inPageAnalysis(minTarget) {
 
   const truncated = [];
   for (const el of document.querySelectorAll('body *')) {
-    if (!visible(el) || el.children.length > 0) continue;
+    if (!visible(el) || el.children.length > 0 || el.getBoundingClientRect().width <= 1) continue; // skip screen-reader-only text
     const s = getComputedStyle(el);
     if ((s.overflow === 'hidden' || s.textOverflow === 'ellipsis' || s.whiteSpace === 'nowrap') && el.scrollWidth > el.clientWidth + 1 && el.textContent.trim()) {
       truncated.push(el.textContent.trim().slice(0, 50));
@@ -211,29 +225,28 @@ async function scan(page, env, scheme, screen) {
 const PHONE_SCREENS = {
   welcome: { start: 'none', open: async () => {} },
   today: { open: async () => {} },
-  'quick-capture': { open: async (p) => p.getByTitle('Quick Capture').click() },
-  'task-status-menu': { open: async (p) => btn(p, /^in progress$/i).first().click() },
+  'quick-capture': { open: async (p) => newTask(p).click() },
+  'task-status-menu': { open: async (p) => statusChip(p, T1).click() },
   'task-options-menu': { open: async (p) => optionsButton(p, T1).click() },
-  'task-details': { open: async (p) => p.getByText('Details').first().click() },
-  'historical-modal': { open: async (p) => p.getByText('Other past date').first().click() },
-  'history-drawer': { open: async (p) => { await optionsButton(p, T1).click(); await btn(p, /view full history/i).click(); } },
-  'markdown-mode': { open: async (p) => btn(p, /^markdown$/i).click() },
+  'task-details': { open: async (p) => taskTitle(p, T1).click() },
+  'historical-modal': { open: async (p) => { await optionsButton(p, T1).click(); await p.getByRole('menuitem', { name: /another day/i }).click(); } },
+  'markdown-mode': { open: async (p) => { await btn(p, /more options for this day/i).click(); await p.getByRole('menuitem', { name: /edit as markdown/i }).click(); } },
   history: { open: async (p) => btn(p, /^history$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   'note-editor': { open: async (p) => { await btn(p, /^notes$/i).click(); await p.getByText('Weekly Sprint Sync Notes').click(); } },
-  sync: { open: async (p) => btn(p, /^sync$/i).last().click() },
-  'settings-backup': { open: async (p) => btn(p, /settings, backup and import/i).click() },
-  'settings-statuses': { open: async (p) => { await btn(p, /settings, backup and import/i).click(); await btn(p, /^statuses$/i).click(); } },
+  sync: { open: async (p) => btn(p, /open sync settings/i).click() },
+  'settings-backup': { open: async (p) => btn(p, /^settings$/i).click() },
+  'settings-statuses': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: /statuses/i }).click(); } },
 };
 const DESKTOP_SCREENS = {
   today: { open: async () => {} },
   'split-mode': { open: async (p) => btn(p, /^split$/i).click() },
-  'quick-capture': { open: async (p) => btn(p, /quick capture/i).first().click() },
+  'quick-capture': { open: async (p) => newTask(p).click() },
   history: { open: async (p) => btn(p, /^history$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
-  sync: { open: async (p) => btn(p, /^sync$/i).first().click() },
+  sync: { open: async (p) => btn(p, /open sync settings/i).click() },
   'settings-backup': { open: async (p) => btn(p, /^settings$/i).click() },
-  'settings-statuses': { open: async (p) => { await btn(p, /^settings$/i).click(); await btn(p, /^statuses$/i).click(); } },
+  'settings-statuses': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: /statuses/i }).click(); } },
 };
 
 async function runScans() {
@@ -272,7 +285,7 @@ async function runScans() {
             const b = el.getBoundingClientRect();
             if (b.width > 0 && b.right > innerWidth + 1 && getComputedStyle(el).position !== 'fixed') offenders.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 3).join('.')} (${Math.round(b.right)}px)`);
           }
-          return { overflowX: document.documentElement.scrollWidth - innerWidth, offenders: offenders.slice(0, 5), container: document.querySelector('main > div, main')?.getBoundingClientRect().width };
+          return { overflowX: document.documentElement.scrollWidth - innerWidth, offenders: offenders.slice(0, 5), container: (document.querySelector('main > div') || document.querySelector('main'))?.getBoundingClientRect().width };
         });
         if (['D320', 'P360', 'D1024', 'D1920'].includes(env)) await shot(page, `responsive-${env}-${screen}`);
         responsive.push({ env, screen, ...r });
@@ -286,27 +299,33 @@ async function runScans() {
 }
 
 // ---------------------------------------------------------------- functional test cases
+const dialog = (page, name) => page.getByRole('dialog', name ? { name } : undefined);
+const alertDialog = (page) => page.getByRole('alertdialog');
+const isOpenDialog = (page, name) => dialog(page, name).isVisible().catch(() => false);
+const capture = async (page, title, { section, status } = {}) => {
+  await newTask(page).click();
+  await page.getByPlaceholder(/what do you need to do/i).fill(title);
+  if (section) await page.getByLabel('Section').selectOption(section);
+  if (status) await page.getByLabel('Status', { exact: true }).selectOption({ label: status });
+  await dialog(page, /new task/i).getByRole('button', { name: /^add task$/i }).click();
+};
+const openSettings = (page) => btn(page, /^settings$/i).first().click();
+const openMenuItem = async (page, title, item) => {
+  await optionsButton(page, title).click();
+  await page.getByRole('menuitem', { name: item }).click();
+};
+const noIso = (text) => !/\b20\d\d-\d\d-\d\d\b/.test(text);
+
 async function functional() {
   // ---- GL
   await tc('GL-01', 'First launch shows welcome', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'none' });
-    const dialog = page.getByRole('dialog', { name: /welcome to daymark/i });
-    expect(await dialog.isVisible(), 'welcome dialog not visible');
-    const behind = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('button')].find((x) => /settings, backup/i.test(x.getAttribute('aria-label') || ''));
-      if (!b) return 'n/a';
-      const r = b.getBoundingClientRect();
-      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      return b.contains(top) ? 'clickable' : 'covered';
-    });
-    const focusable = await page.evaluate(() => {
-      const d = document.querySelector('[role=dialog]');
-      const all = [...document.querySelectorAll('button,input,select,textarea,a[href]')];
-      return all.filter((el) => !d.contains(el) && !el.closest('[inert]') && el.tabIndex >= 0).length;
-    });
+    expect(await dialog(page, /welcome to daymark/i).isVisible(), 'welcome dialog not visible');
+    const focusableBehind = await page.evaluate(
+      () => [...document.querySelectorAll('#root button, #root input, #root a[href]')].filter((el) => !el.closest('[inert]') && el.tabIndex >= 0).length
+    );
     await ctx.close();
-    expect(behind !== 'clickable', 'controls behind the welcome dialog are clickable');
-    return focusable > 0 ? { status: 'warn', details: `${focusable} controls behind the dialog are still keyboard-focusable (background not inert)` } : '';
+    expect(focusableBehind === 0, `${focusableBehind} controls behind the dialog are focusable`);
   });
 
   await tc('GL-02', 'Start empty', 'P412', async () => {
@@ -314,165 +333,166 @@ async function functional() {
     const text = await visibleText(page);
     await ctx.close();
     expect(!text.includes(T1), 'sample tasks present');
-    expect(/work/i.test(text), 'default sections missing');
+    expect(/your day starts here/i.test(text), 'first-day guidance missing');
   });
 
   await tc('GL-03', 'Load sample', 'P412', async () => {
     const { ctx, page } = await open('P412');
     const text = await visibleText(page);
     await ctx.close();
-    expect(text.includes(T1) && /carried-forward tasks need attention/i.test(text), 'sample tasks or attention banner missing');
+    expect(text.includes(T1) && /need attention/i.test(text), 'sample tasks or attention chip missing');
   });
 
   await tc('GL-04', 'Welcome not repeated', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'empty' });
     await page.reload({ waitUntil: 'networkidle' });
-    const shown = await page.getByRole('dialog', { name: /welcome/i }).isVisible().catch(() => false);
+    const shown = await isOpenDialog(page, /welcome/i);
     await ctx.close();
     expect(!shown, 'welcome shown again after reload');
   });
 
-  await tc('GL-05', 'Real date shown', 'P412+D1440', async () => {
+  await tc('GL-05', 'Real date shown, no ISO dates on Today', 'P412+D1440', async () => {
     const long = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
       const text = await visibleText(page);
       await ctx.close();
       expect(text.includes(long), `${env}: "${long}" not shown`);
+      expect(noIso(text), `${env}: ISO date visible on Today`);
     }
   });
 
   await tc('GL-07', 'Toast behaviour', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    await page.getByPlaceholder(/what did you work on/i).fill('Toast check');
-    await btn(page, /^capture$/i).click();
-    const toast = page.getByText(/task added/i);
+    await capture(page, 'Toast check');
+    const toast = page.getByRole('status').filter({ hasText: /added to/i });
     await toast.waitFor({ timeout: 3000 });
     const box = await toast.boundingBox();
-    const nav = await btn(page, /^today$/i).last().boundingBox();
+    const nav = await page.getByRole('navigation', { name: 'Main' }).boundingBox();
     const t0 = Date.now();
     await toast.waitFor({ state: 'hidden', timeout: 8000 });
     const shownMs = Date.now() - t0;
     await ctx.close();
     expect(box.y + box.height <= nav.y + 2, 'toast overlaps the bottom navigation');
-    return shownMs > 5000 ? { status: 'warn', details: `toast stayed ${Math.round(shownMs / 1000)} s` } : `visible ~${Math.round(shownMs / 1000)} s, above nav`;
+    return shownMs > 5000 ? { status: 'warn', details: `toast stayed ${Math.round(shownMs / 1000)} s` } : `visible ~${Math.round(shownMs / 1000)} s, above nav, dismissible`;
   });
 
   // ---- NAV
   await tc('NAV-01', 'Bottom nav tabs', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const checks = [
-      [/^history$/i, /history/i],
-      [/^notes$/i, /notes/i],
-      [/^sync$/i, /sync with your own server/i],
-      [/^today$/i, /tuesday|monday|wednesday|thursday|friday|saturday|sunday/i],
-    ];
-    for (const [name, expectText] of checks) {
-      await btn(page, name).last().click();
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    for (const [name, check] of [
+      [/^history$/i, async () => /last 7 days/i.test(await visibleText(page))],
+      [/^notes$/i, async () => /new note/i.test(await visibleText(page))],
+      [/^today$/i, async () => taskTitle(page, T1).isVisible()],
+      [/^settings$/i, async () => isOpenDialog(page, 'Settings')],
+    ]) {
+      await nav.getByRole('button', { name }).click();
       await page.waitForTimeout(300);
-      expect(expectText.test(await visibleText(page)), `tab ${name} did not open`);
+      expect(await check(), `tab ${name} did not open`);
     }
-    const sizes = await page.evaluate(() =>
-      [...document.querySelectorAll('button')]
-        .filter((b) => /^(Today|History|Notes|Sync)$/.test(b.textContent.trim()) && b.closest('[class*="bottom-0"]'))
-        .map((b) => Math.round(Math.min(b.offsetWidth, b.offsetHeight)))
-    );
+    const sizes = await nav.evaluate((n) => [...n.querySelectorAll('button')].map((b) => Math.round(Math.min(b.offsetWidth, b.offsetHeight))));
     await ctx.close();
     expect(sizes.every((s) => s >= 44), `bottom nav target below 44 px: ${sizes.join(', ')}`);
   });
 
-  await tc('NAV-02', 'Centre + opens Quick Capture with focus', 'P412', async () => {
+  await tc('NAV-02', 'Centre + opens the new-task sheet with focus', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByTitle('Quick Capture').click();
+    await newTask(page).click();
+    await page.waitForTimeout(200);
     const focused = await page.evaluate(() => document.activeElement?.getAttribute('placeholder') || '');
+    const box = await dialog(page, /new task/i).boundingBox();
     await ctx.close();
-    expect(/what did you work on/i.test(focused), `focus is on "${focused}"`);
+    expect(/what do you need to do/i.test(focused), `focus is on "${focused}"`);
+    expect(box.y + box.height >= 915 - 2, 'sheet is not docked at the bottom');
   });
 
-  await tc('NAV-03', 'Header gear opens full-screen Settings', 'P412', async () => {
+  await tc('NAV-03', 'Settings opens full screen on phones', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /settings, backup and import/i).click();
-    const box = await page.getByRole('dialog', { name: 'Settings' }).boundingBox();
+    await openSettings(page);
+    const box = await dialog(page, 'Settings').boundingBox();
     await ctx.close();
     expect(box && box.width >= 400 && box.height >= 900, `settings not full screen (${box?.width}x${box?.height})`);
   });
 
-  await tc('NAV-04', 'Header sync pill', 'P412', async () => {
+  await tc('NAV-04', 'Header sync status opens Sync settings', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const pill = btn(page, /local only/i);
-    expect(await pill.isVisible(), 'sync pill missing');
+    const pill = btn(page, /open sync settings/i);
     const size = await pill.boundingBox();
     await pill.click();
-    const opened = /sync with your own server/i.test(await visibleText(page));
+    const opened = /sync your devices/i.test(await visibleText(page));
     await ctx.close();
-    expect(opened, 'pill did not open Sync');
-    return size.height < 44 ? { status: 'warn', details: `pill target ${Math.round(size.width)}x${Math.round(size.height)} px` } : '';
+    expect(opened, 'status did not open Sync');
+    expect(size.height >= 44, `status target ${Math.round(size.width)}x${Math.round(size.height)} px`);
   });
 
-  await tc('NAV-05', 'Desktop navbar items', 'D1440', async () => {
-    const { ctx, page } = await open('D1440');
-    for (const [name, expectText] of [
-      [/^history$/i, /daily history/i],
-      [/^notes$/i, /new folder/i],
-      [/^sync$/i, /sync with your own server/i],
-    ]) {
-      await btn(page, name).first().click();
-      await page.waitForTimeout(300);
-      expect(expectText.test(await visibleText(page)), `${name} view not shown`);
+  await tc('NAV-05', 'Desktop navbar items fit at 1024-1920 px', 'D1024+D1440', async () => {
+    for (const env of ['D1024', 'D1440']) {
+      const { ctx, page } = await open(env);
+      const fits = await page.evaluate(() => [...document.querySelectorAll('header button')].every((b) => b.getBoundingClientRect().right <= innerWidth));
+      expect(fits, `${env}: navbar item off-screen`);
+      await btn(page, /^history$/i).click();
+      expect(/last 7 days/i.test(await visibleText(page)), `${env}: history not shown`);
+      await btn(page, /^notes$/i).click();
+      expect(/new folder/i.test(await visibleText(page)), `${env}: notes not shown`);
+      await openSettings(page);
+      expect(await isOpenDialog(page, 'Settings'), `${env}: settings not shown`);
+      await ctx.close();
     }
-    await btn(page, /^settings$/i).click();
-    expect(await page.getByRole('dialog', { name: 'Settings' }).isVisible(), 'settings dialog not shown');
-    await ctx.close();
   });
 
-  await tc('NAV-06', 'Logo', 'D1440', async () => {
+  await tc('NAV-06', 'Logo returns to Today', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^history$/i).first().click();
+    await btn(page, /^history$/i).click();
     await btn(page, /^daymark$/i).click();
     await page.waitForTimeout(300);
-    const text = await visibleText(page);
+    const ok = await taskTitle(page, T1).isVisible();
     await ctx.close();
-    return /carried-forward/i.test(text) ? '' : { status: 'warn', details: 'logo does not return to Today' };
+    expect(ok, 'logo does not return to Today');
   });
 
-  await tc('NAV-07', 'Mobile App View and back', 'D1440', async () => {
-    const { ctx, page } = await open('D1440');
-    await btn(page, /mobile app view/i).click();
-    await page.waitForTimeout(300);
-    expect(await btn(page, /desktop view/i).isVisible(), 'Desktop View button missing in mobile view');
-    await btn(page, /desktop view/i).click();
-    await page.waitForTimeout(300);
-    const ok = await btn(page, /mobile app view/i).isVisible();
-    await ctx.close();
-    expect(ok, 'did not return to desktop');
+  await tc('NAV-07', 'Phone preview is a developer tool', 'D1440', async () => {
+    const a = await open('D1440');
+    const hidden = !(await btn(a.page, /phone layout preview/i).isVisible().catch(() => false));
+    await a.ctx.close();
+    const b = await open('D1440', { url: `${BASE}/?dev` });
+    await btn(b.page, /phone layout preview/i).click();
+    await btn(b.page, /desktop layout/i).click();
+    const back = await btn(b.page, /phone layout preview/i).isVisible();
+    await b.ctx.close();
+    expect(hidden, 'phone preview button shown to everyone');
+    expect(back, 'did not return to desktop layout');
   });
 
-  await tc('NAV-08', 'Export ZIP (navbar)', 'D1440', async () => {
+  await tc('NAV-08', 'Back up now', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
+    await openSettings(page);
     const dl = page.waitForEvent('download', { timeout: 8000 });
-    await btn(page, /export/i).first().click();
+    await btn(page, /back up now/i).click();
     const file = await dl;
+    await page.waitForTimeout(300);
+    const t = await dialog(page, 'Settings').innerText();
     await ctx.close();
     expect(/\.zip$/.test(file.suggestedFilename()), 'no zip');
+    expect(/last backup on this device: today/i.test(t), 'last backup not shown');
   });
 
-  await tc('NAV-09', 'Quick Capture via button and Ctrl K', 'D1440', async () => {
+  await tc('NAV-09', 'New task via button and Ctrl K', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /quick capture/i).first().click();
-    expect(await page.getByPlaceholder(/what did you work on/i).isVisible(), 'button did not open');
+    await newTask(page).click();
+    expect(await page.getByPlaceholder(/what do you need to do/i).isVisible(), 'button did not open');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
     await page.keyboard.press('Control+k');
     await page.waitForTimeout(200);
-    const ok = await page.getByPlaceholder(/what did you work on/i).isVisible();
+    const ok = await page.getByPlaceholder(/what do you need to do/i).isVisible();
     await ctx.close();
     expect(ok, 'Ctrl K did not open');
   });
 
   await tc('NAV-11', 'Deep links', 'P412', async () => {
     const a = await open('P412', { url: `${BASE}/?action=capture`, start: 'empty' });
-    const cap = await a.page.getByPlaceholder(/what did you work on/i).isVisible();
+    const cap = await a.page.getByPlaceholder(/what do you need to do/i).isVisible();
     await a.ctx.close();
     const b = await open('P412', { url: `${BASE}/?tab=notes`, start: 'sample' });
     const notes = /new note/i.test(await visibleText(b.page));
@@ -489,14 +509,11 @@ async function functional() {
     await btn(page, /next day/i).click();
     await btn(page, /next day/i).click();
     const t = await page.locator('h1').first().innerText();
-    const sizes = await page.evaluate(() => ['Previous Day', 'Next Day'].map((n) => document.querySelector(`button[title="${n}"]`)?.getBoundingClientRect().width));
+    const sizes = await page.evaluate(() => ['Previous day', 'Next day'].map((n) => document.querySelector(`button[aria-label="${n}"]`)?.getBoundingClientRect().width));
     await ctx.close();
     expect(/yesterday/i.test(y), `previous day title "${y}"`);
-    const tomorrowIssue = /tomorrow/i.test(t) ? '' : `next day is titled "${t}" (no "Tomorrow" label)`;
-    const sizeIssue = sizes.some((s) => s < 44) ? `day arrows are ${sizes.map(Math.round).join('/')} px wide (< 44)` : '';
-    const issues = [tomorrowIssue, sizeIssue].filter(Boolean);
-    return issues.length ? { status: 'warn', details: issues.join('; ') } : '';
-    return sizes.some((s) => s < 44) ? { status: 'warn', details: `day arrows are ${sizes.map(Math.round).join('/')} px wide (< 44)` } : '';
+    expect(/tomorrow/i.test(t), `next day title "${t}"`);
+    expect(sizes.every((s) => s >= 44), `day arrows ${sizes.map(Math.round).join('/')} px`);
   });
 
   await tc('TD-02', 'Today button returns', 'P412', async () => {
@@ -508,637 +525,544 @@ async function functional() {
     expect(/today/i.test(h), `title "${h}"`);
   });
 
-  await tc('TD-03', 'View modes', 'P412+D1440', async () => {
+  await tc('TD-03', 'View modes; Markdown hides task tags', 'P412+D1440', async () => {
     const p = await open('P412');
     expect(!(await btn(p.page, /^split$/i).isVisible().catch(() => false)), 'Split visible on phone');
-    await btn(p.page, /^markdown$/i).click();
-    expect(await btn(p.page, /apply changes to notebook/i).isVisible(), 'markdown editor not shown');
-    await btn(p.page, /^notebook$/i).click();
-    expect(await taskCheckbox(p.page, T1).isVisible(), 'notebook not restored');
+    await btn(p.page, /more options for this day/i).click();
+    await p.page.getByRole('menuitem', { name: /edit as markdown/i }).click();
+    const md = await p.page.getByLabel(/^markdown for/i).inputValue();
+    expect(md.includes(T1) && !md.includes('daymark:'), 'markdown missing tasks or shows task tags');
+    await btn(p.page, /back to list/i).click();
+    expect(await taskTitle(p.page, T1).isVisible(), 'list not restored');
     await p.ctx.close();
     const d = await open('D1440');
     await btn(d.page, /^split$/i).click();
-    const split = /rendered document/i.test(await visibleText(d.page));
+    const both = (await taskTitle(d.page, T1).isVisible()) && (await d.page.getByLabel(/^markdown for/i).isVisible());
+    await btn(d.page, /^list$/i).click();
     await d.ctx.close();
-    expect(split, 'split view not shown on desktop');
+    expect(both, 'split view does not show list and Markdown');
   });
 
-  await tc('TD-04', 'Reconcile Rollover', 'D1440', async () => {
+  await tc('TD-04', "Refresh today's list", 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    const before = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
-    await btn(page, /reconcile rollover/i).click();
-    await btn(page, /reconcile rollover/i).click();
-    await page.waitForTimeout(300);
-    const after = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
-    const toast = /rollover/i.test(await visibleText(page));
+    await btn(page, /more options for this day/i).click();
+    await page.getByRole('menuitem', { name: /refresh today's list/i }).click();
+    const ok = await page.getByRole('status').filter({ hasText: /up to date|moved to today/i }).isVisible();
     await ctx.close();
-    expect(before === after, `task count changed ${before} -> ${after}`);
-    expect(toast, 'no feedback toast');
+    expect(ok, 'no confirmation');
   });
 
-  await tc('TD-05', 'Attention filter toggles', 'P412', async () => {
+  await tc('TD-05', 'Attention chip filters', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const all = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
-    await btn(page, /filter attention tasks/i).click();
-    await page.waitForTimeout(200);
-    const filtered = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
-    const toggleLabel = await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /attention|show all/i.test(b.textContent))?.textContent.trim());
-    await page.getByRole('button', { name: /show all|filter attention|clear/i }).first().click();
-    await page.waitForTimeout(200);
-    const restored = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
+    const before = await page.getByRole('button', { name: /^more actions for/i }).count();
+    const chip = btn(page, /^show$/i);
+    await chip.click();
+    const after = await page.getByRole('button', { name: /^more actions for/i }).count();
+    await btn(page, /^show all$/i).click();
+    const restored = await page.getByRole('button', { name: /^more actions for/i }).count();
+    const h = (await chip.boundingBox())?.height ?? 0;
     await ctx.close();
-    expect(filtered <= all, 'filter increased tasks');
-    expect(restored === all, `toggle back did not restore (${restored}/${all}); button reads "${toggleLabel}"`);
-    return `all ${all}, filtered ${filtered}; toggle label "${toggleLabel}"`;
+    expect(after <= before && restored === before, `counts ${before}/${after}/${restored}`);
+    expect(h >= 44, `chip button ${Math.round(h)} px tall`);
   });
 
-  await tc('TD-06', 'Section + Task inline add', 'P412', async () => {
-    const { ctx, page } = await open('P412');
-    await btn(page, /^task$/i).first().click();
-    const input = page.getByPlaceholder(/what needs to be done/i);
-    const focused = await input.evaluate((el) => el === document.activeElement);
-    // Every control of the inline row (title, status, Add Task) must be on screen
-    const rowFits = await page.evaluate(() => {
-      const i = document.querySelector('input[placeholder="What needs to be done?"]');
-      return [...i.parentElement.children].every((el) => el.getBoundingClientRect().right <= innerWidth);
-    });
-    expect(rowFits, 'inline add row does not fit on screen (Add Task button off-screen)');
-    await btn(page, /^add task$/i).click();
-    const emptyAdded = await count(page.getByRole('button', { name: 'Mark "" done' }));
-    await input.fill('Inline added task');
-    await input.press('Enter');
-    await page.waitForTimeout(300);
-    const added = await taskCheckbox(page, 'Inline added task').isVisible().catch(() => false);
-    const inputWidth = (await input.boundingBox().catch(() => null))?.width;
-    await ctx.close();
-    expect(emptyAdded === 0, 'empty task was added');
-    expect(added, 'task not added with Enter');
-    return !focused ? { status: 'warn', details: 'input not focused on open' } : inputWidth && inputWidth < 200 ? { status: 'warn', details: `inline input only ${Math.round(inputWidth)} px wide on phone` } : '';
-  });
-
-  await tc('TD-07', 'Section + Note editor and toolbar', 'P412', async () => {
-    const { ctx, page } = await open('P412');
-    await btn(page, /^note$/i).nth(1).click();
-    const ta = page.getByPlaceholder(/write rich markdown notes/i);
-    await ta.fill('hello');
-    await ta.selectText();
-    await page.getByTitle('Bold').first().click();
-    const v = await ta.inputValue();
-    await btn(page, /save section notes/i).click();
-    await page.waitForTimeout(300);
-    const saved = /hello/.test(await visibleText(page));
-    await ctx.close();
-    expect(/\*\*hello\*\*/.test(v), `bold toolbar produced "${v}"`);
-    expect(saved, 'notes not saved');
-  });
-
-  await tc('TD-08', 'Section notes Clear asks first (DS-03)', 'P412', async () => {
-    const { ctx, page, dialogs } = await open('P412');
-    const clear = btn(page, /^clear$/i).first();
-    const has = await clear.isVisible().catch(() => false);
-    if (!has) {
+  await tc('TD-06', 'Section + Task inline add fits on phones', 'P360+P412', async () => {
+    for (const env of ['P360', 'P412']) {
+      const { ctx, page } = await open(env);
+      await btn(page, /^task$/i).first().click();
+      const rowFits = await page.evaluate(() => {
+        const i = document.querySelector('input[placeholder="What needs to be done?"]');
+        return [...i.closest('form').querySelectorAll('input,select,button')].every((el) => el.getBoundingClientRect().right <= innerWidth);
+      });
+      if (env === 'P360') await shot(page, 'TD-06-inline-add-360');
+      await page.getByPlaceholder('What needs to be done?').fill('Inline one');
+      await page.keyboard.press('Enter');
+      await page.getByPlaceholder('What needs to be done?').fill('Inline two');
+      await page.getByRole('button', { name: /^add task$/i }).click();
+      const added = (await taskTitle(page, 'Inline one').isVisible()) && (await taskTitle(page, 'Inline two').isVisible());
       await ctx.close();
-      return { status: 'warn', details: 'no Clear button visible on phone' };
+      expect(rowFits, `${env}: inline add row does not fit on screen`);
+      expect(added, `${env}: tasks not added (Enter and button)`);
     }
-    await clear.click();
-    await page.waitForTimeout(300);
-    const stillThere = /priority today/i.test(await visibleText(page));
-    await ctx.close();
-    expect(dialogs.length > 0 && stillThere, 'Clear deleted notes without confirmation');
   });
 
-  await tc('TD-09', 'Add section heading', 'P412', async () => {
+  await tc('TD-07', 'Section notes editor; toolbar wraps the selection', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /add section heading/i).click();
-    const input = page.getByPlaceholder(/new section name/i);
-    await input.fill('Errands');
-    await btn(page, /^add section$/i).click();
+    await btn(page, /^note$/i).first().click();
+    const area = page.locator('textarea[id^="notes-"]').first();
+    await area.fill('hello world');
+    await area.evaluate((el) => el.setSelectionRange(0, 5));
+    await btn(page, /^bold$/i).click();
+    const v = await area.inputValue();
+    await btn(page, /save notes/i).click();
     await page.waitForTimeout(200);
-    const added = await page.getByRole('heading', { name: 'Errands' }).isVisible().catch(() => false);
-    await btn(page, /add section heading/i).click();
-    await page.getByPlaceholder(/new section name/i).fill('Errands');
-    await btn(page, /^add section$/i).click();
-    await page.waitForTimeout(200);
-    const dupes = await count(page.getByRole('heading', { name: 'Errands' }));
+    const rendered = await page.locator('strong', { hasText: 'hello' }).first().isVisible();
     await ctx.close();
-    expect(added, 'section not added');
-    expect(dupes === 1, `duplicate section allowed (${dupes})`);
+    expect(v === '**hello** world', `toolbar result "${v}"`);
+    expect(rendered, 'saved note not rendered');
   });
 
-  await tc('TD-10', 'Empty sections compact', 'P412', async () => {
+  await tc('TD-08', 'Section notes Clear asks first, with Undo (DS-03)', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const h = await page.locator('section').filter({ hasText: 'Meetings' }).first().boundingBox();
+    await btn(page, /^note$/i).first().click();
+    await page.locator('textarea[id^="notes-"]').first().fill('keep me');
+    await btn(page, /save notes/i).click();
+    await btn(page, /^clear .* notes$/i).first().click();
+    expect(await alertDialog(page).isVisible(), 'no confirmation');
+    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
+    expect(await page.getByText('keep me').isVisible(), 'cleared on cancel');
+    await btn(page, /^clear .* notes$/i).first().click();
+    await alertDialog(page).getByRole('button', { name: /^clear$/i }).click();
+    await btn(page, /^undo$/i).click();
+    const back = await page.getByText('keep me').isVisible();
     await ctx.close();
-    expect(h.height <= 72, `empty section ${Math.round(h.height)} px tall`);
+    expect(back, 'undo did not restore notes');
+  });
+
+  await tc('TD-09', 'New section', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    await btn(page, /^new section$/i).click();
+    await page.getByLabel('New section name').fill('Errands');
+    await btn(page, /^add section$/i).click();
+    const shown = await page.getByLabel('New task in Errands').isVisible();
+    await ctx.close();
+    expect(shown, 'new section not opened for adding');
+  });
+
+  await tc('TD-10', 'Empty sections collapse into "Add to" chips', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    const chips = await page.getByRole('button', { name: /^\+?\s*(meetings|ideas)$/i }).count();
+    const emptyHeadings = await page.getByRole('heading', { name: /^(meetings|ideas)$/i }).count();
+    await ctx.close();
+    expect(chips >= 2 && emptyHeadings === 0, `chips ${chips}, empty section cards ${emptyHeadings}`);
   });
 
   // ---- TK
-  await tc('TK-01', 'Complete / reopen', 'P412', async () => {
+  await tc('TK-01', 'Complete, Done group, Undo', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await taskCheckbox(page, T1).click();
-    await page.waitForTimeout(300);
-    const done = await page.getByRole('button', { name: `Mark "${T1}" not done` }).isVisible();
-    await page.getByRole('button', { name: `Mark "${T1}" not done` }).click();
-    await page.waitForTimeout(300);
-    const reopened = await taskCheckbox(page, T1).isVisible();
+    const grouped = await btn(page, /^done \(1\)$/i).isVisible();
+    await btn(page, /^undo$/i).click();
+    const back = await taskCheckbox(page, T1).isVisible();
     await ctx.close();
-    expect(done && reopened, 'toggle failed');
+    expect(grouped, 'done task not grouped under Done (1)');
+    expect(back, 'undo did not reopen');
   });
 
-  await tc('TK-02', 'Status menu', 'P412', async () => {
+  await tc('TK-02', 'Status menu: options, outside tap and Esc close it', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^in progress$/i).first().click();
-    const items = page.locator('button').filter({ hasText: /carry-forward|keep|archive/ });
-    const n = await count(items);
-    const boxes = await items.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { h: r.height, right: r.right, bottom: r.bottom }; }));
-    const vw = 412;
-    await items.filter({ hasText: /^Blocked/ }).first().click();
-    await page.waitForTimeout(200);
-    const applied = await btn(page, /^blocked$/i).count();
-    // outside tap closes
-    await btn(page, /^blocked$/i).first().click();
-    await page.mouse.click(10, 400);
-    await page.waitForTimeout(200);
-    const stillOpen = await count(page.locator('button').filter({ hasText: /carry-forward/ }));
+    await statusChip(page, T1).click();
+    const items = await page.getByRole('menuitem').allInnerTexts();
+    await page.mouse.click(20, 500);
+    const closedOutside = !(await page.getByRole('menu').isVisible().catch(() => false));
+    await statusChip(page, T1).click();
+    await page.keyboard.press('Escape');
+    const closedEsc = !(await page.getByRole('menu').isVisible().catch(() => false));
+    await statusChip(page, T1).click();
+    await page.getByRole('menuitem', { name: /^blocked$/i }).click();
+    const label = await statusChip(page, T1).getAttribute('aria-label');
     await ctx.close();
-    expect(n >= 5, `only ${n} statuses`);
-    expect(applied >= 2, 'status not applied');
-    const issues = [];
-    if (boxes.some((b) => b.h < 44)) issues.push(`menu items ${Math.round(Math.min(...boxes.map((b) => b.h)))} px tall`);
-    if (boxes.some((b) => b.right > vw)) issues.push('menu runs off screen');
-    if (stillOpen > 0) issues.push('tapping outside does not close the menu');
-    return issues.length ? { status: 'warn', details: issues.join('; ') } : '';
+    expect(!items.some((i) => /^note$/i.test(i.trim())), '"Note" offered as a task status');
+    expect(!items.some((i) => /carry-forward|keep/i.test(i)), 'menu shows rollover policy jargon');
+    expect(closedOutside && closedEsc, `outside ${closedOutside}, Esc ${closedEsc}`);
+    expect(/blocked/i.test(label), `status not changed (${label})`);
   });
 
-  await tc('TK-03', 'Details expand / hide', 'P412', async () => {
+  await tc('TK-03', 'Tap title opens details sheet', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByText('Details').first().click();
-    const open1 = await page.getByText(/notes \/ context/i).isVisible();
-    await page.getByText('Hide').first().click();
-    const closed = !(await page.getByText(/notes \/ context/i).isVisible().catch(() => false));
-    const size = await page.getByText('Details').first().boundingBox();
+    await taskTitle(page, T1).click();
+    const open1 = await isOpenDialog(page, T1);
+    const text = open1 ? await dialog(page, T1).innerText() : '';
+    await page.keyboard.press('Escape');
+    const closed = !(await isOpenDialog(page, T1));
     await ctx.close();
-    expect(open1 && closed, 'expand/collapse failed');
-    return size.height < 44 ? { status: 'warn', details: `"Details" target ${Math.round(size.width)}x${Math.round(size.height)} px` } : '';
+    expect(open1, 'details sheet not opened');
+    expect(!/task-\d+/.test(text) && noIso(text), 'internal id or ISO dates shown');
+    expect(closed, 'Esc did not close');
   });
 
-  await tc('TK-04', 'Edit description persists', 'P412', async () => {
+  await tc('TK-04', 'Edit notes persists', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByText('Details').first().click();
-    const ta = page.locator('textarea').first();
-    await ta.fill('Edited context');
-    await ta.blur();
-    await page.waitForTimeout(300);
+    await taskTitle(page, T1).click();
+    await page.getByLabel('Notes', { exact: true }).fill('Edited context');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Escape');
     await page.reload({ waitUntil: 'networkidle' });
-    await page.getByText('Details').first().click();
-    const v = await page.locator('textarea').first().inputValue();
+    await taskTitle(page, T1).click();
+    const v = await page.getByLabel('Notes', { exact: true }).inputValue();
     await ctx.close();
-    expect(v === 'Edited context', `after reload: "${v.slice(0, 40)}"`);
+    expect(v === 'Edited context', `notes "${v}"`);
   });
 
-  await tc('TK-05', 'Checklist add / toggle / delete', 'P412', async () => {
+  await tc('TK-05', 'Checklist add / toggle / remove on touch', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByText('Details').first().click();
-    await btn(page, /^add$/i).first().click();
-    const emptyItems = await page.evaluate(() => document.querySelectorAll('.group\\/item').length);
-    await page.getByPlaceholder(/add subtask/i).fill('Sub one');
-    await btn(page, /^add$/i).first().click();
-    await page.waitForTimeout(200);
-    const listed = await page.getByText('Sub one').isVisible();
-    const delVisible = await page.evaluate(() => {
-      const row = [...document.querySelectorAll('.group\\/item')].find((r) => r.textContent.includes('Sub one'));
-      const del = row?.querySelectorAll('button')[1];
-      return del ? Number(getComputedStyle(del).opacity) : -1;
-    });
+    await taskTitle(page, T1).click();
+    await page.getByLabel('New checklist item').fill('Step one');
+    await page.keyboard.press('Enter');
+    await btn(page, /^check "step one"$/i).click();
+    const checked = (await btn(page, /^uncheck "step one"$/i).count()) === 1;
+    const remove = btn(page, /^remove "step one"$/i);
+    const box = await remove.boundingBox();
+    await remove.click();
+    const gone = (await btn(page, /step one/i).count()) === 0;
     await ctx.close();
-    expect(emptyItems === 0, 'empty subtask added');
-    expect(listed, 'subtask not added');
-    return delVisible < 0.5 ? { status: 'warn', details: 'subtask delete button is invisible until mouse hover (unreachable on touch)' } : '';
+    expect(checked, 'toggle failed');
+    expect(box && box.width >= 44 && box.height >= 44, 'remove button not touch-sized');
+    expect(gone, 'remove failed');
   });
 
-  await tc('TK-06', 'Inspect audit log drawer', 'P412', async () => {
+  await tc('TK-06', 'History in details', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByText('Details').first().click();
-    await btn(page, /inspect audit log/i).click();
-    await page.waitForTimeout(300);
-    const text = await visibleText(page);
-    const closeBtn = page.locator('div.fixed.inset-0 button').first();
-    const named = await closeBtn.evaluate((b) => !!(b.getAttribute('aria-label') || b.getAttribute('title') || b.textContent.trim()));
-    await closeBtn.click();
-    await page.waitForTimeout(300);
-    const closed = !(await page.locator('div.fixed.inset-0').isVisible().catch(() => false));
+    await openMenuItem(page, T1, /details & history/i);
+    const text = await dialog(page, T1).innerText();
     await ctx.close();
-    expect(/history|audit|carried/i.test(text), 'drawer content missing');
-    expect(closed, 'drawer did not close');
-    return named ? '' : { status: 'warn', details: 'drawer close button has no accessible name' };
+    expect(/history/i.test(text) && /moved|carried|added|created/i.test(text), 'history missing');
+    expect(noIso(text) && !/#\w/.test(text), 'raw ISO dates or #Section in history');
   });
 
-  await tc('TK-07', 'Snooze alert and restore', 'P412', async () => {
+  await tc('TK-07', 'Hide warning today and show again', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const banner = async () => (await visibleText(page)).match(/(\d+) carried-forward tasks need attention/)?.[1];
-    const b0 = await banner();
-    await page.getByText('Details').first().click();
-    await btn(page, /snooze alert/i).click();
-    await page.waitForTimeout(300);
-    const b1 = await banner();
-    await btn(page, /restore alert/i).click().catch(() => {});
-    await page.waitForTimeout(300);
-    const b2 = await banner();
+    await openMenuItem(page, T1, /hide warning today/i);
+    const menuHas = async () => {
+      await optionsButton(page, T1).click();
+      const r = await page.getByRole('menuitem', { name: /show warning again/i }).isVisible();
+      await page.keyboard.press('Escape');
+      return r;
+    };
+    const hidden = await menuHas();
+    await openMenuItem(page, T1, /show warning again/i);
     await ctx.close();
-    expect(Number(b1) === Number(b0) - 1, `banner ${b0} -> ${b1} after snooze`);
-    expect(b2 === b0, `banner not restored (${b2})`);
+    expect(hidden, 'warning not hidden');
   });
 
-  await tc('TK-08', 'Delete from details asks first (DS-01)', 'P412', async () => {
-    const { ctx, page, dialogs } = await open('P412');
-    await page.getByText('Details').first().click();
-    await btn(page, /^delete$/i).first().click();
-    await page.waitForTimeout(200);
-    const kept = await taskCheckbox(page, T1).isVisible();
-    page.dialogPolicy = 'accept';
-    await btn(page, /^delete$/i).first().click();
-    await page.waitForTimeout(300);
-    const gone = !(await taskCheckbox(page, T1).isVisible().catch(() => false));
-    await ctx.close();
-    expect(dialogs.length >= 1 && kept, 'no confirmation / deleted on cancel');
-    expect(gone, 'not deleted after confirm');
-  });
-
-  await tc('TK-09', 'Options menu visible on touch for every task', 'P412', async () => {
+  await tc('TK-08', 'Delete asks first, Undo restores (DS-01)', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const info = await page.evaluate(() =>
-      [...document.querySelectorAll('button')].filter((b) => b.querySelector('svg.lucide-ellipsis, svg.lucide-more-horizontal')).map((b) => {
-        const r = b.getBoundingClientRect();
-        return { opacity: Number(getComputedStyle(b).opacity), w: r.width, h: r.height, named: !!(b.getAttribute('aria-label') || b.title) };
-      })
-    );
-    await optionsButton(page, T1).click();
-    const items = await page.evaluate(() => [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((t) => /Rename Task|View Full History|Historical Done|Delete Task/.test(t)));
+    await openMenuItem(page, T1, /^delete$/i);
+    expect(await alertDialog(page).isVisible(), 'no confirmation');
+    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
+    expect(await taskTitle(page, T1).isVisible(), 'deleted on cancel');
+    await openMenuItem(page, T1, /^delete$/i);
+    await alertDialog(page).getByRole('button', { name: /^delete$/i }).click();
+    const gone = !(await taskTitle(page, T1).isVisible().catch(() => false));
+    await btn(page, /^undo$/i).click();
+    const back = await taskTitle(page, T1).isVisible();
     await ctx.close();
-    expect(info.length >= 4 && info.every((i) => i.opacity > 0.5), 'options button hidden for some tasks');
-    expect(items.length === 4, `menu items: ${items.join(', ')}`);
-    const issues = [];
-    if (info.some((i) => !i.named)) issues.push('"…" button has no accessible name');
-    if (info.some((i) => i.w < 44)) issues.push(`"…" target ${Math.round(info[0].w)} px`);
-    return issues.length ? { status: 'warn', details: issues.join('; ') } : '';
+    expect(gone && back, `deleted ${gone}, undo ${back}`);
+  });
+
+  await tc('TK-09', 'Options button on every task, touch-sized', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    const boxes = await page.getByRole('button', { name: /^more actions for/i }).evaluateAll((els) => els.map((e) => [e.offsetWidth, e.offsetHeight]));
+    const tasks = await page.getByRole('button', { name: /^mark ".*" done$/i }).count();
+    await ctx.close();
+    expect(boxes.length === tasks, `${boxes.length} menus for ${tasks} tasks`);
+    expect(boxes.every(([w, h]) => w >= 44 && h >= 44), 'menu button below 44 px');
   });
 
   await tc('TK-10', 'Rename task', 'P412', async () => {
     const { ctx, page } = await open('P412');
+    await openMenuItem(page, T1, /^rename$/i);
+    await page.getByLabel('Task title').fill('Renamed task');
+    await page.keyboard.press('Enter');
+    const ok = await taskTitle(page, 'Renamed task').isVisible();
+    await ctx.close();
+    expect(ok, 'rename failed');
+  });
+
+  await tc('TK-11', 'Quick "Mark done on <carried day>"', 'P412', async () => {
+    const { ctx, page } = await open('P412');
     await optionsButton(page, T1).click();
-    await btn(page, /rename task/i).click();
-    const input = await page.locator(`input[value="${T1}"]`).elementHandle({ timeout: 3000 }).catch(() => null);
-    expect(input, 'rename input not shown');
-    await input.fill('Renamed task');
-    await input.press('Enter');
-    await page.waitForTimeout(300);
-    const ok = await taskCheckbox(page, 'Renamed task').isVisible();
+    const item = page.getByRole('menuitem', { name: /^mark done (yesterday|on (?!another))/i });
+    const label = await item.innerText();
+    await item.click();
+    const gone = !(await taskTitle(page, T1).isVisible().catch(() => false));
+    const toast = await page.getByRole('status').filter({ hasText: /marked/i }).isVisible();
     await ctx.close();
-    expect(ok, 'rename not applied');
+    expect(noIso(label), `menu label "${label}" shows an ISO date`);
+    expect(gone && toast, `left today ${gone}, toast ${toast}`);
   });
 
-  await tc('TK-11', 'Quick "Done on <date>"', 'P412', async () => {
+  await tc('TK-12', '"Mark done on another day" dialog', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByRole('button', { name: /done on/i }).first().click();
-    await page.waitForTimeout(400);
-    const gone = !(await taskCheckbox(page, T1).isVisible().catch(() => false));
-    const toast = /marked .* done on/i.test(await visibleText(page));
+    await openMenuItem(page, T1, /another day/i);
+    const d = dialog(page, /when did you finish it/i);
+    const text = await d.innerText();
+    const chips = await d.getByRole('group', { name: /quick picks/i }).getByRole('button').allInnerTexts();
+    await d.getByRole('button', { name: /^mark done$/i }).click();
+    const gone = !(await taskTitle(page, T1).isVisible().catch(() => false));
     await ctx.close();
-    expect(gone, 'task still in today');
-    expect(toast, 'no confirmation toast');
+    expect(!/\(yesterday\)/i.test(text) && noIso(chips.join(' ')), `labels: ${chips.join(' | ')}`);
+    expect(gone, 'task still on today');
   });
 
-  await tc('TK-12', 'Other past date modal', 'P412', async () => {
-    const { ctx, page } = await open('P412');
-    await page.getByText('Other past date').first().click();
-    const modal = page.locator('div.fixed.inset-0').last();
-    const box = await modal.locator('> div').first().boundingBox();
-    await btn(page, /^cancel$/i).last().click();
-    await page.waitForTimeout(200);
-    const cancelled = await taskCheckbox(page, T1).isVisible();
-    await page.getByText('Other past date').first().click();
-    await btn(page, /2 days ago/i).click();
-    await btn(page, /^record done/i).click();
-    await page.waitForTimeout(300);
-    const recorded = !(await taskCheckbox(page, T1).isVisible().catch(() => false));
-    await ctx.close();
-    expect(box.width <= 412, 'modal wider than screen');
-    expect(cancelled, 'cancel changed data');
-    expect(recorded, 'record did not move completion');
-  });
-
-  await tc('TK-13', 'Aging badges', 'P412', async () => {
+  await tc('TK-13', 'Age labels', 'P412', async () => {
     const { ctx, page } = await open('P412');
     const text = await visibleText(page);
     await ctx.close();
-    expect(/carried forward · \d+ days/i.test(text.replace(/\s+/g, ' ')), 'no aging badge text');
+    expect(/\d+ days? old/.test(text), 'no "N days old" label');
+    expect(!/carried forward/i.test(text), 'old "Carried forward" wording');
   });
 
   await tc('TK-14', 'Long title wraps on 360 px', 'P360', async () => {
     const { ctx, page } = await open('P360', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    const long = 'A very long task title that keeps going to check wrapping behaviour on small phones without breaking the layout or hiding actions';
-    await page.getByPlaceholder(/what did you work on/i).fill(long);
-    await btn(page, /^capture$/i).click();
-    await page.waitForTimeout(400);
-    const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
-    const cb = await taskCheckbox(page, long).isVisible();
+    const title = 'A very long task title that keeps going to check wrapping behaviour on small phones without breaking the layout or hiding actions';
+    await capture(page, title);
+    const r = await page.evaluate((t) => {
+      const b = [...document.querySelectorAll('button')].find((x) => x.textContent === t).getBoundingClientRect();
+      return { right: b.right, overflow: document.documentElement.scrollWidth - innerWidth };
+    }, title);
+    const menuVisible = await optionsButton(page, title).isVisible();
     await shot(page, 'TK-14-long-title-360');
     await ctx.close();
-    expect(over <= 0, `horizontal overflow ${over}px`);
-    expect(cb, 'task actions not visible');
+    expect(r.right <= 360 && r.overflow <= 0 && menuVisible, 'long title overflows or hides actions');
   });
 
   // ---- QC
-  await tc('QC-01', 'Quick Capture layout and labels', 'P412', async () => {
+  await tc('QC-01', 'New-task sheet layout and labels', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await page.getByTitle('Quick Capture').click();
-    const box = await page.getByPlaceholder(/what did you work on/i).boundingBox();
-    const unlabeled = await page.evaluate(() =>
-      [...document.querySelectorAll('.fixed input, .fixed textarea, .fixed select')].filter((e) => !(e.labels?.length || e.getAttribute('aria-label'))).length
-    );
-    const closeNamed = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('.fixed button')].find((x) => x.querySelector('svg.lucide-x'));
-      return b ? !!(b.getAttribute('aria-label') || b.title) : true;
-    });
+    await newTask(page).click();
+    const d = dialog(page, /new task/i);
+    const text = await d.innerText();
+    const labelled = (await page.getByLabel('Section').count()) === 1 && (await page.getByLabel('Status', { exact: true }).count()) === 1;
     await ctx.close();
-    expect(box.y < 300, `title field at y=${Math.round(box.y)} (keyboard may cover)`);
-    const issues = [];
-    if (unlabeled) issues.push(`${unlabeled} fields without an accessible label`);
-    if (!closeNamed) issues.push('close (X) button has no accessible name');
-    return issues.length ? { status: 'warn', details: issues.join('; ') } : '';
+    expect(labelled, 'Section/Status not labelled');
+    expect(noIso(text) && !/#\w/.test(text) && !/notebook heading/i.test(text), 'ISO date, #Section or old labels');
   });
 
-  await tc('QC-02', 'Capture with Enter and button', 'P412', async () => {
+  await tc('QC-02', 'Add with Enter and with the button', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    await page.getByPlaceholder(/what did you work on/i).fill('By enter');
-    await page.getByPlaceholder(/what did you work on/i).press('Enter');
-    await page.waitForTimeout(300);
-    await page.getByTitle('Quick Capture').click();
-    await page.getByPlaceholder(/what did you work on/i).fill('By button');
-    await btn(page, /^capture$/i).click();
-    await page.waitForTimeout(300);
-    const a = await taskCheckbox(page, 'By enter').isVisible();
-    const b = await taskCheckbox(page, 'By button').isVisible();
+    await newTask(page).click();
+    await page.getByPlaceholder(/what do you need to do/i).fill('Via enter');
+    await page.keyboard.press('Enter');
+    await capture(page, 'Via button');
+    const ok = (await taskTitle(page, 'Via enter').isVisible()) && (await taskTitle(page, 'Via button').isVisible());
     await ctx.close();
-    expect(a && b, `enter ${a}, button ${b}`);
+    expect(ok, 'capture failed');
   });
 
-  await tc('QC-03', 'Empty title rejected with feedback', 'P412', async () => {
-    const { ctx, page } = await open('P412', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    await btn(page, /^capture$/i).click();
-    await page.waitForTimeout(300);
-    const added = await count(page.getByRole('button', { name: /^Mark ".*" done$/ }));
-    const stillOpen = await page.getByPlaceholder(/what did you work on/i).isVisible();
-    const disabled = await btn(page, /^capture$/i).isDisabled().catch(() => false);
-    const feedback = await page.evaluate(() => {
-      const i = document.querySelector('input[placeholder*="What did you work on"]');
-      return i ? !i.checkValidity() || i.getAttribute('aria-invalid') === 'true' : false;
-    });
+  await tc('QC-03', 'Empty title cannot be added', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    await newTask(page).click();
+    const disabled = await dialog(page, /new task/i).getByRole('button', { name: /^add task$/i }).isDisabled();
     await ctx.close();
-    expect(added === 0, 'empty task added');
-    return !disabled && !feedback && stillOpen ? { status: 'warn', details: 'nothing happens and no message explains why' } : '';
+    expect(disabled, 'Add task enabled with an empty title');
   });
 
-  await tc('QC-04', 'Heading and status selects', 'P412', async () => {
+  await tc('QC-04', 'Defaults and remembered section/status', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    await page.getByPlaceholder(/what did you work on/i).fill('Idea task');
-    const selects = page.locator('.fixed select');
-    await selects.nth(0).selectOption({ label: '#Ideas' });
-    await selects.nth(1).selectOption({ label: 'Blocked' });
-    await btn(page, /^capture$/i).click();
-    await page.waitForTimeout(300);
-    const inIdeas = await page.locator('section').filter({ hasText: 'Ideas' }).filter({ hasText: 'Idea task' }).count();
-    const blocked = await btn(page, /^blocked$/i).count();
+    await newTask(page).click();
+    const firstStatus = await page.getByLabel('Status', { exact: true }).inputValue();
+    await page.keyboard.press('Escape');
+    await capture(page, 'Meeting prep', { section: 'Meetings', status: 'Blocked' });
+    await newTask(page).click();
+    const section = await page.getByLabel('Section').inputValue();
+    const status = await page.getByLabel('Status', { exact: true }).inputValue();
     await ctx.close();
-    expect(inIdeas >= 1, 'not in Ideas');
-    expect(blocked >= 1, 'status not Blocked');
+    expect(firstStatus === 'not-started', `default status ${firstStatus}`);
+    expect(section === 'Meetings' && status === 'blocked', `remembered ${section}/${status}`);
   });
 
   await tc('QC-05', 'Close via Cancel / X / Esc / backdrop', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    const openQc = async () => {
-      await btn(page, /quick capture/i).first().click();
-      await page.getByPlaceholder(/what did you work on/i).waitFor();
-    };
-    const closed = async () => !(await page.getByPlaceholder(/what did you work on/i).isVisible().catch(() => false));
-    const res = {};
-    await openQc();
-    await btn(page, /^cancel$/i).click();
-    res.cancel = await closed();
-    await openQc();
-    await page.locator('.fixed button:has(svg.lucide-x)').first().click();
-    res.x = await closed();
-    await openQc();
+    const isOpen = () => isOpenDialog(page, /new task/i);
+    const results = {};
+    await newTask(page).click();
+    await dialog(page, /new task/i).getByRole('button', { name: /^cancel$/i }).click();
+    results.cancel = !(await isOpen());
+    await newTask(page).click();
+    await dialog(page, /new task/i).getByRole('button', { name: /^close$/i }).click();
+    results.x = !(await isOpen());
+    await newTask(page).click();
     await page.keyboard.press('Escape');
-    res.esc = await closed();
-    await openQc();
-    await page.mouse.click(5, 5);
-    await page.waitForTimeout(200);
-    res.backdrop = await closed();
+    results.esc = !(await isOpen());
+    await newTask(page).click();
+    await page.mouse.click(10, 450);
+    results.backdrop = !(await isOpen());
     await ctx.close();
-    const failed = Object.entries(res).filter(([, v]) => !v).map(([k]) => k);
-    expect(res.cancel && res.x && res.esc, `not closed by: ${failed.join(', ')}`);
-    return res.backdrop ? '' : { status: 'warn', details: 'tapping the backdrop does not close' };
+    const failed = Object.entries(results).filter(([, ok]) => !ok).map(([k]) => k);
+    expect(!failed.length, `did not close via ${failed.join(', ')}`);
   });
 
   // ---- HI
-  await tc('HI-01', 'History opens on the latest note', 'P412+D1440', async () => {
+  await tc('HI-01', 'History opens on the latest day', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
-      await btn(page, /^history$/i).last().click();
-      await page.waitForTimeout(300);
-      const t = await visibleText(page);
+      await btn(page, /^history$/i).first().click();
+      const h = await page.locator('h2').filter({ hasText: /day|,/ }).last().innerText();
       await ctx.close();
-      expect(!/no daily document exists/i.test(t), `${env}: empty day shown`);
+      expect(/\d/.test(h), `${env}: no day shown (${h})`);
     }
   });
 
-  await tc('HI-02', 'Calendar day select', 'P412', async () => {
+  await tc('HI-02', 'Calendar day select, empty day wording', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^history$/i).last().click();
-    await btn(page, /^15$/).first().click();
-    await page.waitForTimeout(200);
-    const t15 = await visibleText(page);
-    await btn(page, /^3$/).first().click();
-    await page.waitForTimeout(200);
-    const t3 = await visibleText(page);
+    await btn(page, /^history$/i).click();
+    const empty = page.getByRole('button', { name: /: nothing recorded$/i }).first();
+    await empty.click();
+    const text = await visibleText(page);
+    const recorded = page.getByRole('button', { name: /\d+ of \d+ done$/i }).first();
+    await recorded.click();
+    const tasksShown = /tasks done/i.test(await visibleText(page));
     await ctx.close();
-    expect(/october 15/i.test(t15), 'Oct 15 not shown');
-    return /no daily document exists/i.test(t3) ? { status: 'warn', details: 'empty day says "No daily document exists for 2026-10-03" (technical wording, no action offered)' } : '';
+    expect(/nothing was recorded on/i.test(text) && noIso(text), 'empty day message');
+    expect(tasksShown, 'recorded day not shown');
   });
 
   await tc('HI-03', 'Month navigation', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^history$/i).last().click();
-    const navBtns = page.locator('button:has(svg.lucide-chevron-left), button:has(svg.lucide-chevron-right)');
-    const info = await navBtns.evaluateAll((els) => els.map((b) => ({ named: !!(b.getAttribute('aria-label') || b.title), w: b.getBoundingClientRect().width })));
-    const before = await visibleText(page);
-    await navBtns.first().click();
-    await page.waitForTimeout(200);
-    const after = await visibleText(page);
+    await btn(page, /^history$/i).click();
+    const m0 = await page.locator('h2').first().innerText();
+    await btn(page, /previous month/i).click();
+    const m1 = await page.locator('h2').first().innerText();
+    await btn(page, /next month/i).click();
+    const m2 = await page.locator('h2').first().innerText();
+    const box = await btn(page, /next month/i).boundingBox();
     await ctx.close();
-    expect(/september 2026/i.test(after) || before !== after, 'month did not change');
-    const issues = [];
-    if (info.some((i) => !i.named)) issues.push('month arrows have no accessible name');
-    if (info.some((i) => i.w < 44)) issues.push(`month arrows ${Math.round(Math.min(...info.map((i) => i.w)))} px wide`);
-    return issues.length ? { status: 'warn', details: issues.join('; ') } : '';
+    expect(m0 !== m1 && m0 === m2, `${m0} / ${m1} / ${m2}`);
+    expect(box.width >= 44, 'month arrows below 44 px');
   });
 
-  await tc('HI-04', 'Recorded notes list', 'P412', async () => {
-    const { ctx, page } = await open('P412');
-    await btn(page, /^history$/i).last().click();
-    await page.getByRole('button', { name: /2026-10-14/ }).click();
-    await page.waitForTimeout(200);
-    const t = await visibleText(page);
+  await tc('HI-04', 'Recent days list and "Open this day"', 'D1440', async () => {
+    const { ctx, page } = await open('D1440');
+    await btn(page, /^history$/i).click();
+    const list = await page.getByRole('heading', { name: /recent days/i }).isVisible();
+    await btn(page, /open this day/i).click();
+    const onToday = await btn(page, /^today$/i).last().isVisible();
     await ctx.close();
-    expect(/october 14/i.test(t), 'list row did not open day');
+    expect(list, 'recent days missing');
+    expect(onToday, 'did not open the day');
   });
 
   // ---- NO
-  await tc('NO-01', 'Notes list', 'P412', async () => {
+  await tc('NO-01', 'Notes list: pinned first, plain previews', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
-    const t = await visibleText(page);
+    await btn(page, /^notes$/i).click();
+    const items = await page.locator('main li button').allInnerTexts();
     await ctx.close();
-    expect(/4 notes/i.test(t), 'count missing');
-    expect(/architecture decision/i.test(t.split('\n').slice(0, 30).join('\n')), 'pinned note not first');
+    expect(items.length >= 4, `${items.length} notes`);
+    expect(!items.some((t) => /\[ \]|\[x\]|\*\*|^#/m.test(t)), 'Markdown syntax in previews');
+    expect(noIso(items.join(' ')) && !/\d+\/\d+\/\d{4}/.test(items.join(' ')), 'numeric dates in list');
   });
 
   await tc('NO-02', 'Search and empty result', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
-    await page.getByPlaceholder(/search notes/i).fill('reading');
-    await page.waitForTimeout(200);
-    const one = /1 notes|1 note/i.test(await visibleText(page));
-    await page.getByPlaceholder(/search notes/i).fill('zzzzqq');
-    await page.waitForTimeout(200);
-    const empty = await visibleText(page);
+    await btn(page, /^notes$/i).click();
+    await page.getByLabel('Search notes').fill('sprint');
+    const one = await page.locator('main li button').count();
+    await page.getByLabel('Search notes').fill('zzzz');
+    const none = /no notes match/i.test(await visibleText(page));
     await ctx.close();
-    expect(one, 'search did not filter to 1');
-    const grammar = /\b1 notes\b/.test(empty) || /\b0 notes\b/.test(empty) ? '' : '';
-    return /no notes|nothing|no match/i.test(empty) ? (/(^|\s)1 notes/.test(empty) ? { status: 'warn', details: '"1 notes" plural' } : grammar) : { status: 'warn', details: 'no empty-state message for a search with no results' };
+    expect(one === 1 && none, `results ${one}, empty message ${none}`);
   });
 
   await tc('NO-03', 'Folder chips', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
-    await btn(page, /^personal$/i).click();
-    const t = await visibleText(page);
-    const h = (await btn(page, /^personal$/i).boundingBox()).height;
+    await btn(page, /^notes$/i).click();
+    await btn(page, /^meetings$/i).click();
+    const n = await page.locator('main li button').count();
     await ctx.close();
-    expect(/reading list/i.test(t) && !/sprint sync/i.test(t), 'filter wrong');
-    return h < 44 ? { status: 'warn', details: `folder chips ${Math.round(h)} px tall` } : '';
+    expect(n === 1, `${n} notes in Meetings`);
   });
 
-  await tc('NO-04', 'New note opens editor with title focused', 'P412', async () => {
+  await tc('NO-04', 'New note focuses the title', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
-    await btn(page, /new note/i).click();
-    await page.waitForTimeout(300);
-    const focused = await page.evaluate(() => document.activeElement?.getAttribute('placeholder') || document.activeElement?.tagName);
-    const editor = await page.locator('textarea').isVisible();
+    await btn(page, /^notes$/i).click();
+    await btn(page, /^new note$/i).click();
+    await page.waitForTimeout(200);
+    const focused = await page.evaluate(() => document.activeElement?.id);
     await ctx.close();
-    expect(editor, 'editor not open');
-    return /note title/i.test(focused || '') ? '' : { status: 'warn', details: `focus on ${focused}, not the title` };
+    expect(focused === 'note-title', `focus on ${focused}`);
   });
 
   await tc('NO-05', 'Edit title / folder / body persists', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
-    await page.getByText('Weekly Sprint Sync Notes').click();
-    await page.getByPlaceholder(/note title/i).fill('Renamed note');
-    await page.locator('textarea').fill('Body text');
-    await btn(page, /^notes$/i).first().click();
-    await page.waitForTimeout(300);
+    await btn(page, /^notes$/i).click();
+    await btn(page, /^new note$/i).click();
+    await page.getByLabel('Title').fill('Persisted note');
+    await page.getByLabel(/note text/i).fill('Body text');
     await page.reload({ waitUntil: 'networkidle' });
-    await btn(page, /^notes$/i).last().click();
-    const t = await visibleText(page);
+    await btn(page, /^notes$/i).click();
+    const ok = await page.getByText('Persisted note').first().isVisible();
     await ctx.close();
-    expect(/renamed note/i.test(t) && /body text/i.test(t), 'edits not persisted');
+    expect(ok, 'note not persisted');
   });
 
-  await tc('NO-06', 'Note toolbar inserts Markdown', 'P412+D1440', async () => {
-    const out = [];
+  await tc('NO-06', 'Toolbar wraps the selection', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
-      await btn(page, /^notes$/i).last().click();
-      if (env === 'P412') await page.getByText('Weekly Sprint Sync Notes').click();
-      const ta = page.locator('textarea').first();
-      await ta.fill('word');
-      await ta.selectText();
-      await page.getByTitle('Bold').first().click();
-      out.push(`${env}:${await ta.inputValue()}`);
+      await btn(page, /^notes$/i).click();
+      await btn(page, /^new note$/i).click();
+      const area = page.getByLabel(/note text/i);
+      await area.fill('word');
+      await area.evaluate((el) => el.setSelectionRange(0, 4));
+      await btn(page, /^bold$/i).click();
+      const v = await area.inputValue();
       await ctx.close();
+      expect(v === '**word**', `${env}: "${v}"`);
     }
-    expect(out.every((v) => v.includes('**word**')), out.join(' | '));
   });
 
-  await tc('NO-07', 'Preview modes', 'P412+D1440', async () => {
+  await tc('NO-07', 'Edit / Read (/ Split) modes', 'P412+D1440', async () => {
     const p = await open('P412');
-    await btn(p.page, /^notes$/i).last().click();
+    await btn(p.page, /^notes$/i).click();
     await p.page.getByText('Weekly Sprint Sync Notes').click();
-    await btn(p.page, /^preview$/i).click();
-    const rendered = await p.page.locator('h1, h2').filter({ hasText: /attendees|weekly sprint/i }).count();
+    const readDefault = (await btn(p.page, /^read$/i).getAttribute('aria-pressed')) === 'true';
     await p.ctx.close();
     const d = await open('D1440');
-    await btn(d.page, /^notes$/i).first().click();
-    await d.page.getByTitle('Rendered preview').click();
-    const r2 = await d.page.locator('textarea').isVisible().catch(() => false);
+    await btn(d.page, /^notes$/i).click();
+    await btn(d.page, /^split$/i).last().click();
+    const split = (await d.page.getByLabel(/note text/i).isVisible()) && (await d.page.locator('main h1, main h2').count()) > 1;
     await d.ctx.close();
-    expect(rendered > 0, 'phone preview not rendered');
-    expect(!r2, 'desktop preview still shows editor');
+    expect(readDefault, 'phone does not open notes for reading');
+    expect(split, 'split view missing');
   });
 
-  await tc('NO-08', 'Pin note', 'D1440', async () => {
+  await tc('NO-08', 'Pin moves a note to the top', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^notes$/i).first().click();
-    await page.getByText('Weekly Sprint Sync Notes').first().click();
-    await page.getByTitle(/pin note/i).click();
-    await page.waitForTimeout(200);
-    const firstTwo = (await page.locator('button').filter({ hasText: /10\/1\d\/2026/ }).allInnerTexts()).slice(0, 2).join(' ');
+    await btn(page, /^notes$/i).click();
+    await page.getByText('Q4 Reading List & Research Papers').first().click();
+    await btn(page, /pin note to the top/i).click();
+    const first = await page.locator('main li button').first().innerText();
     await ctx.close();
-    expect(/weekly sprint/i.test(firstTwo), 'pinned note not moved to the top');
+    expect(/q4 reading list/i.test(first), `first note "${first.split('\n')[0]}"`);
   });
 
-  await tc('NO-09', 'Delete note asks first (DS-02)', 'P412', async () => {
-    const { ctx, page, dialogs } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
+  await tc('NO-09', 'Delete note asks first, Undo restores (DS-02)', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    await btn(page, /^notes$/i).click();
     await page.getByText('Weekly Sprint Sync Notes').click();
-    await page.getByTitle(/delete note/i).first().click();
-    await page.waitForTimeout(200);
-    const kept = await page.locator('textarea').isVisible();
+    await btn(page, /more note actions/i).click();
+    await page.getByRole('menuitem', { name: /delete note/i }).click();
+    expect(await alertDialog(page).isVisible(), 'no confirmation');
+    await alertDialog(page).getByRole('button', { name: /^delete$/i }).click();
+    await btn(page, /^undo$/i).click();
+    const back = await page.getByText('Weekly Sprint Sync Notes').first().isVisible();
     await ctx.close();
-    expect(dialogs.length >= 1 && kept, 'deleted without confirmation');
+    expect(back, 'undo did not restore');
   });
 
   await tc('NO-10', 'New folder', 'D1440', async () => {
-    const { ctx, page, dialogs } = await open('D1440');
-    await btn(page, /^notes$/i).first().click();
+    const { ctx, page } = await open('D1440');
+    await btn(page, /^notes$/i).click();
     await btn(page, /new folder/i).click();
-    await page.getByPlaceholder(/folder name/i).fill('Projects');
-    await page.getByPlaceholder(/folder name/i).press('Enter');
-    await page.waitForTimeout(300);
-    const t = await visibleText(page);
+    await page.getByLabel('Folder name').fill('Recipes');
+    await btn(page, /^create$/i).click();
+    const ok = await btn(page, /^recipes$/i).isVisible();
     await ctx.close();
-    expect(/projects/i.test(t), 'folder not created');
-    expect(dialogs.length === 0, 'unexpected browser dialog');
+    expect(ok, 'folder chip missing');
   });
 
-  await tc('NO-11', 'Back to list', 'P412', async () => {
+  await tc('NO-11', 'Back to list (button and Android Back)', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^notes$/i).last().click();
+    await btn(page, /^notes$/i).click();
     await page.getByText('Weekly Sprint Sync Notes').click();
-    const back = btn(page, /^notes$/i).first();
+    const back = btn(page, /back to notes/i);
     const box = await back.boundingBox();
     await back.click();
-    const list = /new note/i.test(await visibleText(page));
+    const list = await page.getByLabel('Search notes').isVisible();
     await ctx.close();
-    expect(list, 'did not return');
-    return box.height < 44 ? { status: 'warn', details: `back link ${Math.round(box.width)}x${Math.round(box.height)} px` } : '';
+    expect(list, 'list not shown');
+    expect(box.width >= 44, 'back button below 44 px');
   });
 
   // ---- SY
@@ -1149,21 +1073,24 @@ async function functional() {
   };
   await tc('SY-01', 'Sync form labels and input types', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^sync$/i).last().click();
-    const types = await page.evaluate(() => [...document.querySelectorAll('form input')].map((i) => `${i.type}/${i.inputMode || '-'}`));
+    await btn(page, /open sync settings/i).click();
+    const urlMode = await page.getByLabel('Server address').getAttribute('inputmode');
+    const pwType = await page.getByLabel('Password').getAttribute('type');
     const device = await page.getByLabel('Name for this device').inputValue();
+    const help = await page.getByText(/don't have a server/i).isVisible();
+    const yamlHidden = !(await page.getByText(/restart: unless-stopped/).isVisible());
     await ctx.close();
-    expect(types[0].includes('url') || types[0].includes('/url'), `address input ${types[0]}`);
-    expect(types.some((t) => t.startsWith('password')), 'password not masked');
-    expect(device.length > 0, 'device name empty');
+    expect(urlMode === 'url' && pwType === 'password' && device.length > 0, 'input types');
+    expect(help && yamlHidden, 'server set-up not behind a help link');
   });
 
   await tc('SY-02', 'Unreachable server', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^sync$/i).last().click();
+    await btn(page, /open sync settings/i).click();
     await syncForm(page, 'http://127.0.0.1:9', 'whatever1');
-    await page.getByRole('alert').waitFor({ timeout: 8000 });
-    const msg = await page.getByRole('alert').innerText();
+    const alert = dialog(page, 'Settings').getByRole('alert');
+    await alert.waitFor({ timeout: 8000 });
+    const msg = await alert.innerText();
     const kept = await page.getByLabel('Server address').inputValue();
     await ctx.close();
     expect(/cannot reach/i.test(msg), `message "${msg}"`);
@@ -1172,208 +1099,269 @@ async function functional() {
 
   await tc('SY-03', 'Wrong password', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^sync$/i).last().click();
+    await btn(page, /open sync settings/i).click();
     await syncForm(page, BASE, 'wrong-password');
-    await page.getByRole('alert').waitFor({ timeout: 8000 });
-    const msg = await page.getByRole('alert').innerText();
+    const alert = dialog(page, 'Settings').getByRole('alert');
+    await alert.waitFor({ timeout: 8000 });
+    const msg = await alert.innerText();
     await ctx.close();
     expect(/wrong username or password/i.test(msg), `message "${msg}"`);
   });
 
-  await tc('SY-04', 'Connect, status pill, Sync now', 'P412', async () => {
+  await tc('SY-04', 'Connect, header status, Sync now', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^sync$/i).last().click();
+    await btn(page, /open sync settings/i).click();
     await syncForm(page, BASE, PASSWORD);
     await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    const pill = await btn(page, /synced/i).first().isVisible();
     await btn(page, /sync now/i).click();
     await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await btn(page, /^done$/i).click();
+    const synced = await btn(page, /sync: synced/i).isVisible();
     await ctx.close();
-    expect(pill, 'header pill not "Synced"');
+    expect(synced, 'header status not "Synced"');
   });
 
-  await tc('SY-05', 'Server view: devices, activity, password validation', 'D1440', async () => {
+  await tc('SY-05', 'Devices, activity, password validation', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^sync$/i).first().click();
+    await btn(page, /open sync settings/i).click();
     await syncForm(page, BASE, PASSWORD);
-    await page.getByText(/connected devices/i).waitFor({ timeout: 15000 });
-    await page.getByPlaceholder(/current password/i).fill('nope-wrong');
-    await page.getByPlaceholder(/new password/i).fill('newpassword123');
+    await page.getByText(/this device/i).first().waitFor({ timeout: 15000 });
+    await page.getByLabel('Current password').fill('nope-wrong');
+    await page.getByLabel('New password').fill('newpassword123');
     await btn(page, /change password/i).click();
     await page.waitForTimeout(800);
-    const t = await visibleText(page);
+    const t = await dialog(page, 'Settings').innerText();
     await shot(page, 'SY-05-server-view');
     await ctx.close();
     expect(/recent activity/i.test(t) && /this device/i.test(t), 'devices/activity missing');
+    expect(!/change\(s\)|conflict\(s\)/.test(t), 'raw server log wording');
     expect(/current password is wrong/i.test(t), 'wrong current password not reported');
   });
 
-  await tc('SY-06', 'Disconnect this device asks first (DS-06)', 'P412', async () => {
-    const { ctx, page, dialogs } = await open('P412');
-    await btn(page, /^sync$/i).last().click();
+  await tc('SY-06', 'Disconnect asks first (DS-06)', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    await btn(page, /open sync settings/i).click();
     await syncForm(page, BASE, PASSWORD);
     await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
     await btn(page, /disconnect this device/i).click();
-    await page.waitForTimeout(300);
+    const asked = await alertDialog(page).isVisible();
+    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
     const still = await btn(page, /sync now/i).isVisible();
     await ctx.close();
-    expect(dialogs.length >= 1 && still, 'disconnected without confirmation');
+    expect(asked && still, 'disconnected without confirmation');
+  });
+
+  await tc('SY-07', 'Restore on a synced device keeps server data', 'D1440', async () => {
+    // Device A (sample, synced) then device B restores a 1-task backup; the server must keep A's data
+    const a = await open('D1440');
+    await btn(a.page, /open sync settings/i).click();
+    await syncForm(a.page, BASE, PASSWORD);
+    await a.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await a.ctx.close();
+    const b = await open('D1440', { start: 'empty' });
+    await capture(b.page, 'Only task in backup');
+    await openSettings(b.page);
+    await b.page.getByRole('tab', { name: /^advanced$/i }).click();
+    const dl = b.page.waitForEvent('download');
+    await btn(b.page, /download \.json/i).click();
+    const backup = path.join(os.tmpdir(), `daymark-sy07-${Date.now()}.json`);
+    fs.copyFileSync(await (await dl).path(), backup);
+    await b.page.getByRole('tab', { name: /^sync$/i }).click();
+    await syncForm(b.page, BASE, PASSWORD);
+    await b.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await b.page.getByRole('tab', { name: /backup & restore/i }).click();
+    const chooser = b.page.waitForEvent('filechooser');
+    await btn(b.page, /choose a backup file/i).click();
+    await (await chooser).setFiles(backup);
+    await alertDialog(b.page).getByRole('button', { name: /^restore$/i }).click();
+    await b.page.waitForTimeout(4500);
+    await openSettings(b.page);
+    await b.page.getByRole('tab', { name: /^sync$/i }).click();
+    await btn(b.page, /sync now/i).click();
+    await b.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await b.page.waitForTimeout(800);
+    const text = await dialog(b.page, 'Settings').innerText();
+    await b.ctx.close();
+    const notes = Number(text.match(/(\d+)\s*Notes/)?.[1]);
+    expect(notes >= 4, `server notes after restore: ${notes}`);
+  });
+
+  await tc('SY-08', 'Repeat sign-in does not duplicate the device', 'P412', async () => {
+    const { ctx, page } = await open('P412');
+    await btn(page, /open sync settings/i).click();
+    await syncForm(page, BASE, PASSWORD);
+    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await btn(page, /disconnect this device/i).click();
+    await alertDialog(page).getByRole('button', { name: /^disconnect$/i }).click();
+    await page.getByLabel('Name for this device').fill('Twice');
+    await syncForm(page, BASE, PASSWORD);
+    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    await page.getByText(/^this device$/i).first().waitFor({ timeout: 15000 });
+    // Listed once in Devices (the account summary above names it too)
+    const twice = await dialog(page, 'Settings').locator('ul.divide-y > li', { hasText: 'Twice' }).count();
+    await ctx.close();
+    expect(twice === 1, `"Twice" listed ${twice} times`);
   });
 
   // ---- SE
   await tc('SE-01', 'Settings tabs', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
-      await (env === 'P412' ? btn(page, /settings, backup and import/i) : btn(page, /^settings$/i)).click();
-      for (const tab of ['Backup & restore', 'Sync', 'Statuses', 'Aging alerts', 'Headings', 'Developer']) {
-        const t = page.getByRole('button', { name: tab, exact: true }).last();
-        expect(await t.isVisible(), `${env}: tab ${tab} not visible`);
+      await openSettings(page);
+      for (const name of ['Backup & restore', 'Sync', 'Statuses', 'Old-task warnings', 'Sections', 'Advanced']) {
+        const t = page.getByRole('tab', { name, exact: true });
+        expect(await t.isVisible(), `${env}: tab ${name} not visible`);
         await t.click();
-        expect((await t.getAttribute('aria-pressed')) === 'true', `${env}: ${tab} not marked active`);
+        expect((await t.getAttribute('aria-selected')) === 'true', `${env}: ${name} not selected`);
       }
       await ctx.close();
     }
   });
 
-  await tc('SE-02', 'Close settings (X, Done, Esc)', 'P412+D1440', async () => {
+  await tc('SE-02', 'Close settings (X, Done, Esc, backdrop)', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    const openS = () => btn(page, /^settings$/i).click();
-    const isOpen = () => page.getByRole('dialog', { name: 'Settings' }).isVisible().catch(() => false);
-    await openS();
-    await btn(page, /close settings/i).click();
-    const x = !(await isOpen());
-    await openS();
+    const isOpen = () => isOpenDialog(page, 'Settings');
+    const r = {};
+    await openSettings(page);
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
+    r.x = !(await isOpen());
+    await openSettings(page);
     await btn(page, /^done$/i).click();
-    const done = !(await isOpen());
-    await openS();
+    r.done = !(await isOpen());
+    await openSettings(page);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-    const esc = !(await isOpen());
+    r.esc = !(await isOpen());
+    await openSettings(page);
+    await page.mouse.click(10, 450);
+    r.backdrop = !(await isOpen());
     await ctx.close();
-    expect(x && done, `X ${x}, Done ${done}`);
-    return esc ? '' : { status: 'warn', details: 'Esc does not close Settings' };
+    const failed = Object.entries(r).filter(([, ok]) => !ok).map(([k]) => k);
+    expect(!failed.length, `did not close via ${failed.join(', ')}`);
   });
 
-  await tc('SE-03', 'Download Vault ZIP and JSON', 'P412', async () => {
+  await tc('SE-03', 'Back up (.zip) and technical backup (.json)', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /settings, backup and import/i).click();
+    await openSettings(page);
     const z = page.waitForEvent('download', { timeout: 8000 });
-    await btn(page, /download vault zip/i).click();
+    await btn(page, /back up now/i).click();
     const zf = await z;
+    await page.getByRole('tab', { name: /^advanced$/i }).click();
     const j = page.waitForEvent('download', { timeout: 8000 });
-    await btn(page, /download json backup/i).click();
+    await btn(page, /download \.json/i).click();
     const jf = await j;
     await ctx.close();
     expect(/\.zip$/.test(zf.suggestedFilename()) && /\.json$/.test(jf.suggestedFilename()), 'downloads wrong');
   });
 
-  await tc('SE-04', 'Restore JSON / ZIP / invalid file (DS-05)', 'P412', async () => {
+  await tc('SE-04', 'Restore asks first; invalid file explained in-app (DS-05)', 'P412', async () => {
     const { ctx, page, dialogs } = await open('P412');
-    await btn(page, /settings, backup and import/i).click();
+    await openSettings(page);
+    await page.getByRole('tab', { name: /^advanced$/i }).click();
     const z = page.waitForEvent('download');
-    await btn(page, /download json backup/i).click();
-    const jsonPath = await (await z).path();
+    await btn(page, /download \.json/i).click();
     const tmp = path.join(os.tmpdir(), `daymark-backup-${Date.now()}.json`);
-    fs.copyFileSync(jsonPath, tmp);
+    fs.copyFileSync(await (await z).path(), tmp);
     const bad = path.join(os.tmpdir(), `daymark-bad-${Date.now()}.json`);
     fs.writeFileSync(bad, '{"hello":1}');
-    // cancelled confirm keeps data
+    await page.getByRole('tab', { name: /backup & restore/i }).click();
     let chooser = page.waitForEvent('filechooser');
-    await btn(page, /select file/i).click();
+    await btn(page, /choose a backup file/i).click();
     await (await chooser).setFiles(tmp);
-    await page.waitForTimeout(500);
-    const confirmAsked = dialogs.some((d) => /replace/i.test(d.message));
-    // invalid file
-    await btn(page, /settings, backup and import/i).click().catch(() => {});
-    await btn(page, /^backup & restore$/i).click().catch(() => {});
+    const asked = await alertDialog(page).waitFor({ timeout: 5000 }).then(() => true, () => false);
+    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
+    await openSettings(page);
     chooser = page.waitForEvent('filechooser');
-    await btn(page, /select file/i).click();
+    await btn(page, /choose a backup file/i).click();
     await (await chooser).setFiles(bad);
-    await page.waitForTimeout(500);
-    const invalidMsg = dialogs.find((d) => /invalid|error/i.test(d.message))?.message;
+    await alertDialog(page).waitFor({ timeout: 5000 }).catch(() => {});
+    const msg = await alertDialog(page).innerText().catch(() => '');
     await ctx.close();
-    expect(confirmAsked, 'restoring over a non-empty vault did not ask');
-    expect(!!invalidMsg, 'invalid file not explained');
-    return { status: 'warn', details: `messages use browser alert()/confirm() ("${invalidMsg}")` };
+    expect(asked, 'restore did not ask');
+    expect(/isn't a daymark backup/i.test(msg), `invalid file message "${msg}"`);
+    expect(dialogs.length === 0, 'browser alert()/confirm() used');
   });
 
-  await tc('SE-05', 'Replace with sample asks first (DS-04)', 'P412', async () => {
-    const { ctx, page, dialogs } = await open('P412', { start: 'empty' });
-    await page.getByTitle('Quick Capture').click();
-    await page.getByPlaceholder(/what did you work on/i).fill('My own task');
-    await btn(page, /^capture$/i).click();
-    await btn(page, /settings, backup and import/i).click();
-    await btn(page, /^replace$/i).click();
-    await page.waitForTimeout(300);
-    await btn(page, /^done$/i).click();
-    const kept = await taskCheckbox(page, 'My own task').isVisible();
+  await tc('SE-05', 'Sample data asks first; unavailable while synced (DS-04)', 'P412', async () => {
+    const { ctx, page } = await open('P412', { start: 'empty' });
+    await capture(page, 'My own task');
+    await openSettings(page);
+    await page.getByRole('tab', { name: /^advanced$/i }).click();
+    await btn(page, /replace with sample data/i).click();
+    const asked = await alertDialog(page).isVisible();
+    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
+    await btn(page, /^cancel$/i).last().click().catch(() => {});
+    await page.keyboard.press('Escape');
+    const kept = await taskTitle(page, 'My own task').isVisible();
     await ctx.close();
-    expect(dialogs.some((d) => /replace all/i.test(d.message)) && kept, 'no clear confirmation or data replaced on cancel');
+    expect(asked && kept, 'no confirmation or data replaced on cancel');
   });
 
-  await tc('SE-06', 'Statuses: change, add, save, cancel', 'D1440+P412', async () => {
+  await tc('SE-06', 'Statuses: add, save; fits on phones', 'D1440+P412', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^settings$/i).click();
-    await btn(page, /^statuses$/i).click();
-    await page.getByPlaceholder(/new status name/i).fill('Review');
-    await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /^add/i }).first().click();
+    await openSettings(page);
+    await page.getByRole('tab', { name: /statuses/i }).click();
+    await page.getByLabel('Status name').fill('Review');
+    await btn(page, /^add status$/i).click();
     await btn(page, /save changes/i).click();
-    await btn(page, /^in progress$/i).first().click();
-    const hasReview = await page.locator('button').filter({ hasText: /^Review/ }).count();
+    await statusChip(page, T1).click();
+    const hasReview = await page.getByRole('menuitem', { name: /^review$/i }).count();
     await ctx.close();
     const p = await open('P412');
-    await btn(p.page, /settings, backup and import/i).click();
-    await btn(p.page, /^statuses$/i).click();
+    await openSettings(p.page);
+    await p.page.getByRole('tab', { name: /statuses/i }).click();
     const over = await p.page.evaluate(() => {
       const d = document.querySelector('[role=dialog]');
       return [...d.querySelectorAll('*')].some((el) => el.getBoundingClientRect().right > innerWidth + 1);
     });
+    const jargon = /participates in aging|lifecycle/i.test(await dialog(p.page, 'Settings').innerText());
     await shot(p.page, 'SE-06-statuses-phone');
     await p.ctx.close();
     expect(hasReview > 0, 'new status not available after save');
-    return over ? { status: 'warn', details: 'Statuses tab content runs past the right edge on phones (add-status row clipped)' } : '';
+    expect(!over, 'Statuses tab runs past the right edge on phones');
+    expect(!jargon, 'old jargon in Statuses');
   });
 
-  await tc('SE-07', 'Aging thresholds', 'D1440', async () => {
+  await tc('SE-07', 'Old-task warning thresholds, inline validation', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^settings$/i).click();
-    await btn(page, /^aging alerts$/i).click();
-    const inputs = page.getByRole('dialog', { name: 'Settings' }).locator('input[type=number]');
-    const n = await inputs.count();
-    if (n >= 2) {
-      await inputs.nth(1).fill('30');
-      await inputs.nth(0).fill('20');
-    }
+    await openSettings(page);
+    await page.getByRole('tab', { name: /old-task warnings/i }).click();
+    await page.getByLabel(/needs attention after/i).fill('9');
+    await page.getByLabel(/urgent after/i).fill('5');
+    await btn(page, /save changes/i).click();
+    const err = await dialog(page, 'Settings').getByRole('alert').isVisible();
+    await page.getByLabel(/needs attention after/i).fill('20');
+    await page.getByLabel(/urgent after/i).fill('30');
     await btn(page, /save changes/i).click();
     await page.waitForTimeout(300);
     const t = await visibleText(page);
     await ctx.close();
-    expect(n >= 2, 'threshold inputs not found');
-    expect(!/carried-forward tasks need attention/i.test(t), 'banner still shown after raising thresholds');
+    expect(err, 'invalid thresholds not explained');
+    expect(!/need attention/i.test(t), 'chip still shown after raising thresholds');
   });
 
-  await tc('SE-08', 'Headings add / remove', 'D1440', async () => {
+  await tc('SE-08', 'Sections add / remove', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^settings$/i).click();
-    await btn(page, /^headings$/i).click();
-    const dialog = page.getByRole('dialog', { name: 'Settings' });
-    await dialog.locator('input[type=text]').last().fill('Health');
-    await btn(page, /add heading/i).click();
-    const listed = /health/i.test(await dialog.innerText());
+    await openSettings(page);
+    await page.getByRole('tab', { name: /^sections$/i }).click();
+    await page.getByLabel('New section name').fill('Health');
+    await dialog(page, 'Settings').getByRole('button', { name: /^add$/i }).click();
+    const listed = await btn(page, /remove section health/i).isVisible();
+    await btn(page, /remove section health/i).click();
+    const removed = !(await btn(page, /remove section health/i).isVisible());
     await ctx.close();
-    expect(listed, 'heading not listed');
+    expect(listed && removed, `listed ${listed}, removed ${removed}`);
   });
 
-  await tc('SE-09', 'Developer date override', 'D1440', async () => {
+  await tc('SE-09', 'Pretend it is another day (Advanced)', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^settings$/i).click();
-    await btn(page, /^developer$/i).click();
-    await btn(page, /real today \+1 day/i).click();
+    await openSettings(page);
+    await page.getByRole('tab', { name: /^advanced$/i }).click();
+    await btn(page, /^tomorrow$/i).click();
     await btn(page, /save changes/i).click();
     await page.waitForTimeout(300);
     const h1 = await page.locator('h1').first().innerText();
-    await btn(page, /^settings$/i).click();
-    await btn(page, /^developer$/i).click();
+    await openSettings(page);
+    await page.getByRole('tab', { name: /^advanced$/i }).click();
     await btn(page, /use real date/i).click();
     await btn(page, /save changes/i).click();
     await ctx.close();
@@ -1383,31 +1371,32 @@ async function functional() {
   // ---- AX keyboard / dialogs
   await tc('AX-06', 'Dialog semantics, focus, inert background', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    const checks = {};
+    const problems = [];
     for (const [name, openFn] of [
-      ['Quick Capture', () => page.getByTitle('Quick Capture').click()],
-      ['Settings', () => btn(page, /settings, backup and import/i).click()],
-      ['Other past date', () => page.getByText('Other past date').first().click()],
+      ['New task', () => newTask(page).click()],
+      ['Settings', () => openSettings(page)],
+      ['Mark done on…', () => openMenuItem(page, T1, /another day/i)],
+      ['Task details', () => taskTitle(page, T1).click()],
     ]) {
       await openFn();
       await page.waitForTimeout(300);
-      checks[name] = await page.evaluate(() => {
-        const overlays = [...document.querySelectorAll('.fixed.inset-0')];
-        const top = overlays[overlays.length - 1];
-        const dialog = top?.querySelector('[role=dialog]') || (top?.getAttribute('role') === 'dialog' ? top : null);
+      const c = await page.evaluate(() => {
+        const d = [...document.querySelectorAll('[role=dialog],[role=alertdialog]')].pop();
         return {
-          role: !!dialog,
-          focusInside: top ? top.contains(document.activeElement) : false,
-          inert: [...document.querySelectorAll('button')].filter((b) => !top.contains(b) && !b.closest('[inert],[aria-hidden=true]')).length === 0,
+          role: !!d,
+          modal: d?.getAttribute('aria-modal') === 'true',
+          named: !!d?.getAttribute('aria-labelledby'),
+          focusInside: d ? d.contains(document.activeElement) : false,
+          inert: document.getElementById('root').hasAttribute('inert'),
         };
       });
+      for (const [k, ok] of Object.entries(c)) if (!ok) problems.push(`${name}: ${k}`);
       await page.keyboard.press('Escape');
       await page.waitForTimeout(200);
-      await page.reload({ waitUntil: 'networkidle' });
+      if (await page.locator('[role=dialog]').count()) problems.push(`${name}: Esc did not close`);
     }
     await ctx.close();
-    const problems = Object.entries(checks).flatMap(([n, c]) => [!c.role && `${n}: no role=dialog`, !c.focusInside && `${n}: focus not moved into dialog`, !c.inert && `${n}: background not inert`].filter(Boolean));
-    return problems.length ? { status: 'warn', details: problems.join('; ') } : '';
+    expect(!problems.length, problems.join('; '));
   });
 
   await tc('AX-07', 'Keyboard focus visible', 'D1440', async () => {
@@ -1419,16 +1408,15 @@ async function functional() {
         const el = document.activeElement;
         if (!el || el === document.body) return null;
         const s = getComputedStyle(el);
-        const visible = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || s.boxShadow !== 'none';
+        const visible = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0 && s.outlineColor !== 'rgba(0, 0, 0, 0)') || s.boxShadow !== 'none';
         return visible ? null : (el.getAttribute('aria-label') || el.title || el.textContent || el.tagName).trim().slice(0, 30);
       });
       if (r) noRing.push(r);
     }
     await ctx.close();
-    return noRing.length ? { status: 'warn', details: `${noRing.length}/25 tab stops have no visible focus ring (e.g. ${[...new Set(noRing)].slice(0, 4).join(', ')})` } : '';
+    expect(!noRing.length, `${noRing.length}/25 tab stops have no visible focus ring (e.g. ${[...new Set(noRing)].slice(0, 4).join(', ')})`);
   });
 }
-
 // ---------------------------------------------------------------- main
 try {
   for (let i = 0; i < 75; i++) {

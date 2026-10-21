@@ -147,7 +147,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       active ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
     }`;
   const seg = (active: boolean) =>
-    `inline-flex items-center gap-1.5 px-2.5 min-h-9 rounded-md text-sm ${
+    `inline-flex items-center gap-1.5 px-2.5 min-h-11 sm:min-h-9 rounded-md text-sm ${
       active ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
     }`;
 
@@ -219,7 +219,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                 >
                   <div className="flex items-start gap-2">
                     <span className="flex-1 min-w-0 font-semibold text-[15px] sm:text-sm text-stone-900 dark:text-stone-100 truncate">{note.title || 'Untitled'}</span>
-                    {note.pinned && <Pin className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" aria-label="Pinned" />}
+                    {note.pinned && <Pin className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" role="img" aria-label="Pinned" />}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
                     <span className="font-medium">{note.folder}</span>
@@ -301,7 +301,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                 <select
                   value={activeNote.folder}
                   onChange={(e) => updateActive({ folder: e.target.value })}
-                  className="px-2 min-h-9 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100"
+                  className="px-2 min-h-11 sm:min-h-9 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100"
                 >
                   {[...new Set([...allFolders, activeNote.folder])].map((f) => (
                     <option key={f} value={f}>
@@ -379,7 +379,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               </>
             )}
             {viewMode !== 'edit' && (
-              <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1" tabIndex={0} role="region" aria-label="Note preview">
                 {activeNote.content.trim() ? (
                   <MarkdownPreview content={activeNote.content} onInternalLinkClick={openLinkedNote} onToggleTaskItem={toggleCheckbox} />
                 ) : (

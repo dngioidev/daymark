@@ -21,6 +21,12 @@
   code, pre, .font-mono {
     font-family: var(--font-mono);
   }
+
+  /* Visible keyboard focus everywhere (mouse and touch focus stay unstyled) */
+  :focus-visible {
+    outline: 2px solid var(--color-amber-600);
+    outline-offset: 2px;
+  }
 }
 
 /* Custom scrollbars */
@@ -159,7 +165,7 @@
   padding: 0.15rem 0.4rem;
   background-color: rgba(120, 113, 108, 0.18);
   border-radius: 0.3rem;
-  color: #d97706;
+  color: #92400e;
   font-weight: 500;
 }
 
@@ -202,7 +208,7 @@
 
 /* Links */
 .daymark-markdown-body a {
-  color: #d97706;
+  color: #b45309;
   text-decoration: underline;
   text-underline-offset: 3px;
   font-weight: 500;

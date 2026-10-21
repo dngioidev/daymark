@@ -4,7 +4,9 @@ Date 2026-10-21 · Daymark 1.0.0 · Suite: [`docs/testing/ux-ui-test-suite.md`](
 
 Product and business review of the same screens (IA, wording, density, prioritised redesign plan): [`business-ux-review.md`](./business-ux-review.md)
 
-**Result: 69 pass · 25 warn · 15 fail · 5 not run (all priority 3).**
+> **Update after Cycle 5 (Daymark 1.1.0, same day):** every finding below was fixed. Re-run of the updated suite (v1.1) plus the native Android suite: **109 pass · 1 warn · 0 fail · 4 not run** (was 69 · 25 · 15 · 5). The warning is axe flagging rows partly covered by an open menu, which is expected. No axe critical/serious issues, 0 low-contrast nodes, no text under 12 px, no phone control under 44 px. Per-case results: [`test-results.md`](./test-results.md); what changed: [`docs/releases/cycle-5`](../../releases/cycle-5/README.md). The findings below describe 1.0.0.
+
+**Result on 1.0.0: 69 pass · 25 warn · 15 fail · 5 not run (all priority 3).**
 Coverage: every screen, menu, dialog and button (inventory from `scripts/ux-inventory.mjs`). Viewports were 320, 360, 412, 768, 1024, 1280, 1440 and 1920 px, in light and dark mode. Automated scans (axe-core accessibility rules, font sizes, target sizes, overflow, truncation) ran on 46 screen/theme combinations. Android behaviour was checked by hand on an Android 16 emulator; your phone was not touched.
 
 ## Critical: fix first

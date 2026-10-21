@@ -29,7 +29,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onStartEmpty
         <FileText className="w-5 h-5 shrink-0" />
         <span>
           Start fresh
-          <span className="block font-normal opacity-90">An empty notebook for real use</span>
+          <span className="block font-normal">An empty notebook for real use</span>
         </span>
       </button>
       <button

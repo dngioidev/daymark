@@ -59,7 +59,7 @@ export const HistoricalCompletionModal: React.FC<HistoricalCompletionModalProps>
           <button type="button" className={buttonClass.ghost} onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="mark-done-form" className={buttonClass.primary}>
+          <button type="submit" form="mark-done-form" className={buttonClass.primary} data-autofocus>
             Mark done
           </button>
         </>
