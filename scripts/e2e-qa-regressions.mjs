@@ -155,7 +155,8 @@ await run('B6', async () => {
 
 await run('B7', async () => {
   const xssNote = { id: 'n1', title: 'XSS', folder: 'General', content: 'hello <img src=x onerror="window.__xss=1"> [[<img src=y onerror="window.__xss2=1">]]', tags: [], createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' };
-  const { page, context } = await fresh({ notes: [xssNote], docs: [doc(TODAY, [], 'notes <img src=z onerror="window.__xss3=1">')] });
+  const safeNote = { id: 'n2', title: 'Safe', folder: 'General', content: ['[x](javascript:window.__xss4=1)', '', '> [!TIP] Title', '> body', '', 'see [[Plan]]', '', '- [ ] todo'].join(String.fromCharCode(10)), tags: [], createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' };
+  const { page, context } = await fresh({ notes: [xssNote, safeNote], docs: [doc(TODAY, [], 'notes <img src=z onerror="window.__xss3=1">')] });
   await settle(page, 800);
   const todayXss = await page.evaluate(() => window.__xss3);
   await page.getByRole('button', { name: /^Notes$/ }).first().click();
@@ -166,6 +167,16 @@ await run('B7', async () => {
   const r = await page.evaluate(() => [window.__xss, window.__xss2]);
   check('B7a', !todayXss, 'HTML in day notes is not executed', 'onerror handler ran on Today');
   check('B7b', !r[0] && !r[1], 'HTML in standalone notes is not executed', JSON.stringify(r));
+  await page.getByText('Safe', { exact: true }).first().click();
+  await settle(page, 800);
+  const prev2 = page.getByRole('button', { name: /preview/i }).first();
+  if (await prev2.isVisible().catch(() => false)) { await prev2.click(); await settle(page, 800); }
+  await page.locator('.daymark-markdown-body a', { hasText: 'x' }).first().click({ timeout: 2000 }).catch(() => {});
+  await settle(page, 300);
+  check('B7c', !(await page.evaluate(() => window.__xss4)), 'javascript: links are not executed', 'javascript: URL ran');
+  check('B7d', (await page.locator('.daymark-callout-tip').count()) > 0, 'callouts still render');
+  check('B7f', (await page.locator('.daymark-markdown-body input[type=checkbox][data-task-index]').count()) > 0, 'task checkboxes still render');
+  check('B7e', (await page.locator('button[data-internal-note="Plan"]').count()) > 0, '[[Plan]] link button still renders');
   await context.close();
 });
 

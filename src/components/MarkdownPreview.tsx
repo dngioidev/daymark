@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { marked } from 'marked';
+import { renderMarkdownHtml } from '../utils/markdownHtml';
 import {
   Check,
   Copy,
@@ -69,63 +69,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   }, [content]);
 
   // 2. Pre-process Markdown: Callouts, Internal links, Clean machine comments
-  const processedHtml = useMemo(() => {
-    if (!cleanBody || !cleanBody.trim()) return '';
-
-    let text = cleanBody;
-
-    // Clean Daymark HTML machine comments from rendered output
-    text = text.replace(/<!--\s*daymark:[\s\S]*?-->/gi, '');
-
-    // Support Obsidian-style callouts:
-    // > [!NOTE] text -> custom callout
-    // > [!TIP] text
-    // > [!WARNING] text
-    // > [!CAUTION] text
-    text = text.replace(
-      /^>\s*\[!(NOTE|INFO|TIP|WARNING|CAUTION|IMPORTANT|ALERT)\]([^\n]*)\n((?:^>[^\n]*\n?)*)/gim,
-      (match, type, title, body) => {
-        const cleanType = type.toUpperCase();
-        const calloutTitle = title.trim() || cleanType.charAt(0) + cleanType.slice(1).toLowerCase();
-        const calloutBody = body.replace(/^>\s?/gm, '');
-        return `<div class="daymark-callout daymark-callout-${cleanType.toLowerCase()}"><div class="daymark-callout-header"><span class="daymark-callout-title">${calloutTitle}</span></div><div class="daymark-callout-content">${calloutBody}</div></div>\n`;
-      }
-    );
-
-    // Support [[Internal Note Links]]
-    text = text.replace(/\[\[(.*?)\]\]/g, (match, noteTitle) => {
-      const trimmed = noteTitle.trim();
-      return `<button type="button" data-internal-note="${encodeURIComponent(
-        trimmed
-      )}" class="daymark-internal-link inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 underline decoration-amber-400/60 decoration-1 underline-offset-2 px-1 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer"><span>📝</span><span>${trimmed}</span></button>`;
-    });
-
-    try {
-      // Configure marked for rich GFM rendering
-      const parsed = marked.parse(text, {
-        breaks: true,
-        gfm: true,
-      }) as string;
-
-      // Add interactive attributes to checkboxes if onToggleTaskItem is available
-      let taskIndex = 0;
-      const interactiveParsed = parsed.replace(
-        /<input([^>]*?)type="checkbox"([^>]*?)>/gi,
-        (match, before, after) => {
-          const isChecked = match.includes('checked');
-          const currentIdx = taskIndex++;
-          return `<input type="checkbox"${isChecked ? ' checked' : ''} data-task-index="${currentIdx}" class="daymark-interactive-checkbox" ${
-            onToggleTaskItem ? '' : 'disabled'
-          } />`;
-        }
-      );
-
-      return interactiveParsed;
-    } catch (e) {
-      console.error('Markdown parse error:', e);
-      return text;
-    }
-  }, [cleanBody, onToggleTaskItem]);
+  const processedHtml = useMemo(
+    () => renderMarkdownHtml(cleanBody, !!onToggleTaskItem),
+    [cleanBody, onToggleTaskItem]
+  );
 
   // Handle interactive clicks inside the rendered container
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
