@@ -8,7 +8,8 @@ function getInstallId(): string {
   const KEY = 'daymark_install_id';
   let id = localStorage.getItem(KEY);
   if (!id) {
-    id = `inst-${crypto.randomUUID()}`;
+    // Not crypto.randomUUID: it only exists on HTTPS, and LAN servers are often plain http://
+    id = `inst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 12)}`;
     localStorage.setItem(KEY, id);
   }
   return id;

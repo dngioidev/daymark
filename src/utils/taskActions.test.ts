@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
 import { isDailyDocument } from './vaultValidation';
 import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
@@ -24,6 +24,17 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
 
 describe('toggleTaskDoneInDocument', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('works where crypto.randomUUID is missing (app opened over plain HTTP on a LAN address)', () => {
+    vi.stubGlobal('crypto', {});
+    const original = doc([task('a')]);
+    const done = toggleTaskDoneInDocument(original, 'a', original.date)!;
+    const reopened = toggleTaskDoneInDocument(done.doc, 'a', original.date)!;
+    expect(done.task.status).toBe('done');
+    expect(new Set(reopened.task.historyLog.map((h) => h.id)).size).toBe(2);
+  });
+
   it('toggles an accepted legacy task that has no history', () => {
     const legacy: unknown = { date: '2026-10-21', headings: [{ name: 'Work', items: [
       { id: 'a', title: 'Legacy task', status: 'blocked', createdDate: '2026-10-21' },

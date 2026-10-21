@@ -33,13 +33,13 @@ const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ na
 
 const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
-async function fresh({ docs = [], notes = [], mobile = false } = {}) {
+async function fresh({ docs = [], notes = [], mobile = false, origin = base } = {}) {
   const context = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.goto(origin, { waitUntil: 'networkidle' });
   await page.evaluate(async ({ docs, notes }) => {
     const db = await new Promise((res, rej) => { const r = indexedDB.open('daymark', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const put = (k, v) => new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
@@ -436,6 +436,19 @@ await run('C5', async () => {
       await context.close();
     }
   }
+});
+
+await run('C6', async () => {
+  // Self-hosted servers are often opened as http://<lan-ip>:3000, which browsers treat as an insecure context
+  const lanIp = Object.values(os.networkInterfaces()).flat().find((i) => i && i.family === 'IPv4' && !i.internal)?.address;
+  if (!lanIp) return check('C6', true, 'ticking a task works over plain HTTP on a LAN address (skipped: no LAN IPv4 address)');
+  const { page, context, errors } = await fresh({ origin: `http://${lanIp}:${PORT}`, docs: [doc(TODAY, [task('a', 'blocked', TODAY, { title: 'LAN task' })])] });
+  const secure = await page.evaluate(() => isSecureContext);
+  await page.getByRole('button', { name: 'Mark "LAN task" done' }).click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('C6', !secure && titlesOn(docs, TODAY)[0] === 'LAN task|done' && errors.length === 0, 'ticking a task works over plain HTTP on a LAN address', `secure=${secure} stored=${JSON.stringify(titlesOn(docs, TODAY))} errors=${errors.slice(0, 2).join(' | ')}`);
+  await context.close();
 });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

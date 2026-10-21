@@ -10,7 +10,7 @@ export function toggleTaskDone(task: TaskItem, date: string): TaskItem {
     ...(!wasDone ? { statusBeforeDone: task.status } : {}),
     completedDate: wasDone ? undefined : date,
     historyLog: [...(task.historyLog ?? []), {
-      id: `hist-${crypto.randomUUID()}`,
+      id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
       timestamp: new Date().toISOString(),
       date,
       action: wasDone ? 'reopened' : 'status_changed',
