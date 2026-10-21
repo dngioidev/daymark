@@ -54,7 +54,7 @@ function keepTaskMetadata(parsed: DailyDocument, previous: DailyDocument): Daily
   for (const h of parsed.headings) {
     h.items = h.items.map((t) => {
       const old = byId.get(t.id);
-      return old ? { ...t, historyLog: old.historyLog, originalNoteDate: old.originalNoteDate, dismissedAlertDate: old.dismissedAlertDate, tags: old.tags } : t;
+      return old ? { ...t, historyLog: old.historyLog, originalNoteDate: old.originalNoteDate, dismissedAlertDate: old.dismissedAlertDate, tags: old.tags, statusBeforeDone: old.statusBeforeDone } : t;
     });
   }
   return parsed;

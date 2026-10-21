@@ -34,6 +34,7 @@ export interface TaskItem {
   title: string;
   description?: string;
   status: string; // maps to StatusDefinition.id
+  statusBeforeDone?: string; // Checkbox untick restores the status before completion
   createdDate: string; // YYYY-MM-DD
   originalNoteDate: string; // YYYY-MM-DD where originally created
   carriedFromDate?: string; // YYYY-MM-DD of the immediate previous day it rolled from

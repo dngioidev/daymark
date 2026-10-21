@@ -1,7 +1,26 @@
 import { DailyDocument, TaskItem } from '../types/daymark';
 
+/** Shared checkbox behaviour for task rows and queued Android widget actions. */
+export function toggleTaskDone(task: TaskItem, date: string): TaskItem {
+  const wasDone = task.status === 'done';
+  const { statusBeforeDone, ...rest } = task;
+  return {
+    ...rest,
+    status: wasDone ? statusBeforeDone || 'in-progress' : 'done',
+    ...(!wasDone ? { statusBeforeDone: task.status } : {}),
+    completedDate: wasDone ? undefined : date,
+    historyLog: [...task.historyLog, {
+      id: `hist-${crypto.randomUUID()}`,
+      timestamp: new Date().toISOString(),
+      date,
+      action: wasDone ? 'reopened' : 'status_changed',
+      details: wasDone ? 'Marked not done' : 'Marked done',
+    }],
+  };
+}
+
 /**
- * Toggles a task between done and in-progress inside one daily document.
+ * Toggles a task between done and its previous status inside one daily document.
  * Returns the updated copy plus the task, or null when the task is not in the document.
  * Shared by the UI checkbox and by actions queued from the Android widget.
  */
@@ -14,11 +33,10 @@ export function toggleTaskDoneInDocument(
   for (const heading of copy.headings) {
     const task = heading.items.find((t) => t.id === taskId);
     if (task) {
-      const wasDone = task.status === 'done';
-      task.status = wasDone ? 'in-progress' : 'done';
-      task.completedDate = wasDone ? undefined : date;
+      const updated = toggleTaskDone(task, date);
+      heading.items = heading.items.map((item) => item.id === taskId ? updated : item);
       copy.updatedAt = new Date().toISOString();
-      return { doc: copy, task, nowDone: !wasDone };
+      return { doc: copy, task: updated, nowDone: updated.status === 'done' };
     }
   }
   return null;

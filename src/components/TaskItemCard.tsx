@@ -17,6 +17,7 @@ import {
 import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, getAgingSeverity, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
 import { formatAge, formatDay } from '../utils/dateFormat';
+import { toggleTaskDone } from '../utils/taskActions';
 import { Menu } from './ui/Menu';
 import { confirmDialog } from './ui/feedback';
 
@@ -81,7 +82,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   const setStatus = (statusId: string) =>
     onUpdateTask({ ...task, status: statusId, completedDate: statusId === 'done' ? currentDate : undefined });
 
-  const toggleDone = () => setStatus(isDone ? 'in-progress' : 'done');
+  const toggleDone = () => onUpdateTask(toggleTaskDone(task, currentDate));
 
   const saveTitle = () => {
     const next = titleDraft.trim();
