@@ -182,7 +182,7 @@ await run('B8', async () => {
   if (await restore.isVisible().catch(() => false)) await restore.click();
   await settle(page, 1000);
   const stored = JSON.stringify(await readDocs(page));
-  const refused = await page.getByRole('alertdialog').or(page.getByRole('alert')).or(page.getByRole('dialog')).first().isVisible().catch(() => false);
+  const refused = await page.getByRole('alertdialog', { name: /can't be restored/i }).isVisible().catch(() => false);
   check('B8a', stored.includes('keep me') && refused && errors.length === 0, 'restoring a malformed backup is refused: vault untouched and an error is shown', `vault has "keep me"=${stored.includes('keep me')}, alert visible=${refused}, errors=${errors.slice(0, 2).join(' | ')}`);
   await page.reload({ waitUntil: 'networkidle' });
   await settle(page);
