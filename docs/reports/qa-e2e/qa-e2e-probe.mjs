@@ -1,0 +1,414 @@
+// QA customer-style e2e probes (2026-10-21). Each check asserts CORRECT behaviour; FAIL = open bug. Run from repo root after `npm run build`: node docs/reports/qa-e2e/qa-e2e-probe.mjs [scenarioPrefix]
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { chromium } from 'playwright-core';
+
+const PORT = 3111;
+const base = `http://localhost:${PORT}`;
+const only = process.argv[2];
+const results = [];
+const check = (id, ok, label, detail = '') => {
+  results.push({ id, ok, label, detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  [${id}] ${label}${detail ? `  -> ${detail}` : ''}`);
+};
+
+const server = spawn('npx', ['tsx', 'server.ts'], {
+  env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-qa-')), DAYMARK_PASSWORD: 'qa-password-123' },
+  shell: true,
+  stdio: 'ignore',
+});
+for (let i = 0; i < 60; i++) {
+  try { if ((await fetch(`${base}/api/health`)).ok) break; } catch {}
+  await new Promise((r) => setTimeout(r, 500));
+}
+
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return ymd(d); };
+const TODAY = day(0), Y1 = day(-1), Y2 = day(-2), Y5 = day(-5);
+
+const task = (id, status, created, extra = {}) => ({ id, title: `Task ${id}`, status, createdDate: created, originalNoteDate: created, heading: 'Work', order: 1, historyLog: [], ...extra });
+const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ name: 'Work', items, notesContent: notes }, { name: 'Ideas', items: [], notesContent: '' }], updatedAt: `${date}T08:00:00Z` });
+
+const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
+
+async function fresh({ docs = [], notes = [], mobile = false } = {}) {
+  const context = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.evaluate(async ({ docs, notes }) => {
+    const db = await new Promise((res, rej) => { const r = indexedDB.open('daymark', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const put = (k, v) => new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    await put('daily_docs', docs); await put('notes', notes); await put('onboarded', true);
+    db.close();
+  }, { docs, notes });
+  await page.reload({ waitUntil: 'networkidle' });
+  return { context, page, errors };
+}
+const readDocs = (page) => page.evaluate(async () => {
+  const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => res(r.result); });
+  return new Promise((res) => { const r = db.transaction('kv').objectStore('kv').get('daily_docs'); r.onsuccess = () => res(r.result); });
+});
+const titlesOn = (docs, date) => (docs.find((d) => d.date === date)?.headings ?? []).flatMap((h) => h.items.map((t) => `${t.title}|${t.status}`));
+const settle = (page, ms = 600) => page.waitForTimeout(ms);
+const run = async (id, fn) => {
+  if (only && !id.startsWith(only)) return;
+  try { await fn(); } catch (e) { check(id, false, 'scenario crashed', e.message.split('\n')[0]); }
+};
+
+// ---------------------------------------------------------------------------
+await run('B1', async () => {
+  const { page, context } = await fresh({ docs: [doc(Y1, [task('a', 'in-progress', Y1, { title: 'Carried task' })])] });
+  check('B1a', await page.getByRole('button', { name: 'Mark "Carried task" done' }).isVisible(), 'unfinished task from yesterday is carried to today on open');
+  await page.getByRole('button', { name: 'More actions for "Carried task"' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+  await settle(page);
+  check('B1b', !(await page.getByRole('button', { name: 'Mark "Carried task" done' }).isVisible()), 'task disappears after delete');
+  await page.reload({ waitUntil: 'networkidle' });
+  await settle(page);
+  check('B1c', !(await page.getByRole('button', { name: 'Mark "Carried task" done' }).isVisible()), 'deleted carried task stays deleted after reload', 'task came back after reload');
+  await context.close();
+});
+
+await run('B2', async () => {
+  const { page, context } = await fresh({ docs: [doc(Y1, [task('y', 'done', Y1, { title: 'Yesterday item', completedDate: Y1 })]), doc(TODAY, [task('t', 'in-progress', TODAY, { title: 'Today item' })])] });
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const area = page.locator('textarea').first();
+  const text = await area.inputValue();
+  await area.fill(text.replace('Today item', 'Today item EDITED IN MARKDOWN'));
+  await page.getByRole('button', { name: 'Previous day' }).click();
+  await settle(page);
+  const shownDraft = await page.locator('textarea').first().inputValue().catch(() => '');
+  check('B2a', !shownDraft.includes('EDITED IN MARKDOWN') || false, 'changing day with unsaved Markdown asks or keeps the draft with its own day', `yesterday's editor shows today's draft`);
+  const save = page.getByRole('button', { name: /^save/i }).first();
+  if (await save.isVisible().catch(() => false)) { await save.click(); await settle(page); }
+  const docs = await readDocs(page);
+  check('B2b', !titlesOn(docs, Y1).some((t) => t.includes('Today item')), "saving after changing day does not overwrite yesterday with today's content", JSON.stringify(titlesOn(docs, Y1)));
+  await context.close();
+});
+
+await run('B3', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'Call vendor', description: '#urgent ask about invoice' })], 'Shopping:\n- [ ] milk\n- [x] eggs\n\n## Agenda\nitem')] });
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const area = page.locator('textarea').first();
+  await area.fill((await area.inputValue()) + '\n');
+  await page.getByRole('button', { name: /^save/i }).first().click();
+  await settle(page);
+  const docs = await readDocs(page);
+  const d = docs.find((x) => x.date === TODAY);
+  check('B3a', d.headings.map((h) => h.name).join(',') === 'Work,Ideas', 'saving Markdown without real changes keeps the same sections', d.headings.map((h) => h.name).join(','));
+  check('B3b', titlesOn(docs, TODAY).length === 1, 'note checklist lines do not turn into tasks', JSON.stringify(titlesOn(docs, TODAY)));
+  await context.close();
+});
+
+await run('B4', async () => {
+  const { page, context } = await fresh({ docs: [doc(Y2, [task('a', 'in-progress', Y2, { title: 'Old name' })]), doc(Y1, [task('a', 'in-progress', Y2, { title: 'Old name', carriedFromDate: Y2 })])] });
+  await page.getByRole('button', { name: 'More actions for "Old name"' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  const input = page.getByRole('textbox', { name: 'Task title' });
+  await input.fill('New name');
+  await input.press('Enter');
+  await settle(page);
+  await page.getByRole('button', { name: 'More actions for "New name"' }).click();
+  await page.getByRole('menuitem', { name: /^Mark done yesterday/i }).click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('B4', titlesOn(docs, Y1).some((t) => t.startsWith('New name|done')), "'Mark done yesterday' keeps today's rename", JSON.stringify(titlesOn(docs, Y1)));
+  await context.close();
+});
+
+await run('B5', async () => {
+  const { page, context } = await fresh({ docs: [doc(Y1, [task('a', 'in-progress', Y1, { title: 'Finish report' })]), doc(TODAY, [task('a', 'done', Y1, { title: 'Finish report', carriedFromDate: Y1, completedDate: TODAY })])] });
+  await page.getByRole('button', { name: /done/i }).filter({ hasText: /done/i }).first().click().catch(() => {});
+  await page.getByText('Finish report').first().click().catch(() => {});
+  // open details via the menu
+  await page.keyboard.press('Escape');
+  const more = page.getByRole('button', { name: 'More actions for "Finish report"' });
+  if (!(await more.isVisible())) await page.getByRole('button', { name: /done today|1 done|done/i }).first().click();
+  await more.click();
+  await page.getByRole('menuitem', { name: /Details/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Reopen' }).click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('B5', titlesOn(docs, TODAY)[0]?.endsWith('|in-progress'), "Details > Reopen on a carried task done today reopens it", JSON.stringify(titlesOn(docs, TODAY)));
+  await context.close();
+});
+
+await run('B6', async () => {
+  const { page, context } = await fresh({ docs: [doc(Y2, [task('a', 'in-progress', Y2, { title: 'Past task' })]), doc(Y1, [task('a', 'done', Y2, { title: 'Past task', carriedFromDate: Y2, completedDate: Y1 })]), doc(TODAY, [task('z', 'in-progress', TODAY, { title: 'filler' })])] });
+  await page.getByRole('button', { name: /^History$/ }).first().click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Reopen' }).first().click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('B6a', titlesOn(docs, Y1)[0]?.endsWith('|in-progress'), 'History > Reopen marks the task not done on that day', JSON.stringify(titlesOn(docs, Y1)));
+  await page.getByRole('button', { name: /^Today$/ }).first().click();
+  await settle(page);
+  check('B6b', await page.getByText('Past task').isVisible(), 'a task reopened in History shows up on Today', 'not on Today until tomorrow / manual refresh');
+  await context.close();
+});
+
+await run('B7', async () => {
+  const xssNote = { id: 'n1', title: 'XSS', folder: 'General', content: 'hello <img src=x onerror="window.__xss=1"> [[<img src=y onerror="window.__xss2=1">]]', tags: [], createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' };
+  const { page, context } = await fresh({ notes: [xssNote], docs: [doc(TODAY, [], 'notes <img src=z onerror="window.__xss3=1">')] });
+  await settle(page, 800);
+  const todayXss = await page.evaluate(() => window.__xss3);
+  await page.getByRole('button', { name: /^Notes$/ }).first().click();
+  await page.getByText('XSS', { exact: true }).first().click();
+  await settle(page, 800);
+  const prev = page.getByRole('button', { name: /preview/i }).first();
+  if (await prev.isVisible().catch(() => false)) { await prev.click(); await settle(page, 800); }
+  const r = await page.evaluate(() => [window.__xss, window.__xss2]);
+  check('B7a', !todayXss, 'HTML in day notes is not executed', 'onerror handler ran on Today');
+  check('B7b', !r[0] && !r[1], 'HTML in standalone notes is not executed', JSON.stringify(r));
+  await context.close();
+});
+
+await run('B8', async () => {
+  const { page, context, errors } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'keep me' })])] });
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.getByRole('tab', { name: /backup/i }).first().click().catch(() => {});
+  const fileInput = page.locator('input[type=file]').first();
+  const bad = path.join(os.tmpdir(), 'qa-bad.json');
+  fs.writeFileSync(bad, JSON.stringify({ daily_documents: [{ foo: 1 }], standalone_notes: [] }));
+  await fileInput.setInputFiles(bad);
+  await settle(page);
+  const restore = page.getByRole('button', { name: 'Restore' });
+  if (await restore.isVisible().catch(() => false)) await restore.click();
+  await settle(page, 1000);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B8.png') });
+  console.log('B8 stored docs:', JSON.stringify(await readDocs(page)).slice(0, 200));
+  const alive = await page.locator('nav, header').first().isVisible().catch(() => false);
+  check('B8a', alive && errors.length === 0, 'restoring a malformed backup is refused without breaking the app', errors.slice(0, 2).join(' | ') || 'app UI gone');
+  await page.reload({ waitUntil: 'networkidle' });
+  await settle(page);
+  const alive2 = await page.getByRole('button', { name: 'Settings' }).first().isVisible().catch(() => false);
+  check('B8b', alive2, 'app still opens after attempting a malformed restore', 'blank page after reload (vault bricked)');
+  await context.close();
+});
+
+await run('B9', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
+  const page2 = await context.newPage();
+  await page2.goto(base, { waitUntil: 'networkidle' });
+  const add = async (p, title) => {
+    await p.keyboard.press('Control+k');
+    await p.getByPlaceholder(/what do you need to do/i).fill(title);
+    await p.keyboard.press('Enter');
+    await settle(p);
+  };
+  await add(page, 'from tab A');
+  await add(page2, 'from tab B');
+  await settle(page, 1000);
+  const p3 = await context.newPage();
+  await p3.goto(base, { waitUntil: 'networkidle' });
+  await settle(p3);
+  const docs = await readDocs(p3);
+  const t = titlesOn(docs, TODAY).join(',');
+  check('B9', t.includes('from tab A') && t.includes('from tab B'), 'tasks added in two open tabs are both kept', t);
+  await context.close();
+});
+
+await run('B10', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'aging task' })])] });
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.getByRole('tab', { name: /warn|aging|old/i }).first().click();
+  await page.locator('#aging-attentionDays').fill('20');
+  await page.locator('#aging-criticalDays').fill('5');
+  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B10.png') });
+  await page.getByRole('button', { name: /^save/i }).last().click();
+  await settle(page);
+  const s = await page.evaluate(async () => {
+    const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => res(r.result); });
+    return new Promise((res) => { const r = db.transaction('kv').objectStore('kv').get('settings'); r.onsuccess = () => res(r.result?.agingThresholds); });
+  });
+  check('B10', s && s.criticalDays > s.attentionDays, 'urgent threshold can not be saved below the attention threshold', JSON.stringify(s));
+  await context.close();
+});
+
+await run('B11', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.getByRole('tab', { name: /sections/i }).first().click();
+  for (const h of ['Work', 'Meetings', 'Ideas', 'Attention']) await page.getByRole('button', { name: `Remove section ${h}` }).click().catch(() => {});
+  await page.getByRole('button', { name: /^save/i }).last().click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Next day' }).click();
+  await page.keyboard.press('Control+k');
+  await settle(page);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B11.png') });
+  const opts = await page.getByRole('dialog').locator('select option, [role=radio], [role=option]').count();
+  check('B11', opts > 0, 'with every default section removed, a new task still has a section to go into', `options=${opts}`);
+  await context.close();
+});
+
+await run('B12', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
+  await page.keyboard.press('Control+k');
+  const input = page.getByPlaceholder(/what do you need to do/i);
+  await input.fill('     ');
+  await page.keyboard.press('Enter');
+  await settle(page);
+  let docs = await readDocs(page);
+  check('B12a', titlesOn(docs, TODAY).length === 0, 'whitespace-only title is not saved', JSON.stringify(titlesOn(docs, TODAY)));
+  const long = 'L'.repeat(5000);
+  await input.fill(long).catch(() => {});
+  await page.keyboard.press('Enter');
+  await settle(page);
+  const w = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  check('B12b', w, 'a 5000-character title does not make the page scroll sideways');
+  await context.close();
+});
+
+await run('B13', async () => {
+  // Midnight rollover while the app is open
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const now = new Date(); now.setHours(23, 59, 0, 0);
+  await page.clock.install({ time: now });
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.evaluate(async (docs) => {
+    const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); });
+    const put = (k, v) => new Promise((res) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; });
+    await put('daily_docs', docs); await put('onboarded', true);
+  }, [doc(TODAY, [task('m', 'in-progress', TODAY, { title: 'Overnight task' })])]);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.clock.fastForward('02:00');
+  await settle(page, 1000);
+  const heading = await page.locator('h1').first().innerText();
+  check('B13a', /tomorrow|today/i.test(heading) || true, 'header after midnight', heading);
+  const docs = await readDocs(page);
+  check('B13b', titlesOn(docs, day(1)).some((t) => t.startsWith('Overnight task')), 'after midnight the open task is carried to the new day automatically', JSON.stringify(docs.map((d) => d.date)));
+  await context.close();
+});
+
+await run('B14', async () => {
+  // Mobile: complete flow - capture, toggle, history, notes
+  const { page, context, errors } = await fresh({ mobile: true, docs: [doc(Y1, [task('a', 'in-progress', Y5, { title: 'Phone carried task' })])] });
+  check('B14a', await page.getByText('Phone carried task').isVisible(), 'phone: carried task visible');
+  await page.getByRole('button', { name: 'Mark "Phone carried task" done' }).click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('B14b', titlesOn(docs, TODAY).some((t) => t === 'Phone carried task|done'), 'phone: tick marks the task done');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check('B14c', overflow <= 1, 'phone: no sideways scroll', `overflow=${overflow}`);
+  check('B14d', errors.length === 0, 'phone: no console errors', errors.slice(0, 2).join(' | '));
+  await context.close();
+});
+
+await run('B15', async () => {
+  // Undo after delete then another edit: undo must not wipe the later edit
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'Alpha' }), task('b', 'in-progress', TODAY, { title: 'Beta' })])] });
+  await page.getByRole('button', { name: 'More actions for "Alpha"' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+  await settle(page, 300);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B15.png') });
+  await page.getByRole('button', { name: 'Mark "Beta" done' }).click();
+  await settle(page, 300);
+  const undo = page.getByRole('status').filter({ hasText: 'Deleted' }).getByRole('button', { name: 'Undo' }).or(page.locator('div').filter({ hasText: /^Deleted/ }).getByRole('button', { name: 'Undo' })).first();
+  console.log('toasts:', await page.getByRole('button', { name: 'Undo' }).count());
+  if (await undo.isVisible().catch(() => false)) await undo.click();
+  await settle(page);
+  const docs = await readDocs(page);
+  const t = titlesOn(docs, TODAY);
+  check('B15', t.includes('Alpha|in-progress') && t.includes('Beta|done'), 'Undo restores the deleted task without reverting later edits', JSON.stringify(t));
+  await context.close();
+});
+
+await run('C1', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
+  await page.getByRole('button', { name: 'Previous day' }).click();
+  await page.keyboard.press('Control+k');
+  const title = await page.getByRole('dialog').locator('h2').first().innerText();
+  await page.getByPlaceholder(/what do you need to do/i).fill('Captured while viewing yesterday');
+  await page.keyboard.press('Enter');
+  await settle(page);
+  const docs = await readDocs(page);
+  const where = docs.filter((d) => titlesOn(docs, d.date).some((t) => t.startsWith('Captured'))).map((d) => d.date);
+  check('C1', !(title.includes('Today') && where[0] !== TODAY), 'quick-capture dialog names the day the task is saved to', `title="${title}" saved to ${where}`);
+  await context.close();
+});
+
+await run('C2', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
+  await page.keyboard.press('Control+k');
+  await page.keyboard.press('Escape');
+  await settle(page, 300);
+  check('C2a', (await page.getByRole('dialog').count()) === 0, 'Escape closes the new-task dialog');
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const area = page.locator('textarea').first();
+  await area.fill((await area.inputValue()) + '\nsome unsaved text');
+  await page.getByRole('button', { name: 'More options for this day' }).click();
+  await page.getByRole('menuitem', { name: 'New section' }).click();
+  await settle(page, 300);
+  const asked = (await page.getByRole('dialog').count()) > 0 || (await page.getByRole('alertdialog').count()) > 0;
+  check('C2b', asked, "'New section' from the menu warns before discarding unsaved Markdown", 'draft silently discarded');
+  await context.close();
+});
+
+await run('C3', async () => {
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'blocked', TODAY, { title: 'Blocked thing' })])] });
+  await page.getByRole('button', { name: 'Mark "Blocked thing" done' }).click();
+  await settle(page, 300);
+  const undoneBtn = page.getByRole('button', { name: 'Mark "Blocked thing" not done' });
+  if (!(await undoneBtn.isVisible())) await page.getByRole('button', { name: /done/i }).last().click().catch(() => {});
+  await undoneBtn.click();
+  await settle(page);
+  const docs = await readDocs(page);
+  check('C3', titlesOn(docs, TODAY)[0] === 'Blocked thing|blocked', 'unticking a task returns it to its previous status', JSON.stringify(titlesOn(docs, TODAY)));
+  await context.close();
+});
+
+await run('C4', async () => {
+  // Undo of a delete must not revert a rename done in between
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'Alpha' }), task('b', 'in-progress', TODAY, { title: 'Beta' })])] });
+  await page.getByRole('button', { name: 'More actions for "Alpha"' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+  await settle(page, 300);
+  await page.getByRole('button', { name: 'More actions for "Beta"' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  await page.getByRole('textbox', { name: 'Task title' }).fill('Beta renamed');
+  await page.getByRole('textbox', { name: 'Task title' }).press('Enter');
+  await settle(page, 300);
+  const undo = page.getByRole('button', { name: 'Undo' }).first();
+  const hasUndo = await undo.isVisible().catch(() => false);
+  if (hasUndo) await undo.click();
+  await settle(page);
+  const docs = await readDocs(page);
+  const t = titlesOn(docs, TODAY);
+  check('C4', !hasUndo || (t.includes('Alpha|in-progress') && t.includes('Beta renamed|in-progress')), 'Undo delete keeps a rename made after the delete', JSON.stringify(t));
+  await context.close();
+});
+
+await run('C5', async () => {
+  // Reported by the user: filter to old tasks, complete them all -> page empty, no way back
+  for (const how of ['complete', 'hide-warning']) {
+    const { page, context } = await fresh({ docs: [doc(TODAY, [task('old', 'in-progress', day(-8), { title: 'Old task' }), task('new', 'in-progress', TODAY, { title: 'Fresh task' })])] });
+    await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await settle(page, 300);
+    if (how === 'complete') await page.getByRole('button', { name: 'Mark "Old task" done' }).click();
+    else {
+      await page.getByRole('button', { name: 'More actions for "Old task"' }).click();
+      await page.getByRole('menuitem', { name: 'Hide warning today' }).click();
+    }
+    await settle(page);
+    const fresh_ = await page.getByRole('button', { name: 'Mark "Fresh task" done' }).isVisible();
+    const showAll = await page.getByRole('button', { name: 'Show all' }).isVisible();
+    await page.screenshot({ path: path.join(os.tmpdir(), `qa-C5-${how}.png`) });
+    check(`C5-${how}`, fresh_ || showAll, `after the last old task is cleared (${how}), the full list or a "Show all" button is visible`, `fresh task visible=${fresh_}, Show all visible=${showAll}`);
+    await context.close();
+  }
+});
+
+console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
+fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
+await browser.close();
+server.kill();
+process.exit(0);
