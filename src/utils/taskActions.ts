@@ -9,7 +9,7 @@ export function toggleTaskDone(task: TaskItem, date: string): TaskItem {
     status: wasDone ? statusBeforeDone || 'in-progress' : 'done',
     ...(!wasDone ? { statusBeforeDone: task.status } : {}),
     completedDate: wasDone ? undefined : date,
-    historyLog: [...task.historyLog, {
+    historyLog: [...(task.historyLog ?? []), {
       id: `hist-${crypto.randomUUID()}`,
       timestamp: new Date().toISOString(),
       date,

@@ -250,6 +250,23 @@ describe('sync between two devices', () => {
 });
 
 describe('sync validation', () => {
+  it.each(['GET', 'POST'])('omits corrupt stored values on a pull-only %s without deleting them', async (method) => {
+    const a = await connect('Fresh device');
+    const corrupt = { rev: 1, value: { date: '2026-10-20', headings: 'broken' }, updatedBy: a.deviceId, updatedAt: '2026-10-20T00:00:00Z' };
+    fileStore.vault.rev = 2;
+    fileStore.vault.entities['doc:2026-10-20'] = corrupt;
+    fileStore.vault.entities['note:good'] = { rev: 2, value: note('good', 'Keep this note'), updatedBy: a.deviceId, updatedAt: '2026-10-20T00:00:00Z' };
+    const res = method === 'GET'
+      ? await fetch(base + '/api/sync?since=0', { headers: { Authorization: `Bearer ${a.token}` } })
+      : await post('/api/sync', { sinceRev: 0, changes: [] }, a.token);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.entities.map((e: { key: string }) => e.key)).toEqual(['note:good']);
+    expect(fileStore.vault.entities['doc:2026-10-20']).toEqual(corrupt);
+    const repaired = await post('/api/sync', { sinceRev: body.rev, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.token);
+    expect(repaired.status).toBe(200);
+    expect((await repaired.json()).entities).toContainEqual(expect.objectContaining({ key: 'doc:2026-10-20', value: day([task('a')]) }));
+  });
   const dailyNotes = async (token: string) =>
     (await (await fetch(`${base}/api/server/stats`, { headers: { Authorization: `Bearer ${token}` } })).json()).dailyNotes;
 

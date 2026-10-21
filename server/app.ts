@@ -208,6 +208,8 @@ export function createApp(config: ServerConfig, store: FileStore) {
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)
         .filter(([key, e]) => e.rev > sinceRev || touched.has(key))
+        // Keep damaged legacy entries available for repair, but never send them to another device.
+        .filter(([key, e]) => e.value === null || validValue(key, e.value))
         .map(([key, e]) => ({ key, rev: e.rev, value: e.value }));
 
       device.lastSyncAt = now;

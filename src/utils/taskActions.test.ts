@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
+import { isDailyDocument } from './vaultValidation';
 import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
@@ -23,6 +24,16 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
 
 describe('toggleTaskDoneInDocument', () => {
+  it('toggles an accepted legacy task that has no history', () => {
+    const legacy: unknown = { date: '2026-10-21', headings: [{ name: 'Work', items: [
+      { id: 'a', title: 'Legacy task', status: 'blocked', createdDate: '2026-10-21' },
+    ] }] };
+    expect(isDailyDocument(legacy)).toBe(true);
+    if (!isDailyDocument(legacy)) throw new Error('Invalid fixture');
+    const done = toggleTaskDoneInDocument(legacy, 'a', legacy.date)!;
+    expect(done.task.status).toBe('done');
+    expect(done.task.historyLog.map((h) => h.action)).toEqual(['status_changed']);
+  });
   it.each(['blocked', 'waiting', 'not-started'])('unticking returns a %s task to its previous status', (status) => {
     const original = doc([{ ...task('a'), status }]);
     const done = toggleTaskDoneInDocument(original, 'a', original.date)!;

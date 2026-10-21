@@ -121,6 +121,8 @@ try {
   await page.getByText('Captured offline (e2e)').first().waitFor();
   await shot('android-3-offline-capture');
   await page.reload({ waitUntil: 'domcontentloaded' });
+  // Offline navigation finishes before React hydrates IndexedDB; wait for the saved task as above.
+  await page.getByText('Captured offline (e2e)').first().waitFor({ timeout: 10000 }).catch(() => {});
   check(await page.getByText('Captured offline (e2e)').first().isVisible().catch(() => false), 'offline capture survives offline reload');
   // Export works offline too (JSZip is a lazy chunk the service worker precaches)
   await page.getByRole('button', { name: /^settings$/i }).click();
