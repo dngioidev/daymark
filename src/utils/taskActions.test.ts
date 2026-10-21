@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
-import { removeTaskFromDocument, restoreTaskToDocument } from './taskActions';
+import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
   id,
@@ -59,5 +59,31 @@ describe('removeTaskFromDocument / restoreTaskToDocument', () => {
     const back = restoreTaskToDocument(noHeading, res.removed);
     expect(back.headings.map((h) => h.name)).toEqual(['Work']);
     expect(titles(back)).toEqual(['a']);
+  });
+});
+
+describe('applyMarkdownEdit', () => {
+  it('keeps existing tombstones and adds ids dropped by the edit, without duplicates', () => {
+    const previous: DailyDocument = { ...doc([task('a'), task('b')]), removedTaskIds: ['x', 'a'] };
+    const result = applyMarkdownEdit(previous, doc([]));
+    expect(result.removedTaskIds?.slice().sort()).toEqual(['a', 'b', 'x']);
+  });
+
+  it('keeps tombstones when nothing was dropped', () => {
+    const previous: DailyDocument = { ...doc([task('a')]), removedTaskIds: ['x'] };
+    expect(applyMarkdownEdit(previous, doc([task('a')])).removedTaskIds).toEqual(['x']);
+  });
+
+  it('does not tombstone ids that are still present, and omits an empty list', () => {
+    expect(applyMarkdownEdit(doc([task('a')]), doc([task('a')])).removedTaskIds).toBeUndefined();
+  });
+});
+
+describe('replaceTaskInDocument', () => {
+  it('swaps only that task', () => {
+    const d = doc([task('a', 'A'), task('b', 'B')]);
+    const done = { ...task('b', 'B'), status: 'done' };
+    const next = replaceTaskInDocument({ ...d, headings: [{ ...d.headings[0], items: [task('a', 'A renamed'), done] }] }, task('b', 'B'));
+    expect(next.headings[0].items.map((t) => `${t.title}:${t.status}`)).toEqual(['A renamed:in-progress', 'B:in-progress']);
   });
 });

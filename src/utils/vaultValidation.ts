@@ -11,6 +11,7 @@ function isTaskLike(v: unknown): boolean {
 
 export function isDailyDocument(v: unknown): v is DailyDocument {
   if (!isObject(v) || !isString(v.date) || !/^\d{4}-\d{2}-\d{2}$/.test(v.date) || !Array.isArray(v.headings)) return false;
+  if (v.removedTaskIds !== undefined && !(Array.isArray(v.removedTaskIds) && v.removedTaskIds.every(isString))) return false;
   return v.headings.every((h) => isObject(h) && isString(h.name) && Array.isArray(h.items) && h.items.every(isTaskLike));
 }
 

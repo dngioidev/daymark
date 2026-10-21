@@ -105,6 +105,14 @@ export function mergeDailyDocument(
     }
   }
 
+  // Neither device has synced this day yet: a deletion on either side wins over the other side's plain copy
+  if (!base) {
+    for (const side of [o, t]) {
+      const own = tasksById(side);
+      for (const id of side.removedTaskIds ?? []) if (!own.has(id)) mergedTasks.delete(id);
+    }
+  }
+
   // Heading order: incoming order first, then headings only the server has.
   const bNotes = headingNotes(base);
   const oNotes = headingNotes(o);

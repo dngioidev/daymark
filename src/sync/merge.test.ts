@@ -42,6 +42,22 @@ describe('mergeDailyDocument', () => {
     expect(ids(merged)).toEqual(['c:in-progress']);
   });
 
+  it('a deletion wins when neither device has synced the day (ours deleted)', () => {
+    const ours = doc([], '', { removedTaskIds: ['a'] });
+    const theirs = doc([task('a')]);
+    const merged = mergeDailyDocument(null, ours, theirs).value!;
+    expect(ids(merged)).toEqual([]);
+    expect(merged.removedTaskIds).toEqual(['a']);
+  });
+
+  it('a deletion wins when neither device has synced the day (theirs deleted)', () => {
+    const ours = doc([task('a')]);
+    const theirs = doc([], '', { removedTaskIds: ['a'] });
+    const merged = mergeDailyDocument(null, ours, theirs).value!;
+    expect(ids(merged)).toEqual([]);
+    expect(merged.removedTaskIds).toEqual(['a']);
+  });
+
   it('drops tombstones for tasks that are present', () => {
     const base = doc([task('a')]);
     const ours = doc([], '', { removedTaskIds: ['a'] });

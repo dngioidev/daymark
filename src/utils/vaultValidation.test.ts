@@ -15,6 +15,11 @@ describe('vault validation', () => {
     expect(
       isDailyDocument({ ...day('2026-10-20'), headings: [{ name: 'Work', items: [{ title: 'x' }] }] })
     ).toBe(false));
+  it('checks removedTaskIds is a list of strings', () => {
+    expect(isDailyDocument({ ...day('2026-10-20'), removedTaskIds: ['a'] })).toBe(true);
+    expect(isDailyDocument({ ...day('2026-10-20'), removedTaskIds: 'a' })).toBe(false);
+    expect(isDailyDocument({ ...day('2026-10-20'), removedTaskIds: [1] })).toBe(false);
+  });
   it('rejects a damaged note', () => expect(vaultProblem([], [{ id: 'n' }])).toMatch(/damaged/i));
   it('validates notes and settings', () => {
     expect(isStandaloneNote(SEED_STANDALONE_NOTES[0])).toBe(true);

@@ -16,7 +16,7 @@ import {
 import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
-import { removeTaskFromDocument, restoreTaskToDocument } from '../utils/taskActions';
+import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { hideTaskTags, parseDailyDocument, restoreTaskTags, serializeDailyDocument } from '../utils/markdownEngine';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -166,12 +166,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   const saveMarkdown = () => {
     const restored = restoreTaskTags(rawDraft, hiddenTags.current, date);
-    const parsedDoc = keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument);
-    // Tasks deleted by editing the markdown must stay deleted
-    const keptIds = new Set(parsedDoc.headings.flatMap((h) => h.items.map((t) => t.id)));
-    const droppedIds = currentDocument.headings.flatMap((h) => h.items.map((t) => t.id)).filter((id) => !keptIds.has(id));
-    const removedTaskIds = [...new Set([...(parsedDoc.removedTaskIds ?? []), ...droppedIds])];
-    const parsed: DailyDocument = removedTaskIds.length > 0 ? { ...parsedDoc, removedTaskIds } : parsedDoc;
+    const parsed = applyMarkdownEdit(currentDocument, keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument));
     onUpdateDocument(parsed);
     const { text, tags } = hideTaskTags(serializeDailyDocument(parsed));
     hiddenTags.current = tags;
@@ -198,11 +193,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         action: {
           label: 'Undo',
           onClick: () =>
-            onPatchDocument(date, (d) => ({
-              ...d,
-              headings: d.headings.map((h) => ({ ...h, items: h.items.map((t) => (t.id === previous.id ? previous : t)) })),
-              updatedAt: new Date().toISOString(),
-            })),
+            onPatchDocument(date, (d) => replaceTaskInDocument(d, previous)),
         },
       });
     }
@@ -301,12 +292,22 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const clearSectionNotes = async (sectionName: string) => {
     const ok = await confirmDialog({ title: `Clear the ${sectionName} notes?`, confirmLabel: 'Clear', danger: true });
     if (!ok) return;
-    const before = currentDocument;
+    const previousNotes = currentDocument.headings.find((h) => h.name === sectionName)?.notesContent ?? '';
     const newDoc = clone(currentDocument);
     const heading = newDoc.headings.find((h) => h.name === sectionName);
     if (heading) heading.notesContent = '';
     onUpdateDocument(touch(newDoc));
-    showToast(`Cleared ${sectionName} notes`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
+    showToast(`Cleared ${sectionName} notes`, {
+      action: {
+        label: 'Undo',
+        onClick: () =>
+          onPatchDocument(date, (d) => ({
+            ...d,
+            headings: d.headings.map((h) => (h.name === sectionName ? { ...h, notesContent: previousNotes } : h)),
+            updatedAt: new Date().toISOString(),
+          })),
+      },
+    });
   };
 
   const cardProps = {

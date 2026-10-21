@@ -373,6 +373,25 @@ await run('C4', async () => {
   await context.close();
 });
 
+await run('C4b', async () => {
+  // Undo of a Done must bring back only that task, not revert a rename done in between
+  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'Alpha' }), task('b', 'in-progress', TODAY, { title: 'Beta' })])] });
+  await page.getByRole('button', { name: 'Mark "Beta" done' }).click();
+  await settle(page, 300);
+  await page.getByRole('button', { name: 'More actions for "Alpha"' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  await page.getByRole('textbox', { name: 'Task title' }).fill('Alpha renamed');
+  await page.getByRole('textbox', { name: 'Task title' }).press('Enter');
+  await settle(page, 300);
+  const undo = page.getByRole('button', { name: 'Undo' }).first();
+  const hasUndo = await undo.isVisible().catch(() => false);
+  if (hasUndo) await undo.click();
+  await settle(page);
+  const t = titlesOn(await readDocs(page), TODAY);
+  check('C4b', hasUndo && t.includes('Beta|in-progress') && t.includes('Alpha renamed|in-progress'), 'Undo Done keeps a rename made after the tick', JSON.stringify(t));
+  await context.close();
+});
+
 await run('C5', async () => {
   // Reported by the user: filter to old tasks, complete them all -> page empty, no way back
   for (const how of ['complete', 'hide-warning']) {

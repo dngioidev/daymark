@@ -71,3 +71,26 @@ export function restoreTaskToDocument(doc: DailyDocument, removed: RemovedTask):
     updatedAt: new Date().toISOString(),
   };
 }
+
+/** Swaps one task for another version of itself (matched by id), leaving everything else as is. */
+export function replaceTaskInDocument(doc: DailyDocument, task: TaskItem): DailyDocument {
+  return {
+    ...doc,
+    headings: doc.headings.map((h) => ({ ...h, items: h.items.map((t) => (t.id === task.id ? task : t)) })),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Finishes a Markdown edit: tasks that were in `previous` but are gone from `parsed` were deleted by the edit,
+ * so they join the day's tombstones (existing ones are kept).
+ */
+export function applyMarkdownEdit(previous: DailyDocument, parsed: DailyDocument): DailyDocument {
+  const kept = new Set(parsed.headings.flatMap((h) => h.items.map((t) => t.id)));
+  const dropped = previous.headings.flatMap((h) => h.items.map((t) => t.id)).filter((id) => !kept.has(id));
+  const removedTaskIds = [...new Set([...(previous.removedTaskIds ?? []), ...(parsed.removedTaskIds ?? []), ...dropped])].filter(
+    (id) => !kept.has(id)
+  );
+  const { removedTaskIds: _ignored, ...rest } = parsed;
+  return removedTaskIds.length > 0 ? { ...rest, removedTaskIds } : rest;
+}
