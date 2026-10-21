@@ -161,9 +161,18 @@ function readArray<T>(key: string, fallback: T[]): T[] {
 }
 
 /** Drops entries damaged by an earlier bad restore so the app can still open. */
-function keepValid<T>(items: unknown[], isValid: (v: unknown) => v is T, label: string): T[] {
+export function keepValid<T>(items: unknown[], isValid: (v: unknown) => v is T, label: string): T[] {
   const valid = items.filter(isValid);
-  if (valid.length !== items.length) console.error(`Ignored ${items.length - valid.length} damaged ${label} entries.`);
+  if (valid.length === items.length) return items as T[]; // keep identity with the cached array
+  console.error(`Ignored ${items.length - valid.length} damaged ${label} entries.`);
+  return valid;
+}
+
+/** Like keepValid, but caches the cleaned array (no persistence) so later loads return the same one. */
+function loadValid<T>(key: string, isValid: (v: unknown) => v is T, label: string): T[] {
+  const items = readArray<unknown>(key, []);
+  const valid = keepValid(items, isValid, label);
+  if (valid !== items) cache.set(key, valid);
   return valid;
 }
 
@@ -179,7 +188,7 @@ export function saveSettings(settings: AppSettings): void {
 }
 
 export function loadDailyDocuments(): DailyDocument[] {
-  return keepValid(readArray<unknown>(KEYS.DAILY_DOCS, []), isDailyDocument, 'day');
+  return loadValid(KEYS.DAILY_DOCS, isDailyDocument, 'day');
 }
 
 export function saveDailyDocuments(docs: DailyDocument[]): void {
@@ -187,7 +196,7 @@ export function saveDailyDocuments(docs: DailyDocument[]): void {
 }
 
 export function loadStandaloneNotes(): StandaloneNote[] {
-  return keepValid(readArray<unknown>(KEYS.NOTES, []), isStandaloneNote, 'note');
+  return loadValid(KEYS.NOTES, isStandaloneNote, 'note');
 }
 
 export function saveStandaloneNotes(notes: StandaloneNote[]): void {

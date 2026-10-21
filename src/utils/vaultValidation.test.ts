@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument } from '../types/daymark';
-import { SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
+import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { isDailyDocument, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
-import { DEFAULT_SETTINGS } from './defaultData';
 
 const day = (date: string): DailyDocument => ({ date, type: 'daily', headings: [], updatedAt: `${date}T00:00:00.000Z` });
 
