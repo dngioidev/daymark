@@ -137,8 +137,50 @@ export async function initVaultStore(): Promise<void> {
   }
 }
 
+export type SharedKey = 'daily_docs' | 'notes' | 'settings';
+type ExternalListener = (key: SharedKey, value: unknown) => void;
+const externalListeners = new Set<ExternalListener>();
+const CHANNEL_NAME = 'daymark-vault';
+const channel: BroadcastChannel | null = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME);
+
+/** Accepts only well-formed messages for the three shared keys; anything else is ignored. */
+export function parseVaultMessage(data: unknown): { key: SharedKey; value: unknown } | null {
+  if (!data || typeof data !== 'object') return null;
+  const { key, value } = data as { key?: unknown; value?: unknown };
+  if ((key === 'daily_docs' || key === 'notes') && Array.isArray(value)) return { key, value };
+  if (key === 'settings' && value && typeof value === 'object' && !Array.isArray(value)) return { key, value };
+  return null;
+}
+
+if (channel) {
+  channel.onmessage = (event: MessageEvent) => {
+    const msg = parseVaultMessage(event.data);
+    if (!msg) return;
+    cache.set(msg.key, msg.value);
+    externalListeners.forEach((l) => l(msg.key, msg.value));
+  };
+}
+
+/** Called when another tab or window changes the daily docs, notes or settings. */
+export function subscribeExternalChanges(listener: ExternalListener): () => void {
+  externalListeners.add(listener);
+  return () => externalListeners.delete(listener);
+}
+
 function writeValue(key: string, value: unknown): void {
+  const previous = cache.get(key);
+  // Loop guard: a value received from another tab is saved back by the same reference.
+  // Settings are re-normalized into a new object, so they are compared by content.
+  if (value === previous) return;
+  if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return;
   cache.set(key, value);
+  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES) {
+    try {
+      channel?.postMessage({ key, value });
+    } catch {
+      // Not cloneable or channel closed; the other tab will pick the change up on its next load.
+    }
+  }
   if (storageMode === 'localstorage' || !db) {
     const legacyKey = LEGACY_KEYS[key];
     if (!legacyKey) return;

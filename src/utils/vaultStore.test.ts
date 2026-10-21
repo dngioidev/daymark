@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isStandaloneNote } from './vaultValidation';
 import { SEED_STANDALONE_NOTES } from './defaultData';
-import { keepValid } from './vaultStore';
+import { keepValid, parseVaultMessage } from './vaultStore';
 
 describe('keepValid (load-time filter)', () => {
   it('returns the same array when nothing is dropped', () => {
@@ -17,5 +17,22 @@ describe('keepValid (load-time filter)', () => {
     expect(result).not.toBe(notes);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('1 damaged note'));
     spy.mockRestore();
+  });
+});
+
+describe('parseVaultMessage (cross-tab messages)', () => {
+  it('accepts arrays for docs and notes and objects for settings', () => {
+    expect(parseVaultMessage({ key: 'daily_docs', value: [] })).toEqual({ key: 'daily_docs', value: [] });
+    expect(parseVaultMessage({ key: 'notes', value: [] })).toEqual({ key: 'notes', value: [] });
+    expect(parseVaultMessage({ key: 'settings', value: {} })).toEqual({ key: 'settings', value: {} });
+  });
+
+  it('ignores unknown keys and wrongly shaped values', () => {
+    expect(parseVaultMessage({ key: 'sync_state', value: {} })).toBeNull();
+    expect(parseVaultMessage({ key: 'daily_docs', value: {} })).toBeNull();
+    expect(parseVaultMessage({ key: 'settings', value: [] })).toBeNull();
+    expect(parseVaultMessage({ key: 'settings', value: null })).toBeNull();
+    expect(parseVaultMessage(null)).toBeNull();
+    expect(parseVaultMessage('x')).toBeNull();
   });
 });

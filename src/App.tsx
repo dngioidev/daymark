@@ -21,6 +21,7 @@ import {
   needsOnboarding,
   markOnboarded,
   subscribeStorageErrors,
+  subscribeExternalChanges,
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
@@ -187,6 +188,18 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
+
+  // Another open tab or window changed the vault: take its version instead of overwriting it
+  useEffect(
+    () =>
+      subscribeExternalChanges((key, value) => {
+        // The loaders drop damaged entries and keep the cached array's identity (loop guard)
+        if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
+        else if (key === 'notes') setNotes(loadStandaloneNotes());
+        else setSettings(normalizeSettings(value as AppSettings));
+      }),
+    [],
+  );
 
 
   // Ensure document exists for currentDate
