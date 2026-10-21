@@ -95,6 +95,7 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
   }
 
   const freeNotesBuffer: string[] = [];
+  let sectionHeadingLevel: number | undefined;
   let currentTask: Partial<TaskItem> | null = null;
   let taskOrder = 1;
 
@@ -147,11 +148,12 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
     const rawLine = lines[lineIdx];
     const trimmed = rawLine.trim();
 
-    // Section Heading (# Heading)
-    if (trimmed.startsWith('#')) {
+    // Only column-0 headings at the first heading's level start sections; deeper headings are notes.
+    const headingMatch = rawLine.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch && sectionHeadingLevel === undefined) sectionHeadingLevel = headingMatch[1].length;
+    if (headingMatch && headingMatch[1].length === sectionHeadingLevel) {
       finalizeSection();
-      const match = trimmed.match(/^#+\s*(.+)$/);
-      const headingTitle = match ? match[1].trim() : 'Section';
+      const headingTitle = headingMatch[2].trim();
       currentSection = {
         name: headingTitle,
         items: [],
@@ -177,7 +179,10 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
 
     // Task Checklist item: - [ ] or - [x]
     const taskMatch = trimmed.match(/^-\s*\[([ xX])\]\s*(.+)$/);
-    if (taskMatch) {
+    // After notes have started, only a checklist followed by a Daymark tag starts a task.
+    const hasNotes = freeNotesBuffer.some((line) => line.trim().length > 0);
+    const hasTaskTag = /^\s*<!--\s*daymark:.*-->\s*$/.test(lines[lineIdx + 1] ?? '');
+    if (taskMatch && (!hasNotes || hasTaskTag)) {
       finalizeCurrentTask();
       const isChecked = taskMatch[1].toLowerCase() === 'x';
       const title = taskMatch[2].trim();
@@ -214,8 +219,14 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
       continue;
     }
 
+    // Indented blank lines inside a task description preserve its paragraph breaks.
+    if (currentTask && isIndented && !trimmed && currentTask.description) {
+      currentTask.description += '\n';
+      continue;
+    }
+
     // Indented description line for current task
-    if (currentTask && (rawLine.startsWith('  ') || rawLine.startsWith('\t')) && trimmed.length > 0) {
+    if (currentTask && isIndented && trimmed.length > 0) {
       currentTask.description = (currentTask.description ? currentTask.description + '\n' : '') + trimmed;
       continue;
     }

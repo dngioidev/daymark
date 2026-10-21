@@ -44,6 +44,50 @@ describe('markdown round trip', () => {
 });
 
 describe('markdown parsing edge cases', () => {
+  const roundTrip = (description = '', notesContent = '') => {
+    const doc: DailyDocument = {
+      ...sample,
+      headings: [{ ...sample.headings[0], notesContent, items: [{ ...sample.headings[0].items[0], description }] }],
+    };
+    return parseDailyDocument(serializeDailyDocument(doc), doc.date);
+  };
+
+  it('keeps a description that starts with #', () => {
+    const parsed = roundTrip('#urgent call vendor');
+    expect(parsed.headings.map((h) => h.name)).toEqual(['Work']);
+    expect(parsed.headings[0].items[0].description).toBe('#urgent call vendor');
+  });
+
+  it('keeps ## sub-headings inside section notes', () => {
+    const parsed = roundTrip('', '## Agenda\n- point');
+    expect(parsed.headings.map((h) => h.name)).toEqual(['Work']);
+    expect(parsed.headings[0].notesContent).toBe('## Agenda\n- point');
+  });
+
+  it('keeps checklist lines in notes as notes', () => {
+    const doc: DailyDocument = { ...sample, headings: [{ name: 'Work', items: [], notesContent: 'Shopping:\n- [ ] milk\n- [x] eggs' }] };
+    const parsed = parseDailyDocument(serializeDailyDocument(doc), doc.date);
+    expect(parsed.headings[0].items).toHaveLength(0);
+    expect(parsed.headings[0].notesContent).toBe('Shopping:\n- [ ] milk\n- [x] eggs');
+  });
+
+  it('keeps blank lines inside a description', () => {
+    expect(roundTrip('para one\n\npara two').headings[0].items[0].description).toBe('para one\n\npara two');
+  });
+
+  it('keeps ## headings as sections when the file uses ## for sections', () => {
+    const parsed = parseDailyDocument('## Work\n- [ ] a\n### Sub\ntext\n## Home\n- [ ] b', sample.date);
+    expect(parsed.headings.map((h) => h.name)).toEqual(['Work', 'Home']);
+    expect(parsed.headings[0].notesContent).toBe('### Sub\ntext');
+    expect(parsed.headings.map((h) => h.items[0].title)).toEqual(['a', 'b']);
+  });
+
+  it('still recognises metadata-tagged tasks after notes', () => {
+    const parsed = parseDailyDocument('# Work\nShopping:\n- [ ] milk\n- [ ] Real task\n  <!-- daymark: task_id=real status=blocked created=2026-10-16 -->', sample.date);
+    expect(parsed.headings[0].items.map((t) => t.id)).toEqual(['real']);
+    expect(parsed.headings[0].notesContent).toBe('Shopping:\n- [ ] milk');
+  });
+
   it('keeps section notes that follow tasks (full round trip)', () => {
     const doc: DailyDocument = JSON.parse(JSON.stringify(sample));
     doc.headings[0].notesContent = 'Priority today: ship it.\n\nSecond paragraph.';
