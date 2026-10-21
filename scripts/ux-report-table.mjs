@@ -11,6 +11,7 @@ const auto = JSON.parse(fs.readFileSync('docs/reports/ux-ui/results.json', 'utf8
 
 // Manual, native-suite and scan-derived results (2026-10-21, Android 16 emulator + scans.json)
 const manual = {
+  'TD-06': ['fail', 'Reported on a real phone, reproduced at 360/384/412 px: the select is clipped and "Add Task" ends at 429 px (off-screen); only Enter saves'],
   'GL-06': ['warn', 'Both themes readable overall; contrast failures in both (see AX-02)'],
   'GL-08': ['not run', ''],
   'NAV-10': ['warn', 'Badge "4" on Today has no label or tooltip explaining it'],

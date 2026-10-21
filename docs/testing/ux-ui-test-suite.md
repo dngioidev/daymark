@@ -71,7 +71,7 @@ Legend: **A** = automated in `scripts/ux-suite.mjs`, **M** = manual, **P** = pri
 | TD-03 | Notebook / Markdown (and Split on desktop) | P412, D1440 | Switch modes | Mode changes; active segment highlighted; Split hidden on phones | A | 2 |
 | TD-04 | Reconcile Rollover (desktop) | D1440 | Click | Toast reports result; no duplicates on repeat | A | 2 |
 | TD-05 | Attention banner + filter | P412 | Tap "Filter Attention Tasks", tap again | Only attention/critical tasks shown; toggle back restores all; button state visible | A | 2 |
-| TD-06 | Section + Task inline add | P412 | Tap "+ Task" in a section, type, Add | Task added to that section; input focused; Enter also adds; empty title rejected | A | 1 |
+| TD-06 | Section + Task inline add | P412 | Tap "+ Task" in a section, type, Add | Whole row (input, status, Add Task) fits on screen at 360 px; task added to that section; input focused; Enter also adds; empty title rejected | A | 1 |
 | TD-07 | Section + Note editor | P412 | Tap "+ Note", use toolbar (Bold, Italic, Checklist, Bullet, Callout), Save / Cancel | Toolbar inserts Markdown; Save shows notes card; Cancel discards | A | 2 |
 | TD-08 | Section notes edit / clear | P412 | Edit existing notes; Clear | Edits saved; Clear asks before deleting text | A | 2 |
 | TD-09 | Add section heading | P412 | Tap "Add Section Heading", enter name, Add / Cancel | New section appears; duplicate/empty names rejected | A | 2 |

@@ -2,7 +2,7 @@
 
 Date 2026-10-21 · Daymark 1.0.0 · Suite: [`docs/testing/ux-ui-test-suite.md`](../../testing/ux-ui-test-suite.md) (114 cases) · Full per-case results: [`test-results.md`](./test-results.md)
 
-**Result: 70 pass · 25 warn · 14 fail · 5 not run (all priority 3).**
+**Result: 69 pass · 25 warn · 15 fail · 5 not run (all priority 3).**
 Coverage: every screen, menu, dialog and button (inventory from `scripts/ux-inventory.mjs`). Viewports were 320, 360, 412, 768, 1024, 1280, 1440 and 1920 px, in light and dark mode. Automated scans (axe-core accessibility rules, font sizes, target sizes, overflow, truncation) ran on 46 screen/theme combinations. Android behaviour was checked by hand on an Android 16 emulator; your phone was not touched.
 
 ## Critical: fix first
@@ -21,6 +21,7 @@ Coverage: every screen, menu, dialog and button (inventory from `scripts/ux-inve
 | H5 | **Settings is hidden at tablet/laptop widths (~768–1100 px):** the navbar scrolls sideways without a visible scrollbar. | [1024 px](./screens/responsive-D1024-today.png) |
 | H6 | **Android: dismissing the export share sheet shows "Failed to export vault as zip."** Cancelling is treated as a failure. | [AN-08](./android/AN-08-share-cancel-error.png) |
 | H7 | **Android: the status bar is invisible on Settings.** The light status icons sit on a white area. | [AN-07](./android/AN-07-settings-status-bar.png) |
+| H9 | **"+ Task" inline add doesn't fit on phones (reported from a real device).** The title box, status select and "Add Task" button sit in one fixed row. On 360–412 px screens the select is cut off and the Add Task button is entirely off-screen (it ends at 429 px), so the task can only be saved with the keyboard's Enter key. The page doesn't scroll sideways (the card clips it), which is why the overflow scan missed it. Fix: stack the row on phones (full-width input, then select + button) and make the input `flex-1 min-w-0`. | [360 px](./screens/TD-06-inline-add-360.png), [412 px](./screens/TD-06-inline-add-412.png) |
 | H8 | **Dialogs aren't real dialogs.** Quick Capture and "Other past date" lack `role=dialog`. Background controls stay focusable and Settings doesn't move focus into itself. Esc doesn't close Settings, and tapping the backdrop doesn't close Quick Capture. | AX-06, SE-02, QC-05 |
 
 ## Medium
@@ -58,7 +59,7 @@ Coverage: every screen, menu, dialog and button (inventory from `scripts/ux-inve
 1. C1 and C2.
 2. The contrast token swap (H1) and minimum font sizes (H3), mostly class changes.
 3. Target sizes and accessible names (H2, H4).
-4. Navbar overflow, Android share-cancel and status-bar fixes (H5–H7).
+4. Inline "+ Task" row layout (H9), navbar overflow, Android share-cancel and status-bar fixes (H5–H7).
 5. Shared accessible dialog component (H8), then the Medium list.
 6. Re-run `npm run build && node scripts/ux-suite.mjs` and `node scripts/ux-report-table.mjs`.
 

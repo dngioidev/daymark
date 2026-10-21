@@ -557,6 +557,12 @@ async function functional() {
     await btn(page, /^task$/i).first().click();
     const input = page.getByPlaceholder(/what needs to be done/i);
     const focused = await input.evaluate((el) => el === document.activeElement);
+    // Every control of the inline row (title, status, Add Task) must be on screen
+    const rowFits = await page.evaluate(() => {
+      const i = document.querySelector('input[placeholder="What needs to be done?"]');
+      return [...i.parentElement.children].every((el) => el.getBoundingClientRect().right <= innerWidth);
+    });
+    expect(rowFits, 'inline add row does not fit on screen (Add Task button off-screen)');
     await btn(page, /^add task$/i).click();
     const emptyAdded = await count(page.getByRole('button', { name: 'Mark "" done' }));
     await input.fill('Inline added task');

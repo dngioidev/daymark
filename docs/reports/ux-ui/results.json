@@ -173,8 +173,8 @@
    "id": "TD-06",
    "title": "Section + Task inline add",
    "env": "P412",
-   "status": "pass",
-   "details": "",
+   "status": "fail",
+   "details": "inline add row does not fit on screen (Add Task button off-screen)",
    "ms": 32847
   },
   {

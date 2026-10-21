@@ -2,7 +2,7 @@
 
 Run 2026-10-21 against Daymark 1.0.0 (production build, sample vault). Automated: `scripts/ux-suite.mjs`; native/manual: Android 16 emulator. Suite: [`docs/testing/ux-ui-test-suite.md`](../../testing/ux-ui-test-suite.md).
 
-**114 test cases: 70 pass · 25 warn · 14 fail · 5 not run**
+**114 test cases: 69 pass · 25 warn · 15 fail · 5 not run**
 
 #### Global and first run (GL)
 
@@ -44,7 +44,7 @@ Run 2026-10-21 against Daymark 1.0.0 (production build, sample vault). Automated
 | TD-03 | Notebook / Markdown (and Split on desktop) | 2 | ✅ pass |  |
 | TD-04 | Reconcile Rollover (desktop) | 2 | ✅ pass |  |
 | TD-05 | Attention banner + filter | 2 | ✅ pass | all 4, filtered 4; toggle label "Show All Sections" |
-| TD-06 | Section + Task inline add | 1 | ✅ pass |  |
+| TD-06 | Section + Task inline add | 1 | ❌ fail | Reported on a real phone, reproduced at 360/384/412 px: the select is clipped and "Add Task" ends at 429 px (off-screen); only Enter saves |
 | TD-07 | Section + Note editor | 2 | ❌ fail | bold toolbar produced "hello**bold text**" |
 | TD-08 | Section notes edit / clear | 2 | ✅ pass | Code review: Clear asks for confirmation (no notes in today's sample to clear) |
 | TD-09 | Add section heading | 2 | ✅ pass |  |
