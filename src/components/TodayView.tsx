@@ -96,6 +96,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [draftDate, setDraftDate] = useState(currentDocument.date);
   const hiddenTags = useRef<Map<string, string[]>>(new Map());
   const [attentionOnly, setAttentionOnly] = useState(false);
+  // The Undo of the latest "Done" toast, so the filter-cleared toast below doesn't take it away
+  const lastDoneUndo = useRef<{ onClick: () => void; at: number } | null>(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
   const [openDone, setOpenDone] = useState<Set<string>>(new Set());
@@ -214,13 +216,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
     onUpdateDocument(touch(newDoc));
     if (previous && previous.status !== 'done' && updatedTask.status === 'done') {
-      showToast(`Done: ${updatedTask.title}`, {
-        action: {
-          label: 'Undo',
-          onClick: () =>
-            onPatchDocument(date, (d) => replaceTaskInDocument(d, previous)),
-        },
-      });
+      const undo = () => onPatchDocument(date, (d) => replaceTaskInDocument(d, previous));
+      lastDoneUndo.current = { onClick: undo, at: Date.now() };
+      showToast(`Done: ${updatedTask.title}`, { action: { label: 'Undo', onClick: undo } });
     }
   };
 
@@ -418,8 +416,16 @@ export const TodayView: React.FC<TodayViewProps> = ({
     </div>
   );
 
+  // The filter can only show old tasks; once none are left, drop it so the page is never blank
+  useEffect(() => {
+    if (!attentionOnly || alerts.total > 0) return;
+    setAttentionOnly(false);
+    const undo = lastDoneUndo.current && Date.now() - lastDoneUndo.current.at < 1000 ? lastDoneUndo.current.onClick : undefined;
+    showToast('No old tasks left. Showing everything.', { tone: 'info', action: undo && { label: 'Undo', onClick: undo } });
+  }, [attentionOnly, alerts.total]);
+
   // ---------- Attention chip ----------
-  const attentionBar = alerts.total > 0 && (
+  const attentionBar = (alerts.total > 0 || attentionOnly) && (
     <div className="flex items-center gap-3 pl-3 pr-1.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/70 text-sm">
       <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800 dark:text-amber-300" />
       <p className="flex-1 min-w-0 text-amber-950 dark:text-amber-100">

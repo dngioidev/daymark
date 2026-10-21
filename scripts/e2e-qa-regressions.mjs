@@ -398,25 +398,40 @@ await run('C4b', async () => {
 
 await run('C5', async () => {
   // Reported by the user: filter to old tasks, complete them all -> page empty, no way back
-  for (const how of ['complete', 'hide-warning']) {
-    const { page, context } = await fresh({ docs: [doc(TODAY, [task('old', 'in-progress', day(-8), { title: 'Old task' }), task('new', 'in-progress', TODAY, { title: 'Fresh task' })])] });
-    await page.getByRole('button', { name: 'Show', exact: true }).click();
-    await settle(page, 300);
-    if (how === 'complete') await page.getByRole('button', { name: 'Mark "Old task" done' }).click();
-    else {
-      await page.getByRole('button', { name: 'More actions for "Old task"' }).click();
-      await page.getByRole('menuitem', { name: 'Hide warning today' }).click();
+  const seed = () => [doc(TODAY, [task('old', 'in-progress', day(-8), { title: 'Old task' }), task('new', 'in-progress', TODAY, { title: 'Fresh task' })])];
+  for (const mobile of [false, true]) {
+    const sfx = mobile ? '-mobile' : '';
+    for (const how of ['complete', 'hide-warning']) {
+      const { page, context } = await fresh({ docs: seed(), mobile });
+      await page.getByRole('button', { name: 'Show', exact: true }).click();
+      await settle(page, 300);
+      if (how === 'complete') await page.getByRole('button', { name: 'Mark "Old task" done' }).click();
+      else {
+        await page.getByRole('button', { name: 'More actions for "Old task"' }).click();
+        await page.getByRole('menuitem', { name: 'Hide warning today' }).click();
+      }
+      await settle(page);
+      const fresh_ = await page.getByRole('button', { name: 'Mark "Fresh task" done' }).isVisible();
+      const showAll = await page.getByRole('button', { name: 'Show all' }).isVisible();
+      let detail = `fresh task visible=${fresh_}, Show all visible=${showAll}`;
+      let ok = fresh_ && !showAll;
+      if (how === 'complete') {
+        const oldInDone = await page.getByText('Old task').first().isVisible().catch(() => false);
+        ok = ok && oldInDone;
+        detail += `, done Old task visible=${oldInDone}`;
+      }
+      check(`C5-${how}${sfx}`, ok, `after the last old task is cleared (${how}), the full list is shown (Fresh task visible, filter off)`, detail);
+      if (how === 'complete') {
+        // Undo brings the old-tasks bar back and the filter stays off
+        await page.getByRole('button', { name: 'Undo' }).click();
+        await settle(page);
+        const bar = await page.getByRole('button', { name: 'Show', exact: true }).isVisible();
+        const freshStill = await page.getByRole('button', { name: 'Mark "Fresh task" done' }).isVisible();
+        check(`C5-undo${sfx}`, bar && freshStill, 'Undo of the completion brings the old-tasks bar back with the filter still off', `bar (Show)=${bar}, fresh visible=${freshStill}`);
+      }
+      await context.close();
     }
-    await settle(page);
-    const fresh_ = await page.getByRole('button', { name: 'Mark "Fresh task" done' }).isVisible();
-    const showAll = await page.getByRole('button', { name: 'Show all' }).isVisible();
-    check(`C5-${how}`, fresh_ || showAll, `after the last old task is cleared (${how}), the full list or a "Show all" button is visible`, `fresh task visible=${fresh_}, Show all visible=${showAll}`);
-    await context.close();
   }
 });
 
-console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
-fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
-await browser.close();
-server.kill();
-process.exit(results.some((r) => !r.ok) ? 1 : 0);
+
