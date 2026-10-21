@@ -1,7 +1,8 @@
 # Daymark UX/UI Test Report
 
 Date 2026-10-21 · Daymark 1.0.0 · Suite: [`docs/testing/ux-ui-test-suite.md`](../../testing/ux-ui-test-suite.md) (114 cases) · Full per-case results: [`test-results.md`](./test-results.md)
-nProduct and business review of the same screens (IA, wording, density, prioritised redesign plan): [`business-ux-review.md`](./business-ux-review.md)
+
+Product and business review of the same screens (IA, wording, density, prioritised redesign plan): [`business-ux-review.md`](./business-ux-review.md)
 
 **Result: 69 pass · 25 warn · 15 fail · 5 not run (all priority 3).**
 Coverage: every screen, menu, dialog and button (inventory from `scripts/ux-inventory.mjs`). Viewports were 320, 360, 412, 768, 1024, 1280, 1440 and 1920 px, in light and dark mode. Automated scans (axe-core accessibility rules, font sizes, target sizes, overflow, truncation) ran on 46 screen/theme combinations. Android behaviour was checked by hand on an Android 16 emulator; your phone was not touched.
