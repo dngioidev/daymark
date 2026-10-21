@@ -434,4 +434,8 @@ await run('C5', async () => {
   }
 });
 
-
+console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
+fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
+await browser.close();
+server.kill();
+process.exit(results.some((r) => !r.ok) ? 1 : 0);

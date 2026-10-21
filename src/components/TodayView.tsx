@@ -96,8 +96,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [draftDate, setDraftDate] = useState(currentDocument.date);
   const hiddenTags = useRef<Map<string, string[]>>(new Map());
   const [attentionOnly, setAttentionOnly] = useState(false);
-  // The Undo of the latest "Done" toast, so the filter-cleared toast below doesn't take it away
-  const lastDoneUndo = useRef<{ onClick: () => void; at: number } | null>(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
   const [openDone, setOpenDone] = useState<Set<string>>(new Set());
@@ -216,9 +214,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
     onUpdateDocument(touch(newDoc));
     if (previous && previous.status !== 'done' && updatedTask.status === 'done') {
-      const undo = () => onPatchDocument(date, (d) => replaceTaskInDocument(d, previous));
-      lastDoneUndo.current = { onClick: undo, at: Date.now() };
-      showToast(`Done: ${updatedTask.title}`, { action: { label: 'Undo', onClick: undo } });
+      // Finishing the last old task while filtered to old tasks: leave the filter here, in the one Done toast
+      const lastOldTask =
+        attentionOnly && newDoc.headings.every((h) => h.items.every((t) => severityOf(t) === 'normal'));
+      if (lastOldTask) setAttentionOnly(false);
+      showToast(lastOldTask ? `Done: ${updatedTask.title}. No old tasks left, showing everything.` : `Done: ${updatedTask.title}`, {
+        action: { label: 'Undo', onClick: () => onPatchDocument(date, (d) => replaceTaskInDocument(d, previous)) },
+      });
     }
   };
 
@@ -420,8 +422,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   useEffect(() => {
     if (!attentionOnly || alerts.total > 0) return;
     setAttentionOnly(false);
-    const undo = lastDoneUndo.current && Date.now() - lastDoneUndo.current.at < 1000 ? lastDoneUndo.current.onClick : undefined;
-    showToast('No old tasks left. Showing everything.', { tone: 'info', action: undo && { label: 'Undo', onClick: undo } });
+    showToast('No old tasks left. Showing everything.', { tone: 'info' });
   }, [attentionOnly, alerts.total]);
 
   // ---------- Attention chip ----------
