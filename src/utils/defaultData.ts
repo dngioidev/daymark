@@ -78,7 +78,9 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
     const label = s.id === 'waiting' && s.label === 'Waiting / Dependency' ? builtIn.label : s.label;
     return label === s.label && s.color === builtIn.color ? s : { ...s, label, color: builtIn.color };
   });
-  return statuses.every((s, i) => s === settings.statuses[i]) ? settings : { ...settings, statuses };
+  const defaultHeadings = settings.defaultHeadings.length ? settings.defaultHeadings : [...DEFAULT_HEADINGS];
+  return defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
+    ? settings : { ...settings, statuses, defaultHeadings };
 }
 
 export const DEFAULT_HEADINGS = ['Work', 'Meetings', 'Ideas', 'Attention'];

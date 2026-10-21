@@ -248,7 +248,11 @@ await run('B11', async () => {
   const { page, context } = await fresh({ docs: [doc(TODAY, [])] });
   await page.getByRole('button', { name: 'Settings' }).first().click();
   await page.getByRole('tab', { name: /sections/i }).first().click();
-  for (const h of ['Work', 'Meetings', 'Ideas', 'Attention']) await page.getByRole('button', { name: `Remove section ${h}` }).click().catch(() => {});
+  for (const h of ['Work', 'Meetings', 'Ideas', 'Attention']) {
+    const remove = page.getByRole('button', { name: `Remove section ${h}` });
+    if (await remove.isEnabled()) await remove.click();
+  }
+  check('B11-last-section', await page.getByRole('button', { name: 'Remove section Attention' }).isDisabled(), 'settings keeps at least one section');
   await page.getByRole('button', { name: /^save/i }).last().click();
   await settle(page);
   await page.getByRole('button', { name: 'Next day' }).click();
@@ -321,7 +325,7 @@ await run('C1', async () => {
   await settle(page);
   const docs = await readDocs(page);
   const where = docs.filter((d) => titlesOn(docs, d.date).some((t) => t.startsWith('Captured'))).map((d) => d.date);
-  check('C1', !(title.includes('Today') && where[0] !== TODAY), 'quick-capture dialog names the day the task is saved to', `title="${title}" saved to ${where}`);
+  check('C1', title === 'New task · Yesterday' && where.length === 1 && where[0] === Y1, 'quick-capture dialog names the day the task is saved to', `title="${title}" saved to ${where}`);
   await context.close();
 });
 

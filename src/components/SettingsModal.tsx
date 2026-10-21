@@ -401,8 +401,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     aria-label={`Remove section ${heading}`}
+                    disabled={draft.defaultHeadings.length === 1}
+                    title={draft.defaultHeadings.length === 1 ? 'Keep at least one section' : undefined}
                     onClick={() => setDraft({ ...draft, defaultHeadings: draft.defaultHeadings.filter((h) => h !== heading) })}
-                    className="inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800"
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>

@@ -664,6 +664,7 @@ export default function App() {
         headings={currentDoc.headings.length ? currentDoc.headings.map((h) => h.name) : settings.defaultHeadings}
         statuses={settings.statuses}
         simulatedToday={today}
+        targetDate={currentDate}
         onCapture={handleQuickCapture}
       />
 

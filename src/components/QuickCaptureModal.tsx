@@ -3,6 +3,7 @@ import { ChevronDown, Plus } from 'lucide-react';
 import { StatusDefinition } from '../types/daymark';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { pickableStatuses } from './TaskItemCard';
+import { formatDay } from '../utils/dateFormat';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface QuickCaptureModalProps {
   headings: string[];
   statuses: StatusDefinition[];
   simulatedToday: string;
+  targetDate: string;
   onCapture: (task: { title: string; description?: string; heading: string; status: string }) => void;
 }
 
@@ -26,7 +28,7 @@ const readLast = (): { heading?: string; status?: string } => {
  * New task sheet: docked at the bottom on phones (next to the + that opened it), centred on
  * desktop. Remembers the last section and status used. "Save & add another" keeps it open.
  */
-export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, onCapture }) => {
+export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showDetails, setShowDetails] = useState(false);
@@ -65,7 +67,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
       isOpen={isOpen}
       onClose={onClose}
       variant="sheet"
-      title="New task · Today"
+      title={`New task · ${formatDay(targetDate, simulatedToday)}`}
       footer={
         <>
           <button type="button" className={`${buttonClass.ghost} mr-auto hidden sm:inline-flex`} disabled={!title.trim()} onClick={() => save(true)}>
