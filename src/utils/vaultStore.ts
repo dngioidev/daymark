@@ -2,7 +2,7 @@ import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
-import { isDailyDocument, isStandaloneNote } from './vaultValidation';
+import { isDailyDocument, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 
 /**
@@ -148,7 +148,7 @@ export function parseVaultMessage(data: unknown): { key: SharedKey; value: unkno
   if (!data || typeof data !== 'object') return null;
   const { key, value } = data as { key?: unknown; value?: unknown };
   if ((key === 'daily_docs' || key === 'notes') && Array.isArray(value)) return { key, value };
-  if (key === 'settings' && value && typeof value === 'object' && !Array.isArray(value)) return { key, value };
+  if (key === 'settings' && isSyncedSettings(value)) return { key, value };
   return null;
 }
 
@@ -156,8 +156,12 @@ if (channel) {
   channel.onmessage = (event: MessageEvent) => {
     const msg = parseVaultMessage(event.data);
     if (!msg) return;
-    cache.set(msg.key, msg.value);
-    externalListeners.forEach((l) => l(msg.key, msg.value));
+    try {
+      cache.set(msg.key, msg.value);
+      externalListeners.forEach((l) => l(msg.key, msg.value));
+    } catch (err) {
+      console.error('Could not apply a change from another tab', err);
+    }
   };
 }
 

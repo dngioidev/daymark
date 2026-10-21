@@ -35,6 +35,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
   performDailyRollover,
+  reopenIntoToday,
   reopenTask,
   getAgingSeverity,
   getPreviousDate,
@@ -308,15 +309,20 @@ export default function App() {
 
   // Handler: Reopen Task
   const handleReopenTask = (taskId: string, targetDate = currentDate) => {
-    const reopened = reopenTask(taskId, targetDate, dailyDocs, settings.defaultHeadings);
-    if (!reopened.updatedTask) return;
     if (targetDate < today) {
       // Reopened in the past: bring it back to today's list too.
-      const rolled = performDailyRollover(today, reopened.updatedDocs, settings.statuses, settings.defaultHeadings);
-      setDailyDocs(rolled.updatedDocs);
-      showToast(`Reopened “${reopened.updatedTask.title}”. It's back on today's list.`);
+      const r = reopenIntoToday(taskId, targetDate, today, dailyDocs, settings.statuses, settings.defaultHeadings);
+      if (!r.updatedTask) return;
+      setDailyDocs(r.updatedDocs);
+      showToast(
+        r.onToday
+          ? `Reopened “${r.updatedTask.title}”. It's back on today's list.`
+          : `Reopened “${r.updatedTask.title}” ${inlineDay(targetDate, today)}.`
+      );
       return;
     }
+    const reopened = reopenTask(taskId, targetDate, dailyDocs, settings.defaultHeadings);
+    if (!reopened.updatedTask) return;
     setDailyDocs(reopened.updatedDocs);
     showToast(`Reopened “${reopened.updatedTask.title}” ${inlineDay(targetDate, today)}.`);
   };

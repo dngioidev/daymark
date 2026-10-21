@@ -8,6 +8,7 @@ import {
   getCalendarDaysDifference,
   getPreviousDate,
   performDailyRollover,
+  reopenIntoToday,
   reopenTask,
 } from './lifecycleEngine';
 
@@ -204,5 +205,57 @@ describe('historical completion and reopen use the right copy (BUG-08, BUG-09)',
     const { updatedDocs } = reopenTask('a', '2026-10-21', [doc('2026-10-19', [done]), target]);
     expect(updatedDocs.find((d) => d.date === '2026-10-21')!.removedTaskIds).toBeUndefined();
     expect(allItems(updatedDocs, '2026-10-21').map((t) => t.id)).toEqual(['a']);
+  });
+
+  it('reopen never clones a copy dated after the target day', () => {
+    const later = { ...task('a', 'done', '2026-10-20'), completedDate: '2026-10-20' };
+    const docs = [doc('2026-10-20', [later])];
+    const { updatedDocs, updatedTask } = reopenTask('a', '2026-10-18', docs);
+    expect(updatedTask).toBeNull();
+    expect(updatedDocs).toBe(docs);
+  });
+});
+
+describe('reopenIntoToday', () => {
+  const statuses = DEFAULT_SETTINGS.statuses;
+  const heads = ['Work'];
+  const today = '2026-10-21';
+  const count = (docs: DailyDocument[], date: string) => allItems(docs, date).filter((t) => t.id === 'a').length;
+
+  it('carries a past reopen to today', () => {
+    const done = { ...task('a', 'done', '2026-10-18'), completedDate: '2026-10-18' };
+    const r = reopenIntoToday('a', '2026-10-18', today, [doc('2026-10-18', [done])], statuses, heads);
+    expect(r.onToday).toBe(true);
+    expect(r.updatedTask?.status).toBe('in-progress');
+    expect(count(r.updatedDocs, today)).toBe(1);
+    expect(allItems(r.updatedDocs, today)[0].status).not.toBe('done');
+  });
+
+  it('lands on today and clears the tombstone when today had it removed', () => {
+    const done = { ...task('a', 'done', '2026-10-18'), completedDate: '2026-10-18' };
+    const t = { ...doc(today, []), removedTaskIds: ['a'] };
+    const r = reopenIntoToday('a', '2026-10-18', today, [doc('2026-10-18', [done]), t], statuses, heads);
+    expect(r.onToday).toBe(true);
+    expect(count(r.updatedDocs, today)).toBe(1);
+    expect(r.updatedDocs.find((d) => d.date === today)!.removedTaskIds).toBeUndefined();
+  });
+
+  it('lands on today reopened when a later past day holds a done copy', () => {
+    const done1 = { ...task('a', 'done', '2026-10-17'), completedDate: '2026-10-17' };
+    const done2 = { ...task('a', 'done', '2026-10-17'), completedDate: '2026-10-19' };
+    const docs = [doc('2026-10-17', [done1]), doc('2026-10-19', [done2])];
+    const r = reopenIntoToday('a', '2026-10-17', today, docs, statuses, heads);
+    expect(r.onToday).toBe(true);
+    expect(count(r.updatedDocs, today)).toBe(1);
+    expect(allItems(r.updatedDocs, today)[0].status).not.toBe('done');
+    expect(allItems(r.updatedDocs, '2026-10-19')[0].status).toBe('done');
+  });
+
+  it('returns a null task and unchanged docs when there is nothing to reopen', () => {
+    const docs = [doc('2026-10-18', [])];
+    const r = reopenIntoToday('a', '2026-10-18', today, docs, statuses, heads);
+    expect(r.updatedTask).toBeNull();
+    expect(r.updatedDocs).toBe(docs);
+    expect(r.onToday).toBe(false);
   });
 });

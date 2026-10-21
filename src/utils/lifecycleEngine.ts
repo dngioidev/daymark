@@ -287,7 +287,8 @@ function latestCopy(taskId: string, docs: DailyDocument[], onOrBefore?: string):
 
 /**
  * Reopens a completed task on `targetDate`: the copy on that day is reopened in place; if that day
- * has no copy, a reopened clone of the latest earlier copy is added (creating the note if needed).
+ * has no copy, a reopened clone of the latest copy dated on or before it is added (creating the note
+ * if needed). With no such copy nothing changes and `updatedTask` is null.
  */
 export function reopenTask(
   taskId: string,
@@ -298,7 +299,7 @@ export function reopenTask(
   const newDocs: DailyDocument[] = JSON.parse(JSON.stringify(dailyDocs));
   let targetDoc = newDocs.find((d) => d.date === targetDate);
   const inTarget = targetDoc ? latestCopy(taskId, [targetDoc]) : null;
-  const source = inTarget ?? latestCopy(taskId, newDocs, targetDate) ?? latestCopy(taskId, newDocs);
+  const source = inTarget ?? latestCopy(taskId, newDocs, targetDate);
   if (!source) return { updatedDocs: dailyDocs, updatedTask: null };
 
   const now = new Date().toISOString();
@@ -350,6 +351,30 @@ export function reopenTask(
   }
 
   return { updatedDocs: newDocs, updatedTask };
+}
+
+/**
+ * Reopens a task on a past day and makes sure it is on `today`'s list too. After the rollover, if the
+ * id is still missing from today (tombstoned, or a later done copy was taken as newest), a reopened
+ * copy is put directly into today. Done copies on later days are left as history.
+ */
+export function reopenIntoToday(
+  taskId: string,
+  targetDate: string,
+  today: string,
+  docs: DailyDocument[],
+  statuses: StatusDefinition[],
+  defaultHeadings: string[]
+): { updatedDocs: DailyDocument[]; updatedTask: TaskItem | null; onToday: boolean } {
+  const reopened = reopenTask(taskId, targetDate, docs, defaultHeadings);
+  if (!reopened.updatedTask) return { updatedDocs: docs, updatedTask: null, onToday: false };
+  const onTodayDoc = (ds: DailyDocument[]) =>
+    !!ds.find((d) => d.date === today)?.headings.some((h) => h.items.some((t) => t.id === taskId));
+  let updatedDocs = performDailyRollover(today, reopened.updatedDocs, statuses, defaultHeadings).updatedDocs;
+  if (!onTodayDoc(updatedDocs)) {
+    updatedDocs = reopenTask(taskId, today, updatedDocs, defaultHeadings).updatedDocs;
+  }
+  return { updatedDocs, updatedTask: reopened.updatedTask, onToday: onTodayDoc(updatedDocs) };
 }
 
 /**
