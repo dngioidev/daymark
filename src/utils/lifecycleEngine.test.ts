@@ -52,6 +52,13 @@ describe('performDailyRollover', () => {
     expect(second.carriedCount).toBe(0);
     expect(allItems(second.updatedDocs, '2026-10-16')).toHaveLength(1);
   });
+
+  it('two independent rollovers produce identical carried tasks', () => {
+    const past = [doc('2026-10-20', [task('a', 'in-progress', '2026-10-20')])];
+    const one = allItems(performDailyRollover('2026-10-21', past, statuses).updatedDocs, '2026-10-21');
+    const two = allItems(performDailyRollover('2026-10-21', past, statuses).updatedDocs, '2026-10-21');
+    expect(one).toEqual(two);
+  });
 });
 
 describe('getPreviousDate', () => {

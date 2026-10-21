@@ -6,6 +6,7 @@ import { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DailyDocument, StandaloneNote, TaskItem } from '../src/types/daymark';
 import { DEFAULT_SETTINGS } from '../src/utils/defaultData';
+import { performDailyRollover } from '../src/utils/lifecycleEngine';
 import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
 import { createApp } from './app';
 import { loadConfig } from './config';
@@ -210,6 +211,25 @@ describe('sync between two devices', () => {
     await sync(laptop);
     expect(phone.vault.settings.defaultHeadings).toEqual(['Deep work', 'Admin']);
     expect(laptop.vault.settings.defaultHeadings).toEqual(['Deep work', 'Admin']);
+  });
+
+  it('two devices that each roll over the same day do not conflict', async () => {
+    const laptop = { vault: vault([day([task('a')])]), state: await connect('Laptop') };
+    await sync(laptop);
+    const phone = { vault: vault([]), state: await connect('Phone') };
+    await sync(phone);
+    const roll = (v: VaultData): VaultData => ({
+      ...v,
+      docs: performDailyRollover('2026-10-21', v.docs, DEFAULT_SETTINGS.statuses).updatedDocs,
+    });
+    laptop.vault = roll(laptop.vault);
+    phone.vault = roll(phone.vault);
+    expect((await sync(laptop)).conflicts).toEqual([]);
+    expect((await sync(phone)).conflicts).toEqual([]);
+    await sync(laptop);
+    const today = (v: VaultData) => v.docs.find((d) => d.date === '2026-10-21')!.headings.flatMap((h) => h.items);
+    expect(today(laptop.vault)).toHaveLength(1);
+    expect(today(phone.vault)).toHaveLength(1);
   });
 
   it('keeps data across a server restart', async () => {

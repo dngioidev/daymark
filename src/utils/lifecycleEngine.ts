@@ -129,8 +129,9 @@ export function performDailyRollover(
 
           // Create carried forward task copy
           const historyEntry: TaskHistoryItem = {
-            id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            timestamp: new Date().toISOString(),
+            // Deterministic so devices that each roll over the same day produce identical tasks (no false sync conflicts).
+            id: `hist-carry-${task.id}-${targetDate}`,
+            timestamp: new Date(`${targetDate}T00:00:00`).toISOString(),
             date: targetDate,
             action: 'carried_forward',
             details: `Carried forward from ${pastDoc.date}`,
