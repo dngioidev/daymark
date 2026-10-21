@@ -16,7 +16,8 @@ describe('dateFormat', () => {
   });
 
   it('formats long dates and ages', () => {
-    expect(formatLongDate('2026-10-20', 'en-GB')).toBe('Tuesday 20 October 2026');
+    expect(formatLongDate('2026-10-20', 'en-GB')).toBe('Tuesday, 20 October 2026');
+    expect(formatLongDate('2026-10-20', 'en-US')).toBe('Tuesday, October 20, 2026');
     expect(formatAge(1)).toBe('1 day old');
     expect(formatAge(6)).toBe('6 days old');
   });
