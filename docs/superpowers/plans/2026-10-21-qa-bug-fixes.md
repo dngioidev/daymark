@@ -61,7 +61,7 @@
   - HTML-escape `calloutTitle` and the `[[…]]` text before interpolating (`&<>"'`).
   - Finish with `DOMPurify.sanitize(html, { ADD_ATTR: ['data-internal-note', 'data-task-index'], FORBID_TAGS: ['style', 'form'], ALLOWED_URI_REGEXP: /^(?:https?|mailto):|^#|^\/(?!\/)/i })`. Keep `data-*` allowed, which is DOMPurify's default.
 - [ ] **Step 3:** Run `npm run build && npm run test:qa -- B7`. Expected: B7a and B7b PASS.
-- [ ] **Step 4:** Add a probe to the B7 scenario: a note containing `[x](javascript:window.__xss4=1)`. Click the link and assert `window.__xss4` is undefined. Also assert that `> [!TIP] Title` still renders `.daymark-callout-tip` and that `[[Plan]]` still renders a `button[data-internal-note="Plan"]`. Run: PASS.
+- [ ] **Step 4:** Add a probe to the B7 scenario: a note whose content links the text `x` to the URL `javascript:window.__xss4=1` (standard Markdown link syntax). Click the link and assert `window.__xss4` is undefined. Also assert that `> [!TIP] Title` still renders `.daymark-callout-tip` and that `[[Plan]]` still renders a `button[data-internal-note="Plan"]`. Run: PASS.
 - [ ] **Step 5:** Manually check one note with a checklist, a code block and a callout in light and dark mode (`npm run dev`).
 - [ ] **Step 6:** Commit `fix(security): sanitise rendered Markdown (BUG-01)`.
 
