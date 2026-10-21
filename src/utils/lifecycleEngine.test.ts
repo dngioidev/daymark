@@ -157,3 +157,52 @@ describe('getCalendarDaysDifference', () => {
     expect(getCalendarDaysDifference('2026-10-20', '2026-10-20')).toBe(0);
   });
 });
+
+describe('historical completion and reopen use the right copy (BUG-08, BUG-09)', () => {
+  it('historical completion keeps the latest edits', () => {
+    const latest = { ...task('a', 'in-progress', '2026-10-15'), title: 'NEW title', description: 'new desc' };
+    const docs = [
+      doc('2026-10-15', [{ ...task('a', 'in-progress', '2026-10-15'), title: 'old title' }]),
+      doc('2026-10-17', [latest]),
+    ];
+    const { updatedDocs } = correctHistoricalCompletion('a', '2026-10-16', '2026-10-17', docs);
+    const [copy] = allItems(updatedDocs, '2026-10-16');
+    expect(copy.title).toBe('NEW title');
+    expect(copy.description).toBe('new desc');
+    expect(copy.status).toBe('done');
+    expect(copy.completedDate).toBe('2026-10-16');
+  });
+
+  it('reopen on the day it was done reopens that copy', () => {
+    const done = { ...task('a', 'done', '2026-10-20'), completedDate: '2026-10-21' };
+    const docs = [doc('2026-10-20', [task('a', 'in-progress', '2026-10-20')]), doc('2026-10-21', [done])];
+    const { updatedDocs } = reopenTask('a', '2026-10-21', docs);
+    const [copy] = allItems(updatedDocs, '2026-10-21');
+    expect(copy.status).toBe('in-progress');
+    expect(copy.completedDate).toBeUndefined();
+  });
+
+  it('reopen into a day with no note creates the note', () => {
+    const done = { ...task('a', 'done', '2026-10-19'), completedDate: '2026-10-19' };
+    const { updatedDocs } = reopenTask('a', '2026-10-21', [doc('2026-10-19', [done])], ['Work']);
+    const [copy] = allItems(updatedDocs, '2026-10-21');
+    expect(copy.id).toBe('a');
+    expect(copy.status).not.toBe('done');
+  });
+
+  it('reopen leaves other days unchanged', () => {
+    const earlier = task('a', 'in-progress', '2026-10-20');
+    const done = { ...task('a', 'done', '2026-10-20'), completedDate: '2026-10-21' };
+    const docs = [doc('2026-10-20', [earlier]), doc('2026-10-21', [done])];
+    const { updatedDocs } = reopenTask('a', '2026-10-21', docs);
+    expect(updatedDocs.find((d) => d.date === '2026-10-20')).toEqual(docs[0]);
+  });
+
+  it('reopen clears the id from removedTaskIds', () => {
+    const done = { ...task('a', 'done', '2026-10-19'), completedDate: '2026-10-19' };
+    const target = { ...doc('2026-10-21', []), removedTaskIds: ['a'] };
+    const { updatedDocs } = reopenTask('a', '2026-10-21', [doc('2026-10-19', [done]), target]);
+    expect(updatedDocs.find((d) => d.date === '2026-10-21')!.removedTaskIds).toBeUndefined();
+    expect(allItems(updatedDocs, '2026-10-21').map((t) => t.id)).toEqual(['a']);
+  });
+});

@@ -184,17 +184,8 @@ export function correctHistoricalCompletion(
   // Clone all docs deeply
   const newDocs: DailyDocument[] = JSON.parse(JSON.stringify(dailyDocs));
 
-  // 1. Locate the task to get its original metadata
-  for (const doc of newDocs) {
-    for (const h of doc.headings) {
-      const found = h.items.find((t) => t.id === taskId);
-      if (found) {
-        matchedTask = { ...found };
-        break;
-      }
-    }
-    if (matchedTask) break;
-  }
+  // 1. Use the latest copy so edits made after it was carried forward are kept
+  matchedTask = latestCopy(taskId, newDocs);
 
   if (!matchedTask) {
     return { updatedDocs: dailyDocs, updatedTask: null };
@@ -279,60 +270,86 @@ export function correctHistoricalCompletion(
 }
 
 /**
- * Reopens a completed task, clearing completion date and returning it to active state.
+ * Finds the newest copy of a task (optionally no later than `onOrBefore`), or null.
+ * A carried task has one copy per day; the newest one holds the latest edits.
+ */
+function latestCopy(taskId: string, docs: DailyDocument[], onOrBefore?: string): TaskItem | null {
+  const sorted = [...docs].sort((a, b) => b.date.localeCompare(a.date));
+  for (const doc of sorted) {
+    if (onOrBefore && doc.date > onOrBefore) continue;
+    for (const h of doc.headings) {
+      const found = h.items.find((t) => t.id === taskId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Reopens a completed task on `targetDate`: the copy on that day is reopened in place; if that day
+ * has no copy, a reopened clone of the latest earlier copy is added (creating the note if needed).
  */
 export function reopenTask(
   taskId: string,
   targetDate: string,
-  dailyDocs: DailyDocument[]
+  dailyDocs: DailyDocument[],
+  defaultHeadings: string[] = ['Work', 'Meetings', 'Ideas', 'Attention']
 ): { updatedDocs: DailyDocument[]; updatedTask: TaskItem | null } {
   const newDocs: DailyDocument[] = JSON.parse(JSON.stringify(dailyDocs));
-  let targetTask: TaskItem | null = null;
-
-  for (const doc of newDocs) {
-    for (const h of doc.headings) {
-      const found = h.items.find((t) => t.id === taskId);
-      if (found) {
-        targetTask = found;
-        found.status = 'in-progress';
-        found.completedDate = undefined;
-        found.historyLog = found.historyLog || [];
-        found.historyLog.push({
-          id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          timestamp: new Date().toISOString(),
-          date: targetDate,
-          action: 'reopened',
-          details: `Reopened on ${targetDate}`,
-        });
-        doc.updatedAt = new Date().toISOString();
-        break;
-      }
-    }
-    if (targetTask) break;
-  }
-
-  // Ensure it is in targetDate document
   let targetDoc = newDocs.find((d) => d.date === targetDate);
-  if (targetDoc && targetTask) {
-    let existsInTarget = false;
-    for (const h of targetDoc.headings) {
-      if (h.items.some((t) => t.id === taskId)) {
-        existsInTarget = true;
-        break;
-      }
+  const inTarget = targetDoc ? latestCopy(taskId, [targetDoc]) : null;
+  const source = inTarget ?? latestCopy(taskId, newDocs, targetDate) ?? latestCopy(taskId, newDocs);
+  if (!source) return { updatedDocs: dailyDocs, updatedTask: null };
+
+  const now = new Date().toISOString();
+  const reopen = (t: TaskItem): TaskItem => {
+    t.status = 'in-progress';
+    t.completedDate = undefined;
+    t.historyLog = [
+      ...(t.historyLog || []),
+      {
+        id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: now,
+        date: targetDate,
+        action: 'reopened',
+        details: `Reopened on ${targetDate}`,
+      },
+    ];
+    return t;
+  };
+
+  let updatedTask: TaskItem;
+  if (inTarget) {
+    updatedTask = reopen(inTarget);
+  } else {
+    updatedTask = reopen({ ...source });
+    if (!targetDoc) {
+      targetDoc = {
+        date: targetDate,
+        type: 'daily',
+        headings: defaultHeadings.map((name) => ({ name, items: [], notesContent: '' })),
+        updatedAt: now,
+      };
+      newDocs.push(targetDoc);
+      newDocs.sort((a, b) => a.date.localeCompare(b.date));
     }
-    if (!existsInTarget) {
-      const heading = targetDoc.headings.find((h) => h.name.toLowerCase() === (targetTask?.heading || 'work').toLowerCase()) || targetDoc.headings[0];
-      if (heading) {
-        heading.items.push(targetTask);
-      }
+    const wanted = (updatedTask.heading || 'work').toLowerCase();
+    let heading = targetDoc.headings.find((h) => h.name.toLowerCase() === wanted) || targetDoc.headings[0];
+    if (!heading) {
+      heading = { name: updatedTask.heading || 'Work', items: [], notesContent: '' };
+      targetDoc.headings.push(heading);
     }
+    heading.items.push(updatedTask);
   }
 
-  return {
-    updatedDocs: newDocs,
-    updatedTask: targetTask,
-  };
+  targetDoc!.updatedAt = now;
+  if (targetDoc!.removedTaskIds) {
+    const remaining = targetDoc!.removedTaskIds.filter((id) => id !== taskId);
+    if (remaining.length > 0) targetDoc!.removedTaskIds = remaining;
+    else delete targetDoc!.removedTaskIds;
+  }
+
+  return { updatedDocs: newDocs, updatedTask };
 }
 
 /**

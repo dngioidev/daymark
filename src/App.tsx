@@ -295,11 +295,17 @@ export default function App() {
 
   // Handler: Reopen Task
   const handleReopenTask = (taskId: string, targetDate = currentDate) => {
-    const { updatedDocs, updatedTask } = reopenTask(taskId, targetDate, dailyDocs);
-    setDailyDocs(updatedDocs);
-    if (updatedTask) {
-      showToast(`Reopened “${updatedTask.title}” ${inlineDay(targetDate, today)}.`);
+    const reopened = reopenTask(taskId, targetDate, dailyDocs, settings.defaultHeadings);
+    if (!reopened.updatedTask) return;
+    if (targetDate < today) {
+      // Reopened in the past: bring it back to today's list too.
+      const rolled = performDailyRollover(today, reopened.updatedDocs, settings.statuses, settings.defaultHeadings);
+      setDailyDocs(rolled.updatedDocs);
+      showToast(`Reopened “${reopened.updatedTask.title}”. It's back on today's list.`);
+      return;
     }
+    setDailyDocs(reopened.updatedDocs);
+    showToast(`Reopened “${reopened.updatedTask.title}” ${inlineDay(targetDate, today)}.`);
   };
 
   // Handler: Quick Capture Task
