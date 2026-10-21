@@ -15,10 +15,12 @@ const PASSWORD = 'correct horse battery';
 let dir: string;
 let server: Server;
 let base: string;
+let fileStore: FileStore;
 
 function start() {
   const config = { ...loadConfig({ NODE_ENV: 'test' }), dataDir: dir, initialPassword: PASSWORD };
   const store = new FileStore(dir);
+  fileStore = store;
   store.init(config.username, config.initialPassword);
   server = createApp(config, store).listen(0);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -213,6 +215,51 @@ describe('sync between two devices', () => {
     const a = await connect('Phone');
     const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: '__proto__', base: null, value: {} }] }, a.token);
     expect(res.status).toBe(400);
+  });
+});
+
+describe('sync validation', () => {
+  const dailyNotes = async (token: string) =>
+    (await (await fetch(`${base}/api/server/stats`, { headers: { Authorization: `Bearer ${token}` } })).json()).dailyNotes;
+
+  it('rejects a doc without headings with 400 and stores nothing', async () => {
+    const a = await connect('Phone');
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: { date: '2026-10-20', junk: true } }] }, a.token);
+    expect(res.status).toBe(400);
+    expect(await dailyNotes(a.token)).toBe(0);
+  });
+
+  it('rejects a doc whose date does not match its key', async () => {
+    const a = await connect('Phone');
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-01-01', base: null, value: day([]) }] }, a.token);
+    expect(res.status).toBe(400);
+    expect(await dailyNotes(a.token)).toBe(0);
+  });
+
+  it('rejects a note whose id does not match its key', async () => {
+    const a = await connect('Phone');
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'note:other', base: null, value: note('n1', 'x') }] }, a.token);
+    expect(res.status).toBe(400);
+  });
+
+  it('is atomic: one bad change rejects the whole request', async () => {
+    const a = await connect('Phone');
+    const changes = [
+      { key: 'doc:2026-10-20', base: null, value: day([task('a')]) },
+      { key: 'doc:2026-10-21', base: null, value: { date: '2026-10-21' } },
+    ];
+    const res = await post('/api/sync', { sinceRev: 0, changes }, a.token);
+    expect(res.status).toBe(400);
+    expect(await dailyNotes(a.token)).toBe(0);
+  });
+
+  it('repairs a corrupt stored entity instead of failing every sync', async () => {
+    const a = await connect('Phone');
+    fileStore.vault.rev += 1;
+    fileStore.vault.entities['doc:2026-10-20'] = { rev: fileStore.vault.rev, value: { junk: true }, updatedBy: 'x', updatedAt: '2026-10-20T00:00:00Z' };
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.token);
+    expect(res.status).toBe(200);
+    expect(fileStore.vault.entities['doc:2026-10-20'].value).toEqual(day([task('a')]));
   });
 });
 

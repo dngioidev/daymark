@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
+import { isDailyDocument, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
 import { isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
 import { LoginRequest, MAX_CHANGES_PER_SYNC, SyncEntity, SyncRequest, SyncResponse } from '../src/sync/protocol';
 import { hashPassword, LoginRateLimiter, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
@@ -160,6 +161,13 @@ export function createApp(config: ServerConfig, store: FileStore) {
     res.json({ entries: store.log.slice(0, 100) });
   });
 
+  /** Shape check for a sync value against its entity key. */
+  const validValue = (key: string, value: unknown): boolean => {
+    if (key.startsWith('doc:')) return isDailyDocument(value) && value.date === key.slice(4);
+    if (key.startsWith('note:')) return isStandaloneNote(value) && value.id === key.slice(5);
+    return isSyncedSettings(value);
+  };
+
   const runSync = (req: Request, res: Response, body: SyncRequest) => {
     const job = syncQueue.then(async () => {
       const { device } = authed(req);
@@ -171,6 +179,10 @@ export function createApp(config: ServerConfig, store: FileStore) {
       if (changes.some((c) => !c || !isValidEntityKey(c.key))) {
         return res.status(400).json({ error: 'Invalid entity key in sync request.' });
       }
+      const invalid = changes.find((c) => c.value !== null && c.value !== undefined && !validValue(c.key, c.value));
+      if (invalid) {
+        return res.status(400).json({ error: `Invalid value for ${invalid.key}.` });
+      }
 
       const conflicts: string[] = [];
       const touched = new Set<string>();
@@ -181,7 +193,9 @@ export function createApp(config: ServerConfig, store: FileStore) {
       };
 
       for (const change of changes) {
-        const current = store.vault.entities[change.key]?.value ?? null;
+        const stored = store.vault.entities[change.key]?.value ?? null;
+        // A corrupt stored entity is treated as absent so a valid push can repair it.
+        const current = stored !== null && !validValue(change.key, stored) ? null : stored;
         const merged = mergeEntity(change.key, change.base ?? null, current, change.value ?? null);
         conflicts.push(...merged.conflicts);
         if (!sameValue(merged.value, current)) write(change.key, merged.value);
