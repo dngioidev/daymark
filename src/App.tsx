@@ -25,6 +25,7 @@ import {
   isShareCancel,
 } from './utils/vaultStore';
 import { importVaultFromZip } from './utils/vaultArchive';
+import { vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
@@ -402,6 +403,8 @@ export default function App() {
     if (!parsed?.daily_documents || !parsed?.standalone_notes) {
       return alertDialog("This file isn't a Daymark backup", 'Choose a .zip or .json file made with Back up.');
     }
+    const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
+    if (problem) return alertDialog("This file can't be restored", problem);
     if (!(await confirmReplaceVault())) return;
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));

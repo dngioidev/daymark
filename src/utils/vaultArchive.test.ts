@@ -12,6 +12,12 @@ describe('vault ZIP export/import', () => {
     expect(restored.settings).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('rejects a snapshot with damaged days instead of importing it', async () => {
+    const zip = new JSZip();
+    zip.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [{ foo: 1 }], standalone_notes: [] }));
+    await expect(importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/damaged/i);
+  });
+
   it('exports Obsidian-style markdown files alongside the snapshot', async () => {
     const bytes = await buildVaultZip(SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES, DEFAULT_SETTINGS);
     const names = Object.keys((await JSZip.loadAsync(bytes)).files);

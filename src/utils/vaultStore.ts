@@ -2,6 +2,7 @@ import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
+import { isDailyDocument, isStandaloneNote } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 
 /**
@@ -159,6 +160,13 @@ function readArray<T>(key: string, fallback: T[]): T[] {
   return Array.isArray(value) ? (value as T[]) : fallback;
 }
 
+/** Drops entries damaged by an earlier bad restore so the app can still open. */
+function keepValid<T>(items: unknown[], isValid: (v: unknown) => v is T, label: string): T[] {
+  const valid = items.filter(isValid);
+  if (valid.length !== items.length) console.error(`Ignored ${items.length - valid.length} damaged ${label} entries.`);
+  return valid;
+}
+
 export function loadSettings(): AppSettings {
   const value = cache.get(KEYS.SETTINGS) as AppSettings | undefined;
   if (!value) return DEFAULT_SETTINGS;
@@ -171,7 +179,7 @@ export function saveSettings(settings: AppSettings): void {
 }
 
 export function loadDailyDocuments(): DailyDocument[] {
-  return readArray<DailyDocument>(KEYS.DAILY_DOCS, []);
+  return keepValid(readArray<unknown>(KEYS.DAILY_DOCS, []), isDailyDocument, 'day');
 }
 
 export function saveDailyDocuments(docs: DailyDocument[]): void {
@@ -179,7 +187,7 @@ export function saveDailyDocuments(docs: DailyDocument[]): void {
 }
 
 export function loadStandaloneNotes(): StandaloneNote[] {
-  return readArray<StandaloneNote>(KEYS.NOTES, []);
+  return keepValid(readArray<unknown>(KEYS.NOTES, []), isStandaloneNote, 'note');
 }
 
 export function saveStandaloneNotes(notes: StandaloneNote[]): void {

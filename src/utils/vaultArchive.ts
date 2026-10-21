@@ -2,6 +2,7 @@
 const loadJSZip = async () => (await import('jszip')).default;
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
+import { vaultProblem } from './vaultValidation';
 
 export interface VaultSnapshot {
   docs: DailyDocument[];
@@ -99,6 +100,8 @@ export async function importVaultFromZip(
   if (snapshotName) {
     const parsed = JSON.parse(await zip.files[snapshotName].async('string'));
     if (Array.isArray(parsed.daily_documents) && Array.isArray(parsed.standalone_notes)) {
+      const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
+      if (problem) throw new Error(problem);
       return {
         docs: parsed.daily_documents,
         notes: parsed.standalone_notes,
@@ -149,6 +152,8 @@ export async function importVaultFromZip(
   if (docs.length === 0 && notes.length === 0) {
     throw new Error('No Daymark daily notes or standalone notes were found in this ZIP.');
   }
+  const problem = vaultProblem(docs, notes);
+  if (problem) throw new Error(problem);
   docs.sort((a, b) => a.date.localeCompare(b.date));
   return { docs, notes, settings };
 }
