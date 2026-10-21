@@ -53,6 +53,14 @@ describe('performDailyRollover', () => {
     expect(allItems(second.updatedDocs, '2026-10-16')).toHaveLength(1);
   });
 
+  it('stamps the carried history entry with a fixed UTC timestamp', () => {
+    const past = [doc('2026-10-20', [task('a', 'in-progress', '2026-10-20')])];
+    const [carried] = allItems(performDailyRollover('2026-10-21', past, statuses).updatedDocs, '2026-10-21');
+    const entry = carried.historyLog!.find((h) => h.action === 'carried_forward')!;
+    expect(entry.timestamp).toBe('2026-10-21T00:00:00.000Z');
+    expect(entry.id).toBe('hist-carry-a-2026-10-21');
+  });
+
   it('two independent rollovers produce identical carried tasks', () => {
     const past = [doc('2026-10-20', [task('a', 'in-progress', '2026-10-20')])];
     const one = allItems(performDailyRollover('2026-10-21', past, statuses).updatedDocs, '2026-10-21');

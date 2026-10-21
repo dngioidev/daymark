@@ -131,7 +131,7 @@ export function performDailyRollover(
           const historyEntry: TaskHistoryItem = {
             // Deterministic so devices that each roll over the same day produce identical tasks (no false sync conflicts).
             id: `hist-carry-${task.id}-${targetDate}`,
-            timestamp: new Date(`${targetDate}T00:00:00`).toISOString(),
+            timestamp: `${targetDate}T00:00:00.000Z`,
             date: targetDate,
             action: 'carried_forward',
             details: `Carried forward from ${pastDoc.date}`,
