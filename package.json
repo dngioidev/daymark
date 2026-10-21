@@ -16,7 +16,8 @@
     "test:e2e": "node scripts/e2e-android-pwa.mjs --no-shots",
     "android:sync": "vite build && cap sync android",
     "android:build": "node scripts/build-android.mjs",
-    "test:sync": "node scripts/e2e-sync.mjs"
+    "test:sync": "node scripts/e2e-sync.mjs",
+    "test:qa": "node scripts/e2e-qa-regressions.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

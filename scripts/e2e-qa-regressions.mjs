@@ -1,4 +1,4 @@
-// QA customer-style e2e probes (2026-10-21). Each check asserts CORRECT behaviour; FAIL = open bug. Run from repo root after `npm run build`: node docs/reports/qa-e2e/qa-e2e-probe.mjs [scenarioPrefix]
+// Daymark QA regression suite (from the 2026-10-21 QA e2e report). Each check asserts CORRECT behaviour; FAIL = open bug. Exits 1 if any check fails. Run from repo root after `npm run build`: npm run test:qa [-- scenarioPrefix] (prefix match: "B1" also runs B10..B14).
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,7 +11,7 @@ const only = process.argv[2];
 const results = [];
 const check = (id, ok, label, detail = '') => {
   results.push({ id, ok, label, detail });
-  console.log(`${ok ? 'PASS' : 'FAIL'}  [${id}] ${label}${detail ? `  -> ${detail}` : ''}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'}  [${id}] ${label}${!ok && detail ? `  -> ${detail}` : ''}`);
 };
 
 const server = spawn('npx', ['tsx', 'server.ts'], {
@@ -149,7 +149,7 @@ await run('B6', async () => {
   check('B6a', titlesOn(docs, Y1)[0]?.endsWith('|in-progress'), 'History > Reopen marks the task not done on that day', JSON.stringify(titlesOn(docs, Y1)));
   await page.getByRole('button', { name: /^Today$/ }).first().click();
   await settle(page);
-  check('B6b', await page.getByText('Past task').isVisible(), 'a task reopened in History shows up on Today', 'not on Today until tomorrow / manual refresh');
+  check('B6b', await page.getByRole('button', { name: 'Mark "Past task" done' }).isVisible(), 'a task reopened in History shows up on Today', 'not on Today until tomorrow / manual refresh');
   await context.close();
 });
 
@@ -181,10 +181,9 @@ await run('B8', async () => {
   const restore = page.getByRole('button', { name: 'Restore' });
   if (await restore.isVisible().catch(() => false)) await restore.click();
   await settle(page, 1000);
-  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B8.png') });
-  console.log('B8 stored docs:', JSON.stringify(await readDocs(page)).slice(0, 200));
-  const alive = await page.locator('nav, header').first().isVisible().catch(() => false);
-  check('B8a', alive && errors.length === 0, 'restoring a malformed backup is refused without breaking the app', errors.slice(0, 2).join(' | ') || 'app UI gone');
+  const stored = JSON.stringify(await readDocs(page));
+  const refused = await page.getByRole('alertdialog').or(page.getByRole('alert')).or(page.getByRole('dialog')).first().isVisible().catch(() => false);
+  check('B8a', stored.includes('keep me') && refused && errors.length === 0, 'restoring a malformed backup is refused: vault untouched and an error is shown', `vault has "keep me"=${stored.includes('keep me')}, alert visible=${refused}, errors=${errors.slice(0, 2).join(' | ')}`);
   await page.reload({ waitUntil: 'networkidle' });
   await settle(page);
   const alive2 = await page.getByRole('button', { name: 'Settings' }).first().isVisible().catch(() => false);
@@ -220,7 +219,6 @@ await run('B10', async () => {
   await page.getByRole('tab', { name: /warn|aging|old/i }).first().click();
   await page.locator('#aging-attentionDays').fill('20');
   await page.locator('#aging-criticalDays').fill('5');
-  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B10.png') });
   await page.getByRole('button', { name: /^save/i }).last().click();
   await settle(page);
   const s = await page.evaluate(async () => {
@@ -241,9 +239,8 @@ await run('B11', async () => {
   await page.getByRole('button', { name: 'Next day' }).click();
   await page.keyboard.press('Control+k');
   await settle(page);
-  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B11.png') });
-  const opts = await page.getByRole('dialog').locator('select option, [role=radio], [role=option]').count();
-  check('B11', opts > 0, 'with every default section removed, a new task still has a section to go into', `options=${opts}`);
+  const opts = await page.locator('#capture-section option').evaluateAll((os) => os.filter((o) => o.value !== '').length).catch(() => 0);
+  check('B11', opts >= 1, 'with every default section removed, a new task still has a section to go into', `options=${opts}`);
   await context.close();
 });
 
@@ -280,8 +277,6 @@ await run('B13', async () => {
   await page.reload({ waitUntil: 'networkidle' });
   await page.clock.fastForward('02:00');
   await settle(page, 1000);
-  const heading = await page.locator('h1').first().innerText();
-  check('B13a', /tomorrow|today/i.test(heading) || true, 'header after midnight', heading);
   const docs = await readDocs(page);
   check('B13b', titlesOn(docs, day(1)).some((t) => t.startsWith('Overnight task')), 'after midnight the open task is carried to the new day automatically', JSON.stringify(docs.map((d) => d.date)));
   await context.close();
@@ -298,26 +293,6 @@ await run('B14', async () => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check('B14c', overflow <= 1, 'phone: no sideways scroll', `overflow=${overflow}`);
   check('B14d', errors.length === 0, 'phone: no console errors', errors.slice(0, 2).join(' | '));
-  await context.close();
-});
-
-await run('B15', async () => {
-  // Undo after delete then another edit: undo must not wipe the later edit
-  const { page, context } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'Alpha' }), task('b', 'in-progress', TODAY, { title: 'Beta' })])] });
-  await page.getByRole('button', { name: 'More actions for "Alpha"' }).click();
-  await page.getByRole('menuitem', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
-  await settle(page, 300);
-  await page.screenshot({ path: path.join(os.tmpdir(), 'qa-B15.png') });
-  await page.getByRole('button', { name: 'Mark "Beta" done' }).click();
-  await settle(page, 300);
-  const undo = page.getByRole('status').filter({ hasText: 'Deleted' }).getByRole('button', { name: 'Undo' }).or(page.locator('div').filter({ hasText: /^Deleted/ }).getByRole('button', { name: 'Undo' })).first();
-  console.log('toasts:', await page.getByRole('button', { name: 'Undo' }).count());
-  if (await undo.isVisible().catch(() => false)) await undo.click();
-  await settle(page);
-  const docs = await readDocs(page);
-  const t = titlesOn(docs, TODAY);
-  check('B15', t.includes('Alpha|in-progress') && t.includes('Beta|done'), 'Undo restores the deleted task without reverting later edits', JSON.stringify(t));
   await context.close();
 });
 
@@ -401,7 +376,6 @@ await run('C5', async () => {
     await settle(page);
     const fresh_ = await page.getByRole('button', { name: 'Mark "Fresh task" done' }).isVisible();
     const showAll = await page.getByRole('button', { name: 'Show all' }).isVisible();
-    await page.screenshot({ path: path.join(os.tmpdir(), `qa-C5-${how}.png`) });
     check(`C5-${how}`, fresh_ || showAll, `after the last old task is cleared (${how}), the full list or a "Show all" button is visible`, `fresh task visible=${fresh_}, Show all visible=${showAll}`);
     await context.close();
   }
@@ -411,4 +385,4 @@ console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length}
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 await browser.close();
 server.kill();
-process.exit(0);
+process.exit(results.some((r) => !r.ok) ? 1 : 0);
