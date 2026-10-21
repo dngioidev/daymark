@@ -29,7 +29,7 @@ import { vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { toggleTaskDoneInDocument } from './utils/taskActions';
+import { removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -73,6 +73,8 @@ export default function App() {
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
+  const dailyDocsRef = React.useRef(dailyDocs);
+  dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
 
   // Current active date
@@ -227,6 +229,17 @@ export default function App() {
     });
   };
 
+  // Handler: change one day against the latest state (used by Undo so it only touches what it must)
+  const patchDocument = (date: string, patch: (doc: DailyDocument) => DailyDocument) => {
+    setDailyDocs((prev) => {
+      const idx = prev.findIndex((d) => d.date === date);
+      if (idx === -1) return prev;
+      const copy = [...prev];
+      copy[idx] = patch(prev[idx]);
+      return copy;
+    });
+  };
+
   // Handler: Execute idempotent daily rollover
   const handleTriggerRollover = () => {
     const { updatedDocs, carriedCount } = performDailyRollover(
@@ -261,7 +274,17 @@ export default function App() {
     setDailyDocs(updatedDocs);
     if (updatedTask) {
       showToast(`Marked “${updatedTask.title}” done ${inlineDay(effectiveCompletedDate, currentDate)}.`, {
-        action: { label: 'Undo', onClick: () => setDailyDocs(before) },
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            // Only undo when nothing else changed since; otherwise we would wipe out newer edits
+            if (dailyDocsRef.current !== updatedDocs) {
+              showToast("Can't undo: the list changed since.", { tone: 'error' });
+              return;
+            }
+            setDailyDocs((prev) => (prev === updatedDocs ? before : prev));
+          },
+        },
       });
     }
   };
@@ -485,14 +508,14 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     });
   const handleDeleteTaskInDay = (taskId: string) => {
-    const before = currentDoc;
-    const task = currentDoc.headings.flatMap((h) => h.items).find((t) => t.id === taskId);
-    handleUpdateDocument({
-      ...currentDoc,
-      headings: currentDoc.headings.map((h) => ({ ...h, items: h.items.filter((t) => t.id !== taskId) })),
-      updatedAt: new Date().toISOString(),
+    const res = removeTaskFromDocument(currentDoc, taskId);
+    if (!res) return;
+    const { removed } = res;
+    const date = currentDoc.date;
+    handleUpdateDocument(res.doc);
+    showToast(`Deleted “${removed.task.title}”`, {
+      action: { label: 'Undo', onClick: () => patchDocument(date, (d) => restoreTaskToDocument(d, removed)) },
     });
-    showToast(`Deleted “${task?.title ?? 'task'}”`, { action: { label: 'Undo', onClick: () => handleUpdateDocument(before) } });
   };
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
@@ -522,6 +545,7 @@ export default function App() {
                 defaultHeadings={settings.defaultHeadings}
                 onDateChange={setCurrentDate}
                 onUpdateDocument={handleUpdateDocument}
+                onPatchDocument={patchDocument}
                 onOpenHistoricalModal={setHistoricalModalTask}
                 onOpenHistoryDrawer={openDetails}
                 onQuickHistoricalDone={handleQuickHistoricalDone}
@@ -574,6 +598,7 @@ export default function App() {
           simulatedToday={today}
           onDateChange={setCurrentDate}
           onUpdateDocument={handleUpdateDocument}
+          onPatchDocument={patchDocument}
           onUpdateNotes={setNotes}
           onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
           onOpenHistoricalModal={setHistoricalModalTask}

@@ -33,6 +33,24 @@ const doc = (items: TaskItem[], notes = '', extra: Partial<DailyDocument> = {}):
 const ids = (d: DailyDocument | null) => d!.headings.flatMap((h) => h.items.map((t) => `${t.id}:${t.status}`));
 
 describe('mergeDailyDocument', () => {
+  it('unions tombstones from both devices', () => {
+    const base = doc([task('a'), task('b'), task('c')]);
+    const ours = doc([task('b'), task('c')], '', { removedTaskIds: ['a'] });
+    const theirs = doc([task('a'), task('c')], '', { removedTaskIds: ['b'] });
+    const merged = mergeDailyDocument(base, ours, theirs).value!;
+    expect(merged.removedTaskIds?.slice().sort()).toEqual(['a', 'b']);
+    expect(ids(merged)).toEqual(['c:in-progress']);
+  });
+
+  it('drops tombstones for tasks that are present', () => {
+    const base = doc([task('a')]);
+    const ours = doc([], '', { removedTaskIds: ['a'] });
+    const theirs = doc([task('a', 'done')]);
+    const merged = mergeDailyDocument(base, ours, theirs).value!;
+    expect(ids(merged)).toContain('a:done');
+    expect(merged.removedTaskIds).toBeUndefined();
+  });
+
   it('takes the only side that changed', () => {
     const base = doc([task('a')]);
     const theirs = doc([task('a', 'done')]);

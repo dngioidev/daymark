@@ -23,3 +23,51 @@ export function toggleTaskDoneInDocument(
   }
   return null;
 }
+
+export interface RemovedTask {
+  task: TaskItem;
+  heading: string;
+  index: number;
+}
+
+/**
+ * Removes one task and records its id in `removedTaskIds` so rollover and sync do not bring it back.
+ * Returns null when the task is not in the document.
+ */
+export function removeTaskFromDocument(
+  doc: DailyDocument,
+  taskId: string
+): { doc: DailyDocument; removed: RemovedTask } | null {
+  let removed: RemovedTask | null = null;
+  const headings = doc.headings.map((h) => {
+    const index = h.items.findIndex((t) => t.id === taskId);
+    if (index === -1) return h;
+    removed = { task: h.items[index], heading: h.name, index };
+    return { ...h, items: h.items.filter((t) => t.id !== taskId) };
+  });
+  if (!removed) return null;
+  const removedTaskIds = [...new Set([...(doc.removedTaskIds ?? []), taskId])];
+  return { doc: { ...doc, headings, removedTaskIds, updatedAt: new Date().toISOString() }, removed };
+}
+
+/** Puts a removed task back where it was and clears its tombstone. Does nothing if the task is already present. */
+export function restoreTaskToDocument(doc: DailyDocument, removed: RemovedTask): DailyDocument {
+  if (doc.headings.some((h) => h.items.some((t) => t.id === removed.task.id))) return doc;
+  const headings = doc.headings.some((h) => h.name === removed.heading)
+    ? doc.headings
+    : [...doc.headings, { name: removed.heading, items: [], notesContent: '' }];
+  const nextHeadings = headings.map((h) => {
+    if (h.name !== removed.heading) return h;
+    const items = [...h.items];
+    items.splice(Math.min(Math.max(removed.index, 0), items.length), 0, removed.task);
+    return { ...h, items };
+  });
+  const { removedTaskIds, ...rest } = doc;
+  const remaining = (removedTaskIds ?? []).filter((id) => id !== removed.task.id);
+  return {
+    ...rest,
+    headings: nextHeadings,
+    ...(remaining.length > 0 ? { removedTaskIds: remaining } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+}

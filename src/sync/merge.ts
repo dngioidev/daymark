@@ -135,11 +135,17 @@ export function mergeDailyDocument(
     headings.push({ name, items: items.map((task, i) => ({ ...task, order: i + 1 })), notesContent: text.text });
   }
 
+  // Deletions from either device stick, unless the task is present in the merge
+  const present = new Set(headings.flatMap((h) => h.items.map((x) => x.id)));
+  const removedTaskIds = [...new Set([...(o.removedTaskIds ?? []), ...(t.removedTaskIds ?? [])])].filter((id) => !present.has(id));
+  const { removedTaskIds: _oRemoved, ...oRest } = o;
+  const { removedTaskIds: _tRemoved, ...tRest } = t;
   return {
     value: {
-      ...o,
-      ...t,
+      ...oRest,
+      ...tRest,
       headings,
+      ...(removedTaskIds.length > 0 ? { removedTaskIds } : {}),
       updatedAt: o.updatedAt > t.updatedAt ? o.updatedAt : t.updatedAt,
     },
     conflicts,

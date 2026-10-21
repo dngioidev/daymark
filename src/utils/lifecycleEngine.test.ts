@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
+import { removeTaskFromDocument } from './taskActions';
 import {
   correctHistoricalCompletion,
   getAgingSeverity,
@@ -59,6 +60,16 @@ describe('performDailyRollover', () => {
     const entry = carried.historyLog!.find((h) => h.action === 'carried_forward')!;
     expect(entry.timestamp).toBe('2026-10-21T00:00:00.000Z');
     expect(entry.id).toBe('hist-carry-a-2026-10-21');
+  });
+
+  it('does not bring back a task deleted from the target day', () => {
+    const past = [doc('2026-10-20', [task('a', 'in-progress', '2026-10-20')])];
+    const first = performDailyRollover('2026-10-21', past, statuses).updatedDocs;
+    const today = first.find((d) => d.date === '2026-10-21')!;
+    const removed = removeTaskFromDocument(today, 'a')!.doc;
+    const docs = first.map((d) => (d.date === '2026-10-21' ? removed : d));
+    const second = performDailyRollover('2026-10-21', docs, statuses);
+    expect(allItems(second.updatedDocs, '2026-10-21').map((t) => t.id)).not.toContain('a');
   });
 
   it('two independent rollovers produce identical carried tasks', () => {

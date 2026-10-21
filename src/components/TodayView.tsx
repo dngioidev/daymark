@@ -16,6 +16,7 @@ import {
 import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
+import { removeTaskFromDocument, restoreTaskToDocument } from '../utils/taskActions';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { hideTaskTags, parseDailyDocument, restoreTaskTags, serializeDailyDocument } from '../utils/markdownEngine';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -31,6 +32,8 @@ interface TodayViewProps {
   defaultHeadings: string[];
   onDateChange: (newDate: string) => void;
   onUpdateDocument: (doc: DailyDocument) => void;
+  /** Applies a change to the latest copy of a day, so Undo only touches what it must. */
+  onPatchDocument: (date: string, patch: (doc: DailyDocument) => DailyDocument) => void;
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
@@ -80,6 +83,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   defaultHeadings,
   onDateChange,
   onUpdateDocument,
+  onPatchDocument,
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
@@ -162,7 +166,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   const saveMarkdown = () => {
     const restored = restoreTaskTags(rawDraft, hiddenTags.current, date);
-    const parsed = keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument);
+    const parsedDoc = keepTaskMetadata(parseDailyDocument(restored, date, defaultHeadings), currentDocument);
+    // Tasks deleted by editing the markdown must stay deleted
+    const keptIds = new Set(parsedDoc.headings.flatMap((h) => h.items.map((t) => t.id)));
+    const droppedIds = currentDocument.headings.flatMap((h) => h.items.map((t) => t.id)).filter((id) => !keptIds.has(id));
+    const removedTaskIds = [...new Set([...(parsedDoc.removedTaskIds ?? []), ...droppedIds])];
+    const parsed: DailyDocument = removedTaskIds.length > 0 ? { ...parsedDoc, removedTaskIds } : parsedDoc;
     onUpdateDocument(parsed);
     const { text, tags } = hideTaskTags(serializeDailyDocument(parsed));
     hiddenTags.current = tags;
@@ -173,7 +182,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   // ---------- Task edits ----------
   const handleTaskUpdate = (updatedTask: TaskItem) => {
-    const before = currentDocument;
     const newDoc = clone(currentDocument);
     let previous: TaskItem | undefined;
     for (const h of newDoc.headings) {
@@ -186,17 +194,28 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
     onUpdateDocument(touch(newDoc));
     if (previous && previous.status !== 'done' && updatedTask.status === 'done') {
-      showToast(`Done: ${updatedTask.title}`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
+      showToast(`Done: ${updatedTask.title}`, {
+        action: {
+          label: 'Undo',
+          onClick: () =>
+            onPatchDocument(date, (d) => ({
+              ...d,
+              headings: d.headings.map((h) => ({ ...h, items: h.items.map((t) => (t.id === previous.id ? previous : t)) })),
+              updatedAt: new Date().toISOString(),
+            })),
+        },
+      });
     }
   };
 
   const handleTaskDelete = (taskId: string) => {
-    const before = currentDocument;
-    const task = allTasks.find((t) => t.id === taskId);
-    const newDoc = clone(currentDocument);
-    for (const h of newDoc.headings) h.items = h.items.filter((t) => t.id !== taskId);
-    onUpdateDocument(touch(newDoc));
-    showToast(`Deleted “${task?.title ?? 'task'}”`, { action: { label: 'Undo', onClick: () => onUpdateDocument(before) } });
+    const res = removeTaskFromDocument(currentDocument, taskId);
+    if (!res) return;
+    const { removed } = res;
+    onUpdateDocument(res.doc);
+    showToast(`Deleted “${removed.task.title}”`, {
+      action: { label: 'Undo', onClick: () => onPatchDocument(date, (d) => restoreTaskToDocument(d, removed)) },
+    });
   };
 
   const handleToggleAlertDismiss = (taskId: string) => {

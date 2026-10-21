@@ -82,7 +82,8 @@ export function performDailyRollover(
       };
 
   // Set of task IDs already active in target document
-  const existingTaskIds = new Set<string>();
+  // Tasks deleted from the target day count as present so they are not carried back in
+  const existingTaskIds = new Set<string>(activeTargetDoc.removedTaskIds ?? []);
   for (const h of activeTargetDoc.headings) {
     for (const item of h.items) {
       existingTaskIds.add(item.id);

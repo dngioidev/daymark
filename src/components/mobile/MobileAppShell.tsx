@@ -19,6 +19,7 @@ interface MobileAppShellProps {
   simulatedToday: string;
   onDateChange: (date: string) => void;
   onUpdateDocument: (doc: DailyDocument) => void;
+  onPatchDocument: (date: string, patch: (doc: DailyDocument) => DailyDocument) => void;
   onUpdateNotes: (notes: StandaloneNote[]) => void;
   onOpenQuickCapture: () => void;
   onOpenHistoricalModal: (task: TaskItem) => void;
@@ -46,6 +47,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   simulatedToday,
   onDateChange,
   onUpdateDocument,
+  onPatchDocument,
   onUpdateNotes,
   onOpenQuickCapture,
   onOpenHistoricalModal,
@@ -150,6 +152,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               defaultHeadings={settings.defaultHeadings}
               onDateChange={onDateChange}
               onUpdateDocument={onUpdateDocument}
+              onPatchDocument={onPatchDocument}
               onOpenHistoricalModal={onOpenHistoricalModal}
               onOpenHistoryDrawer={onOpenHistoryDrawer}
               onQuickHistoricalDone={onQuickHistoricalDone}

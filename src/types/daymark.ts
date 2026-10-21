@@ -57,6 +57,8 @@ export interface DailyDocument {
   type: 'daily';
   headings: HeadingSection[];
   rawMarkdown?: string;
+  /** Ids of tasks deleted from this day, so rollover and sync do not bring them back. Not written to markdown. */
+  removedTaskIds?: string[];
   updatedAt: string;
 }
 
