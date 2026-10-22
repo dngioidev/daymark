@@ -61,7 +61,7 @@ services:
 ## Features
 
 - **Your own look:** choose Light or Dark, header and text colours, text size, and up to five background photos with dim and blur. Photos stay on this device; appearance settings sync.
-- **Calendar:** plan future days, switch between month and week, and open any day to write. Drag a task onto a future day on desktop.
+- **Calendar:** plan future days, switch between month and week, and open any day to write. Drag a task onto today or a future day on desktop.
 - **Roomier Today:** full-width lists and Markdown, collapsible sections, a seven-day progress strip and the next planned day. Move a task to tomorrow or another date, with Undo.
 - **Notes:** a full-height editor, focus mode, word count and Blank, Meeting, Daily review and Decision record templates.
 - **Search:** find tasks across days and notes, then open the result directly.

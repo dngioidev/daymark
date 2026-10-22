@@ -767,7 +767,10 @@ await run('D4', async () => {
 });
 await run('D5', async () => {
   const title = 'D5 move once';
-  const { page } = await fresh({ docs: [doc(TODAY, [task('d5', 'not-started', TODAY, { title })])] });
+  const { page } = await fresh({ docs: [doc(TODAY, [
+    task('d5', 'not-started', TODAY, { title }),
+    task('d5-rollover', 'in-progress', TODAY, { title: 'D5 unfinished rollover witness' }),
+  ])] });
   const move = async () => {
     await page.getByRole('button', { name: `More actions for "${title}"` }).click();
     await page.getByRole('menuitem', { name: 'Move to tomorrow', exact: true }).click();
@@ -787,17 +790,37 @@ await run('D5', async () => {
   await persisted(page, 'settings', (s, date) => s.simulatedToday === date, day(1));
   await settingsClose(page);
   await page.getByRole('button', { name: `Mark "${title}" done` }).waitFor();
-  await persisted(page, 'daily_docs', (ds, date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).filter((t) => t.id === 'd5').length === 1, day(1));
+  await persisted(page, 'daily_docs', (ds, dates) => {
+    const items = ds.find((d) => d.date === dates.target)?.headings.flatMap((h) => h.items) ?? [];
+    return items.filter((t) => t.id === 'd5').length === 1
+      && items.some((t) => t.id === 'd5-rollover' && t.carriedFromDate === dates.source);
+  }, { source: TODAY, target: day(1) });
   const docs = await readDocs(page);
   const copies = (date) => (docs.find((d) => d.date === date)?.headings ?? []).flatMap((h) => h.items).filter((t) => t.id === 'd5').length;
-  check('D5b', copies(TODAY) === 0 && copies(day(1)) === 1 && copies(day(2)) === 0,
-    'after next-day rollover task appears once on target, absent on source and unvisited day after', JSON.stringify({ source: copies(TODAY), target: copies(day(1)), after: copies(day(2)) }));
+  const witness = docs.find((d) => d.date === day(1))?.headings.flatMap((h) => h.items)
+    .some((t) => t.id === 'd5-rollover' && t.carriedFromDate === TODAY);
+  check('D5b', witness && copies(TODAY) === 0 && copies(day(1)) === 1 && copies(day(2)) === 0,
+    'another unfinished task proves next-day rollover ran; moved task appears once on target, absent on source and unvisited day after',
+    JSON.stringify({ rolloverWitness: witness, source: copies(TODAY), target: copies(day(1)), after: copies(day(2)) }));
 });
 const longDay = (date) => new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const cellFor = (page, date) => page.getByRole('button', { name: new RegExp('^' + longDay(date) + ':') });
 const calendarDay = async (page, date) => {
   await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
-  if (!await cellFor(page, date).count()) await page.getByRole('button', { name: 'Next month', exact: true }).click();
+  const months = Array.from({ length: 12 }, (_, month) => new Date(2000, month, 1).toLocaleDateString('en-US', { month: 'long' }));
+  const heading = page.getByRole('heading', { name: new RegExp(`^(${months.join('|')}) \\d{4}$`) });
+  const target = Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
+  for (let step = 0; step <= 24; step++) {
+    const visible = (await heading.innerText()).trim();
+    const [month, year] = visible.split(' ');
+    const current = Number(year) * 12 + months.indexOf(month);
+    if (current === target) break;
+    if (step === 24) throw new Error(`Calendar did not reach ${date.slice(0, 7)} within 24 month steps; showing ${visible}`);
+    const direction = current < target ? 1 : -1;
+    const next = current + direction;
+    await page.getByRole('button', { name: direction === 1 ? 'Next month' : 'Previous month', exact: true }).click();
+    await page.getByRole('heading', { name: `${months[next % 12]} ${Math.floor(next / 12)}`, exact: true }).waitFor();
+  }
   await cellFor(page, date).click();
   await page.getByRole('button', { name: 'Open this day', exact: true }).click();
 };

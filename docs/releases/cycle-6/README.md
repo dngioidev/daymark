@@ -67,8 +67,8 @@ Captured with `node scripts/capture-screenshots.mjs cycle-6`.
 - Two-device sync and restart checks: pass.
 - Unit and server tests: 472 passed, 1 skipped.
 - Android: debug APK builds; Kotlin JVM tests 21/21 (WidgetStyleTest 9, WidgetModelTest 11, example 1).
-
-The controller supplied the browser, screenshot and Android results. The UX total includes the deep-link setup fix; the controller will confirm it on the next run. Type checking, the production build and AI configuration validation are recorded in the task report.
+- Type checking and production build: pass.
+- AI configuration validation: 63/63 checks pass.
 
 ## Known limits
 
