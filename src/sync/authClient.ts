@@ -46,6 +46,7 @@ interface TokenManagerOptions {
   getRefreshToken: () => string | undefined;
   setRefreshToken: (t: string) => Promise<void> | void;
   onSessionEnded: () => void;
+  onRefresh?: (session: RefreshResponse) => Promise<void> | void;
   locks?: LockManager | null;
   channel?: BroadcastChannel | null;
 }
@@ -182,6 +183,7 @@ export class TokenManager {
         throw error;
       }
       if (this.opts.mode === 'body' && data.refreshToken) await this.opts.setRefreshToken(data.refreshToken);
+      await this.opts.onRefresh?.(data);
       this.token = { accessToken: data.accessToken, expiresAt: Date.now() + data.expiresIn * 1000 };
       this.channel?.postMessage({ type: 'token', ...this.token });
       return data.accessToken;
@@ -195,7 +197,8 @@ export class TokenManager {
     const send = (token: string) => {
       const headers = new Headers(init?.headers);
       headers.set('Authorization', `Bearer ${token}`);
-      return this.opts.fetchFn(`${this.serverUrl}${path}`, { ...init, headers });
+      const { fetchFn } = this.opts;
+      return fetchFn(`${this.serverUrl}${path}`, { ...init, headers });
     };
     const accessToken = await this.getAccessToken();
     const rejected = this.token;

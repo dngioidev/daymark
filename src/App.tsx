@@ -50,6 +50,7 @@ const MobileCodeHub = React.lazy(() => import('./components/MobileCodeHub').then
 import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { ServerDashboard } from './components/server/ServerDashboard';
 import { useSync } from './hooks/useSync';
+import { getHostMode } from './utils/hostMode';
 import { isNativeApp } from './native/daymarkBridge';
 import { defaultDeviceName as browserDeviceName } from './utils/deviceName';
 import { useBackHandler } from './native/backButton';
@@ -94,7 +95,8 @@ export default function App() {
   });
 
   // First-run welcome (empty vault) and dev-only UI
-  const [showWelcome, setShowWelcome] = useState<boolean>(needsOnboarding);
+  const [hostMode] = useState(getHostMode);
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => hostMode !== 'server' && needsOnboarding());
   const devMode =
     typeof window !== 'undefined' &&
     (new URLSearchParams(window.location.search).has('dev') || localStorage.getItem('daymark_dev') === '1');
@@ -671,6 +673,10 @@ export default function App() {
         isOpen={showWelcome}
         onStartEmpty={handleStartEmpty}
         onLoadSample={handleLoadSample}
+        onSignIn={hostMode === 'native' ? () => {
+          handleStartEmpty();
+          openSettings('sync');
+        } : undefined}
         onRestore={() => {
           handleStartEmpty();
           openSettings('storage');

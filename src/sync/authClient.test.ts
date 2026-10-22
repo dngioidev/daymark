@@ -65,6 +65,22 @@ async function session(fetchFn: FetchLike = fetch, mode: AuthMode = 'body') {
 }
 
 describe('TokenManager', () => {
+  it('calls a browser fetch function without binding it to the options object', async () => {
+    const fetchFn: FetchLike = function (this: unknown, url, init) {
+      if (this !== undefined) throw new TypeError('Illegal invocation');
+      return fetch(url, init);
+    };
+    const s = await session(fetchFn);
+    const manager = new TokenManager(s.opts);
+    expect((await manager.authFetch('/api/server/stats')).status).toBe(200);
+  });
+  it('provides the refreshed account before returning the access token', async () => {
+    const s = await session();
+    let account: string | undefined;
+    const manager = new TokenManager({ ...s.opts, onRefresh: async (data) => { account = data.device.id; } });
+    await manager.getAccessToken();
+    expect(account).toBe(s.login.device.id);
+  });
   it('without Web Locks shares one cookie refresh across tabs using localStorage', async () => {
     const values = new Map<string, string>();
     values.set('daymark_refresh_lock', JSON.stringify({ id: 'closed-tab', until: Date.now() - 1 }));

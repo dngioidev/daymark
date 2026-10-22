@@ -35,6 +35,16 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ sync, defaultDeviceName })
   const [deviceName, setDeviceName] = useState(defaultDeviceName);
   const [busy, setBusy] = useState(false);
 
+  if (sync.mode === 'local-web') return (
+    <p className="text-sm text-stone-600 dark:text-stone-400">
+      Sign-in and sync work in the Daymark app served by your server, or in the Android app. On this page your notes stay in this browser; use Backup &amp; restore to move them.
+    </p>
+  );
+
+  if (sync.mode === 'server' && !sync.account) return (
+    <p role="status" className="text-sm text-stone-600 dark:text-stone-400">{sync.error || 'Syncing…'}</p>
+  );
+
   if (!sync.account) {
     const submit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -109,7 +119,7 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ sync, defaultDeviceName })
 
   const statusLine = {
     off: { icon: <CloudOff className="w-4 h-4 text-stone-500" />, text: 'Not syncing' },
-    idle: { icon: <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />, text: `Up to date · synced ${relativeTime(sync.lastSyncAt)}` },
+    idle: { icon: <CheckCircle2 className="w-4 h-4 text-stone-700 dark:text-stone-400" />, text: `Up to date · synced ${relativeTime(sync.lastSyncAt)}` },
     syncing: { icon: <Loader2 className="w-4 h-4 text-amber-700 animate-spin" />, text: 'Syncing…' },
     offline: { icon: <CloudOff className="w-4 h-4 text-amber-700" />, text: 'Offline · changes are saved here and sync when you reconnect' },
     error: { icon: <AlertCircle className="w-4 h-4 text-rose-700" />, text: sync.error || 'Sync failed' },
@@ -131,22 +141,39 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ sync, defaultDeviceName })
         <dd className="text-stone-900 dark:text-stone-100">{sync.account.deviceName}</dd>
       </dl>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="button" onClick={sync.syncNow} disabled={sync.status === 'syncing'} className={`${buttonClass.primary} flex-1`}>
+        <button type="button" onClick={() => { void sync.syncNow().catch(() => undefined); }} disabled={sync.status === 'syncing'} className={`${buttonClass.primary} flex-1`}>
           <RefreshCw className={`w-4 h-4 ${sync.status === 'syncing' ? 'animate-spin' : ''}`} /> Sync now
         </button>
         <button
           type="button"
           onClick={async () => {
+            if (sync.mode === 'server') {
+              setBusy(true);
+              try {
+                if (await sync.signOut() === 'needs-confirm') {
+                  const ok = await confirmDialog({
+                    title: 'Sign out?',
+                    message: `${sync.pendingChanges()} change(s) haven't reached the server and will be deleted from this browser.`,
+                    cancelLabel: 'Cancel',
+                    confirmLabel: 'Sign out anyway',
+                    danger: true,
+                  });
+                  if (ok) await sync.signOut({ force: true });
+                }
+              } finally { setBusy(false); }
+              return;
+            }
             const ok = await confirmDialog({
               title: 'Stop syncing this device?',
               message: 'Everything stays on this device, and the server keeps its copy.',
               confirmLabel: 'Disconnect',
             });
-            if (ok) void sync.disconnect();
+            if (ok) await sync.signOut();
           }}
+          disabled={busy}
           className={`${buttonClass.secondary} flex-1`}
         >
-          Disconnect this device
+          {sync.mode === 'server' ? 'Sign out' : 'Disconnect this device'}
         </button>
       </div>
     </div>

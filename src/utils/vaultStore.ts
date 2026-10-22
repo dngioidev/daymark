@@ -43,6 +43,8 @@ const cache = new Map<string, unknown>();
 let db: IDBDatabase | null = null;
 let storageMode: 'indexeddb' | 'localstorage' = 'indexeddb';
 let writeChain: Promise<void> = Promise.resolve();
+let wiping = false;
+let wipePromise: Promise<void> | null = null;
 
 type ErrorListener = (message: string) => void;
 const errorListeners = new Set<ErrorListener>();
@@ -110,6 +112,12 @@ export async function initVaultStore(): Promise<void> {
   try {
     if (typeof indexedDB === 'undefined') throw new Error('IndexedDB is not available');
     db = await openDb();
+    db.onversionchange = () => {
+      db?.close();
+      db = null;
+      wiping = true;
+      cache.clear();
+    };
     const stored = await readAll(db);
     stored.forEach((value, key) => cache.set(key, value));
 
@@ -155,6 +163,11 @@ export function parseVaultMessage(data: unknown): { key: SharedKey; value: unkno
 
 if (channel) {
   channel.onmessage = (event: MessageEvent) => {
+    if (event.data?.type === 'wipe') {
+      if (!wipePromise) void wipeLocalVault().then(() => location.replace('/')).catch((err) => reportError('Could not clear this browser vault.', err));
+      return;
+    }
+    if (wiping) return;
     const msg = parseVaultMessage(event.data);
     if (!msg) return;
     try {
@@ -173,6 +186,7 @@ export function subscribeExternalChanges(listener: ExternalListener): () => void
 }
 
 function writeValue(key: string, value: unknown): Promise<void> {
+  if (wiping) return Promise.resolve();
   const previous = cache.get(key);
   // Loop guard: a value received from another tab is saved back by the same reference.
   // Settings are re-normalized into a new object, so they are compared by content.
@@ -261,6 +275,34 @@ export function loadSyncState(): SyncState | null {
 
 export function saveSyncState(state: SyncState | null): Promise<void> {
   return writeValue(KEYS.SYNC_STATE, state);
+}
+
+/** Remove this browser's vault after its server session ends. */
+export function wipeLocalVault(): Promise<void> {
+  if (wipePromise) return wipePromise;
+  wiping = true;
+  cache.clear();
+  wipePromise = (async () => {
+    channel?.postMessage({ type: 'wipe' });
+    await writeChain;
+    db?.close();
+    db = null;
+    if (typeof indexedDB !== 'undefined') {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(DB_NAME);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('daymark')) localStorage.removeItem(key);
+    }
+    if (typeof caches !== 'undefined') {
+      await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
+    }
+  })();
+  return wipePromise;
 }
 
 /** True once the user has chosen how to start (empty vault or sample data), or has any data. */

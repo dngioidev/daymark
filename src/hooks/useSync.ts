@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
-import { applySyncOutcome, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, VaultData } from '../sync/syncClient';
+import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
 import { SessionEndedError, signIn, TokenManager } from '../sync/authClient';
-import { loadSyncState, saveSyncState } from '../utils/vaultStore';
+import { loadSyncState, markOnboarded, saveSyncState, wipeLocalVault } from '../utils/vaultStore';
 import { getInstallId } from '../utils/deviceName';
+import { getHostMode } from '../utils/hostMode';
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -18,44 +19,44 @@ export interface UseSyncResult {
   account: SyncAccount | null;
   lastSyncAt: string | null;
   error: string | null;
+  mode: ReturnType<typeof getHostMode>;
   connect: (serverUrl: string, username: string, password: string, deviceName: string) => Promise<void>;
   disconnect: () => Promise<void>;
-  syncNow: () => void;
+  signOut: (opts?: { force?: boolean }) => Promise<'done' | 'needs-confirm'>;
+  pendingChanges: () => number;
+  authFetch: (path: string, init?: RequestInit) => Promise<Response>;
+  syncNow: () => Promise<void>;
   /** Call right after the whole local vault was replaced (restore, sample data). */
   rebaseAfterReplace: () => void;
-  token: string | null;
 }
 
 const AUTO_SYNC_DEBOUNCE_MS = 2500;
 const PERIODIC_SYNC_MS = 60_000;
 
-/**
- * Keeps the local vault in sync with the self-hosted server: syncs on start, a moment after
- * every local change, when the device comes back online or to the foreground, and every minute.
- * `onVaultChange` receives the merged vault and must apply it to app state.
- */
+/** Sync on start, local changes, reconnect, foreground and once a minute. */
 export function useSync(
   vault: VaultData,
   onVaultChange: (next: VaultData) => void,
   onConflicts: (messages: string[]) => void,
   platform: string
 ): UseSyncResult {
-  const [state, setState] = useState<SyncState | null>(loadSyncState);
-  const [status, setStatus] = useState<SyncStatus>(state ? 'idle' : 'off');
+  const [mode] = useState(getHostMode);
+  const [state, setState] = useState<SyncState | null>(() => mode === 'local-web' ? null : loadSyncState());
+  const [status, setStatus] = useState<SyncStatus>(state || mode === 'server' ? 'idle' : 'off');
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const manager = useRef<TokenManager | null>(null);
-
   const vaultRef = useRef(vault);
   vaultRef.current = vault;
   const stateRef = useRef(state);
   stateRef.current = state;
   const callbacks = useRef({ onVaultChange, onConflicts });
   callbacks.current = { onVaultChange, onConflicts };
-  const running = useRef(false);
+  const running = useRef<Promise<void> | null>(null);
   const rerun = useRef(false);
-  const blocked = useRef(false); // set after the server rejected our token
-  const epoch = useRef(0); // bumped when the vault is replaced; stale in-flight results are dropped
+  const blocked = useRef(false);
+  const closing = useRef(false);
+  const wiped = useRef<Promise<void> | null>(null);
+  const epoch = useRef(0); // stale in-flight results are dropped after replacing the vault
 
   const persistState = (next: SyncState | null) => {
     stateRef.current = next;
@@ -63,150 +64,182 @@ export function useSync(
     return saveSyncState(next);
   };
 
-  // Temporary adapter for the existing UI; Task 4 replaces its raw token interface.
+  const wipeAndLeave = () => {
+    if (!wiped.current) wiped.current = wipeLocalVault().then(() => { location.replace('/'); });
+    return wiped.current;
+  };
+
+  const sessionEnded = () => {
+    blocked.current = true;
+    epoch.current++;
+    if (closing.current) return;
+    if (mode === 'server') {
+      void wipeAndLeave().catch((err) => { setError((err as Error).message); setStatus('error'); });
+    } else {
+      void persistState(null);
+      setError('This device was signed out by the server. Connect again to resume syncing.');
+      setStatus('off');
+    }
+  };
+
   const tokenManager = () => {
+    if (mode === 'local-web' || (mode === 'native' && !stateRef.current)) throw new SessionEndedError();
     if (!manager.current) manager.current = new TokenManager({
-      fetchFn: fetch, serverUrl: stateRef.current!.serverUrl, mode: platform === 'android' ? 'body' : 'cookie',
+      fetchFn: fetch, serverUrl: mode === 'server' ? location.origin : stateRef.current!.serverUrl,
+      mode: mode === 'native' ? 'body' : 'cookie',
+      // A new browser needs its own refresh response to discover its account and device.
+      ...(mode === 'server' && !stateRef.current ? { channel: null } : {}),
       getRefreshToken: () => stateRef.current?.refreshToken,
       setRefreshToken: (refreshToken) => {
         if (stateRef.current) return persistState({ ...stateRef.current, refreshToken });
       },
-      onSessionEnded: () => { blocked.current = true; setToken(null); },
+      onRefresh: async (session) => {
+        if (mode !== 'server' || closing.current || blocked.current) return;
+        const current = stateRef.current;
+        if (current?.deviceId === session.device.id && current.serverUrl === location.origin) return;
+        await persistState({ serverUrl: location.origin, username: session.username,
+          deviceId: session.device.id, deviceName: session.device.name, lastRev: 0, bases: {}, lastSyncAt: null });
+      },
+      onSessionEnded: sessionEnded,
     });
     return manager.current;
   };
 
-  const run = useCallback(async () => {
-    const current = stateRef.current;
-    if (!current || blocked.current) return;
+  const authFetch = useCallback((path: string, init?: RequestInit) => tokenManager().authFetch(path, init), [mode]);
+
+  const run = useCallback((): Promise<void> => {
+    if (mode === 'local-web' || blocked.current || closing.current || (mode === 'native' && !stateRef.current)) return Promise.resolve();
     if (running.current) {
       rerun.current = true;
-      return;
+      return running.current;
     }
-    running.current = true;
-    setStatus('syncing');
-    try {
-      do {
-        rerun.current = false;
-        const startedAt = epoch.current;
-        const accessToken = await tokenManager().getAccessToken();
-        setToken(accessToken);
-        const outcome = await syncOnce(fetch, vaultRef.current, stateRef.current!, accessToken);
-        if (startedAt !== epoch.current) {
-          // The vault was replaced while this round was in flight: start over from fresh bases
-          rerun.current = true;
-          continue;
-        }
-        if (outcome.serverValues.size > 0) {
-          const before = vaultRef.current;
-          const next = applySyncOutcome(before, outcome);
-          const changed =
-            canonicalJson(next.docs) !== canonicalJson(before.docs) ||
-            canonicalJson(next.notes) !== canonicalJson(before.notes) ||
-            canonicalJson(next.settings) !== canonicalJson(before.settings);
-          if (changed) {
-            vaultRef.current = next;
-            callbacks.current.onVaultChange(next);
+    const operation = async () => {
+      setStatus('syncing');
+      try {
+        do {
+          rerun.current = false;
+          const startedAt = epoch.current;
+          const accessToken = await tokenManager().getAccessToken();
+          if (blocked.current || closing.current) return;
+          const current = stateRef.current!;
+          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken);
+          if (blocked.current || closing.current) return;
+          if (startedAt !== epoch.current) {
+            rerun.current = true;
+            continue;
           }
-        }
-        persistState(outcome.state);
-        if (outcome.conflicts.length) callbacks.current.onConflicts(outcome.conflicts);
-      } while (rerun.current);
-      setError(null);
-      setStatus('idle');
-    } catch (err) {
-      const e = err as SyncHttpError;
-      if (e.status === 401 || err instanceof SessionEndedError) {
-        blocked.current = true;
-        setError('This device was signed out by the server. Connect again to resume syncing.');
-        setStatus('error');
-      } else if (e.status === 0 || !navigator.onLine) {
+          if (outcome.serverValues.size > 0) {
+            const before = vaultRef.current;
+            const next = applySyncOutcome(before, outcome);
+            if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
+              canonicalJson(next.settings) !== canonicalJson(before.settings)) {
+              vaultRef.current = next;
+              callbacks.current.onVaultChange(next);
+            }
+          }
+          // Native refresh may have rotated while the sync request was being retried.
+          await persistState({ ...outcome.state, refreshToken: stateRef.current?.refreshToken });
+          if (outcome.conflicts.length) callbacks.current.onConflicts(outcome.conflicts);
+        } while (rerun.current);
         setError(null);
-        setStatus('offline');
-      } else {
-        setError(e.message || 'Sync failed.');
-        setStatus('error');
+        setStatus('idle');
+      } catch (err) {
+        const e = err as SyncHttpError;
+        if (err instanceof SessionEndedError || e.status === 401) {
+          if (!blocked.current) sessionEnded();
+        } else if (e.status === 0 || !navigator.onLine) {
+          setError(null);
+          setStatus('offline');
+        } else {
+          setError(e.message || 'Sync failed.');
+          setStatus('error');
+        }
+        throw err;
       }
-    } finally {
-      running.current = false;
-    }
-  }, []);
+    };
+    running.current = operation().finally(() => { running.current = null; });
+    return running.current;
+  }, [mode, authFetch]);
 
-  // Sync shortly after local changes (debounced)
+  useEffect(() => {
+    if (mode === 'server') markOnboarded();
+  }, [mode]);
+
   useEffect(() => {
     if (!state) return;
-    const timer = setTimeout(run, AUTO_SYNC_DEBOUNCE_MS);
+    const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vault.docs, vault.notes, vault.settings, state?.deviceId]);
+  }, [vault.docs, vault.notes, vault.settings, state?.deviceId, run]);
 
-  // Start, reconnect, foreground and periodic triggers
   useEffect(() => {
-    if (!state?.deviceId) return;
-    void run();
-    const onVisible = () => document.visibilityState === 'visible' && void run();
-    const interval = setInterval(run, PERIODIC_SYNC_MS);
-    window.addEventListener('online', run);
+    if (mode !== 'server' && !state?.deviceId) return;
+    const trigger = () => { void run().catch(() => undefined); };
+    trigger();
+    const onVisible = () => document.visibilityState === 'visible' && trigger();
+    const interval = setInterval(trigger, PERIODIC_SYNC_MS);
+    window.addEventListener('online', trigger);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
-      window.removeEventListener('online', run);
+      window.removeEventListener('online', trigger);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [state?.deviceId, run]);
+  }, [mode, state?.deviceId, run]);
 
-  const connect = useCallback(
-    async (serverUrl: string, username: string, password: string, deviceName: string) => {
-      setError(null);
-      try {
-        const session = await signIn(fetch, serverUrl, platform === 'android' ? 'body' : 'cookie', { username, password, deviceName, platform, installId: getInstallId() });
-        manager.current = null;
-        setToken(session.accessToken);
-        blocked.current = false;
-        // Fresh bases: the first sync merges this device's vault with the server's
-        persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
-          deviceId: session.device.id, deviceName: session.device.name,
-          ...(platform === 'android' ? { refreshToken: session.refreshToken } : {}), lastRev: 0, bases: {}, lastSyncAt: null });
-        setStatus('idle');
-      } catch (err) {
-        setError((err as Error).message);
-        setStatus(stateRef.current ? 'error' : 'off');
-        throw err;
-      }
-    },
-    [platform]
-  );
-
-  const disconnect = useCallback(async () => {
-    const current = stateRef.current;
-    if (current) {
-      // Best effort: tell the server to forget this device; local data stays untouched
-      await tokenManager().signOut().catch(() => undefined);
-    }
-    manager.current = null;
-    setToken(null);
-    blocked.current = false;
-    persistState(null);
+  const connect = useCallback(async (serverUrl: string, username: string, password: string, deviceName: string) => {
+    if (mode !== 'native') throw new Error('Sign in from your server or the Android app.');
     setError(null);
-    setStatus('off');
-  }, []);
+    try {
+      const session = await signIn(fetch, serverUrl, 'body', { username, password, deviceName, platform, installId: getInstallId() });
+      manager.current = null;
+      blocked.current = false;
+      closing.current = false;
+      await persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
+        deviceId: session.device.id, deviceName: session.device.name, refreshToken: session.refreshToken,
+        lastRev: 0, bases: {}, lastSyncAt: null });
+      setStatus('idle');
+    } catch (err) {
+      setError((err as Error).message);
+      setStatus(stateRef.current ? 'error' : 'off');
+      throw err;
+    }
+  }, [mode, platform]);
+
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current), stateRef.current).length : 0;
+
+  const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm'> => {
+    if (mode === 'local-web') return 'done';
+    if (mode === 'server') {
+      let failed = false;
+      try { await run(); } catch { failed = true; }
+      if (blocked.current && !closing.current) { await wipeAndLeave(); return 'done'; }
+      if (!opts?.force && (failed || pendingChanges() > 0)) return 'needs-confirm';
+    }
+    closing.current = true;
+    epoch.current++;
+    if (mode === 'server' || stateRef.current) await tokenManager().signOut().catch(() => undefined);
+    await running.current?.catch(() => undefined);
+    manager.current = null;
+    if (mode === 'server') await wipeAndLeave();
+    else {
+      await persistState(null);
+      blocked.current = false;
+      setError(null);
+      setStatus('off');
+    }
+    return 'done';
+  };
 
   return {
-    status,
+    status, mode,
     account: state ? { serverUrl: state.serverUrl, username: state.username, deviceName: state.deviceName } : null,
-    lastSyncAt: state?.lastSyncAt ?? null,
-    error,
-    connect,
-    disconnect,
-    syncNow: () => {
-      blocked.current = false;
-      void run();
-    },
+    lastSyncAt: state?.lastSyncAt ?? null, error, connect,
+    disconnect: async () => { await signOut(); },
+    signOut, pendingChanges, authFetch, syncNow: run,
     rebaseAfterReplace: () => {
       if (!stateRef.current) return;
       epoch.current++;
-      persistState(rebaseAfterVaultReplace(stateRef.current));
+      void persistState(rebaseAfterVaultReplace(stateRef.current));
     },
-    token,
   };
 }

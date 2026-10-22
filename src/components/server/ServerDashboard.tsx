@@ -5,6 +5,7 @@ import { SyncPanel, relativeTime } from '../sync/SyncPanel';
 import { formatDateTime } from '../../utils/dateFormat';
 import { buttonClass } from '../ui/Dialog';
 import { confirmDialog } from '../ui/feedback';
+import { wipeLocalVault } from '../../utils/vaultStore';
 
 interface ServerDashboardProps {
   sync: UseSyncResult;
@@ -75,19 +76,19 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
 
   const api = useCallback(
     async (path: string, init: RequestInit = {}) => {
-      const res = await fetch(`${sync.account!.serverUrl}${path}`, {
+      const res = await sync.authFetch(path, {
         ...init,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sync.token}`, ...init.headers },
+        headers: { 'Content-Type': 'application/json', ...init.headers },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
       return data;
     },
-    [sync.account, sync.token]
+    [sync.authFetch]
   );
 
   const refresh = useCallback(async () => {
-    if (!sync.account || !sync.token) return;
+    if (!sync.account) return;
     try {
       const [s, d, l] = await Promise.all([api('/api/server/stats'), api('/api/devices'), api('/api/sync/log')]);
       setStats(s);
@@ -97,7 +98,7 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
     } catch (err) {
       setLoadError((err as Error).message);
     }
-  }, [api, sync.account, sync.token]);
+  }, [api, sync.account?.serverUrl, sync.account?.username]);
 
   useEffect(() => {
     void refresh();
@@ -107,14 +108,20 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
     e.preventDefault();
     setPasswordMessage(null);
     try {
+      await sync.syncNow();
       await api('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
       setCurrentPassword('');
       setNewPassword('');
+      if (sync.mode === 'server') {
+        await wipeLocalVault();
+        location.reload();
+        return;
+      }
+      await sync.disconnect();
       setPasswordMessage({
         ok: true,
-        text: 'Password changed. Every device, including this one, was signed out; connect again with the new password.',
+        text: 'Password changed. Every device was signed out; sign in again with the new password.',
       });
-      await sync.disconnect();
     } catch (err) {
       setPasswordMessage({ ok: false, text: (err as Error).message });
     }
@@ -145,7 +152,13 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
         <SyncPanel sync={sync} defaultDeviceName={defaultDeviceName} />
       </div>
 
-      {!sync.account && (
+      {passwordMessage && (
+        <p role="status" className={passwordMessage.ok ? 'text-stone-800 dark:text-stone-300' : 'text-rose-700 dark:text-rose-300'}>
+          {passwordMessage.text}
+        </p>
+      )}
+
+      {!sync.account && sync.mode === 'native' && (
         <details className={`${card} group`}>
           <summary className="flex items-center gap-2 min-h-11 cursor-pointer font-semibold list-none">
             <HelpCircle className="w-4 h-4 text-stone-600 dark:text-stone-400" /> Don't have a server? How to set one up
@@ -189,7 +202,7 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
                     <div className="font-medium truncate">
                       {d.name}
                       {d.current && (
-                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200">
+                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-200">
                           This device
                         </span>
                       )}
@@ -261,11 +274,6 @@ export const ServerDashboard: React.FC<ServerDashboardProps> = ({ sync, defaultD
               New password
             </label>
             <input id="pw-new" className={input} type="password" placeholder="New password (8+ characters)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required />
-            {passwordMessage && (
-              <p role="status" className={passwordMessage.ok ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}>
-                {passwordMessage.text}
-              </p>
-            )}
             <button type="submit" className={`${buttonClass.secondary} w-full`}>
               Change password
             </button>
