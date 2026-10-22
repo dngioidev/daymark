@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, CalendarDays, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
 import { AppSettings, DailyDocument, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
@@ -22,6 +22,9 @@ interface MobileAppShellProps {
   onPatchDocument: (date: string, patch: (doc: DailyDocument) => DailyDocument) => void;
   onUpdateNotes: (notes: StandaloneNote[]) => void;
   onOpenQuickCapture: () => void;
+  onOpenSearch: () => void;
+  openNoteId?: string;
+  focusToggleSignal?: number;
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
@@ -33,7 +36,8 @@ interface MobileAppShellProps {
   /** Present on wide screens: return to the desktop layout. */
   onSwitchToDesktop?: () => void;
   syncStatus: SyncStatus;
-  initialTab?: MobileTab;
+  activeTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
   onOpenSettings: (tab?: SettingsTab) => void;
 }
 
@@ -51,6 +55,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onPatchDocument,
   onUpdateNotes,
   onOpenQuickCapture,
+  onOpenSearch,
+  openNoteId,
+  focusToggleSignal,
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
@@ -60,10 +67,10 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onOpenDay,
   onSwitchToDesktop,
   syncStatus,
-  initialTab,
+  activeTab,
+  onTabChange: setActiveTab,
   onOpenSettings,
 }) => {
-  const [activeTab, setActiveTab] = useState<MobileTab>(initialTab === 'today' || initialTab === 'calendar' || initialTab === 'notes' ? initialTab : 'today');
   const isOnline = useOnlineStatus();
   const { canInstall, install } = usePwaInstall();
   const [frame, setFrame] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth >= 768);
@@ -121,6 +128,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-2 sticky top-0 z-30">
           <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
           <span className="font-bold text-base tracking-tight mr-auto">Daymark</span>
+          <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" className="inline-flex items-center justify-center w-11 h-11 rounded-lg">
+            <Search className="w-5 h-5" />
+          </button>
           {canInstall && (
             <button type="button" onClick={install} className="min-h-9 px-3 rounded-lg bg-accent text-accent-fg text-sm font-semibold">
               Install app
@@ -182,7 +192,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} />}
+          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} focusToggleSignal={focusToggleSignal} />}
         </main>
 
         <nav

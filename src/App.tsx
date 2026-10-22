@@ -66,6 +66,10 @@ import { FeedbackHost, alertDialog, confirmDialog, showToast } from './component
 import { normalizeSettings } from './utils/defaultData';
 import { inlineDay } from './components/TaskItemCard';
 import { formatDay } from './utils/dateFormat';
+import { shortcutFor } from './utils/shortcuts';
+import type { SearchResult } from './utils/search';
+import { SearchDialog } from './components/SearchDialog';
+import { ShortcutHelp } from './components/ShortcutHelp';
 
 export default function App() {
   // App Mode: auto-detect mobile vs desktop, with instant user switcher
@@ -105,10 +109,10 @@ export default function App() {
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
 
   // Deep link target for the mobile shell (?tab=notes from manifest shortcuts)
-  const [initialMobileTab] = useState<MobileTab | undefined>(() => {
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
     if (tab === 'history') return 'calendar';
-    return tab === 'today' || tab === 'calendar' || tab === 'notes' ? tab : undefined;
+    return tab === 'today' || tab === 'calendar' || tab === 'notes' ? tab : 'today';
   });
 
   // First-run welcome (empty vault) and dev-only UI
@@ -120,11 +124,35 @@ export default function App() {
 
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
+  const [openNoteId, setOpenNoteId] = useState<string | undefined>();
+  const [focusToggleSignal, setFocusToggleSignal] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
   const [historicalModalTask, setHistoricalModalTask] = useState<TaskItem | null>(null);
   const [detailsTaskId, setDetailsTaskId] = useState<string | null>(null);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(getLastBackupDate);
+
+  const openSearch = () => {
+    // A new search can request the same note again after local Notes navigation.
+    setOpenNoteId(undefined);
+    setIsSearchOpen(true);
+  };
+  const goToTab = (tab: 'today' | 'calendar' | 'notes') => {
+    setActiveDesktopTab(tab);
+    setActiveMobileTab(tab);
+  };
+  const pickSearchResult = (result: SearchResult) => {
+    if (result.kind === 'task') {
+      setCurrentDate(result.date);
+      goToTab('today');
+      setDetailsTaskId(result.taskId);
+    } else {
+      setOpenNoteId(result.noteId);
+      goToTab('notes');
+    }
+  };
 
   const openSettings = (tab: SettingsTab = 'appearance') => {
     setSettingsTab(tab);
@@ -134,17 +162,34 @@ export default function App() {
   // Surface storage failures instead of silently losing edits
   useEffect(() => subscribeStorageErrors((msg) => showToast(msg, { tone: 'error' })), []);
 
-  // Ctrl/Cmd+K opens the new-task sheet from anywhere
+  // One global handler owns all shortcuts, including the Notes focus toggle.
   useEffect(() => {
+    let pendingG = false;
+    let timer: number | undefined;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setIsQuickCaptureOpen(true);
-      }
+      if (e.defaultPrevented || e.repeat || e.isComposing) return;
+      const action = shortcutFor(e, pendingG, e.target);
+      pendingG = false;
+      window.clearTimeout(timer);
+      if (!action) return;
+      if (action === 'focus-notes' && (appMode === 'mobile-app' ? activeMobileTab : activeDesktopTab) !== 'notes') return;
+      e.preventDefault();
+      if (action === 'g-prefix') {
+        pendingG = true;
+        timer = window.setTimeout(() => { pendingG = false; }, 1500);
+      } else if (action === 'new-task') setIsQuickCaptureOpen(true);
+      else if (action === 'search') openSearch();
+      else if (action === 'help') setIsShortcutHelpOpen(true);
+      else if (action === 'focus-notes') setFocusToggleSignal((signal) => signal + 1);
+      else if (action === 'go-today') {
+        setCurrentDate(today);
+        goToTab('today');
+      } else if (action === 'go-calendar') goToTab('calendar');
+      else if (action === 'go-notes') goToTab('notes');
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    return () => { window.removeEventListener('keydown', onKey); window.clearTimeout(timer); };
+  }, [appMode, activeDesktopTab, activeMobileTab, today]);
 
   // When the day changes (midnight, or waking the phone next day), follow it if the user was
   // viewing today, and carry unfinished tasks into the new day automatically.
@@ -172,6 +217,8 @@ export default function App() {
 
   // Android Back closes the topmost dialog first
   useBackHandler(() => {
+    if (isSearchOpen) return (setIsSearchOpen(false), true);
+    if (isShortcutHelpOpen) return (setIsShortcutHelpOpen(false), true);
     if (isQuickCaptureOpen) return (setIsQuickCaptureOpen(false), true);
     if (historicalModalTask) return (setHistoricalModalTask(null), true);
     if (detailsTaskId) return (setDetailsTaskId(null), true);
@@ -597,6 +644,7 @@ export default function App() {
             onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
             onOpenSettings={() => openSettings()}
             onOpenSync={() => openSettings('sync')}
+            onOpenSearch={openSearch}
             onSwitchToMobileApp={() => setAppMode('mobile-app')}
             syncStatus={navbarSyncStatus}
             carriedAlertCount={carriedAlertCount}
@@ -640,7 +688,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} focusToggleSignal={focusToggleSignal} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -672,6 +720,9 @@ export default function App() {
           onPatchDocument={patchDocument}
           onUpdateNotes={setNotes}
           onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
+          onOpenSearch={openSearch}
+          openNoteId={openNoteId}
+          focusToggleSignal={focusToggleSignal}
           onOpenHistoricalModal={setHistoricalModalTask}
           onOpenHistoryDrawer={openDetails}
           onQuickHistoricalDone={handleQuickHistoricalDone}
@@ -680,11 +731,15 @@ export default function App() {
           onTriggerRollover={handleTriggerRollover}
           onOpenDay={setCurrentDate}
           onSwitchToDesktop={window.innerWidth >= 768 ? () => setAppMode('desktop') : undefined}
-          initialTab={initialMobileTab}
+          activeTab={activeMobileTab}
+          onTabChange={setActiveMobileTab}
           onOpenSettings={openSettings}
           syncStatus={sync.status}
         />
       )}
+
+      <SearchDialog isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} docs={dailyDocs} notes={notes} today={today} statuses={settings.statuses} onPick={pickSearchResult} />
+      <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
 
       <HistoricalCompletionModal
         task={historicalModalTask}

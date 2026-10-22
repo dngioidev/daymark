@@ -34,12 +34,14 @@ interface StandaloneNotesViewProps {
   onUpdateNotes: (notes: StandaloneNote[]) => void;
   /** Phone shell: one pane at a time, no outer page padding. */
   compact?: boolean;
+  openNoteId?: string;
+  focusToggleSignal?: number;
 }
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
 /** Notes: searchable list (pinned first) and a Markdown editor with preview. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, focusToggleSignal = 0 }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,18 +61,28 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     return () => window.clearInterval(timer);
   }, []);
 
-  // Task 8 will move this listener to the App shortcut handler.
+  const previousFocusSignal = useRef(focusToggleSignal);
+  useEffect(() => {
+    if (previousFocusSignal.current === focusToggleSignal) return;
+    previousFocusSignal.current = focusToggleSignal;
+    setFocusMode((focused) => !focused);
+    setPane('editor');
+  }, [focusToggleSignal]);
+
+  useEffect(() => {
+    if (!openNoteId || !notes.some((note) => note.id === openNoteId)) return;
+    setSelectedNoteId(openNoteId);
+    setSelectedFolder('all');
+    setSearchQuery('');
+    setPane('editor');
+  }, [openNoteId]);
+
   useEffect(() => {
     if (compact) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return;
       const target = event.target as HTMLElement | null;
-      const typing = target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === '.' && !typing) {
-        event.preventDefault();
-        setFocusMode((focused) => !focused);
-        setPane('editor');
-      } else if (event.key === 'Escape' && focusMode && target?.tagName !== 'TEXTAREA') {
+      if (event.key === 'Escape' && focusMode && target?.tagName !== 'TEXTAREA') {
         setFocusMode(false);
       }
     };
@@ -124,9 +136,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const createFromTemplate = (template: (typeof NOTE_TEMPLATES)[number]) => {
     const today = formatLocalDate();
     const folder = template.folder ?? (selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder);
-    setSelectedFolder(folder);
-    setSearchQuery('');
-    createNote(folder, template.title(today), template.body(today));
+    const title = template.title(today);
+    const content = template.body(today);
+    if (selectedFolder !== 'all' && selectedFolder !== folder) setSelectedFolder(folder);
+    const q = searchQuery.trim().toLowerCase();
+    if (q && !title.toLowerCase().includes(q) && !content.toLowerCase().includes(q)) setSearchQuery('');
+    createNote(folder, title, content);
   };
 
   const deleteNote = async (note: StandaloneNote) => {

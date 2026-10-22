@@ -15,7 +15,11 @@ vi.mock('react', async (original) => ({
   },
   useEffect: (effect: () => unknown) => hooks.effects.push(effect),
   useMemo: (fn: () => unknown) => fn(),
-  useRef: () => ({ current: null }),
+  useRef: (initial: unknown) => {
+    const index = hooks.index++;
+    if (!(index in hooks.values)) hooks.values[index] = { current: initial };
+    return hooks.values[index];
+  },
 }));
 vi.mock('../native/backButton', () => ({ useBackHandler: vi.fn() }));
 vi.mock('./MarkdownPreview', () => ({ MarkdownPreview: () => React.createElement('p', null, 'Preview') }));
@@ -24,10 +28,10 @@ import { Menu, type MenuItem } from './ui/Menu';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
-function render(compact = false) {
+function render(compact = false, extra: Record<string, unknown> = {}) {
   hooks.index = 0;
   hooks.effects = [];
-  return StandaloneNotesView({ notes: [note], onUpdateNotes: update, compact }) as React.ReactElement;
+  return StandaloneNotesView({ notes: [note], onUpdateNotes: update, compact, ...extra }) as React.ReactElement;
 }
 type TestProps = Record<string, unknown> & { onClick: () => void; items: MenuItem[] };
 function find(element: React.ReactNode, predicate: (el: React.ReactElement<Record<string, unknown>>) => boolean): React.ReactElement<TestProps> | undefined {
@@ -81,29 +85,55 @@ it('creates Blank in the current folder without changing existing notes', () => 
   expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: 'Work', content: '' }), note]);
 });
 
-it.each(['ctrlKey', 'metaKey'])('toggles focus with %s + . and leaves textarea Escape alone', (modifier) => {
+it('toggles focus on an App signal change, with no local dot shortcut', () => {
   const add = vi.fn();
-  const remove = vi.fn();
-  vi.stubGlobal('document', { addEventListener: add, removeEventListener: remove });
+  vi.stubGlobal('document', { addEventListener: add, removeEventListener: vi.fn() });
   vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
-  render();
-  let cleanups = hooks.effects.map((effect) => effect());
-  let listener = add.mock.calls.find(([name]) => name === 'keydown')![1];
-  const key = (key: string, typing = false, tagName = 'BUTTON') => ({ key, [modifier]: key === '.', preventDefault: vi.fn(), target: { closest: () => typing ? {} : null, tagName } });
-  listener(key('.', true, 'INPUT'));
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
-  listener(key('.'));
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeUndefined();
-  cleanups.forEach((cleanup) => { if (typeof cleanup === 'function') cleanup(); });
-  expect(remove).toHaveBeenCalledWith('keydown', listener);
-  add.mockClear();
-  cleanups = hooks.effects.map((effect) => effect());
-  listener = add.mock.calls.find(([name]) => name === 'keydown')![1];
-  listener(key('Escape', true, 'TEXTAREA'));
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeUndefined();
-  listener(key('Escape'));
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
-  cleanups.forEach((cleanup) => { if (typeof cleanup === 'function') cleanup(); });
+  render(false, { focusToggleSignal: 0 });
+  hooks.effects.forEach((effect) => effect());
+  render(false, { focusToggleSignal: 1 });
+  hooks.effects.forEach((effect) => effect());
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  hooks.effects.forEach((effect) => effect());
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  hooks.effects.forEach((effect) => effect());
+  const listener = add.mock.calls.at(-1)![1];
+  listener({ key: '.', ctrlKey: true, target: { tagName: 'BUTTON' }, preventDefault: vi.fn() });
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  listener({ key: 'Escape', target: { tagName: 'TEXTAREA' } });
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  listener({ key: 'Escape', target: { tagName: 'BUTTON' } });
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeDefined();
+});
+
+it('opens a requested note in the compact editor', () => {
+  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  render(true);
+  const other = { ...note, id: 'two', title: 'Chosen', folder: 'Personal' };
+  render(true, { notes: [note, other], openNoteId: 'two' });
+  hooks.effects.forEach((effect) => effect());
+  const tree = render(true, { notes: [note, other], openNoteId: 'two' });
+  expect(find(tree, (el) => el.props.id === 'note-title')?.props.value).toBe('Chosen');
+});
+
+it('keeps All and a matching search when creating a blank note', () => {
+  const input = find(render(), (el) => el.props.id === 'notes-search')!;
+  (input.props.onChange as (e: unknown) => void)({ target: { value: 'untitled' } });
+  find(render(), (el) => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))!.props.onClick();
+  const next = render();
+  expect(find(next, (el) => el.props['aria-pressed'] === true && Array.isArray(el.props.children) && el.props.children[0] === 'All (')).toBeDefined();
+  expect(find(next, (el) => el.props.id === 'notes-search')?.props.value).toBe('untitled');
+});
+
+it('switches a conflicting folder and clears a nonmatching search for templates', () => {
+  find(render(), (el) => el.type === 'button' && el.props.children === 'Work')!.props.onClick();
+  const input = find(render(), (el) => el.props.id === 'notes-search')!;
+  (input.props.onChange as (e: unknown) => void)({ target: { value: 'no-match' } });
+  const menu = find(render(), (el) => el.type === Menu && (el.props.items as MenuItem[]).some((item) => item.label === 'Meeting'))!;
+  menu.props.items.find((item) => item.label === 'Meeting')!.onSelect();
+  expect(find(render(), (el) => el.props.id === 'notes-search')?.props.value).toBe('');
+  expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.props.children === 'Meetings' && el.props['aria-pressed'] === true)).toBeDefined();
 });
 
 it('keeps compact editing bounded and caps Read mode line length', () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, CalendarDays, FolderOpen, Plus, Settings, Smartphone } from 'lucide-react';
+import { Calendar, CalendarDays, FolderOpen, Plus, Search, Settings, Smartphone } from 'lucide-react';
 import { ViewTab } from '../types/daymark';
 
 export type NavSyncStatus = 'off' | 'synced' | 'syncing' | 'offline' | 'error';
@@ -11,6 +11,7 @@ interface NavbarProps {
   onOpenSettings: () => void;
   /** Opens Settings on the Sync tab. */
   onOpenSync: () => void;
+  onOpenSearch: () => void;
   onSwitchToMobileApp: () => void;
   /** Developer-only extras (phone preview, code samples). */
   showDevTabs?: boolean;
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenQuickCapture,
   onOpenSettings,
   onOpenSync,
+  onOpenSearch,
   onSwitchToMobileApp,
   showDevTabs = false,
   syncStatus,
@@ -91,6 +93,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" title="Search (Ctrl Shift F)" aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:underline underline-offset-4">
+            <Search className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={onOpenSync}
