@@ -17,7 +17,7 @@ import {
 import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, formatFullDate, getAgingSeverity, getNextDate, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
 import { formatAge, formatDay } from '../utils/dateFormat';
-import { getMoveTaskDateError, toggleTaskDone } from '../utils/taskActions';
+import { getMoveTaskDateError, getMoveToTomorrowDate, toggleTaskDone } from '../utils/taskActions';
 import { Menu } from './ui/Menu';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog } from './ui/feedback';
@@ -75,6 +75,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   const moveId = useId();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const tomorrow = getNextDate(today);
+  const moveToTomorrowDate = getMoveToTomorrowDate(task.status, currentDate, today);
 
   const submitMove = (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,7 +251,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
               ]
             : []),
           ...(onMoveTask ? [
-            ...(!isDone ? [{ label: 'Move to tomorrow', onSelect: () => onMoveTask(task.id, tomorrow) }] : []),
+            ...(moveToTomorrowDate ? [{ label: 'Move to tomorrow', onSelect: () => onMoveTask(task.id, moveToTomorrowDate) }] : []),
             { label: 'Move to date…', onSelect: () => {
               // The menu item unmounts; the dialog must return focus to its persistent trigger.
               menuButtonRef.current?.focus();

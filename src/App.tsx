@@ -546,7 +546,11 @@ export default function App() {
   };
   const handleMoveTask = (taskId: string, toDate: string): void => {
     const fromDate = currentDate;
-    if (getMoveTaskDateError(toDate, fromDate, today)) return;
+    const error = getMoveTaskDateError(toDate, fromDate, today);
+    if (error) {
+      showToast(error, { tone: 'error' });
+      return;
+    }
     const docs = dailyDocsRef.current;
     const source = docs.find((d) => d.date === fromDate);
     const removed = source && removeTaskFromDocument(source, taskId)?.removed;

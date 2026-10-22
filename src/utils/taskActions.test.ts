@@ -3,7 +3,7 @@ import { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
 import { performDailyRollover } from './lifecycleEngine';
 import { isDailyDocument } from './vaultValidation';
-import { applyMarkdownEdit, getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
+import { applyMarkdownEdit, getMoveTaskDateError, getMoveToTomorrowDate, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
   id,
@@ -24,6 +24,27 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 });
 
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
+
+describe('move to tomorrow menu destination', () => {
+  it('hides the action when viewing tomorrow’s planned day', () => {
+    expect(getMoveToTomorrowDate('in-progress', '2026-10-23', '2026-10-22')).toBeNull();
+  });
+
+  it('hides the action for done tasks', () => {
+    expect(getMoveToTomorrowDate('done', '2026-10-22', '2026-10-22')).toBeNull();
+  });
+
+  it('uses tomorrow relative to today when viewing today, a past day or another future day', () => {
+    for (const fromDate of ['2026-10-21', '2026-10-22', '2026-10-25']) {
+      expect(getMoveToTomorrowDate('in-progress', fromDate, '2026-10-22')).toBe('2026-10-23');
+    }
+  });
+
+  it('handles tomorrow across a month boundary', () => {
+    expect(getMoveToTomorrowDate('waiting', '2026-10-31', '2026-10-31')).toBe('2026-11-01');
+    expect(getMoveToTomorrowDate('waiting', '2026-11-01', '2026-10-31')).toBeNull();
+  });
+});
 
 describe('move date validation', () => {
   it('rejects an empty date, past dates, today and the source day inline', () => {

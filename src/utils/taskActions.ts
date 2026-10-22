@@ -1,4 +1,11 @@
 import { DailyDocument, TaskItem } from '../types/daymark';
+import { getNextDate } from './lifecycleEngine';
+
+/** A null destination hides the quick move when it would do nothing. */
+export function getMoveToTomorrowDate(status: TaskItem['status'], fromDate: string, today: string): string | null {
+  const tomorrow = getNextDate(today);
+  return status === 'done' || tomorrow === fromDate ? null : tomorrow;
+}
 
 /** Validation shared by the move dialog and its caller; destinations start tomorrow. */
 export function getMoveTaskDateError(toDate: string, fromDate: string, today: string): string | null {
