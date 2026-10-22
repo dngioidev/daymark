@@ -597,6 +597,7 @@ export default function App() {
             {activeDesktopTab === 'today' && (
               <TodayView
                 currentDocument={currentDoc}
+                allDocs={dailyDocs}
                 simulatedToday={today}
                 statuses={settings.statuses}
                 agingThresholds={settings.agingThresholds}

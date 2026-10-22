@@ -148,6 +148,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             <TodayView
               compact
               currentDocument={currentDocument}
+              allDocs={dailyDocs}
               simulatedToday={simulatedToday}
               statuses={settings.statuses}
               agingThresholds={settings.agingThresholds}

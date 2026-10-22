@@ -17,7 +17,9 @@ import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem 
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
-import { formatDay, formatLongDate } from '../utils/dateFormat';
+import { formatDay, formatLongDate, formatShortDate } from '../utils/dateFormat';
+import { loadCollapsed, saveCollapsed } from '../utils/collapsedSections';
+import { nextPlannedDay, weekTrend } from '../utils/dayStats';
 import { hideTaskTags, parseDailyDocument, restoreTaskTags, serializeDailyDocument } from '../utils/markdownEngine';
 import { MarkdownPreview } from './MarkdownPreview';
 import { Menu } from './ui/Menu';
@@ -26,6 +28,7 @@ import { confirmDialog, showToast } from './ui/feedback';
 
 interface TodayViewProps {
   currentDocument: DailyDocument;
+  allDocs: DailyDocument[];
   simulatedToday: string;
   statuses: StatusDefinition[];
   agingThresholds: AgingThresholds;
@@ -78,6 +81,7 @@ function wrapSelection(el: HTMLTextAreaElement | null, value: string, before: st
 export const TodayView: React.FC<TodayViewProps> = ({
   compact = false,
   currentDocument,
+  allDocs,
   simulatedToday,
   statuses,
   agingThresholds,
@@ -101,6 +105,36 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
   const [openDone, setOpenDone] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedLoaded, setCollapsedLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void loadCollapsed().then((names) => {
+      if (!active) return;
+      setCollapsedSections(names);
+      setCollapsedLoaded(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  // Wait for hydration before persisting so the initial empty set cannot erase saved names.
+  useEffect(() => {
+    if (!collapsedLoaded) return;
+    void saveCollapsed(collapsedSections).catch(() => {
+      showToast('Could not remember collapsed sections on this device.', { tone: 'error' });
+    });
+  }, [collapsedSections, collapsedLoaded]);
+
+  const toggleSection = (name: string) => {
+    setCollapsedSections((previous) => {
+      const next = new Set(previous);
+      const key = name.toLowerCase();
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const [activeAddHeading, setActiveAddHeading] = useState<string | null>(null);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
@@ -470,6 +504,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const doneOpen = openDone.has(section.name);
     const addingHere = activeAddHeading === section.name;
     const editingNotes = activeNoteHeading === section.name;
+    const collapsed = collapsedSections.has(section.name.toLowerCase());
 
     return (
       <section
@@ -478,13 +513,23 @@ export const TodayView: React.FC<TodayViewProps> = ({
         className={`dm-card bg-white/60 dark:bg-stone-900/40 rounded-xl border border-stone-200 dark:border-stone-800 ${compact ? 'p-2.5' : 'p-4'} space-y-2`}
       >
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${section.name}`}
+            disabled={!collapsedLoaded}
+            onClick={() => toggleSection(section.name)}
+            className={iconBtn}
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+          </button>
           <h2 id={`sec-${section.name}`} className="text-base font-bold text-stone-900 dark:text-stone-50">
             {section.name}
           </h2>
           <span className="text-sm text-stone-600 dark:text-stone-400" aria-label={`${open.length} open`}>
-            {open.length || ''}
+            {open.length}
           </span>
-          <div className="ml-auto flex items-center">
+          {!collapsed && <div className="ml-auto flex items-center">
             <button type="button" onClick={() => (addingHere ? setActiveAddHeading(null) : openAdd(section.name))} className={buttonClass.ghost}>
               <Plus className="w-4 h-4" /> Task
             </button>
@@ -499,9 +544,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
             >
               <Edit3 className="w-4 h-4" /> Note
             </button>
-          </div>
+          </div>}
         </div>
 
+        {!collapsed && <>
         {addingHere && (
           <form
             onSubmit={(e) => {
@@ -665,6 +711,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             )}
           </div>
         )}
+        </>}
       </section>
     );
   };
@@ -730,6 +777,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   // Desktop side panel: the day in numbers, and what was finished
   const doneToday = allTasks.filter((t) => t.status === 'done');
+  const trend = useMemo(() => weekTrend(allDocs, simulatedToday), [allDocs, simulatedToday]);
+  const planned = useMemo(() => nextPlannedDay(allDocs, simulatedToday), [allDocs, simulatedToday]);
   const glance = (
     <aside aria-label="Day at a glance" className="hidden xl:block sticky top-20 space-y-3 text-sm">
       <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
@@ -749,6 +798,30 @@ export const TodayView: React.FC<TodayViewProps> = ({
           ))}
         </dl>
       </div>
+      <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+        <h2 className="font-semibold text-stone-900 dark:text-stone-50">Last 7 days</h2>
+        <div className="mt-3 flex gap-2" role="list" aria-label="Daily completion">
+          {trend.map((day) => {
+            const label = `${formatShortDate(day.date, simulatedToday)}: ${day.done} of ${day.total} done`;
+            return (
+              <div key={day.date} role="listitem" aria-label={label} title={label} className="flex-1">
+                <div className="h-12 rounded-sm bg-stone-200 dark:bg-stone-800 flex items-end overflow-hidden">
+                  <div className="w-full bg-stone-700 dark:bg-stone-300" style={{ height: `${day.total ? day.done / day.total * 100 : 0}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {planned && (
+        <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+          <h2 className="font-semibold text-stone-900 dark:text-stone-50">Next planned day</h2>
+          <p className="mt-2 text-stone-700 dark:text-stone-300">
+            {formatDay(planned.date, simulatedToday)} · {planned.open} {planned.open === 1 ? 'task' : 'tasks'} ·{' '}
+            <button type="button" onClick={() => changeDay(planned.date)} className="min-h-11 sm:min-h-9 underline font-medium text-stone-900 dark:text-stone-100">Open</button>
+          </p>
+        </div>
+      )}
       <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
         <h2 className="font-semibold text-stone-900 dark:text-stone-50">Finished</h2>
         {doneToday.length ? (
@@ -802,14 +875,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   return (
     <div className={compact ? 'w-full space-y-3' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4'}>
-      <div className={editorMode === 'split' || compact ? '' : 'max-w-4xl'}>{header}</div>
-      {editorMode !== 'raw' && attentionBar && <div className={editorMode === 'split' || compact ? '' : 'max-w-4xl'}>{attentionBar}</div>}
+      <div>{header}</div>
+      {editorMode !== 'raw' && attentionBar && <div>{attentionBar}</div>}
 
       {editorMode === 'visual' &&
         (compact ? (
           listView
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,56rem)_18rem] gap-6 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_18rem] gap-6 items-start">
             {listView}
             {glance}
           </div>
@@ -827,7 +900,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         </div>
       )}
 
-      {editorMode === 'raw' && <div className={compact ? '' : 'max-w-4xl'}>{markdownEditor(compact ? 18 : 26, true)}</div>}
+      {editorMode === 'raw' && <div>{markdownEditor(compact ? 18 : 26, true)}</div>}
     </div>
   );
 };
