@@ -188,13 +188,33 @@ await run('A5', async () => {
     check('A5b', await page.getByRole('button', { name: 'Mark "A5 unsent task" done' }).isVisible(), 'Cancel keeps the offline task visible');
     await openSync(page);
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-    const leaving = page.waitForRequest((request) => request.isNavigationRequest() && request.url() === base + '/');
+    // Keep the offline landing document inert: sign-in startup must not perform
+    // the wipe for us, and the service worker must not recreate its shell cache.
+    const navigation = await context.newCDPSession(page);
+    await navigation.send('Network.setBypassServiceWorker', { bypass: true });
+    const offlineLanding = (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Offline sign-out probe</title>' });
+    await page.route(base + '/', offlineLanding);
+    const leaving = page.waitForEvent('domcontentloaded');
     await dialog.getByRole('button', { name: 'Sign out anyway', exact: true }).click();
-    // Navigation starts after the offline wipe; reconnect to finish pending logout and show sign-in.
     await leaving;
+    const storage = await page.evaluate(async () => ({
+      databases: (await indexedDB.databases()).map((db) => db.name),
+      keys: Object.keys(localStorage).filter((key) => key.startsWith('daymark') && key !== 'daymark_logout_pending'),
+      caches: await caches.keys(),
+      pendingLogout: localStorage.getItem('daymark_logout_pending'),
+      marker: document.cookie.split(';').some((cookie) => cookie.trim().startsWith('daymark_signed_in=')),
+    }));
+    check('A5c', !storage.databases.includes('daymark') && storage.keys.length === 0 && storage.caches.length === 0
+      && !storage.marker && storage.pendingLogout === '1',
+      'offline forced sign-out wipes local storage and marker before reconnect, retaining pending logout', JSON.stringify(storage));
+    await page.unroute(base + '/', offlineLanding);
+    await navigation.send('Network.setBypassServiceWorker', { bypass: false });
+    await navigation.detach();
     await context.setOffline(false);
     await page.goto(base, { waitUntil: 'networkidle' });
-    await assertWiped(page, 'A5c');
+    await assertWiped(page, 'A5d');
+    check('A5e', await page.evaluate(() => localStorage.getItem('daymark_logout_pending') === null),
+      'reconnected sign-in completes pending logout and clears its flag');
   } finally { await context.close(); }
 });
 

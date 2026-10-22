@@ -424,7 +424,9 @@ async function functional() {
     const pill = btn(page, /open sync settings/i);
     const size = await pill.boundingBox();
     await pill.click();
-    const opened = /sync your devices/i.test(await visibleText(page));
+    const signOut = dialog(page, 'Settings').getByRole('button', { name: 'Sign out', exact: true });
+    await signOut.waitFor();
+    const opened = await signOut.isVisible();
     await ctx.close();
     expect(opened, 'status did not open Sync');
     expect(size.height >= 44, `status target ${Math.round(size.width)}x${Math.round(size.height)} px`);
