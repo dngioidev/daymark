@@ -569,10 +569,16 @@ export default function App() {
     const docs = dailyDocsRef.current;
     const source = docs.find((d) => d.date === fromDate);
     const removed = source && removeTaskFromDocument(source, taskId)?.removed;
-    if (!removed) return;
+    if (!removed) {
+      showToast(`That task is no longer on ${formatDay(fromDate, today)}.`, { tone: 'info' });
+      return;
+    }
     const before = { doc: docs.find((d) => d.date === toDate), removed };
     const updated = moveTaskToDate(docs, taskId, fromDate, toDate, settings.defaultHeadings, new Date().toISOString());
-    if (!updated) return;
+    if (!updated) {
+      showToast(`“${removed.task.title}” is already on ${formatDay(toDate, today)}.`, { tone: 'info' });
+      return;
+    }
     setDailyDocs(updated);
     showToast(`Moved “${removed.task.title}” to ${formatDay(toDate, today)}`, {
       action: { label: 'Undo', onClick: () => setDailyDocs((prev) => undoMoveTask(prev, taskId, fromDate, toDate, before)) },

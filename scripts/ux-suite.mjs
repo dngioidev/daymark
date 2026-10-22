@@ -444,7 +444,7 @@ async function functional() {
       await btn(page, /^calendar$/i).click();
       expect(/last 7 days/i.test(await visibleText(page)), `${env}: calendar not shown`);
       await btn(page, /^notes$/i).click();
-      expect(/new folder/i.test(await visibleText(page)), `${env}: notes not shown`);
+      expect(await btn(page, /^\+?\s*folder$/i).isVisible(), `${env}: notes not shown`);
       await openSettings(page);
       expect(await isOpenDialog(page, 'Settings'), `${env}: settings not shown`);
       await ctx.close();
@@ -1055,7 +1055,7 @@ async function functional() {
   await tc('NO-10', 'New folder', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /^notes$/i).click();
-    await btn(page, /new folder/i).click();
+    await btn(page, /^\+?\s*folder$/i).click();
     await page.getByLabel('Folder name').fill('Recipes');
     await btn(page, /^create$/i).click();
     const ok = await btn(page, /^recipes$/i).isVisible();

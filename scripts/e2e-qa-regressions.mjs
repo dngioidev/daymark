@@ -413,7 +413,7 @@ await run('B7', async () => {
 await run('B8', async () => {
   const { page, context, errors } = await fresh({ docs: [doc(TODAY, [task('a', 'in-progress', TODAY, { title: 'keep me' })])] });
   await page.getByRole('button', { name: 'Settings' }).first().click();
-  await page.getByRole('tab', { name: /backup/i }).first().click().catch(() => {});
+  await page.getByRole('tab', { name: 'Backup & restore', exact: true }).click();
   const fileInput = page.locator('input[type=file]').first();
   const bad = path.join(os.tmpdir(), 'qa-bad.json');
   fs.writeFileSync(bad, JSON.stringify({ daily_documents: [{ foo: 1 }], standalone_notes: [] }));

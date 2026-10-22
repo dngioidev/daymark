@@ -48,7 +48,7 @@ const PHONE = [
   ['today-scrolled', async (p) => p.mouse.wheel(0, 1400)],
   ['quick-capture', async (p) => tryClick(p.getByRole('button', { name: /^new task$/i }))],
   ['task-details', async (p) => tryClick(p.getByRole('button', { name: 'Investigate build pipeline failure', exact: true }))],
-  ['history', async (p) => tryClick(p.getByRole('button', { name: /^\s*history\s*$/i }))],
+  ['calendar', async (p) => tryClick(p.getByRole('button', { name: /^\s*calendar\s*$/i }))],
   ['notes', async (p) => tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))],
   ['note-editor', async (p) => (await tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))) && tryClick(p.getByText('Weekly Sprint Sync Notes'))],
   ['sync', async (p) => tryClick(p.getByRole('button', { name: /open sync settings/i }))],
@@ -60,7 +60,7 @@ const PHONE = [
 ];
 const DESKTOP = [
   ['today', async () => {}],
-  ['history', async (p) => tryClick(p.getByRole('button', { name: /^\s*history\s*$/i }))],
+  ['calendar', async (p) => tryClick(p.getByRole('button', { name: /^\s*calendar\s*$/i }))],
   ['notes', async (p) => tryClick(p.getByRole('button', { name: /^\s*notes\s*$/i }))],
   ['server', async (p) => tryClick(p.getByRole('button', { name: /open sync settings/i }))],
   ['settings', async (p) => tryClick(p.getByRole('button', { name: /^\s*settings\s*$/i }))],

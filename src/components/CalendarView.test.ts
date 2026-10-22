@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest';
 import { CalendarView } from './CalendarView';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import type { DailyDocument } from '../types/daymark';
+import { formatLongDate } from '../utils/dateFormat';
 
 // DOMPurify needs a browser DOM; this test checks the surrounding Calendar rendering.
 vi.mock('dompurify', () => ({ default: { sanitize: (html: string) => html } }));
@@ -36,4 +37,16 @@ it('renders enabled future cells, counts, notes, Planned and the existing panels
   expect(html).not.toContain('disabled=""');
   expect(html).not.toContain('Recent days');
   expect(html).not.toContain('Done this day');
+});
+
+it.each([false, true])('preserves empty past-day wording with a stored document: %s', (stored) => {
+  const date = '2026-10-13';
+  const html = renderToStaticMarkup(React.createElement(CalendarView, {
+    dailyDocuments: stored ? [{ date, type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: [], notesContent: '  ' }] }] : [],
+    selectedDate: date, simulatedToday: '2026-10-21', compact: true,
+    statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(), onMoveTask: vi.fn(),
+  }));
+  expect(html).toContain(`aria-label="${formatLongDate(date)}: nothing recorded"`);
+  expect(html).toContain('Nothing was recorded on');
+  expect(html).not.toContain('notes only');
 });

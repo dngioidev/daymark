@@ -74,6 +74,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const docMap = useMemo(() => new Map(dailyDocuments.map((d) => [d.date, d])), [dailyDocuments]);
   const selectedDoc = docMap.get(selectedDate);
+  const selectedHasContent = selectedDoc?.headings.some((section) => section.items.length > 0 || !!section.notesContent?.trim());
   const todayDoc = docMap.get(simulatedToday);
   const openToday = new Set(todayDoc?.headings.flatMap((h) => h.items).filter((t) => t.status !== 'done').map((t) => t.id) ?? []);
 
@@ -188,7 +189,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     }}
                     onDrop={(event) => dropTask(event, date)}
                     aria-pressed={isSelected}
-                    aria-label={`${formatLongDate(date)}${doc ? (total ? `: ${done} of ${total} done` : ': notes only') : ': nothing recorded'}`}
+                    aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : ': nothing recorded'}`}
                     className={`${view === 'week' ? 'min-h-36 justify-start py-2' : 'min-h-20 justify-center'} min-w-0 px-1 rounded-lg flex flex-col items-center gap-1 text-sm tabular-nums ${
                       isSelected
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-bold'
@@ -258,7 +259,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-stone-900 dark:text-stone-50">{formatLongDate(selectedDate)}</h2>
               {selectedDate > simulatedToday && <p className="font-medium text-stone-700 dark:text-stone-300">Planned</p>}
-              {selectedDoc && (
+              {selectedDoc && selectedHasContent && (
                 <p className="text-stone-600 dark:text-stone-400">
                   {(() => {
                     const { total, done } = countTasks(selectedDoc);
@@ -274,9 +275,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             )}
           </div>
 
-          {selectedDoc ? (
+          {selectedDoc && selectedHasContent ? (
             selectedDoc.headings
-              .filter((s) => s.items.length > 0 || s.notesContent)
+              .filter((s) => s.items.length > 0 || s.notesContent?.trim())
               .map((section) => (
                 <section key={section.name} className="space-y-2">
                   <h3 className="font-semibold text-stone-800 dark:text-stone-200">{section.name}</h3>

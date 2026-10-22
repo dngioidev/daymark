@@ -128,11 +128,12 @@ try {
   check(await page.getByText('Captured offline (e2e)').first().isVisible().catch(() => false), 'offline capture survives offline reload');
   // Export works offline too (JSZip is a lazy chunk the service worker precaches)
   await page.getByRole('button', { name: /^settings$/i }).click();
+  await page.getByRole('tab', { name: 'Backup & restore', exact: true }).click();
   const download = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
   await page.getByRole('button', { name: /back up now/i }).click();
   const file = await download;
   check(!!file && /.zip$/.test(file.suggestedFilename()), 'offline vault ZIP export works', file ? file.suggestedFilename() : 'no download');
-  await page.getByRole('button', { name: /^done$/i }).click().catch(() => {});
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await context.setOffline(false);
 
   // Deep link from manifest shortcut

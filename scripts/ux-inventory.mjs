@@ -44,7 +44,7 @@ const PHONE = {
   'section-add-task': async (p) => click(p, p.getByRole('button', { name: /^\s*task\s*$/i })),
   'section-add-note': async (p) => click(p, p.getByRole('button', { name: /^\s*note\s*$/i })),
   'markdown-mode': async (p) => click(p, p.getByRole('button', { name: /^\s*markdown\s*$/i })),
-  'history': async (p) => click(p, p.getByRole('button', { name: /^\s*history\s*$/i })),
+  'calendar': async (p) => click(p, p.getByRole('button', { name: /^\s*calendar\s*$/i })),
   'notes': async (p) => click(p, p.getByRole('button', { name: /^\s*notes\s*$/i })),
   'note-editor': async (p) => {
     await click(p, p.getByRole('button', { name: /^\s*notes\s*$/i }));
@@ -56,7 +56,7 @@ const PHONE = {
 const DESKTOP = {
   'today': async () => {},
   'split-mode': async (p) => click(p, p.getByRole('button', { name: /^\s*split\s*$/i })),
-  'history': async (p) => click(p, p.getByRole('button', { name: /^\s*history\s*$/i })),
+  'calendar': async (p) => click(p, p.getByRole('button', { name: /^\s*calendar\s*$/i })),
   'notes': async (p) => click(p, p.getByRole('button', { name: /^\s*notes\s*$/i })),
   'sync': async (p) => click(p, p.getByRole('button', { name: /^\s*sync\s*$/i })),
   'settings': async (p) => click(p, p.getByRole('button', { name: /^\s*settings\s*$/i })),

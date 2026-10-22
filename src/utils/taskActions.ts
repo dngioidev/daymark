@@ -7,7 +7,7 @@ export function getMoveToTomorrowDate(status: TaskItem['status'], fromDate: stri
   return status === 'done' || tomorrow === fromDate ? null : tomorrow;
 }
 
-/** Validation shared by the move dialog and its caller; destinations start tomorrow. */
+/** Validation shared by the move dialog and its caller; destinations start today. */
 export function getMoveTaskDateError(toDate: string, fromDate: string, today: string): string | null {
   if (!toDate) return 'Choose a date.';
   if (toDate === fromDate) return 'Choose a different day from the source day.';
