@@ -120,7 +120,7 @@ export async function login(
     method: 'POST',
     body: JSON.stringify(credentials),
   });
-  return { serverUrl: base, token: data.token, username: data.username, deviceId: data.device.id, deviceName: data.device.name };
+  return { serverUrl: base, token: data.accessToken, username: data.username, deviceId: data.device.id, deviceName: data.device.name };
 }
 
 export interface SyncOutcome {

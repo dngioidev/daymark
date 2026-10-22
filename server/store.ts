@@ -19,6 +19,9 @@ export interface DeviceRecord {
   lastSyncAt: string | null;
   lastIp: string;
   revoked: boolean;
+  refreshHash: string | null;
+  refreshExpiresAt: string | null;
+  retiredRefreshHashes: string[];
   /** Random id the app keeps per install, so signing in again reuses this record. */
   installId?: string;
 }
@@ -96,7 +99,12 @@ export class FileStore {
     }
     const vault = this.read<VaultRecord>('vault.json', { rev: 0, entities: {} });
     this.vault = { rev: vault.rev, entities: Object.assign(Object.create(null), vault.entities) };
-    this.devices = this.read<DeviceRecord[]>('devices.json', []);
+    this.devices = this.read<DeviceRecord[]>('devices.json', []).map((device) => ({
+      ...device,
+      refreshHash: device.refreshHash ?? null,
+      refreshExpiresAt: device.refreshExpiresAt ?? null,
+      retiredRefreshHashes: (device.retiredRefreshHashes ?? []).slice(-50),
+    }));
     this.log = this.read<SyncLogEntry[]>('sync-log.json', []);
     return { createdAccount };
   }

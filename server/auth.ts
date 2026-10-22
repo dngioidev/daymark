@@ -13,6 +13,7 @@ export function verifyPassword(password: string, salt: string, expectedHash: str
 }
 
 export interface TokenPayload {
+  typ: 'access';
   sub: string; // username
   did: string; // device id
   ver: number; // token version; bumped on password change to revoke every token
@@ -36,11 +37,34 @@ export function verifyToken(token: string, secret: string, now = Date.now()): To
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as TokenPayload;
-    if (typeof payload.exp !== 'number' || payload.exp * 1000 < now) return null;
+    if (payload.typ !== 'access' || typeof payload.exp !== 'number' || payload.exp * 1000 <= now) return null;
     return payload;
   } catch {
     return null;
   }
+}
+
+export function newRefreshToken(deviceId: string): string {
+  return `${deviceId}.${crypto.randomBytes(32).toString('base64url')}`;
+}
+
+export function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+export function parseCookies(header: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = Object.create(null);
+  for (const part of (header || '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 0) continue;
+    const name = part.slice(0, separator).trim();
+    try {
+      cookies[name] = decodeURIComponent(part.slice(separator + 1).trim());
+    } catch {
+      // Ignore malformed cookie values.
+    }
+  }
+  return cookies;
 }
 
 /** Fixed-window limiter for failed logins, keyed by client IP. */

@@ -8,9 +8,10 @@ import { DailyDocument, StandaloneNote, TaskItem } from '../src/types/daymark';
 import { DEFAULT_SETTINGS } from '../src/utils/defaultData';
 import { performDailyRollover } from '../src/utils/lifecycleEngine';
 import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
-import { createApp } from './app';
+import { checkRefreshToken, createApp } from './app';
 import { loadConfig } from './config';
 import { FileStore } from './store';
+import { hashRefreshToken, parseCookies, signToken, TokenPayload, verifyToken } from './auth';
 
 const PASSWORD = 'correct horse battery';
 let dir: string;
@@ -44,9 +45,10 @@ const post = (url: string, body: unknown, token?: string) =>
     body: JSON.stringify(body),
   });
 
-async function connect(name: string): Promise<SyncState> {
-  const s = await login(fetch, base, { username: 'admin', password: PASSWORD, deviceName: name, platform: 'test' });
-  return { ...s, lastRev: 0, bases: {}, lastSyncAt: null };
+async function connect(name: string): Promise<SyncState & { refreshToken?: string }> {
+  const response = await post('/api/auth/login', { username: 'admin', password: PASSWORD, deviceName: name, platform: 'test' });
+  const data = await response.json();
+  return { serverUrl: base, username: data.username, deviceName: data.device.name, token: data.accessToken, deviceId: data.device.id, refreshToken: data.refreshToken, lastRev: 0, bases: {}, lastSyncAt: null };
 }
 
 const task = (id: string, status = 'in-progress'): TaskItem => ({
@@ -86,6 +88,162 @@ async function sync(device: { vault: VaultData; state: SyncState }) {
 const statuses = (v: VaultData) => v.docs.flatMap((d) => d.headings.flatMap((h) => h.items.map((t) => `${t.id}:${t.status}`))).sort();
 
 describe('auth', () => {
+  const webLogin = (headers: Record<string, string> = {}) => fetch(`${base}/api/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Daymark-Client': 'web', ...headers },
+    body: JSON.stringify({ username: 'admin', password: PASSWORD, deviceName: 'Browser', platform: 'web' }),
+  });
+  const webRefresh = (cookie: string, header = true) => fetch(`${base}/api/auth/refresh`, {
+    method: 'POST', headers: { Cookie: cookie, ...(header ? { 'X-Daymark-Client': 'web' } : {}) },
+  });
+
+  it('login returns a 15-minute access token and a refresh token', async () => {
+    const res = await post('/api/auth/login', { username: 'admin', password: PASSWORD });
+    const data = await res.json();
+    expect(data.expiresIn).toBe(900);
+    expect(data.refreshToken).toMatch(new RegExp(`^${data.device.id}\\.[A-Za-z0-9_-]{43}$`));
+    const payload = JSON.parse(Buffer.from(data.accessToken.split('.')[0], 'base64url').toString());
+    expect(payload.typ).toBe('access');
+    expect(payload.exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(899);
+    expect(payload.exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(900);
+  });
+
+  it('refresh rotates: new pair works, old refresh token is retired', async () => {
+    const a = await connect('Phone');
+    const res = await post('/api/auth/refresh', { refreshToken: a.refreshToken });
+    expect(res.status).toBe(200);
+    const pair = await res.json();
+    expect(pair.refreshToken).not.toBe(a.refreshToken);
+    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${pair.accessToken}` } })).status).toBe(200);
+    expect((await post('/api/auth/refresh', { refreshToken: pair.refreshToken })).status).toBe(200);
+  });
+
+  it('checks refresh credentials read-only and preserves them across restart', async () => {
+    const a = await connect('Phone');
+    const before = JSON.stringify(fileStore.devices);
+    const device = checkRefreshToken(fileStore, a.refreshToken!);
+    expect(device?.id).toBe(a.deviceId);
+    expect(checkRefreshToken(fileStore, a.refreshToken!, Date.now() + 30 * 86400000)).toBeNull();
+    expect(checkRefreshToken(fileStore, `${a.deviceId}.wrong`)).toBeNull();
+    expect(JSON.stringify(fileStore.devices)).toBe(before);
+    expect(device?.refreshHash).toMatch(/^[a-f0-9]{64}$/);
+    const persisted = fs.readFileSync(path.join(dir, 'devices.json'), 'utf8');
+    expect(persisted).not.toContain(a.refreshToken);
+    await stop();
+    start();
+    expect(checkRefreshToken(fileStore, a.refreshToken!)?.id).toBe(a.deviceId);
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(200);
+  });
+
+  it('caps retired hashes at 50 newest entries and persists reuse revocation', async () => {
+    const a = await connect('Phone');
+    const device = fileStore.devices[0];
+    device.retiredRefreshHashes = Array.from({ length: 50 }, (_, i) => `old-${i}`);
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(200);
+    expect(device.retiredRefreshHashes).toHaveLength(50);
+    expect(device.retiredRefreshHashes[0]).toBe('old-1');
+    expect(device.retiredRefreshHashes[49]).toBe(hashRefreshToken(a.refreshToken!));
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
+    await stop();
+    start();
+    expect(fileStore.devices[0].revoked).toBe(true);
+    expect(fileStore.log.some((entry) => entry.action === 'refresh_reuse')).toBe(true);
+  });
+
+  it('reusing a retired refresh token revokes the device', async () => {
+    const a = await connect('Phone');
+    const first = await post('/api/auth/refresh', { refreshToken: a.refreshToken });
+    expect(first.status).toBe(200);
+    const pair = await first.json();
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
+    expect((await post('/api/auth/refresh', { refreshToken: pair.refreshToken })).status).toBe(401);
+    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${pair.accessToken}` } })).status).toBe(401);
+    expect(fileStore.log.some((entry) => entry.action === 'refresh_reuse')).toBe(true);
+  });
+
+  it('refresh token expires after 30 days without use', async () => {
+    const a = await connect('Phone');
+    const device = fileStore.devices.find((d) => d.id === a.deviceId)!;
+    expect(Date.parse(device.refreshExpiresAt!) - Date.now()).toBeGreaterThan(29 * 86400000);
+    device.refreshExpiresAt = new Date(Date.now() - 1).toISOString();
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
+  });
+
+  it('web login sets HttpOnly refresh and readable marker cookies', async () => {
+    const res = await webLogin();
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.find((c) => c.startsWith('daymark_refresh='))).toMatch(/HttpOnly/);
+    for (const cookie of cookies) {
+      expect(cookie).toContain('SameSite=Strict');
+      expect(cookie).toContain('Path=/');
+      expect(cookie).toContain('Max-Age=2592000');
+    }
+    expect(cookies.find((c) => c.startsWith('daymark_signed_in=1'))).not.toContain('HttpOnly');
+    expect(await res.json()).not.toHaveProperty('refreshToken');
+  });
+
+  it('web refresh needs the client header', async () => {
+    const res = await webLogin();
+    const cookie = res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    expect((await webRefresh(cookie, false)).status).toBe(401);
+    const refreshed = await webRefresh(cookie);
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.headers.getSetCookie()).toHaveLength(2);
+    expect(await refreshed.json()).not.toHaveProperty('refreshToken');
+  });
+
+  it('web logout needs the client header to revoke the cookie session', async () => {
+    const res = await webLogin();
+    const cookie = res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { Cookie: cookie } });
+    expect(fileStore.devices[0].revoked).toBe(false);
+    const logout = await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { Cookie: cookie, 'X-Daymark-Client': 'web' } });
+    expect(logout.status).toBe(200);
+    expect(logout.headers.getSetCookie()).toHaveLength(2);
+    expect((await webRefresh(cookie)).status).toBe(401);
+  });
+
+  it('access tokens expire at the 15-minute boundary', async () => {
+    const a = await connect('Phone');
+    const payload = verifyToken(a.token, fileStore.auth.secret)!;
+    expect(verifyToken(a.token, fileStore.auth.secret, payload.exp * 1000 - 1)).not.toBeNull();
+    expect(verifyToken(a.token, fileStore.auth.secret, payload.exp * 1000)).toBeNull();
+  });
+
+  it('parses cookies without crashing on malformed values', () => {
+    expect(parseCookies(undefined)).toEqual({});
+    expect(parseCookies('other=a%20b; daymark_refresh=dev.abc=; broken=%ZZ; ignored')).toEqual({ other: 'a b', daymark_refresh: 'dev.abc=' });
+  });
+
+  it('omits Secure on plain HTTP, sets it behind an HTTPS proxy', async () => {
+    expect((await webLogin()).headers.get('set-cookie')).not.toContain('Secure');
+    const res = await webLogin({ 'X-Forwarded-Proto': 'https' });
+    expect(res.headers.getSetCookie()).toHaveLength(2);
+    for (const cookie of res.headers.getSetCookie()) expect(cookie).toContain('Secure');
+  });
+
+  it('cookie alone does not authorise data routes', async () => {
+    const res = await webLogin();
+    expect((await fetch(`${base}/api/devices`, { headers: { Cookie: res.headers.get('set-cookie')! } })).status).toBe(401);
+  });
+
+  it('logout revokes the device and clears cookies', async () => {
+    const a = await connect('Phone');
+    const res = await post('/api/auth/logout', { refreshToken: a.refreshToken });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(res.headers.getSetCookie()).toHaveLength(2);
+    for (const cookie of res.headers.getSetCookie()) expect(cookie).toContain('Max-Age=0');
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
+    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
+    expect((await post('/api/auth/logout', { refreshToken: a.refreshToken })).status).toBe(200);
+  });
+
+  it('rejects pre-upgrade tokens', async () => {
+    const a = await connect('Phone');
+    const token = signToken({ sub: 'admin', did: a.deviceId, ver: fileStore.auth.tokenVersion, exp: Math.floor(Date.now() / 1000) + 900 } as TokenPayload, fileStore.auth.secret);
+    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(401);
+  });
+
   it('serves health without auth and leaks no account details', async () => {
     const res = await (await fetch(`${base}/api/health`)).json();
     expect(res.status).toBe('ok');
@@ -110,16 +268,19 @@ describe('auth', () => {
     const del = await fetch(`${base}/api/devices/${a.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${b.token}` } });
     expect(del.status).toBe(200);
     expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
+    expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
   });
 
-  it('changing the password signs out other devices', async () => {
+  it('changing the password signs out every device including this one', async () => {
     const a = await connect('Phone');
     const b = await connect('Laptop');
     const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'a much better one' }, b.token);
     expect(res.status).toBe(200);
-    const { token } = await res.json();
+    expect(await res.json()).toEqual({ ok: true });
     expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
-    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200);
+    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${b.token}` } })).status).toBe(401);
+    for (const device of [a, b]) expect((await post('/api/auth/refresh', { refreshToken: device.refreshToken })).status).toBe(401);
+    expect(fileStore.devices.every((d) => d.revoked)).toBe(true);
   });
 
   it('a repeat sign-in from the same install does not add a duplicate device', async () => {
@@ -312,6 +473,16 @@ describe('sync validation', () => {
 });
 
 describe('data files', () => {
+  it('loads pre-upgrade devices without refresh credentials', async () => {
+    await connect('Phone');
+    const legacy = fileStore.devices.map(({ refreshHash, refreshExpiresAt, retiredRefreshHashes, ...device }) => device);
+    await stop();
+    fs.writeFileSync(path.join(dir, 'devices.json'), JSON.stringify(legacy));
+    start();
+    expect(fileStore.devices[0].refreshHash).toBeNull();
+    expect(fileStore.devices[0].refreshExpiresAt).toBeNull();
+    expect(fileStore.devices[0].retiredRefreshHashes).toEqual([]);
+  });
   it.skipIf(process.platform === 'win32')('are written owner-only', () => {
     expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
     expect(fs.statSync(path.join(dir, 'auth.json')).mode & 0o777).toBe(0o600);

@@ -36,9 +36,16 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  token: string;
+  accessToken: string;
+  expiresIn: number;
   username: string;
   device: { id: string; name: string };
+  refreshToken?: string;
 }
+
+export type RefreshResponse = LoginResponse;
+export const WEB_CLIENT_HEADER = 'X-Daymark-Client';
+export const REFRESH_COOKIE = 'daymark_refresh';
+export const SIGNED_IN_COOKIE = 'daymark_signed_in';
 
 export const MAX_CHANGES_PER_SYNC = 5000;

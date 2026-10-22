@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { isDailyDocument, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
 import { isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
-import { LoginRequest, MAX_CHANGES_PER_SYNC, SyncEntity, SyncRequest, SyncResponse } from '../src/sync/protocol';
-import { hashPassword, LoginRateLimiter, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
+import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
+import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
 import { DeviceRecord, FileStore } from './store';
 
@@ -12,9 +12,15 @@ export const SERVER_VERSION = '2.0.0';
 type AuthedRequest = Request & { auth: TokenPayload; device: DeviceRecord };
 const authed = (req: Request) => req as unknown as AuthedRequest;
 
+export function checkRefreshToken(store: FileStore, token: string, now = Date.now()): DeviceRecord | null {
+  const device = store.devices.find((d) => d.id === token.split('.', 1)[0]);
+  if (!device || device.revoked || !device.refreshExpiresAt || !(Date.parse(device.refreshExpiresAt) > now)) return null;
+  return device.refreshHash === hashRefreshToken(token) ? device : null;
+}
+
 /**
  * Builds the REST API (no listening, no static files) so it can be tested in-process.
- * Every /api route except /api/health and /api/auth/login requires a bearer token.
+ * Data routes require a bearer token; refresh/logout use refresh credentials.
  */
 export function createApp(config: ServerConfig, store: FileStore) {
   const app = express();
@@ -32,7 +38,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
     if (origin && (config.corsOrigins === '*' || config.corsOrigins.includes(origin))) {
       res.setHeader('Access-Control-Allow-Origin', config.corsOrigins === '*' ? '*' : origin);
       res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Headers', `Authorization, Content-Type, ${WEB_CLIENT_HEADER}`);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '600');
     }
@@ -43,13 +49,38 @@ export function createApp(config: ServerConfig, store: FileStore) {
   const issueToken = (deviceId: string) =>
     signToken(
       {
+        typ: 'access',
         sub: store.auth.username,
         did: deviceId,
         ver: store.auth.tokenVersion,
-        exp: Math.floor(Date.now() / 1000) + config.tokenTtlDays * 86400,
+        exp: Math.floor(Date.now() / 1000) + config.accessTtlSeconds,
       },
       store.auth.secret
     );
+
+  const cookieOptions = (req: Request) => ({ path: '/', sameSite: 'strict' as const, secure: req.secure });
+  const issueSession = async (req: Request, res: Response, device: DeviceRecord): Promise<LoginResponse> => {
+    const refreshToken = newRefreshToken(device.id);
+    if (device.refreshHash) device.retiredRefreshHashes.push(device.refreshHash);
+    device.retiredRefreshHashes = device.retiredRefreshHashes.slice(-50);
+    device.refreshHash = hashRefreshToken(refreshToken);
+    device.refreshExpiresAt = new Date(Date.now() + config.refreshTtlDays * 86400000).toISOString();
+    await store.persist('devices.json', 'sync-log.json');
+    const response: LoginResponse = {
+      accessToken: issueToken(device.id), expiresIn: config.accessTtlSeconds,
+      username: store.auth.username, device: { id: device.id, name: device.name },
+    };
+    if (req.get(WEB_CLIENT_HEADER) === 'web') {
+      const options = { ...cookieOptions(req), maxAge: config.refreshTtlDays * 86400000 };
+      res.cookie(REFRESH_COOKIE, refreshToken, { ...options, httpOnly: true });
+      res.cookie(SIGNED_IN_COOKIE, '1', options);
+    } else response.refreshToken = refreshToken;
+    return response;
+  };
+  const refreshCredential = (req: Request): string => {
+    if (req.get(WEB_CLIENT_HEADER) === 'web') return parseCookies(req.headers.cookie)[REFRESH_COOKIE] || '';
+    return typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : '';
+  };
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'Daymark sync server', version: SERVER_VERSION });
@@ -84,13 +115,41 @@ export function createApp(config: ServerConfig, store: FileStore) {
       lastSyncAt: null,
       lastIp: ip,
       revoked: false,
+      refreshHash: null,
+      refreshExpiresAt: null,
+      retiredRefreshHashes: [],
       installId,
     };
     if (existing) Object.assign(existing, { name, platform, lastIp: ip });
     else store.devices.push(device);
     store.addLog({ deviceId: device.id, deviceName: device.name, action: 'device_connected', details: `Signed in (${device.platform})` });
-    await store.persist('devices.json', 'sync-log.json');
-    res.json({ token: issueToken(device.id), username: store.auth.username, device: { id: device.id, name: device.name } });
+    res.json(await issueSession(req, res, device));
+  });
+
+  app.post('/api/auth/refresh', async (req, res) => {
+    const token = refreshCredential(req);
+    const device = store.devices.find((d) => d.id === token.split('.', 1)[0]);
+    if (device && !device.revoked && device.retiredRefreshHashes.includes(hashRefreshToken(token))) {
+      device.revoked = true;
+      store.addLog({ deviceId: device.id, deviceName: device.name, action: 'refresh_reuse', details: 'Retired refresh token reused; device revoked' });
+      await store.persist('devices.json', 'sync-log.json');
+      return res.status(401).json({ error: 'Refresh token is invalid or expired.' });
+    }
+    const current = checkRefreshToken(store, token);
+    if (!current) return res.status(401).json({ error: 'Refresh token is invalid or expired.' });
+    res.json(await issueSession(req, res, current));
+  });
+
+  app.post('/api/auth/logout', async (req, res) => {
+    const device = checkRefreshToken(store, refreshCredential(req));
+    if (device) {
+      device.revoked = true;
+      store.addLog({ deviceId: device.id, deviceName: device.name, action: 'device_disconnected', details: 'Signed out' });
+      await store.persist('devices.json', 'sync-log.json');
+    }
+    res.cookie(REFRESH_COOKIE, '', { ...cookieOptions(req), httpOnly: true, maxAge: 0 });
+    res.cookie(SIGNED_IN_COOKIE, '', { ...cookieOptions(req), maxAge: 0 });
+    res.json({ ok: true });
   });
 
   // ---- authenticated routes ----
@@ -120,18 +179,19 @@ export function createApp(config: ServerConfig, store: FileStore) {
     const problem = typeof newPassword === 'string' ? passwordProblem(newPassword) : 'is required';
     if (problem) return res.status(400).json({ error: `New password ${problem}.` });
     const { salt, hash } = hashPassword(newPassword as string);
-    // Bumping the version signs out every other device; this one gets a fresh token
+    // Bumping the version and revoking devices ends every session, including this one.
     store.auth = { ...store.auth, salt, hash, tokenVersion: store.auth.tokenVersion + 1 };
     const { device } = authed(req);
-    store.addLog({ deviceId: device.id, deviceName: device.name, action: 'password_changed', details: 'All other devices were signed out' });
-    await store.persist('auth.json', 'sync-log.json');
-    res.json({ token: issueToken(device.id) });
+    for (const entry of store.devices) entry.revoked = true;
+    store.addLog({ deviceId: device.id, deviceName: device.name, action: 'password_changed', details: 'All devices were signed out' });
+    await store.persist('auth.json', 'devices.json', 'sync-log.json');
+    res.json({ ok: true });
   });
 
   app.get('/api/devices', (req, res) => {
     const { device } = authed(req);
     res.json({
-      devices: store.devices.filter((d) => !d.revoked).map((d) => ({ ...d, current: d.id === device.id })),
+      devices: store.devices.filter((d) => !d.revoked).map(({ refreshHash, refreshExpiresAt, retiredRefreshHashes, ...d }) => ({ ...d, current: d.id === device.id })),
     });
   });
 

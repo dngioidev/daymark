@@ -9,7 +9,8 @@ export interface ServerConfig {
   initialPassword: string | null;
   /** Allowed browser origins for the API ('*' = any; auth is by bearer token, not cookies). */
   corsOrigins: '*' | string[];
-  tokenTtlDays: number;
+  accessTtlSeconds: number;
+  refreshTtlDays: number;
 }
 
 const WEAK_PASSWORDS = new Set(['daymark2026', 'admin', 'password', 'change-me-before-deploying', '12345678']);
@@ -32,6 +33,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     username: (env.DAYMARK_USER || 'admin').trim(),
     initialPassword: env.DAYMARK_PASSWORD || (production ? null : DEV_DEFAULT_PASSWORD),
     corsOrigins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()).filter(Boolean),
-    tokenTtlDays: Number(env.DAYMARK_TOKEN_TTL_DAYS) || 90,
+    accessTtlSeconds: 900,
+    refreshTtlDays: 30,
   };
 }
