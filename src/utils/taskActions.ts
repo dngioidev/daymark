@@ -120,17 +120,18 @@ export function undoMoveTask(
   taskId: string,
   fromDate: string,
   toDate: string,
-  before: { doc: DailyDocument | undefined; removed: RemovedTask }
+  before: { doc: DailyDocument | undefined; removed: RemovedTask },
+  nowIso: string
 ): DailyDocument[] {
   return docs.flatMap((doc) => {
-    if (doc.date === fromDate) return [restoreTaskToDocument(doc, before.removed)];
+    if (doc.date === fromDate) return [{ ...restoreTaskToDocument(doc, before.removed), updatedAt: nowIso }];
     if (doc.date !== toDate) return [doc];
     const headings = doc.headings.map((h) => ({ ...h, items: h.items.filter((t) => t.id !== taskId) }));
     const { removedTaskIds, ...rest } = doc;
     const remaining = (removedTaskIds ?? []).filter((id) => id !== taskId);
     if (before.doc?.removedTaskIds?.includes(taskId)) remaining.push(taskId);
     if (!before.doc && !remaining.length && !doc.rawMarkdown && headings.every((h) => !h.items.length && !h.notesContent?.trim())) return [];
-    return [{ ...rest, headings, ...(remaining.length ? { removedTaskIds: remaining } : {}), updatedAt: new Date().toISOString() }];
+    return [{ ...rest, headings, ...(remaining.length ? { removedTaskIds: remaining } : {}), updatedAt: nowIso }];
   });
 }
 

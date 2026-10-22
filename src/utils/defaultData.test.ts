@@ -1,7 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, normalizeSettings } from './defaultData';
+import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, normalizeSettings, mergeIncomingSettings } from './defaultData';
 import { toSyncedSettings } from '../sync/merge';
 import type { AppSettings } from '../types/daymark';
+
+describe('mergeIncomingSettings', () => {
+  const local = { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_APPEARANCE, theme: 'dark' as const, dim: 60 } };
+  it('keeps local appearance when an older client sends none', () => {
+    const { appearance: _appearance, ...incoming } = DEFAULT_SETTINGS;
+    expect(mergeIncomingSettings(local, { ...incoming, timeZone: 'Asia/Saigon' })).toMatchObject({
+      appearance: local.appearance, timeZone: 'Asia/Saigon',
+    });
+  });
+  it('lets an explicit incoming appearance win', () => {
+    expect(mergeIncomingSettings(local, DEFAULT_SETTINGS).appearance).toEqual(DEFAULT_APPEARANCE);
+  });
+  it('normalizes incoming settings and partial appearance', () => {
+    // Imported settings can contain an incomplete appearance before normalization.
+    const incoming = { ...DEFAULT_SETTINGS, defaultHeadings: [], appearance: { theme: 'dark', dim: 200 } } as unknown as AppSettings;
+    expect(mergeIncomingSettings(local, incoming)).toMatchObject({
+      defaultHeadings: ['Work', 'Meetings', 'Ideas', 'Attention'],
+      appearance: { theme: 'dark', dim: 90, blur: 4, light: DEFAULT_APPEARANCE.light, dark: DEFAULT_APPEARANCE.dark },
+    });
+    expect(mergeIncomingSettings(local, { ...DEFAULT_SETTINGS, appearance: undefined, defaultHeadings: [] })).toMatchObject({
+      defaultHeadings: ['Work', 'Meetings', 'Ideas', 'Attention'], appearance: local.appearance,
+    });
+  });
+});
 
 describe('normalizeSettings', () => {
   it('fills missing and partial appearance, including older backup settings', () => {

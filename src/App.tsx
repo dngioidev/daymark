@@ -63,7 +63,7 @@ import { HistoricalCompletionModal } from './components/HistoricalCompletionModa
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { SettingsModal, SettingsTab } from './components/SettingsModal';
 import { FeedbackHost, alertDialog, confirmDialog, showToast } from './components/ui/feedback';
-import { normalizeSettings } from './utils/defaultData';
+import { mergeIncomingSettings, normalizeSettings } from './utils/defaultData';
 import { inlineDay } from './components/TaskItemCard';
 import { formatDay } from './utils/dateFormat';
 import { shortcutFor } from './utils/shortcuts';
@@ -133,6 +133,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsStatusStrip = appMode === 'mobile-app' && isSettingsOpen;
   useEffect(() => {
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColor) themeColor.content = appearance.headerBgOpaque;
     // Fullscreen phone Settings paints a stone-900 strip beneath the status icons.
     void applySystemBars(
       settingsStatusStrip ? '#1c1917' : appearance.headerBgOpaque,
@@ -273,7 +275,7 @@ export default function App() {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
-        else setSettings(normalizeSettings(value as AppSettings));
+        else setSettings((local) => mergeIncomingSettings(local, value as AppSettings));
       }),
     [],
   );
@@ -590,7 +592,7 @@ export default function App() {
     (next) => {
       setDailyDocs(next.docs);
       setNotes(next.notes);
-      setSettings(normalizeSettings(next.settings));
+      setSettings((local) => mergeIncomingSettings(local, next.settings));
     },
     (conflicts) =>
       showToast(conflicts.length === 1 ? conflicts[0] : `${conflicts.length} edits made on two devices were merged; nothing was lost.`),
@@ -641,7 +643,7 @@ export default function App() {
     }
     setDailyDocs(updated);
     showToast(`Moved “${removed.task.title}” to ${formatDay(toDate, today)}`, {
-      action: { label: 'Undo', onClick: () => setDailyDocs((prev) => undoMoveTask(prev, taskId, fromDate, toDate, before)) },
+      action: { label: 'Undo', onClick: () => setDailyDocs((prev) => undoMoveTask(prev, taskId, fromDate, toDate, before, new Date().toISOString())) },
     });
   };
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);

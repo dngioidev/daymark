@@ -27,7 +27,7 @@ export function useBackgroundPhoto(): { url: string | null; meta: PhotoMeta | nu
       setUrl(next);
     }).catch(() => showToast('Could not load your background photo.'));
     return () => { active = false; if (owned) URL.revokeObjectURL(owned); };
-  }, [meta]);
+  }, [meta?.slot, meta?.addedAt]);
   return {
     url, meta, photos,
     select(selected) {

@@ -241,17 +241,20 @@ describe('moveTaskToDate / undoMoveTask', () => {
   it('undoMoveTask restores the source exactly and removes the target copy (and an auto-created empty target doc)', () => {
     const source = doc([task('a'), task('t1'), task('b')]);
     const before = { doc: undefined, removed: removeTaskFromDocument(source, 't1')!.removed };
-    const out = undoMoveTask(move([source]), 't1', FROM, TO, before);
+    const out = undoMoveTask(move([source]), 't1', FROM, TO, before, NOW);
     expect(out.map((d) => d.date)).toEqual([FROM]);
     expect(findDoc(out, FROM).headings).toEqual(source.headings);
     expect(findDoc(out, FROM).removedTaskIds).toBeUndefined();
+    expect(findDoc(out, FROM).updatedAt).toBe(NOW);
   });
 
   it('undo keeps an existing target, its original tombstone and later edits on both days', () => {
     const source = doc([task('t1'), task('b')]);
     const target = { ...doc([]), date: TO, removedTaskIds: ['t1'] };
     const moved = move([source, target]).map((d) => ({ ...d, headings: d.headings.map((h) => ({ ...h, notesContent: 'New notes', items: h.items.map((t) => t.id === 'b' ? { ...t, title: 'Renamed' } : t) })) }));
-    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: target, removed: removeTaskFromDocument(source, 't1')!.removed });
+    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: target, removed: removeTaskFromDocument(source, 't1')!.removed }, NOW);
+    expect(findDoc(out, FROM).updatedAt).toBe(NOW);
+    expect(findDoc(out, TO).updatedAt).toBe(NOW);
     expect(items(out, FROM).map((t) => t.title)).toEqual(['t1', 'Renamed']);
     expect(items(out, TO)).toEqual([]);
     expect(findDoc(out, TO).removedTaskIds).toEqual(['t1']);
@@ -261,7 +264,7 @@ describe('moveTaskToDate / undoMoveTask', () => {
   it('undo keeps notes and other tasks added to an auto-created target', () => {
     const source = doc([task('t1')]);
     const moved = move([source]).map((d) => d.date !== TO ? d : { ...d, headings: d.headings.map((h, i) => i ? h : { ...h, notesContent: 'Keep', items: [...h.items, task('new')] }) });
-    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: undefined, removed: removeTaskFromDocument(source, 't1')!.removed });
+    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: undefined, removed: removeTaskFromDocument(source, 't1')!.removed }, NOW);
     expect(items(out, TO).map((t) => t.id)).toEqual(['new']);
     expect(findDoc(out, TO).headings[0].notesContent).toBe('Keep');
   });

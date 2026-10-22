@@ -130,7 +130,11 @@ class DaymarkBridgePlugin : Plugin() {
         if (bg == null || text == null || accent == null || dark == null || !hex.matches(bg) || !hex.matches(text) || !hex.matches(accent)) {
             call.reject("Expected opaque app colours and dark"); return
         }
-        WidgetStore.setAppColors(context, AppColors(bg.lowercase(), text.lowercase(), accent.lowercase(), dark))
+        val colors = AppColors(bg.lowercase(), text.lowercase(), accent.lowercase(), dark)
+        if (WidgetStore.appColors(context) == colors) {
+            call.resolve(); return
+        }
+        WidgetStore.setAppColors(context, colors)
         CoroutineScope(Dispatchers.Default).launch {
             try { DaymarkGlanceWidget().refreshAll(context); call.resolve() }
             catch (e: Exception) { call.reject("Could not refresh widgets", e) }

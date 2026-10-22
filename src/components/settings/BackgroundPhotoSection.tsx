@@ -15,7 +15,7 @@ function Thumbnail({ photo }: { photo: PhotoMeta }) {
       owned = next; setUrl(next);
     }).catch(() => setUrl(null));
     return () => { active = false; if (owned) URL.revokeObjectURL(owned); };
-  }, [photo]);
+  }, [photo.slot, photo.addedAt]);
   return url ? <img src={url} alt="" className="w-20 h-14 object-cover rounded" /> : <span className="inline-block w-20 h-14 bg-stone-200 dark:bg-stone-800 rounded" />;
 }
 

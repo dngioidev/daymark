@@ -1,7 +1,10 @@
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { DailyDocument } from './types/daymark';
-import { DEFAULT_SETTINGS } from './utils/defaultData';
+import type { AppSettings, DailyDocument } from './types/daymark';
+import type { VaultData } from './sync/syncClient';
+import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS } from './utils/defaultData';
+
+const incomingSettings = vi.hoisted(() => ({ external: (_key: string, _value: unknown) => {}, sync: (_next: VaultData) => {} }));
 
 const { docs, toast, hooks } = vi.hoisted(() => ({ docs: [] as DailyDocument[], toast: vi.fn(), hooks: { values: [] as unknown[], index: 0, effects: [] as (() => unknown)[] } }));
 vi.mock('react', async (original) => {
@@ -20,8 +23,10 @@ vi.mock('./utils/vaultStore', async (original) => ({
   ...await original<typeof import('./utils/vaultStore')>(),
   loadDailyDocuments: () => docs, loadSettings: () => DEFAULT_SETTINGS,
   loadStandaloneNotes: () => [], needsOnboarding: () => false,
+  subscribeExternalChanges: (listener: typeof incomingSettings.external) => { incomingSettings.external = listener; return () => {}; },
 }));
 const systemBars = vi.hoisted(() => ({ apply: vi.fn(), headerBg: '#12345680', headerBgOpaque: '#123456', headerText: '#ffffff' }));
+const themeMeta = { content: '#1c1917' };
 vi.mock('./hooks/useAppearance', async () => {
   const { resolveAppearance } = await import('./utils/appearance');
   const { DEFAULT_APPEARANCE } = await import('./utils/defaultData');
@@ -32,11 +37,11 @@ vi.mock('./hooks/useBackgroundPhoto', () => ({ useBackgroundPhoto: () => ({ url:
 vi.mock('./hooks/useRealToday', () => ({ useRealToday: () => '2026-10-21' }));
 vi.mock('./hooks/useWidgetSync', () => ({ useWidgetSync: () => {} }));
 vi.mock('./native/backButton', () => ({ useBackHandler: () => {} }));
-vi.mock('./hooks/useSync', () => ({ useSync: () => ({
+vi.mock('./hooks/useSync', () => ({ useSync: (_vault: VaultData, onChange: typeof incomingSettings.sync) => { incomingSettings.sync = onChange; return ({
   status: 'off', account: null, lastSyncAt: null, error: null, mode: 'local-web',
   connect: vi.fn(), disconnect: vi.fn(), signOut: vi.fn(), pendingChanges: () => 0,
   authFetch: vi.fn(), syncNow: vi.fn(), rebaseAfterReplace: vi.fn(),
-}) }));
+}); } }));
 vi.mock('./components/ui/feedback', async (original) => ({ ...await original<typeof import('./components/ui/feedback')>(), showToast: toast }));
 import App from './App';
 import { TodayView } from './components/TodayView';
@@ -68,7 +73,8 @@ beforeEach(() => {
   hooks.values = []; vi.useFakeTimers();
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' }, setTimeout, clearTimeout,
     addEventListener: (name: string, fn: (e: unknown) => void) => { if (name === 'keydown') listener = fn; }, removeEventListener: vi.fn() });
-  vi.stubGlobal('document', { cookie: '', documentElement: { classList: { toggle: vi.fn(), remove: vi.fn() } } });
+  themeMeta.content = '#1c1917';
+  vi.stubGlobal('document', { cookie: '', querySelector: (selector: string) => selector === 'meta[name="theme-color"]' ? themeMeta : null, documentElement: { classList: { toggle: vi.fn(), remove: vi.fn() } } });
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
   docs.splice(0, docs.length, { date: '2026-10-20', type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: [{ id: 't1', title: 'Found', status: 'done', createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 0, historyLog: [] }] }] });
   render(); hooks.effects.forEach((effect) => effect());
@@ -79,6 +85,24 @@ it('updates system bars with the opaque header colour and resolved icon contrast
   systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';
   render(); hooks.effects.forEach((effect) => effect());
   expect(systemBars.apply).toHaveBeenLastCalledWith('#eeeeee', false);
+});
+it('updates the web theme colour with the resolved opaque header colour', () => {
+  expect(themeMeta.content).toBe('#123456');
+  systemBars.headerBgOpaque = '#eeeeee';
+  render(); hooks.effects.forEach((effect) => effect());
+  expect(themeMeta.content).toBe('#eeeeee');
+});
+it.each(['external', 'sync'] as const)('preserves the latest local appearance for legacy %s settings', (path) => {
+  const local = { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_APPEARANCE, theme: 'dark' as const, dim: 60 } };
+  (props(SettingsModal).onChangeSettings as (settings: AppSettings) => void)(local);
+  // Deliver through the already registered callback, before another render.
+  const { appearance: _appearance, ...legacy } = DEFAULT_SETTINGS;
+  const incoming = { ...legacy, defaultHeadings: [], timeZone: 'Asia/Saigon' };
+  if (path === 'external') incomingSettings.external('settings', incoming);
+  else incomingSettings.sync({ docs: [], notes: [], settings: incoming });
+  expect(props(SettingsModal).settings).toMatchObject({
+    appearance: local.appearance, timeZone: 'Asia/Saigon', defaultHeadings: ['Work', 'Meetings', 'Ideas', 'Attention'],
+  });
 });
 it('keeps light icons over the phone Settings dark strip and restores the header on close', () => {
   systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';
