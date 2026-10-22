@@ -172,11 +172,13 @@ await run('A4', async () => {
 });
 
 await run('A5', async () => {
-  const { context, page } = await signedIn();
+  const { context, page, session } = await signedIn();
   try {
     await page.evaluate(async () => { await navigator.serviceWorker.ready; });
     await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-    await context.setOffline(true);
+    // Keep document/assets reachable while sync and logout see network failures.
+    // useSync treats fetch failures (status 0) as offline even with navigator.onLine.
+    await context.route('**/api/**', (r) => r.abort('internetdisconnected'));
     await addTask(page, 'A5 unsent task');
     await openSync(page);
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
@@ -188,15 +190,16 @@ await run('A5', async () => {
     check('A5b', await page.getByRole('button', { name: 'Mark "A5 unsent task" done' }).isVisible(), 'Cancel keeps the offline task visible');
     await openSync(page);
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-    // Keep the offline landing document inert: sign-in startup must not perform
-    // the wipe for us, and the service worker must not recreate its shell cache.
+    // Load the real app: the live refresh cookie passes the gate, but pending
+    // logout blocks startup before vault hydration, rendering or sync. Bypass
+    // the service worker so navigation cannot recreate its shell cache.
     const navigation = await context.newCDPSession(page);
     await navigation.send('Network.setBypassServiceWorker', { bypass: true });
-    const offlineLanding = (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Offline sign-out probe</title>' });
-    await page.route(base + '/', offlineLanding);
-    const leaving = page.waitForEvent('domcontentloaded');
+    const leaving = page.waitForNavigation({ waitUntil: 'networkidle' });
     await dialog.getByRole('button', { name: 'Sign out anyway', exact: true }).click();
-    await leaving;
+    const landing = await leaving;
+    if (!landing?.ok() || page.url() !== base + '/') throw new Error('forced sign-out did not land on the app origin');
+    await page.getByText('Unable to reach the server to finish signing out. Reconnect to continue.', { exact: true }).waitFor();
     const storage = await page.evaluate(async () => ({
       databases: (await indexedDB.databases()).map((db) => db.name),
       keys: Object.keys(localStorage).filter((key) => key.startsWith('daymark') && key !== 'daymark_logout_pending'),
@@ -206,15 +209,26 @@ await run('A5', async () => {
     }));
     check('A5c', !storage.databases.includes('daymark') && storage.keys.length === 0 && storage.caches.length === 0
       && !storage.marker && storage.pendingLogout === '1',
-      'offline forced sign-out wipes local storage and marker before reconnect, retaining pending logout', JSON.stringify(storage));
-    await page.unroute(base + '/', offlineLanding);
-    await navigation.send('Network.setBypassServiceWorker', { bypass: false });
-    await navigation.detach();
-    await context.setOffline(false);
-    await page.goto(base, { waitUntil: 'networkidle' });
+      'unreachable-server forced sign-out wipes local storage and marker on blocked app startup, retaining pending logout', JSON.stringify(storage));
+    await context.unroute('**/api/**');
+    await page.reload({ waitUntil: 'networkidle' });
     await assertWiped(page, 'A5d');
     check('A5e', await page.evaluate(() => localStorage.getItem('daymark_logout_pending') === null),
       'reconnected sign-in completes pending logout and clears its flag');
+    await navigation.send('Network.setBypassServiceWorker', { bypass: false });
+    await navigation.detach();
+    // A separate cookie jar ensures the verification login cannot replace the
+    // signed-out session before pending logout has revoked that exact device.
+    const observer = await browser.newContext();
+    try {
+      const freshSession = await signIn(observer, base, 'qa-password-123');
+      const response = await observer.request.get(base + '/api/devices', { headers: { Authorization: 'Bearer ' + freshSession.accessToken } });
+      if (!response.ok()) throw new Error('device list after pending logout failed: ' + response.status());
+      const { devices } = await response.json();
+      // /api/devices omits revoked devices; also require the fresh login to be listed.
+      check('A5f', devices.some((d) => d.id === freshSession.device.id) && !devices.some((d) => d.id === session.device.id),
+        'pending logout revokes the original server device');
+    } finally { await observer.close(); }
   } finally { await context.close(); }
 });
 
