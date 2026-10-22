@@ -27,7 +27,7 @@ daymark/
 | File / Directory | Layer | Purpose |
 | :--- | :--- | :--- |
 | `src/types/daymark.ts` | Types | Master TypeScript interfaces (`TaskItem`, `DailyDocument`, `AppSettings`, `SyncPayload`). |
-| `src/utils/lifecycleEngine.ts` | Logic | Pure algorithms for task rollover (`performDailyRollover`), aging calculation (`calculateTaskAge`, `getAgingSeverity`), and historical correction (`correctHistoricalCompletion`). |
+| `src/utils/lifecycleEngine.ts` | Logic | Pure algorithms for task rollover (source-day removals prevent deleted tasks returning) (`performDailyRollover`), aging calculation (`calculateTaskAge`, `getAgingSeverity`), and historical correction (`correctHistoricalCompletion`). |
 | `src/utils/markdownEngine.ts` | Logic | Canonical Markdown parsing and serialization with frontmatter and `<!-- daymark: ... -->` comments. |
 | `src/utils/vaultStore.ts` | Storage | IndexedDB persistence with in-memory cache (`initVaultStore`), localStorage migration/fallback, onboarding flag, sample-data load, JSON/ZIP download. |
 | `src/utils/vaultArchive.ts` | Storage | Pure ZIP build/import (`buildVaultZip`, `importVaultFromZip`); exports include a full-fidelity `.daymark/vault.json`, import falls back to Markdown parsing. |
@@ -44,9 +44,9 @@ daymark/
 | `src/components/ui/feedback.tsx` | UI | In-app `confirmDialog`/`alertDialog` and `showToast` (with Undo); mount `<FeedbackHost />` once. |
 | `src/utils/dateFormat.ts` | Logic | The UI's date vocabulary: Today/Yesterday/Tomorrow, "Fri 16 Oct", long dates, ages. No ISO dates on screen. |
 | `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, checklist counts, pinned-first sorting. |
-| `src/components/TodayView.tsx` | UI | Daily notebook view with visual, split, and raw markdown modes. |
-| `src/components/StandaloneNotesView.tsx` | UI | 3-column evergreen notes workspace with folder navigation and editor. |
-| `src/components/DailyHistoryView.tsx` | UI | History: calendar with completion markers, 7-day summary, past-day view with Reopen / Done this day. |
+| `src/components/TodayView.tsx` | UI | Full-width daily notebook with visual, split and Markdown modes, collapsible sections and progress/planned-day sidebar. |
+| `src/components/StandaloneNotesView.tsx` | UI | Full-height notes list and editor, folders, templates, word count and focus mode. |
+| `src/components/CalendarView.tsx` | UI | Calendar: month/week grids, future planning, day notes, open any day and desktop drag to move. |
 | `src/components/TaskItemCard.tsx` | UI | Compact task row: checkbox, title (opens details), status menu, age, "…" menu (Mark done on…, Rename, Delete). Details live in `TaskHistoryDrawer.tsx` (the task details sheet). |
 | `src/components/MarkdownPreview.tsx` | UI | Markdown renderer supporting GFM checklists, callouts, and wikilinks. |
 | `server.ts`, `server/app.ts` | Backend | Express API (auth, devices, sync, stats, log) built by `createApp(config, store)`; tested in-process by `server/app.test.ts`. |
@@ -54,3 +54,45 @@ daymark/
 | `src/sync/merge.ts` | Sync | Three-way merge for daily notes (per task), notes (conflict copies) and settings; shared by server and client. |
 | `src/sync/syncClient.ts`, `src/hooks/useSync.ts` | Sync | Client protocol (push changes vs. bases, apply results) and the React hook with auto-sync triggers. |
 | `src/components/sync/SyncPanel.tsx`, `src/components/server/ServerDashboard.tsx` | UI | Connect/disconnect, status; server stats, devices, activity, password. |
+
+## Cycle 6 Modules
+
+| File | Layer | Purpose |
+| :--- | :--- | :--- |
+| `src/utils/appearance.ts` | Logic | One-time upgrade theme choice and resolved appearance, including opaque header colour and safe photo dim. |
+| `src/utils/color.ts` | Logic | Colour parsing, luminance, compositing and contrast calculations. |
+| `src/hooks/useAppearance.ts` | Hook | Apply class-driven theme, text size, CSS colours and the `daymark_theme` pre-paint mirror; live preview. |
+| `src/components/settings/AppearanceTab.tsx` | UI | Light/Dark theme, text size, colour controls, dim and blur. |
+| `src/components/settings/ColorField.tsx` | UI | Automatic/custom colour choice and contrast warning. |
+| `src/components/settings/PreviewInput.tsx` | UI | Preview colour/range edits live, commit on completion. |
+| `src/components/settings/useInstantSettings.ts` | Hook | Validated instant preference saves, draft handling and tab resets. |
+| `src/utils/photoEncoder.ts` | Logic | Resize/re-encode photos at 2560px and thumbnails at 320px, quality 0.82; measure luminance. |
+| `src/utils/photoStore.ts` | Storage | Five device-only photo slots in existing `daymark`/`kv`: `bgPhoto:*`, `bgThumb:*`, `bgMeta`, `ui:bgSlot`; serialized mutations. |
+| `src/hooks/useBackgroundPhoto.ts` | Hook | Load/select/add/remove device photos and manage object URL lifetime. |
+| `src/components/settings/BackgroundPhotoSection.tsx` | UI | Photo picker, thumbnails, remove and sixth-photo replacement dialog. |
+| `src/utils/collapsedSections.ts` | Storage | Persist section collapse choices per device. |
+| `src/utils/dayStats.ts` | Logic | Seven-day done trend and next planned day. |
+| `src/utils/noteTemplates.ts` | Logic | Built-in note templates and word counting. |
+| `src/utils/calendarGrid.ts` | Logic | Month/week cells with future dates, task totals, titles and note markers. |
+| `src/utils/search.ts` | Logic | Search newest live task copies and notes; exclude deleted tasks and label archived ones. |
+| `src/utils/shortcuts.ts` | Logic | Central shortcut mapping with field guards and g-prefix navigation. |
+| `src/components/SearchDialog.tsx` | UI | Debounced grouped search, arrow/Enter selection, open result. |
+| `src/components/ShortcutHelp.tsx` | UI | Keyboard shortcut cheat sheet dialog. |
+| `src/utils/widgetStyle.ts` | Logic | Widget style defaults, parsing and app/custom colour resolution. |
+| `src/components/settings/WidgetTab.tsx` | UI | Android-only default and per-widget style editors. |
+| `src/components/settings/WidgetPreview.tsx` | UI | Live HTML approximation of widget appearance. |
+| `mobile/android/app/src/main/java/app/daymark/notes/WidgetStyle.kt` | Native | Kotlin widget style model, JSON round-trip and resolved colours. |
+| `mobile/android/app/src/main/java/app/daymark/notes/WidgetConfigActivity.kt` | Native | Place/configure widget and queue its editor request in the app. |
+| `scripts/e2e-qa-regressions.mjs`, `scripts/ux-suite.mjs`, `scripts/e2e-sync.mjs`, `scripts/capture-screenshots.mjs` | Tooling | Cycle-6 D1–D8 regressions, layout/theme checks, two-device move/appearance and release captures. |
+
+### Cycle 6 test files
+
+New test files accompany these modules and the integration boundaries:
+
+- App: `src/App.moveTask.test.ts`, `src/App.search.test.ts`.
+- Components: `src/components/CalendarView.test.ts`, `src/components/CalendarView.interactions.test.ts`, `src/components/SearchDialog.test.ts`, `src/components/StandaloneNotesView.test.ts`, `src/components/TodayView.test.ts`, `src/components/TaskHistoryDrawer.test.ts`.
+- Settings: `src/components/settings/AppearanceTab.test.ts`, `BackgroundPhotoFlow.test.ts`, `BackgroundPhotoSection.test.ts`, `PreviewInput.test.ts`, `SettingsModal.test.ts`, `WidgetPreview.test.ts`, `instantSettingsDraft.test.ts`, `useInstantSettings.test.ts` (all in the same settings directory).
+- Dialog/shortcut boundary: `src/components/ui/overlayShortcuts.test.ts`.
+- Hooks: `src/hooks/previewAppearance.test.ts`, `src/hooks/useAppearance.test.ts`, `src/hooks/useBackgroundPhoto.test.ts`, `src/hooks/useWidgetSync.test.ts`.
+- Native bridge: `src/native/daymarkBridge.test.ts`; Kotlin model: `mobile/android/app/src/test/java/app/daymark/notes/WidgetStyleTest.kt`.
+- Utilities (all in `src/utils/`): `appearance.test.ts`, `appearanceSafety.test.ts`, `calendarGrid.test.ts`, `collapsedSections.test.ts`, `color.test.ts`, `dayStats.test.ts`, `noteTemplates.test.ts`, `photoEncoder.test.ts`, `photoStore.test.ts`, `photoVault.test.ts`, `search.test.ts`, `shortcuts.test.ts`, `themePrepaint.test.ts`, `vaultAppearance.test.ts`, `widgetStyle.test.ts`.

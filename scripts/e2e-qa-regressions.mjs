@@ -39,15 +39,16 @@ const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ na
 
 browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
-async function fresh({ docs = [], notes = [], mobile = false, origin = base } = {}) {
-  const context = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } });
+async function fresh({ docs = [], notes = [], mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
+  const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   const session = await signIn(context, origin, 'qa-password-123');
   await resetServerVault(context, origin, session.accessToken);
-  await seedVault(page, origin, { docs, notes });
+  // Empty seeded arrays count as an existing vault. A fresh-install test must seed nothing.
+  if (!pristine) await seedVault(page, origin, { docs, notes });
   await page.goto(origin, { waitUntil: 'networkidle' });
   return { context, page, errors };
 }
@@ -672,6 +673,188 @@ await run('C6', async () => {
   const docs = await readDocs(page);
   check('C6', !secure && titlesOn(docs, TODAY)[0] === 'LAN task|done' && errors.length === 0, 'ticking a task works over plain HTTP on a LAN address', `secure=${secure} stored=${JSON.stringify(titlesOn(docs, TODAY))} errors=${errors.slice(0, 2).join(' | ')}`);
   await context.close();
+});
+
+// Cycle 6: R4 maps the brief's C1–C8 to D1–D8.
+const settingsBox = (page) => page.getByRole('dialog', { name: 'Settings', exact: true });
+const settingsOpen = (page) => page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+const settingsClose = (page) => settingsBox(page).getByRole('button', { name: 'Close', exact: true }).click();
+// Evaluate a predicate against committed IDB data, closing every polling connection.
+const persisted = (page, key, predicate, arg) => page.waitForFunction(async ({ key, predicate, arg }) => {
+  const db = await new Promise((resolve, reject) => {
+    const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+  });
+  try {
+    const value = await new Promise((resolve, reject) => {
+      const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+    });
+    return new Function('value', 'arg', `return (${predicate})(value, arg)`)(value, arg);
+  } finally { db.close(); }
+}, { key, predicate: predicate.toString(), arg });
+const themeSaved = async (page, theme) => {
+  await persisted(page, 'settings', (s, t) => s?.appearance?.theme === t, theme);
+  await page.waitForFunction((t) => document.documentElement.classList.contains('dark') === (t === 'dark')
+    && JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme === t, theme);
+};
+const png = async (page, i) => ({ name: `photo-${i}.png`, mimeType: 'image/png', buffer: Buffer.from(await page.evaluate((i) => {
+  const c = document.createElement('canvas'); c.width = 96; c.height = 64;
+  const ctx = c.getContext('2d'); ctx.fillStyle = `hsl(${i * 51}, 50%, 45%)`; ctx.fillRect(0, 0, 96, 64);
+  return c.toDataURL('image/png').split(',')[1];
+}, i), 'base64') });
+
+await run('D1', async () => {
+  const { page } = await fresh({ pristine: true, colorScheme: 'dark' });
+  await themeSaved(page, 'light');
+  check('D1a', true, 'fresh install persists Light despite system Dark');
+  await settingsOpen(page);
+  await settingsBox(page).getByRole('button', { name: /Dark$/ }).click();
+  await themeSaved(page, 'dark');
+  await settingsClose(page);
+  await page.reload({ waitUntil: 'networkidle' });
+  await themeSaved(page, 'dark');
+  check('D1b', true, 'Dark selection persists in settings and daymark_theme and survives reload');
+});
+await run('D2', async () => {
+  const { page } = await fresh({ colorScheme: 'dark', docs: [doc(TODAY, [task('upgrade', 'not-started', TODAY)])] });
+  await themeSaved(page, 'dark');
+  check('D2', true, 'existing vault without appearance keeps system Dark and persists it once');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await themeSaved(page, 'dark');
+  check('D2b', true, 'upgraded vault keeps saved Dark after the system changes to Light');
+});
+await run('D3', async () => {
+  const { page } = await fresh();
+  await settingsOpen(page);
+  const input = page.getByLabel('Add background photo', { exact: true });
+  for (let i = 0; i < 5; i++) {
+    await input.setInputFiles(await png(page, i));
+    await page.getByRole('button', { name: `Select photo ${i + 1}`, exact: true }).waitFor();
+    await persisted(page, `bgPhoto:${i}`, (v) => v instanceof Blob);
+    await persisted(page, `bgThumb:${i}`, (v) => v instanceof Blob);
+  }
+  const originalPhoto = await (await persisted(page, 'bgPhoto:1', async (v) =>
+    v instanceof Blob && [...new Uint8Array(await v.arrayBuffer())].join(','))).jsonValue();
+  await input.setInputFiles(await png(page, 5));
+  const replace = page.getByRole('dialog', { name: 'Replace which photo?', exact: true });
+  await replace.waitFor();
+  check('D3a', await replace.getByRole('button', { name: /^Replace photo / }).count() === 5, 'sixth photo asks which of five slots to replace');
+  await replace.getByRole('button', { name: 'Replace photo 2', exact: true }).click();
+  await replace.waitFor({ state: 'hidden' });
+  await persisted(page, 'bgPhoto:1', async (v, original) => v instanceof Blob
+    && [...new Uint8Array(await v.arrayBuffer())].join(',') !== original, originalPhoto);
+  check('D3b', await settingsBox(page).getByRole('button', { name: /^Select photo / }).count() === 5, 'replacing photo 2 leaves exactly five thumbnails');
+  await page.getByRole('button', { name: 'Select photo 2', exact: true }).click();
+  await persisted(page, 'ui:bgSlot', (v) => v === 1);
+  await settingsClose(page);
+  await synced(page);
+  await openSync(page);
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await assertWiped(page, 'D3c'); // Database absence proves all bgPhoto:* keys are gone too.
+});
+await run('D4', async () => {
+  const { page } = await fresh();
+  await settingsOpen(page);
+  const dialog = settingsBox(page), initial = await dialog.boundingBox();
+  for (const tab of await dialog.getByRole('tab').all()) {
+    const name = await tab.innerText();
+    await tab.click();
+    await page.waitForFunction(() => document.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby') === document.querySelector('[role="tab"][aria-selected="true"]')?.id);
+    const box = await dialog.boundingBox();
+    check(`D4-${name}`, !!box && box.width === initial.width && box.height === initial.height,
+      `Settings ${name} keeps the same size at 1440×900`, JSON.stringify({ initial, box }));
+  }
+});
+await run('D5', async () => {
+  const title = 'D5 move once';
+  const { page } = await fresh({ docs: [doc(TODAY, [task('d5', 'not-started', TODAY, { title })])] });
+  const move = async () => {
+    await page.getByRole('button', { name: `More actions for "${title}"` }).click();
+    await page.getByRole('menuitem', { name: 'Move to tomorrow', exact: true }).click();
+    await persisted(page, 'daily_docs', (ds, today) => ds.find((d) => d.date === today)?.removedTaskIds?.includes('d5'), TODAY);
+  };
+  await move();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByRole('button', { name: `Mark "${title}" done` }).waitFor();
+  await persisted(page, 'daily_docs', (ds, today) => ds.find((d) => d.date === today)?.headings.some((h) => h.items.some((t) => t.id === 'd5'))
+    && !ds.some((d) => d.date !== today && d.headings.some((h) => h.items.some((t) => t.id === 'd5'))), TODAY);
+  check('D5a', true, 'Undo restores moved task to today and removes the target copy');
+  await move();
+  await settingsOpen(page);
+  await page.getByRole('tab', { name: 'Advanced', exact: true }).click();
+  await page.getByLabel('Date override', { exact: true }).fill(day(1));
+  await page.getByLabel('Date override', { exact: true }).press('Enter');
+  await persisted(page, 'settings', (s, date) => s.simulatedToday === date, day(1));
+  await settingsClose(page);
+  await page.getByRole('button', { name: `Mark "${title}" done` }).waitFor();
+  await persisted(page, 'daily_docs', (ds, date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).filter((t) => t.id === 'd5').length === 1, day(1));
+  const docs = await readDocs(page);
+  const copies = (date) => (docs.find((d) => d.date === date)?.headings ?? []).flatMap((h) => h.items).filter((t) => t.id === 'd5').length;
+  check('D5b', copies(TODAY) === 0 && copies(day(1)) === 1 && copies(day(2)) === 0,
+    'after next-day rollover task appears once on target, absent on source and unvisited day after', JSON.stringify({ source: copies(TODAY), target: copies(day(1)), after: copies(day(2)) }));
+});
+const longDay = (date) => new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const cellFor = (page, date) => page.getByRole('button', { name: new RegExp('^' + longDay(date) + ':') });
+const calendarDay = async (page, date) => {
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  if (!await cellFor(page, date).count()) await page.getByRole('button', { name: 'Next month', exact: true }).click();
+  await cellFor(page, date).click();
+  await page.getByRole('button', { name: 'Open this day', exact: true }).click();
+};
+await run('D6', async () => {
+  const { page } = await fresh();
+  await calendarDay(page, day(7));
+  await addTask(page, 'D6 planned ahead');
+  await persisted(page, 'daily_docs', (ds, date) => ds.some((d) => d.date === date && d.headings.some((h) => h.items.some((t) => t.title === 'D6 planned ahead'))), day(7));
+  await page.keyboard.press('g'); await page.keyboard.press('t');
+  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  check('D6a', await page.getByRole('button', { name: 'Mark "D6 planned ahead" done' }).count() === 0, 'task planned seven days ahead is absent on Today');
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  const cell = cellFor(page, day(7));
+  await cell.waitFor();
+  check('D6b', (await cell.innerText()).includes('0/1'), 'future Calendar cell shows 0/1 for the planned task', await cell.innerText());
+  const before = (await readDocs(page)).length;
+  await calendarDay(page, day(8));
+  await page.keyboard.press('g'); await page.keyboard.press('t');
+  await page.reload({ waitUntil: 'networkidle' });
+  await synced(page);
+  const after = await readDocs(page);
+  check('D6c', after.length === before && !after.some((d) => d.date === day(8)), 'opening another future day without editing creates no daily document', `before=${before}, after=${after.length}`);
+});
+await run('D7', async () => {
+  const date = day(-3), title = 'D7 heliotrope record';
+  // Completion prevents rollover creating a newer searchable copy.
+  const { page } = await fresh({ docs: [doc(date, [task('d7', 'done', date, { title, completedDate: date })])] });
+  await page.keyboard.press('Control+Shift+f');
+  await page.getByRole('combobox', { name: 'Search tasks and notes' }).fill('heliotrope');
+  const result = page.getByRole('option').filter({ hasText: title });
+  await result.waitFor();
+  const short = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/,/g, '');
+  check('D7a', (await result.innerText()).includes(short), 'search result shows the task’s three-day-old date', await result.innerText());
+  await page.getByRole('combobox').press('Enter');
+  const details = page.getByRole('dialog', { name: title, exact: true });
+  await details.waitFor();
+  // The daily editor is inert behind the details dialog, so inspect its DOM
+  // rather than looking for it in the dialog-only accessibility tree.
+  check('D7b', (await page.locator('main h1').allTextContents()).includes(short)
+    && (await page.locator('main').innerText()).includes(longDay(date)), 'Enter opens Today at the result date with the details sheet open');
+  await page.keyboard.press('Escape');
+  await details.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder(/what do you need to do/i).waitFor();
+  check('D7c', true, 'Ctrl K still opens the New task sheet after search');
+});
+await run('D8', async () => {
+  const { page } = await fresh({ notes: [{ id: 'd8', title: 'D8 long note', content: 'A long line of writing.\n'.repeat(300), folder: '', tags: [], pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('button', { name: /D8 long note/ }).click();
+  const editor = page.getByLabel('Note text (Markdown)', { exact: true });
+  await editor.waitFor();
+  const sizes = await editor.evaluate((el) => ({ page: document.scrollingElement.scrollHeight, viewport: innerHeight, scroll: el.scrollHeight, client: el.clientHeight }));
+  check('D8a', sizes.page <= sizes.viewport && sizes.scroll > sizes.client, 'Notes page fits 1440×900 and long note scrolls inside the editor', JSON.stringify(sizes));
+  const search = await page.getByPlaceholder('Search notes', { exact: true }).boundingBox();
+  const add = await page.getByRole('button', { name: 'New note', exact: true }).first().boundingBox();
+  check('D8b', !!search && !!add && add.y >= search.y + search.height && add.x < search.x + search.width, 'New note sits under the Notes search box', JSON.stringify({ search, add }));
 });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

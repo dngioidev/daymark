@@ -84,6 +84,22 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
   page.on('pageerror', (e) => consoleErrors.push({ env, url: page.url(), text: `pageerror: ${e.message}`.slice(0, 300) }));
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
+  // Light is the fresh/sample default. Leave it alone so deep links can open
+  // their own modal. Dark scans must still exercise the real app setting.
+  if (scheme === 'dark') {
+    await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+    const appearance = page.getByRole('dialog', { name: 'Settings', exact: true });
+    await appearance.getByRole('button', { name: /Dark$/ }).click();
+    await page.waitForFunction(async (theme) => {
+      if (JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme !== theme) return false;
+      const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+      try {
+        const settings = await new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get('settings'); r.onsuccess = () => resolve(r.result); });
+        return settings?.appearance?.theme === theme && document.documentElement.classList.contains('dark') === (theme === 'dark');
+      } finally { db.close(); }
+    }, scheme);
+    await appearance.getByRole('button', { name: 'Close', exact: true }).click();
+  }
   await page.waitForTimeout(400);
   // The "loaded" toast would cover content in scans and screenshots
   await page.getByRole('button', { name: 'Dismiss' }).click({ timeout: 500 }).catch(() => {});
@@ -327,6 +343,20 @@ const openMenuItem = async (page, title, item) => {
 const noIso = (text) => !/\b20\d\d-\d\d-\d\d\b/.test(text);
 
 async function functional() {
+  for (const [env, minimum] of [['D1440', 900], ['D1920', 1300], ['P412', 0]]) {
+    await tc(`LAY-${env}`, 'Today uses available width without horizontal overflow', env, async () => {
+      const { page } = await open(env);
+      if (minimum) {
+        const card = page.locator('main section.dm-card').first();
+        await card.waitFor();
+        const box = await card.boundingBox();
+        expect(box?.width >= minimum, `Today list card at ${ENVS[env].viewport.width}px is ${box?.width}px; expected at least ${minimum}px`);
+      } else {
+        const dimensions = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth }));
+        expect(dimensions.scroll <= dimensions.width, `412px Today overflows horizontally: ${JSON.stringify(dimensions)}`);
+      }
+    });
+  }
   // ---- GL
   await tc('GL-01', 'Server sign-in opens Today without welcome', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'none' });

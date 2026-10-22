@@ -85,7 +85,7 @@ try {
   await phone.getByRole('button', { name: /open sync settings/i }).click();
   await shot(phone, 'sync-2-phone-account');
   await phone.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
-  await phone.getByRole('button', { name: /^done$/i }).click();
+  await phone.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await phone.getByText('Written on the laptop').first().waitFor({ timeout: 15000 });
   check(true, 'phone received the laptop task');
 
@@ -100,13 +100,47 @@ try {
   // Laptop: sync and check both changes arrived
   await laptop.getByRole('button', { name: /sync now/i }).click();
   await laptop.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-  await laptop.getByRole('button', { name: /^done$/i }).click();
+  await laptop.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await laptop.getByText('Written on the phone').first().waitFor({ timeout: 15000 });
   check(true, 'laptop received the phone task');
   // Finished tasks are grouped under a collapsed "Done (n)" row
   const doneOnLaptop = await laptop.getByRole('button', { name: /^done \(1\)$/i }).count();
   check(doneOnLaptop === 1, 'completion made on the phone shows on the laptop', `${doneOnLaptop} done group`);
   await shot(laptop, 'sync-4-laptop-today');
+
+  // Cycle 6: move and appearance must survive a real two-device settings/doc sync.
+  const syncNow = async (page) => {
+    await page.getByRole('button', { name: /open sync settings/i }).click();
+    const response = page.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Sync now', exact: true }).click();
+    if (!(await response).ok()) throw new Error('cycle-6 manual sync failed');
+    await page.getByText(/up to date/i).first().waitFor();
+    await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+  };
+  await laptop.getByRole('button', { name: 'More actions for "Written on the phone"' }).click();
+  await laptop.getByRole('menuitem', { name: 'Move to tomorrow', exact: true }).click();
+  await laptop.getByRole('button', { name: 'Settings', exact: true }).first().click();
+  await laptop.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: /Dark$/ }).click();
+  await laptop.waitForFunction(() => JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme === 'dark');
+  await laptop.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+  await syncNow(laptop);
+  await syncNow(phone);
+  await phone.waitForFunction(() => document.documentElement.classList.contains('dark')
+    && JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme === 'dark');
+  const moved = await phone.waitForFunction(async () => {
+    const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+    try {
+      const get = (key) => new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); });
+      const docs = await get('daily_docs'), settings = await get('settings');
+      const copies = docs.flatMap((d) => d.headings.flatMap((h) => h.items.filter((t) => t.title === 'Written on the phone').map((t) => ({ date: d.date, id: t.id }))));
+      const date = new Date(); const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      date.setDate(date.getDate() + 1);
+      const tomorrow = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      return settings?.appearance?.theme === 'dark' && copies.length === 1 && copies[0].date === tomorrow
+        && docs.find((d) => d.date === today)?.removedTaskIds?.includes(copies[0].id);
+    } finally { db.close(); }
+  });
+  check(await moved.jsonValue(), 'phone receives Dark appearance and exactly one moved task on tomorrow with source removal preserved');
 
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
@@ -126,9 +160,12 @@ try {
   await synced(third);
   await third.getByRole('button', { name: /open sync settings/i }).click();
   await third.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
-  await third.getByRole('button', { name: /^done$/i }).click();
+  await third.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await third.getByRole('button', { name: /^done \(1\)$/i }).click().catch(() => {});
-  const both = (await third.getByText('Written on the laptop').count()) > 0 && (await third.getByText('Written on the phone').count()) > 0;
+  const completed = (await third.getByText('Written on the laptop').count()) > 0;
+  await third.getByRole('button', { name: /next day/i }).click();
+  await third.getByRole('button', { name: 'Mark "Written on the phone" done' }).waitFor();
+  const both = completed && await third.locator('html').evaluate((el) => el.classList.contains('dark'));
   check(both, 'after a server restart a new device receives everything');
 
   // Unauthenticated API access is refused

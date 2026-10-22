@@ -34,6 +34,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 } },
+  wide: { viewport: { width: 1920, height: 1080 } },
   android: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   laptop: { viewport: { width: 1024, height: 768 } },
 };
@@ -55,7 +56,51 @@ const then = (...steps) => async (page) => {
   }
 };
 const click = (role, name) => (page) => page.getByRole(role, { name }).first().click();
+const settings = (page) => page.getByRole('dialog', { name: 'Settings', exact: true });
+const closeSettings = (page) => settings(page).getByRole('button', { name: 'Close', exact: true }).click();
+const chooseTheme = async (page, dark) => {
+  await click('button', /^settings$/i)(page);
+  await settings(page).getByRole('button', { name: dark ? /Dark$/ : /Light$/ }).click();
+  await page.waitForFunction((theme) => JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme === theme
+    && document.documentElement.classList.contains('dark') === (theme === 'dark'), dark ? 'dark' : 'light');
+  await closeSettings(page);
+};
+const photoToday = async (page) => {
+  await click('button', /^settings$/i)(page);
+  // A reproducible local landscape-like gradient; no downloaded or private photo.
+  const data = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 1600; c.height = 1000;
+    const ctx = c.getContext('2d'), gradient = ctx.createLinearGradient(0, 0, 1600, 1000);
+    gradient.addColorStop(0, '#86a5bb'); gradient.addColorStop(0.5, '#c4c8ab'); gradient.addColorStop(1, '#365b49');
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, c.width, c.height);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByLabel('Add background photo', { exact: true }).setInputFiles({ name: 'calm-background.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64') });
+  await page.getByRole('button', { name: 'Select photo 1', exact: true }).waitFor();
+  await closeSettings(page);
+  await page.waitForFunction(() => [...document.querySelectorAll('[style]')].some((el) => el.style.backgroundImage.includes('blob:')));
+};
+const phoneHeader = async (page) => {
+  await click('button', /^settings$/i)(page);
+  await page.getByRole('button', { name: 'Header colour #1e3a5f', exact: true }).click();
+  await closeSettings(page);
+};
 const SHOTS = [
+  { name: 'appearance', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^settings$/i)) },
+  { name: 'photo-today-light', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(photoToday) },
+  { name: 'photo-today-dark', viewport: 'desktop', dark: true, cycles: ['cycle-6'], prepare: then(photoToday) },
+  { name: 'today-1920', viewport: 'wide', cycles: ['cycle-6'], prepare: loadSample },
+  { name: 'notes-focus', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^notes$/i), click('button', /weekly sprint sync/i), click('button', /^focus mode$/i)) },
+  { name: 'calendar-month', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^calendar$/i)) },
+  { name: 'calendar-week', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^calendar$/i), click('button', /^week$/i)) },
+  { name: 'search', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(async (page) => {
+    await page.keyboard.press('Control+Shift+f');
+    await page.getByRole('combobox', { name: 'Search tasks and notes' }).fill('pipeline');
+    await page.getByRole('option').first().waitFor();
+  }) },
+  { name: 'settings-fixed-size', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^settings$/i), click('tab', /^sections$/i)) },
+  { name: 'phone-header-colour', viewport: 'android', cycles: ['cycle-6'], prepare: then(phoneHeader) },
+  { name: 'phone-header-colour-dark', viewport: 'android', dark: true, cycles: ['cycle-6'], prepare: then(phoneHeader) },
   { name: 'desktop-today', viewport: 'desktop', prepare: loadSample },
   { name: 'android-today', viewport: 'android', prepare: loadSample },
   // Server sign-in: a phone viewport still runs the server web app, not native Android.
@@ -137,6 +182,7 @@ try {
     const page = await ctx.newPage();
     if (!externalUrl && !shot.signedOut) await seedSample(page, baseUrl);
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    if (!shot.signedOut) await chooseTheme(page, !!shot.dark);
     if (shot.prepare) await shot.prepare(page);
     const file = path.join(outDir, `${shot.name}.png`);
     await page.screenshot({ path: file });

@@ -68,8 +68,8 @@ tags: [dev, sprint]
 
 ### 4.1 Daily Rollover (`performDailyRollover`)
 - **Trigger**: Automatically when the effective "today" changes (app start, local midnight, or waking the device on a new day) and after loading sample data or importing a vault; or explicitly via "Refresh today's list" (desktop Today "…" menu). "Today" is the real local date unless `settings.simulatedToday` holds a developer override (empty = real date).
-- **Selection**: Scans past daily notes from **newest to oldest**. The first (most recent) version of each task id decides its fate; older copies of the same id are ignored. A task is carried only if that newest version has an action of `carry-forward`, is not `done`/`archived`, and has no `completedDate`. This prevents resurrecting a task that was completed later, and carries the latest edits rather than a stale copy.
-- **Deduplication**: Gathers all task IDs existing in the target note (`Set<string>`). Only tasks whose IDs are not in the target note are added, so repeated runs are idempotent.
+- **Selection**: Scans past daily notes from **newest to oldest**. Source-day `removedTaskIds` count as seen before that day's tasks, so older deleted or moved copies cannot return. The first (most recent) live version of each unseen task id decides its fate; older copies of the same id are ignored. A task is carried only if that newest version has an action of `carry-forward`, is not `done`/`archived`, and has no `completedDate`. This prevents resurrecting a task that was completed later, and carries the latest edits rather than a stale copy. Future documents are never rollover sources.
+- **Deduplication**: Gathers all task IDs existing in the target note and its `removedTaskIds` (`Set<string>`). Only unseen IDs are added, so repeated runs are idempotent. Tasks planned on the target date keep their position; carried tasks are appended.
 - **Attributes**: In the new note, `carriedFromDate` is set to the date of the note holding the newest version; `originalNoteDate` is preserved.
 
 ### 4.2 Aging Math & Severity (`getAgingSeverity`)
@@ -85,3 +85,9 @@ tags: [dev, sprint]
   1. Updates the historical note on that effective date: sets `status = 'done'`, `completedDate = effectiveDate`.
   2. Cleans up intermediate carried-forward task instances on subsequent dates up to the current date.
   3. Records audit event in `historyLog`.
+
+### 4.4 Moving a task (`src/utils/taskActions.ts`)
+- `moveTaskToDate` removes the source copy, records its id in the source day's `removedTaskIds`, and places the same task id on the target day with a move history entry. Earlier dates are rejected by the UI.
+- Undo restores the source and removes the moved target copy while preserving unrelated edits.
+- Moving to a future date does not carry that task into intervening days. Once the target date arrives, normal unfinished-task rollover applies on later mornings.
+- Merely opening an empty future day does not save a daily document; adding content does.

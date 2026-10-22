@@ -58,6 +58,31 @@ services:
 
 ---
 
+## Features
+
+- **Your own look:** choose Light or Dark, header and text colours, text size, and up to five background photos with dim and blur. Photos stay on this device; appearance settings sync.
+- **Calendar:** plan future days, switch between month and week, and open any day to write. Drag a task onto a future day on desktop.
+- **Roomier Today:** full-width lists and Markdown, collapsible sections, a seven-day progress strip and the next planned day. Move a task to tomorrow or another date, with Undo.
+- **Notes:** a full-height editor, focus mode, word count and Blank, Meeting, Daily review and Decision record templates.
+- **Search:** find tasks across days and notes, then open the result directly.
+- **Settings:** a steady-sized window with changes saved as you make them.
+- **Android widgets:** give each widget its own colours, font, size, corners and visible details, or match the app.
+- **Daily Markdown, offline access, backups and optional sync** keep your notes portable. Deleted tasks no longer come back the next morning.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| Ctrl/⌘ K | New task |
+| Ctrl/⌘ Shift F or / | Search tasks and notes |
+| ? | Shortcut help |
+| g t | Go to Today |
+| g c | Go to Calendar |
+| g n | Go to Notes |
+| Ctrl/⌘ . | Toggle Notes focus mode |
+
+Search, help and navigation shortcuts pause while you type in a field. New task and Notes focus mode also work while typing.
+
 ## Develop
 
 ```bash
