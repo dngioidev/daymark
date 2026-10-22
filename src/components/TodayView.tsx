@@ -475,7 +475,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       <section
         key={section.name}
         aria-labelledby={`sec-${section.name}`}
-        className={`bg-white/60 dark:bg-stone-900/40 rounded-xl border border-stone-200 dark:border-stone-800 ${compact ? 'p-2.5' : 'p-4'} space-y-2`}
+        className={`dm-card bg-white/60 dark:bg-stone-900/40 rounded-xl border border-stone-200 dark:border-stone-800 ${compact ? 'p-2.5' : 'p-4'} space-y-2`}
       >
         <div className="flex items-center gap-2">
           <h2 id={`sec-${section.name}`} className="text-base font-bold text-stone-900 dark:text-stone-50">
@@ -732,7 +732,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const doneToday = allTasks.filter((t) => t.status === 'done');
   const glance = (
     <aside aria-label="Day at a glance" className="hidden xl:block sticky top-20 space-y-3 text-sm">
-      <div className="p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+      <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
         <h2 className="font-semibold text-stone-900 dark:text-stone-50">{isToday ? 'Today at a glance' : 'This day at a glance'}</h2>
         <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
           {(
@@ -749,7 +749,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           ))}
         </dl>
       </div>
-      <div className="p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
+      <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
         <h2 className="font-semibold text-stone-900 dark:text-stone-50">Finished</h2>
         {doneToday.length ? (
           <ul className="mt-2 space-y-1.5">

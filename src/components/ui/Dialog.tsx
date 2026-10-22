@@ -136,7 +136,7 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`relative w-full ${fixedSettingsSize ? '' : SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
+        className={`dm-card relative w-full ${fixedSettingsSize ? '' : SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
       >
         {variant === 'fullscreen-mobile' && (
           // Dark strip under the Android status bar so its light icons stay visible

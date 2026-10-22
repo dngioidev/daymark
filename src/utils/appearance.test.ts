@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { appearanceVars, decideInitialAppearance, resolveAppearance } from './appearance';
 import { DEFAULT_APPEARANCE } from './defaultData';
-import { contrastRatio } from './color';
+import { composite, toHex, contrastRatio } from './color';
 
 describe('appearance resolution', () => {
   it.each(['light', 'dark'] as const)('auto colours on defaults meet 4.5:1 in %s', (theme) => {
@@ -66,4 +66,15 @@ describe('appearance resolution', () => {
     expect(decideInitialAppearance(false, true).theme).toBe('light');
     expect(decideInitialAppearance(false, false).theme).toBe('light');
   });
+});
+
+it.each(['light', 'dark'] as const)('keeps page text at 4.5:1 on bright and dark photos in %s', (theme) => {
+  for (const luminance of [0.02, 0.95]) {
+    for (const dim of [0, 35, 90]) {
+      const resolved = resolveAppearance({ ...DEFAULT_APPEARANCE, theme, dim }, { luminance });
+      const channel = 255 * (1.055 * luminance ** (1 / 2.4) - 0.055);
+      const backdrop = composite(theme === 'light' ? '#ffffff' : '#000000', resolved.dim / 100, toHex([channel, channel, channel]));
+      expect(contrastRatio(resolved.pageText, backdrop)).toBeGreaterThanOrEqual(4.5);
+    }
+  }
 });

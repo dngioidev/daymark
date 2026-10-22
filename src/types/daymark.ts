@@ -148,3 +148,12 @@ export interface ServerAuthState {
 export type EditorMode = 'visual' | 'split' | 'raw';
 
 export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'lifecycle' | 'aging' | 'headings' | 'widget' | 'advanced';
+
+/** Metadata for a background photo stored only on this device. */
+export interface PhotoMeta {
+  slot: number;
+  addedAt: string;
+  luminance: number;
+  width: number;
+  height: number;
+}

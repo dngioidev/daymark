@@ -92,7 +92,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   );
 
   return (
-    <div className={`min-h-screen flex flex-col items-center ${frame ? 'bg-stone-900 sm:py-3' : 'bg-stone-50 dark:bg-stone-950'}`}>
+    <div className={`dm-backdrop-surface min-h-screen flex flex-col items-center ${frame ? 'bg-stone-900 sm:py-3' : 'bg-stone-50 dark:bg-stone-950'}`}>
       {onSwitchToDesktop && (
         <div className="hidden sm:flex w-full max-w-md px-2 pb-2 items-center justify-end gap-2 text-sm">
           <button
@@ -114,7 +114,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       )}
 
       <div
-        className={`w-full flex-1 flex flex-col bg-stone-50 dark:bg-stone-950 ${
+        className={`dm-backdrop-surface w-full flex-1 flex flex-col bg-stone-50 dark:bg-stone-950 ${
           frame ? 'sm:max-w-[430px] sm:h-[860px] sm:flex-none sm:border-4 sm:border-stone-800 sm:rounded-[40px] sm:overflow-hidden relative' : 'max-w-2xl min-h-screen'
         }`}
       >

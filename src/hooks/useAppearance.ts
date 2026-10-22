@@ -2,6 +2,13 @@ import { useLayoutEffect, useMemo } from 'react';
 import type { AppearanceSettings, ResolvedAppearance } from '../types/daymark';
 import { appearanceVars, resolveAppearance, THEME_MIRROR_KEY } from '../utils/appearance';
 
+/** A drag preview changes only CSS, without settings persistence or sync writes. */
+export function previewAppearance(appearance: AppearanceSettings, photo: { luminance: number } | null): void {
+  for (const [key, value] of Object.entries(appearanceVars(resolveAppearance(appearance, photo)))) {
+    document.documentElement.style.setProperty(key, value);
+  }
+}
+
 export function useAppearance(appearance: AppearanceSettings, photo: { luminance: number } | null): ResolvedAppearance {
   const luminance = photo?.luminance;
   const resolved = useMemo(() => resolveAppearance(appearance, luminance === undefined ? null : { luminance }), [appearance, luminance]);

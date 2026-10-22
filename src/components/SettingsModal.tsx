@@ -31,6 +31,8 @@ interface SettingsModalProps {
   isSynced?: boolean;
   /** ISO time of the last backup made on this device. */
   lastBackupAt?: string | null;
+  photoSection?: React.ReactNode;
+  photoMeta?: { luminance: number } | null;
 }
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
@@ -74,6 +76,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab = 'appearance',
   isSynced = false,
   lastBackupAt = null,
+  photoSection,
+  photoMeta,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { draft, setDraft, error, setError, saved, commit } = useInstantSettings(settings, onChangeSettings, isOpen);
@@ -233,7 +237,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </p>
         )}
 
-        {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} onChange={(appearance) => commit({ ...settings, appearance })} />}
+        {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} photoSection={photoSection} photoMeta={photoMeta} onChange={(appearance) => commit({ ...settings, appearance })} />}
 
         {activeTab === 'storage' && (
           <>

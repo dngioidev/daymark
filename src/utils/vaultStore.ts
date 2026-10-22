@@ -77,7 +77,8 @@ function readAll(database: IDBDatabase): Promise<Map<string, unknown>> {
     req.onsuccess = () => {
       const cursor = req.result;
       if (cursor) {
-        out.set(String(cursor.key), cursor.value);
+        const key = String(cursor.key);
+        if (!key.startsWith('bgPhoto:') && !key.startsWith('bgThumb:')) out.set(key, cursor.value);
         cursor.continue();
       } else {
         resolve(out);
@@ -95,6 +96,48 @@ function putValue(database: IDBDatabase, key: string, value: unknown): Promise<v
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
   });
+}
+
+/** Device-only binary storage: never cached, broadcast, synced or exported. */
+export function isPhotoStorageAvailable(): boolean {
+  return storageMode === 'indexeddb' && db !== null && !wiping;
+}
+
+export async function kvGetRaw(key: string): Promise<unknown> {
+  if (!isPhotoStorageAvailable()) return undefined;
+  await writeChain;
+  if (!db || wiping) return undefined;
+  return new Promise((resolve, reject) => {
+    const req = db!.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function rawWrite(key: string, value: unknown, remove: boolean): Promise<void> {
+  if (!isPhotoStorageAvailable()) return Promise.reject(new Error('Photos need browser storage, which is unavailable here.'));
+  const database = db!;
+  const written = writeChain.then(() => {
+    if (wiping) return;
+    return new Promise<void>((resolve, reject) => {
+      const tx = database.transaction(STORE, 'readwrite');
+      if (remove) tx.objectStore(STORE).delete(key);
+      else tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  });
+  writeChain = written.catch((err) => reportError('Could not save your photo: browser storage is full or blocked.', err));
+  return written;
+}
+
+export function kvPutRaw(key: string, value: unknown): Promise<void> {
+  return rawWrite(key, value, false);
+}
+
+export function kvDeleteRaw(key: string): Promise<void> {
+  return rawWrite(key, undefined, true);
 }
 
 function readLegacyLocalStorage(key: string): unknown {

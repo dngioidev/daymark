@@ -315,3 +315,32 @@ textarea {
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0, 'calt' 0;
 }
+
+/* Device-only whole-window photo; these rules do nothing without a selected photo. */
+.dm-photo {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+}
+.dm-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / var(--dm-dim));
+  backdrop-filter: blur(var(--dm-blur));
+}
+.dark .dm-photo-overlay { background: rgb(0 0 0 / var(--dm-dim)); }
+.dm-glass .dm-backdrop-surface { background-color: transparent; }
+.dm-glass .dm-card {
+  background-color: rgb(255 255 255 / 0.82);
+  backdrop-filter: blur(8px);
+  color: #1c1917;
+  --dm-page-fg: #1c1917;
+}
+.dark.dm-glass .dm-card {
+  background-color: rgb(28 25 23 / 0.82);
+  color: #f5f5f4;
+  --dm-page-fg: #f5f5f4;
+}

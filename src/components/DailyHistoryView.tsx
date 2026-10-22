@@ -81,7 +81,7 @@ export const DailyHistoryView: React.FC<DailyHistoryViewProps> = ({
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 14);
 
-  const card = 'bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800';
+  const card = 'dm-card bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800';
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
 

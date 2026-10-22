@@ -1,11 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { initVaultStore, loadStandaloneNotes, loadSyncState, saveStandaloneNotes, wipeLocalVault } from './vaultStore';
+import { initVaultStore, kvGetRaw, kvPutRaw, loadStandaloneNotes, loadSyncState, saveStandaloneNotes, wipeLocalVault } from './vaultStore';
 import { SEED_STANDALONE_NOTES } from './defaultData';
 
 afterEach(() => vi.unstubAllGlobals());
 
 it('closes the database before deleting it and removes all vault storage and memory', async () => {
   const events: string[] = [];
+  const raw = new Map<string, unknown>();
   const values = new Map([['daymark_install_id', 'install'], ['daymark_extra', 'value'], ['unrelated', 'keep']]);
   vi.stubGlobal('localStorage', {
     get length() { return values.size; },
@@ -21,7 +22,12 @@ it('closes the database before deleting it and removes all vault storage and mem
         queueMicrotask(() => req.onsuccess());
         return req;
       },
-      put: () => { events.push('write'); },
+      put: (value: unknown, key: string) => { raw.set(key, value); events.push('write'); },
+      get: (key: string) => {
+        const req = { result: raw.get(key), onsuccess: () => {} };
+        queueMicrotask(() => req.onsuccess());
+        return req;
+      },
     }),
     set oncomplete(fn: () => void) { if (mode === 'readwrite') queueMicrotask(fn); },
     }),
@@ -34,6 +40,7 @@ it('closes the database before deleting it and removes all vault storage and mem
     },
     deleteDatabase: (name: string) => {
       events.push(`delete:${name}`);
+      raw.clear();
       const req = { onsuccess: () => {} };
       queueMicrotask(() => req.onsuccess());
       return req;
@@ -44,8 +51,15 @@ it('closes the database before deleting it and removes all vault storage and mem
   vi.stubGlobal('caches', { keys: async () => ['app', 'vault'], delete: async (key: string) => { deleted.push(key); return true; } });
   await initVaultStore();
   saveStandaloneNotes(SEED_STANDALONE_NOTES);
+  await kvPutRaw('bgPhoto:0', new Blob(['photo']));
+  await kvPutRaw('bgMeta', [{ slot: 0 }]);
+  await kvPutRaw('ui:bgSlot', 0);
+  expect(await kvGetRaw('bgPhoto:0')).toBeInstanceOf(Blob);
   await wipeLocalVault();
-  expect(events).toEqual(['write', 'close', 'delete:daymark']);
+  expect(raw.size).toBe(0);
+  expect(await kvGetRaw('bgMeta')).toBeUndefined();
+  expect(await kvGetRaw('ui:bgSlot')).toBeUndefined();
+  expect(events).toEqual(['write', 'write', 'write', 'write', 'close', 'delete:daymark']);
   expect([...values.keys()]).toEqual(['unrelated']);
   expect(deleted).toEqual(['app', 'vault']);
   expect(loadStandaloneNotes()).toEqual([]);

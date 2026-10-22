@@ -152,7 +152,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     }`;
 
   const list = (
-    <div className={`flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
+    <div className={`dm-card flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
       <div className="p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
         <div className="relative">
           <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -247,7 +247,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   );
 
   const editor = (
-    <div className={`flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' ? 'hidden lg:flex' : 'flex'}`}>
+    <div className={`dm-card flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' ? 'hidden lg:flex' : 'flex'}`}>
       {activeNote ? (
         <>
           <div className="px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">

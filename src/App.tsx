@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppearance } from './hooks/useAppearance';
+import { useBackgroundPhoto } from './hooks/useBackgroundPhoto';
+import { BackgroundPhotoSection } from './components/settings/BackgroundPhotoSection';
 import { DEFAULT_APPEARANCE } from './utils/defaultData';
 import {
   DailyDocument,
@@ -79,7 +81,13 @@ export default function App() {
 
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
-  useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, null);
+  const background = useBackgroundPhoto();
+  useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, background.meta);
+  useEffect(() => {
+    // Dialogs are portalled to body, so the glass scope includes them too.
+    document.documentElement.classList.toggle('dm-glass', !!background.url);
+    return () => document.documentElement.classList.remove('dm-glass');
+  }, [background.url]);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
@@ -569,7 +577,8 @@ export default function App() {
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col">
+    <div className={`dm-app relative isolate min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
+      {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
         <div className="flex flex-col min-h-screen w-full">
           <Navbar
@@ -584,7 +593,7 @@ export default function App() {
             showDevTabs={devMode}
           />
 
-          <main className="flex-1 w-full bg-stone-50 dark:bg-stone-950">
+          <main className="dm-backdrop-surface flex-1 w-full bg-stone-50 dark:bg-stone-950">
             {activeDesktopTab === 'today' && (
               <TodayView
                 currentDocument={currentDoc}
@@ -709,6 +718,8 @@ export default function App() {
       />
 
       <SettingsModal
+        photoSection={<BackgroundPhotoSection background={background} />}
+        photoMeta={background.meta}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         initialTab={settingsTab}

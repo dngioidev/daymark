@@ -1,22 +1,33 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AppearanceSettings, ThemeColors } from '../../types/daymark';
 import { resolveAppearance } from '../../utils/appearance';
 import { normalizeAppearance } from '../../utils/defaultData';
 import { buttonClass } from '../ui/Dialog';
 import { ColorField } from './ColorField';
+import { PreviewInput } from './PreviewInput';
+import { previewAppearance } from '../../hooks/useAppearance';
+import { isPhotoStorageAvailable } from '../../utils/vaultStore';
 
 interface AppearanceTabProps {
   appearance: AppearanceSettings;
   onChange: (next: AppearanceSettings) => void;
   /** Task 4: Background image thumbnails, Add, Dim and Blur belong here. */
   photoSection?: React.ReactNode;
+  photoMeta?: { luminance: number } | null;
 }
 
-export function AppearanceTab({ appearance, onChange, photoSection }: AppearanceTabProps) {
-  const a = normalizeAppearance(appearance);
+export function AppearanceTab({ appearance, onChange, photoSection, photoMeta = null }: AppearanceTabProps) {
+  const [draft, setDraft] = useState(appearance);
+  const latest = useRef({ appearance, photoMeta });
+  latest.current = { appearance, photoMeta };
+  useEffect(() => setDraft(appearance), [appearance]);
+  useEffect(() => () => previewAppearance(latest.current.appearance, latest.current.photoMeta), []);
+  const a = normalizeAppearance(draft);
   const colors = a[a.theme];
-  const resolved = resolveAppearance(a, null);
+  const resolved = resolveAppearance(a, photoMeta);
   const patchColors = (patch: Partial<ThemeColors>) => onChange({ ...a, [a.theme]: { ...colors, ...patch } });
+  const preview = (next: AppearanceSettings) => { setDraft(next); previewAppearance(next, photoMeta); };
+  const previewColors = (patch: Partial<ThemeColors>) => preview({ ...a, [a.theme]: { ...colors, ...patch } });
   return <div className="space-y-5">
     <fieldset className="space-y-2">
       <legend className="font-semibold">Theme</legend>
@@ -34,14 +45,25 @@ export function AppearanceTab({ appearance, onChange, photoSection }: Appearance
       <legend className="font-semibold">Header</legend>
       <div className="flex flex-wrap gap-2 items-center">
         {['#fafaf9', '#1c1917', '#7c2d12', '#1e3a5f', '#365314'].map((color) => <button type="button" key={color} aria-label={`Header colour ${color}`} aria-pressed={colors.headerBg === color} style={{ backgroundColor: color }} className="w-11 h-11 rounded-full border border-stone-400 aria-pressed:ring-2 ring-offset-2 ring-stone-500" onClick={() => patchColors({ headerBg: color })} />)}
-        <label className="flex items-center gap-2">Custom<input type="color" aria-label="Custom header colour" value={colors.headerBg} onChange={(e) => patchColors({ headerBg: e.target.value })} className="w-11 h-11" /></label>
+        <label className="flex items-center gap-2">Custom<PreviewInput type="color" aria-label="Custom header colour" value={colors.headerBg} onPreview={(headerBg) => previewColors({ headerBg })} onCommit={(headerBg) => patchColors({ headerBg })} className="w-11 h-11" /></label>
       </div>
       <label className="flex flex-wrap items-center gap-2">Header opacity
-        <input type="range" min={40} max={100} value={colors.headerOpacity} onChange={(e) => patchColors({ headerOpacity: Number(e.target.value) })} />{colors.headerOpacity}%
+        <PreviewInput type="range" min={40} max={100} value={colors.headerOpacity} onPreview={(value) => previewColors({ headerOpacity: Number(value) })} onCommit={(value) => patchColors({ headerOpacity: Number(value) })} />{colors.headerOpacity}%
       </label>
     </fieldset>
-    {(['headerText', 'pageText', 'accent'] as const).map((field) => <ColorField key={field} label={{ headerText: 'Header text', pageText: 'Page text', accent: 'Accent' }[field]} value={colors[field]} automaticColor={resolveAppearance({ ...a, [a.theme]: { ...colors, [field]: 'auto' } }, null)[field]} onChange={(value) => patchColors({ [field]: value })} warning={resolved.warnings.find((w) => w.field === field)?.ratio} />)}
+    {(['headerText', 'pageText', 'accent'] as const).map((field) => <ColorField key={field} label={{ headerText: 'Header text', pageText: 'Page text', accent: 'Accent' }[field]} value={colors[field]} automaticColor={resolveAppearance({ ...a, [a.theme]: { ...colors, [field]: 'auto' } }, photoMeta)[field]} onPreview={(value) => previewColors({ [field]: value })} onChange={(value) => patchColors({ [field]: value })} warning={resolved.warnings.find((w) => w.field === field)?.ratio} />)}
     {/* Task 4 owns this Background image group. */}
-    <section aria-label="Background image">{photoSection}</section>
+    <section aria-label="Background image" className="space-y-3">
+      <h3 className="font-semibold">Background image</h3>
+      {photoSection ?? <p>Photos need browser storage, which is unavailable here.</p>}
+      {isPhotoStorageAvailable() && <>
+        <label className="flex flex-wrap items-center gap-2">Dim
+          <PreviewInput type="range" min={0} max={90} value={a.dim} onPreview={(value) => preview({ ...a, dim: Number(value) })} onCommit={(value) => onChange({ ...a, dim: Number(value) })} />{a.dim}%
+        </label>
+        <label className="flex flex-wrap items-center gap-2">Blur
+          <PreviewInput type="range" min={0} max={12} value={a.blur} onPreview={(value) => preview({ ...a, blur: Number(value) })} onCommit={(value) => onChange({ ...a, blur: Number(value) })} />{a.blur} px
+        </label>
+      </>}
+    </section>
   </div>;
 }
