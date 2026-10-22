@@ -203,13 +203,17 @@ await run('A5', async () => {
     const storage = await page.evaluate(async () => ({
       databases: (await indexedDB.databases()).map((db) => db.name),
       keys: Object.keys(localStorage).filter((key) => key.startsWith('daymark') && key !== 'daymark_logout_pending'),
-      caches: await caches.keys(),
+      caches: await Promise.all((await caches.keys()).map(async (name) => ({
+        name,
+        urls: (await caches.open(name).then((c) => c.keys())).map((request) => request.url),
+      }))),
       pendingLogout: localStorage.getItem('daymark_logout_pending'),
       marker: document.cookie.split(';').some((cookie) => cookie.trim().startsWith('daymark_signed_in=')),
     }));
-    check('A5c', !storage.databases.includes('daymark') && storage.keys.length === 0 && storage.caches.length === 0
+    check('A5c', !storage.databases.includes('daymark') && storage.keys.length === 0
+      && storage.caches.every((cache) => cache.name.startsWith('daymark-shell-') && cache.urls.every((url) => !url.includes('/api/')))
       && !storage.marker && storage.pendingLogout === '1',
-      'unreachable-server forced sign-out wipes local storage and marker on blocked app startup, retaining pending logout', JSON.stringify(storage));
+      'unreachable-server forced sign-out wipes local storage and marker, allowing only public shell caches without API requests and retaining pending logout', JSON.stringify(storage));
     await context.unroute('**/api/**');
     await page.reload({ waitUntil: 'networkidle' });
     await assertWiped(page, 'A5d');
