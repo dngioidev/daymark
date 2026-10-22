@@ -51,6 +51,8 @@ dependencies {
     implementation "androidx.glance:glance-appwidget:$glanceVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
     testImplementation "junit:junit:$junitVersion"
+    // JVM tests need a real JSON implementation instead of Android's throwing stub.
+    testImplementation "org.json:json:20250517"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')

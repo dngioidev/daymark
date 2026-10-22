@@ -46,22 +46,28 @@ import androidx.glance.LocalSize
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
+import androidx.glance.text.FontFamily
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import java.time.LocalDate
 
-private val Surface = Color(0xFF1C1917)
 private val Checkbox = Color(0xFF44403C)
-private val TextPrimary = Color(0xFFF5F5F4)
-private val TextMuted = Color(0xFFD6D3D1)
-private val Amber = Color(0xFFF59E0B)
 private val Red = Color(0xFFF87171)
 private val Green = Color(0xFF16A34A)
 
-private const val ROW_HEIGHT_DP = 30
-private const val HEADER_HEIGHT_DP = 60
+private fun hexColor(value: String) = Color(android.graphics.Color.parseColor(value))
+
+private class WidgetPaint(val style: WidgetStyle, val colors: ResolvedWidgetColors) {
+    val background = hexColor(colors.bg).copy(alpha = colors.bgAlpha)
+    val text = hexColor(colors.text)
+    val muted = hexColor(colors.muted)
+    val accent = hexColor(colors.accent)
+    private val family = when (style.font) { "serif" -> FontFamily.Serif; "mono" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
+    fun type(color: Color = text, size: Int = 13, weight: FontWeight = FontWeight.Normal, align: TextAlign = TextAlign.Start) =
+        TextStyle(color = ColorProvider(color), fontSize = (size + style.textSp - 13).sp, fontWeight = weight, fontFamily = family, textAlign = align)
+}
 
 /** Tapping the header or a task title opens the app. */
 @Composable
@@ -96,23 +102,29 @@ class DaymarkGlanceWidget : GlanceAppWidget() {
             val version = currentState<Preferences>()[VERSION_KEY]
             val today = remember(version) { LocalDate.now() }
             val snapshot = remember(version) { WidgetStore.loadSnapshot(context) }
+            val paint = remember(version) {
+                val widgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+                val style = WidgetStore.style(context, widgetId)
+                WidgetPaint(style, style.resolve(WidgetStore.appColors(context)))
+            }
             val tasks = remember(version) { snapshot?.let { WidgetModel.tasksForDisplay(it, today) } ?: emptyList() }
             val size = LocalSize.current
-            if (size.width < 180.dp) SmallContent(tasks, snapshot != null)
-            else ListContent(tasks, today, snapshot != null, size)
+            if (size.width < 180.dp) SmallContent(tasks, snapshot != null, paint)
+            else ListContent(tasks, today, snapshot != null, size, paint)
         }
     }
+
 }
 
 @Composable
-private fun SmallContent(tasks: List<WidgetTask>, hasData: Boolean) {
+private fun SmallContent(tasks: List<WidgetTask>, hasData: Boolean, paint: WidgetPaint) {
     val pending = tasks.count { !it.isDone }
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(Surface)
+            .background(paint.background)
             .padding(10.dp)
-            .cornerRadius(16.dp),
+            .cornerRadius(paint.style.cornerDp.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -122,58 +134,68 @@ private fun SmallContent(tasks: List<WidgetTask>, hasData: Boolean) {
         ) {
             Text(
                 text = if (hasData) "$pending" else "–",
-                style = TextStyle(color = ColorProvider(Amber), fontSize = 28.sp, fontWeight = FontWeight.Bold),
+                style = paint.type(paint.accent, 28, FontWeight.Bold),
             )
             Text(
                 text = if (!hasData) "Open Daymark" else if (pending == 1) "task left" else "tasks left",
-                style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                style = paint.type(paint.muted, 12),
             )
         }
-        Spacer(modifier = GlanceModifier.height(6.dp))
-        AddButton()
+        if (paint.style.show.quickAdd) {
+            Spacer(modifier = GlanceModifier.height(6.dp))
+            AddButton(paint)
+        }
     }
 }
 
 @Composable
-private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean, size: DpSize) {
+private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean, size: DpSize, paint: WidgetPaint) {
     val active = tasks.filter { !it.isDone }
     val done = tasks.size - active.size
-    // As many rows as the widget height allows; the last row becomes "+N more" when needed
-    val capacity = ((size.height.value - HEADER_HEIGHT_DP) / ROW_HEIGHT_DP).toInt().coerceAtLeast(1)
-    val shown = if (active.size > capacity) active.take(capacity - 1) else active
-    val hidden = active.size - shown.size
+    val layout = WidgetModel.layout(tasks, paint.style, size.height.value)
 
-    Column(modifier = GlanceModifier.fillMaxSize().background(Surface).padding(12.dp).cornerRadius(16.dp)) {
+    Column(modifier = GlanceModifier.fillMaxSize().background(paint.background).padding(12.dp).cornerRadius(paint.style.cornerDp.dp)) {
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(modifier = GlanceModifier.defaultWeight().clickable(openAppAction()), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = GlanceModifier.size(8.dp).background(Color(0xFFD97706)).cornerRadius(2.dp)) {}
+                Box(modifier = GlanceModifier.size(8.dp).background(if (paint.colors.accent == "#f59e0b") Color(0xFFD97706) else paint.accent).cornerRadius(2.dp)) {}
                 Spacer(modifier = GlanceModifier.width(6.dp))
                 Text(
                     text = "Today",
-                    style = TextStyle(color = ColorProvider(TextPrimary), fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                    style = paint.type(size = 14, weight = FontWeight.Bold),
                 )
                 Spacer(modifier = GlanceModifier.width(8.dp))
                 if (hasData) {
                     Text(
                         text = if (active.isEmpty()) "all done" else "${active.size} left · $done done",
-                        style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                        style = paint.type(paint.muted, 12),
                     )
                 }
             }
-            AddButton()
+            if (paint.style.show.quickAdd) AddButton(paint)
         }
         Spacer(modifier = GlanceModifier.height(6.dp))
         when {
-            !hasData -> EmptyMessage("Open Daymark to load today")
-            active.isEmpty() -> EmptyMessage(if (tasks.isEmpty()) "Nothing planned yet. Tap + to add a task." else "All done for today")
+            !hasData -> EmptyMessage("Open Daymark to load today", paint)
+            layout.rows.isEmpty() && layout.hidden == 0 -> EmptyMessage(if (tasks.isEmpty()) {
+                if (paint.style.show.quickAdd) "Nothing planned yet. Tap + to add a task." else "Nothing planned yet."
+            } else "All done for today", paint)
             else -> LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(shown) { TaskRow(it, today) }
-                if (hidden > 0) {
+                items(layout.rows) { row ->
+                    Column {
+                        row.sectionHeader?.let { header ->
+                            Box(modifier = GlanceModifier.fillMaxWidth().height(paint.style.sectionHeightDp.dp), contentAlignment = Alignment.CenterStart) {
+                                Text(text = header, maxLines = 1, style = paint.type(paint.muted, 12))
+                            }
+                        }
+                        TaskRow(row.task, today, paint)
+                    }
+                }
+                if (layout.hidden > 0) {
                     item {
                         Text(
-                            text = "+$hidden more",
+                            text = "+${layout.hidden} more",
                             modifier = GlanceModifier.fillMaxWidth().padding(start = 30.dp, top = 4.dp).clickable(openAppAction()),
-                            style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                            style = paint.type(paint.muted, 12, FontWeight.Medium),
                         )
                     }
                 }
@@ -183,11 +205,11 @@ private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Bool
 }
 
 @Composable
-private fun AddButton() {
+private fun AddButton(paint: WidgetPaint) {
     Box(
         modifier = GlanceModifier
             .size(36.dp)
-            .background(Amber)
+            .background(paint.accent)
             .cornerRadius(18.dp)
             .clickable(captureAction())
             .semantics { contentDescription = "New task" },
@@ -195,23 +217,23 @@ private fun AddButton() {
     ) {
         Text(
             text = "+",
-            style = TextStyle(color = ColorProvider(Color(0xFF1C1917)), fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+            style = paint.type(hexColor(WidgetStyle(background = paint.colors.accent).resolve(null).text), 22, FontWeight.Bold, TextAlign.Center),
         )
     }
 }
 
 @Composable
-private fun EmptyMessage(text: String) {
+private fun EmptyMessage(text: String, paint: WidgetPaint) {
     Box(modifier = GlanceModifier.fillMaxSize().clickable(openAppAction()), contentAlignment = Alignment.Center) {
-        Text(text = text, style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp, textAlign = TextAlign.Center))
+        Text(text = text, style = paint.type(paint.muted, 12, align = TextAlign.Center))
     }
 }
 
 @Composable
-private fun TaskRow(task: WidgetTask, today: LocalDate) {
+private fun TaskRow(task: WidgetTask, today: LocalDate, paint: WidgetPaint) {
     val age = WidgetModel.ageDays(task.createdDate, today)
     Row(
-        modifier = GlanceModifier.fillMaxWidth().height(ROW_HEIGHT_DP.dp),
+        modifier = GlanceModifier.fillMaxWidth().height(paint.style.rowHeightDp.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -220,24 +242,24 @@ private fun TaskRow(task: WidgetTask, today: LocalDate) {
                 .background(if (task.isDone) Green else Checkbox)
                 .cornerRadius(5.dp)
                 .clickable(actionRunCallback<ToggleTaskActionCallback>(actionParametersOf(TaskIdKey to task.id)))
-                .semantics { contentDescription = "Mark ${task.title} done" },
+                .semantics { contentDescription = if (task.isDone) "Reopen ${task.title}" else "Mark ${task.title} done" },
         ) {}
         Spacer(modifier = GlanceModifier.width(8.dp))
         Text(
             text = task.title,
             maxLines = 1,
-            style = TextStyle(color = ColorProvider(if (task.isDone) TextMuted else TextPrimary), fontSize = 13.sp),
+            style = paint.type(if (task.isDone) paint.muted else paint.text),
             modifier = GlanceModifier.defaultWeight().clickable(openAppAction()),
         )
-        if (!task.isDone && age > 0) {
+        if (paint.style.show.age && !task.isDone && age > 0) {
             val color = when (WidgetModel.severity(age)) {
                 WidgetModel.Severity.CRITICAL -> Red
-                WidgetModel.Severity.ATTENTION -> Amber
-                WidgetModel.Severity.NORMAL -> TextMuted
+                WidgetModel.Severity.ATTENTION -> paint.accent
+                WidgetModel.Severity.NORMAL -> paint.muted
             }
             Text(
                 text = "${age}d",
-                style = TextStyle(color = ColorProvider(color), fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                style = paint.type(color, 12, FontWeight.Bold),
             )
         }
     }
@@ -265,4 +287,9 @@ suspend fun DaymarkGlanceWidget.refreshAll(context: Context) {
 
 class DaymarkWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = DaymarkGlanceWidget()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        for (id in appWidgetIds) WidgetStore.removeStyle(context, id)
+    }
 }

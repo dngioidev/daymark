@@ -168,3 +168,17 @@ export interface PhotoMeta {
   width: number;
   height: number;
 }
+
+/** Native-only preferences, stored per home-screen widget; never part of AppSettings or sync. */
+export interface WidgetStyle {
+  mode: 'match-app' | 'custom';
+  background: string;
+  opacity: number;
+  text: 'auto' | string;
+  accent: string;
+  font: 'sans' | 'serif' | 'mono';
+  size: 's' | 'm' | 'l' | 'xl';
+  corners: 'square' | 'round' | 'extra';
+  density: 'compact' | 'comfy';
+  show: { done: boolean; age: boolean; quickAdd: boolean; sections: boolean };
+}

@@ -140,6 +140,7 @@ export default function App() {
     );
   }, [appearance.headerBgOpaque, appearance.headerText, settingsStatusStrip]);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
+  const [widgetEditorId, setWidgetEditorId] = useState<number | undefined>();
   const [historicalModalTask, setHistoricalModalTask] = useState<TaskItem | null>(null);
   const [detailsTaskId, setDetailsTaskId] = useState<string | null>(null);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(getLastBackupDate);
@@ -482,7 +483,11 @@ export default function App() {
   useWidgetSync(today, dailyDocs.find((d) => d.date === today), handleWidgetToggle, () => {
     setCurrentDate(today);
     setIsQuickCaptureOpen(true);
-  });
+  }, (widgetId) => {
+    setWidgetEditorId(widgetId);
+    setSettingsTab('widget');
+    setIsSettingsOpen(true);
+  }, appearance);
 
   // Backups: closing the Android share sheet without choosing a target is not an error
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
@@ -799,6 +804,8 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         initialTab={settingsTab}
+        widgetEditorId={widgetEditorId}
+        widgetAppColors={{ headerBg: appearance.headerBgOpaque, headerText: appearance.headerText, accent: appearance.accent }}
         settings={settings}
         isSynced={Boolean(sync.account)}
         lastBackupAt={lastBackupAt}

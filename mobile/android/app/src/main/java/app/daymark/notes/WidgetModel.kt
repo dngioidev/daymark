@@ -9,17 +9,42 @@ data class WidgetTask(
     val title: String,
     val status: String,
     val createdDate: String,
+    val section: String = "",
 ) {
     val isDone: Boolean get() = status == "done"
 }
 
 data class WidgetSnapshot(val date: String, val tasks: List<WidgetTask>)
+data class WidgetDisplayRow(val task: WidgetTask, val sectionHeader: String?)
+data class WidgetLayout(val rows: List<WidgetDisplayRow>, val hidden: Int)
 
 /**
  * Pure widget logic (no Android dependencies), covered by JVM unit tests.
  * The web app stays the source of truth; the widget only displays a snapshot and queues toggles.
  */
 object WidgetModel {
+    /** Account for optional section headers and reserve a full row for overflow, as before. */
+    fun layout(tasks: List<WidgetTask>, style: WidgetStyle, heightDp: Float): WidgetLayout {
+        val visible = tasks.filter { style.show.done || !it.isDone }
+        val rows = visible.mapIndexed { index, task ->
+            val header = task.section.takeIf {
+                style.show.sections && it.isNotEmpty() && (index == 0 || visible[index - 1].section != it)
+            }
+            WidgetDisplayRow(task, header)
+        }
+        fun cost(row: WidgetDisplayRow) = style.rowHeightDp + if (row.sectionHeader != null) style.sectionHeightDp else 0
+        // Keep the original header allowance and at-least-one-row capacity for existing widgets.
+        val budget = (heightDp - 60).coerceAtLeast(style.rowHeightDp.toFloat())
+        if (rows.sumOf { cost(it) } <= budget) return WidgetLayout(rows, 0)
+        var remaining = budget - style.rowHeightDp
+        val shown = rows.takeWhile { row ->
+            val fits = cost(row) <= remaining
+            if (fits) remaining -= cost(row)
+            fits
+        }
+        return WidgetLayout(shown, rows.size - shown.size)
+    }
+
     /** Flips done / in-progress for every task id queued by widget taps (an id queued twice flips back). */
     fun applyToggles(tasks: List<WidgetTask>, queuedToggleIds: List<String>): List<WidgetTask> {
         val flips = queuedToggleIds.groupingBy { it }.eachCount().filterValues { it % 2 == 1 }.keys

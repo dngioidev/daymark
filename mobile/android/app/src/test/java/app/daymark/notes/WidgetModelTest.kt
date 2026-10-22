@@ -5,6 +5,56 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WidgetModelTest {
+    @Test
+    fun layoutHidesDoneRowsUnlessEnabledAndRetainsOrder() {
+        val tasks = listOf(task("a", "in-progress"), task("b", "done"))
+        assertEquals(listOf("a"), WidgetModel.layout(tasks, WidgetStyle(), 180f).rows.map { it.task.id })
+        assertEquals(listOf("a", "b"), WidgetModel.layout(tasks, WidgetStyle(show = WidgetShow(done = true)), 180f).rows.map { it.task.id })
+        assertEquals(listOf("b"), WidgetModel.layout(listOf(tasks[1]), WidgetStyle(show = WidgetShow(done = true)), 180f).rows.map { it.task.id })
+    }
+
+    @Test
+    fun layoutPreservesLegacyCapacityAndReservesTheMoreRow() {
+        val tasks = (1..5).map { task("$it", "in-progress") }
+        val layout = WidgetModel.layout(tasks, WidgetStyle(), 150f)
+        assertEquals(listOf("1", "2"), layout.rows.map { it.task.id })
+        assertEquals(3, layout.hidden)
+        assertEquals(3, WidgetModel.layout(tasks.take(3), WidgetStyle(), 150f).rows.size)
+        assertEquals(0, WidgetModel.layout(tasks, WidgetStyle(), 80f).rows.size)
+        assertEquals(5, WidgetModel.layout(tasks, WidgetStyle(), 80f).hidden)
+    }
+
+    @Test
+    fun compactFitsMoreTasksInTheSameSpace() {
+        val tasks = (1..5).map { task("$it", "in-progress") }
+        val compact = WidgetModel.layout(tasks, WidgetStyle(density = "compact"), 156f)
+        assertEquals(3, compact.rows.size)
+        assertEquals(2, compact.hidden)
+        assertEquals(2, WidgetModel.layout(tasks, WidgetStyle(), 156f).rows.size)
+    }
+
+    @Test
+    fun sectionHeadersConsumeSpaceAndOnlyAppearAtSectionBoundaries() {
+        val tasks = listOf(task("a", "in-progress").copy(section = "Work"), task("b", "in-progress").copy(section = "Work"), task("c", "in-progress").copy(section = "Home"))
+        val style = WidgetStyle(show = WidgetShow(sections = true))
+        val layout = WidgetModel.layout(tasks, style, 180f)
+        assertEquals(listOf("a", "b"), layout.rows.map { it.task.id })
+        assertEquals(listOf("Work", null), layout.rows.map { it.sectionHeader })
+        assertEquals(1, layout.hidden)
+        val all = WidgetModel.layout(tasks, style, 240f)
+        assertEquals(listOf("Work", null, "Home"), all.rows.map { it.sectionHeader })
+        assertEquals(0, all.hidden)
+    }
+
+    @Test
+    fun emptySectionsDoNotCreateHeadersAndHiddenDoneTasksDoNotCountAsOverflow() {
+        val tasks = listOf(task("a", "in-progress"), task("b", "done"))
+        val layout = WidgetModel.layout(tasks, WidgetStyle(show = WidgetShow(sections = true)), 90f)
+        assertEquals(1, layout.rows.size)
+        assertEquals(null, layout.rows.single().sectionHeader)
+        assertEquals(0, layout.hidden)
+    }
+
     private fun task(id: String, status: String, created: String = "2026-10-18") =
         WidgetTask(id, "Task $id", status, created)
 

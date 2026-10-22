@@ -25,6 +25,9 @@ const doc: DailyDocument = {
 };
 
 describe('buildWidgetSnapshot', () => {
+  it('preserves section names for optional widget subheaders', () => {
+    expect(buildWidgetSnapshot(doc, '2026-10-20').tasks.map((t) => t.section)).toEqual(['Work', 'Ideas', 'Work']);
+  });
   it('lists active tasks first, then done, and omits archived', () => {
     const snap = buildWidgetSnapshot(doc, '2026-10-20');
     expect(snap.date).toBe('2026-10-20');

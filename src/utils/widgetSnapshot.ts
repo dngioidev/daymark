@@ -7,6 +7,7 @@ export interface WidgetTask {
   status: string;
   createdDate: string;
   carriedFromDate?: string;
+  section?: string;
 }
 
 export interface WidgetSnapshot {
@@ -24,7 +25,7 @@ const MAX_WIDGET_TASKS = 30;
  */
 export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: string): WidgetSnapshot {
   const all = (doc?.headings ?? [])
-    .flatMap((h) => h.items)
+    .flatMap((h) => h.items.map((t) => ({ ...t, section: h.name })))
     .filter((t) => t.status !== 'archived')
     .map<WidgetTask>((t) => ({
       id: t.id,
@@ -32,6 +33,7 @@ export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: strin
       status: t.status,
       createdDate: t.createdDate,
       carriedFromDate: t.carriedFromDate,
+      section: t.section,
     }));
   const active = all.filter((t) => t.status !== 'done');
   const done = all.filter((t) => t.status === 'done');

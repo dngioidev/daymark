@@ -11,6 +11,8 @@ import { alertDialog, confirmDialog, showToast } from './ui/feedback';
 import { AppearanceTab } from './settings/AppearanceTab';
 import { resetTab, useInstantSettings } from './settings/useInstantSettings';
 import { DEFAULT_APPEARANCE } from '../utils/defaultData';
+import { WidgetTab } from './settings/WidgetTab';
+import type { WidgetAppColors } from '../utils/widgetStyle';
 
 export type { SettingsTab } from '../types/daymark';
 
@@ -33,6 +35,8 @@ interface SettingsModalProps {
   lastBackupAt?: string | null;
   photoSection?: React.ReactNode;
   photoMeta?: { luminance: number } | null;
+  widgetEditorId?: number;
+  widgetAppColors?: WidgetAppColors;
 }
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
@@ -42,6 +46,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'lifecycle', label: 'Statuses' },
   { id: 'aging', label: 'Old-task warnings' },
   { id: 'headings', label: 'Sections' },
+  { id: 'widget', label: 'Widget' },
   { id: 'advanced', label: 'Advanced' },
 ];
 
@@ -78,7 +83,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   lastBackupAt = null,
   photoSection,
   photoMeta,
+  widgetEditorId,
+  widgetAppColors,
 }) => {
+  const visibleTabs = SETTINGS_TABS.filter((tab) => tab.id !== 'widget' || isNativeApp());
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { draft, setDraft, error, setError, saved, commit } = useInstantSettings(settings, onChangeSettings, isOpen);
   const [newStatusLabel, setNewStatusLabel] = useState('');
@@ -96,16 +104,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleTabKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     const forward = verticalTabs ? 'ArrowDown' : 'ArrowRight';
     const back = verticalTabs ? 'ArrowUp' : 'ArrowLeft';
-    const index = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+    const index = visibleTabs.findIndex((t) => t.id === activeTab);
     let next: number;
-    if (e.key === forward) next = (index + 1) % SETTINGS_TABS.length;
-    else if (e.key === back) next = (index - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length;
+    if (e.key === forward) next = (index + 1) % visibleTabs.length;
+    else if (e.key === back) next = (index - 1 + visibleTabs.length) % visibleTabs.length;
     else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = SETTINGS_TABS.length - 1;
+    else if (e.key === 'End') next = visibleTabs.length - 1;
     else return;
     e.preventDefault();
-    selectTab(SETTINGS_TABS[next].id);
-    document.getElementById(`settings-tab-${SETTINGS_TABS[next].id}`)?.focus();
+    selectTab(visibleTabs[next].id);
+    document.getElementById(`settings-tab-${visibleTabs[next].id}`)?.focus();
   };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -209,7 +217,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <div className="flex h-full min-h-0 flex-col sm:flex-row">
       <div role="tablist" aria-label="Settings sections" aria-orientation={verticalTabs ? 'vertical' : 'horizontal'} className="shrink-0 flex flex-nowrap overflow-x-auto gap-1.5 px-4 py-3 border-b sm:border-b-0 sm:border-r sm:w-[180px] sm:flex-col border-stone-200 dark:border-stone-800">
-        {SETTINGS_TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             role="tab"
@@ -238,6 +246,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )}
 
         {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} photoSection={photoSection} photoMeta={photoMeta} onChange={(appearance) => commit({ ...settings, appearance })} />}
+        {activeTab === 'widget' && isNativeApp() && <WidgetTab initialWidgetId={widgetEditorId} app={widgetAppColors ?? null} />}
 
         {activeTab === 'storage' && (
           <>

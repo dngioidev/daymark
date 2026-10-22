@@ -85,6 +85,55 @@ class DaymarkBridgePlugin : Plugin() {
             actions.put(JSObject().put("type", "toggle").put("taskId", taskId))
         }
         if (WidgetStore.consumeCaptureRequest(context)) actions.put(JSObject().put("type", "capture"))
+        WidgetStore.consumeConfigureRequest(context)?.let {
+            actions.put(JSObject().put("type", "configure").put("widgetId", it))
+        }
         call.resolve(JSObject().put("actions", actions))
+    }
+
+    private fun widgetIds(): IntArray = AppWidgetManager.getInstance(context)
+        .getAppWidgetIds(ComponentName(context, DaymarkWidgetReceiver::class.java))
+
+    @PluginMethod
+    fun listWidgets(call: PluginCall) {
+        val widgets = JSArray()
+        for (id in widgetIds().sorted()) {
+            widgets.put(JSObject().put("id", id).put("style", JSObject(WidgetStore.style(context, id).toJson())))
+        }
+        call.resolve(JSObject().put("widgets", widgets).put("defaultStyle", JSObject(WidgetStore.defaultStyle(context).toJson())))
+    }
+
+    @PluginMethod
+    fun setWidgetStyle(call: PluginCall) {
+        val id = call.data.opt("id")
+        val key = when {
+            id == "default" -> "default"
+            id is Number && id.toDouble() == id.toInt().toDouble() && id.toInt() in widgetIds() -> id.toInt().toString()
+            else -> { call.reject("Unknown widget id"); return }
+        }
+        val raw = call.getObject("style")
+        if (raw == null) { call.reject("Expected a widget style"); return }
+        // Freeze defaults for existing widgets before changing the default for future ones.
+        if (key == "default") for (widgetId in widgetIds()) WidgetStore.style(context, widgetId)
+        WidgetStore.setStyle(context, key, WidgetStyle.parse(raw.toString()))
+        CoroutineScope(Dispatchers.Default).launch {
+            try { DaymarkGlanceWidget().refreshAll(context); call.resolve() }
+            catch (e: Exception) { call.reject("Could not refresh widgets", e) }
+        }
+    }
+
+    @PluginMethod
+    fun setAppColors(call: PluginCall) {
+        val bg = call.getString("headerBg"); val text = call.getString("headerText"); val accent = call.getString("accent")
+        val dark = call.getBoolean("dark")
+        val hex = Regex("^#[0-9a-fA-F]{6}$")
+        if (bg == null || text == null || accent == null || dark == null || !hex.matches(bg) || !hex.matches(text) || !hex.matches(accent)) {
+            call.reject("Expected opaque app colours and dark"); return
+        }
+        WidgetStore.setAppColors(context, AppColors(bg.lowercase(), text.lowercase(), accent.lowercase(), dark))
+        CoroutineScope(Dispatchers.Default).launch {
+            try { DaymarkGlanceWidget().refreshAll(context); call.resolve() }
+            catch (e: Exception) { call.reject("Could not refresh widgets", e) }
+        }
     }
 }

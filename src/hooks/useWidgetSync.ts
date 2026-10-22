@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { DailyDocument } from '../types/daymark';
-import { consumeWidgetActions, isNativeApp, pushWidgetSnapshot } from '../native/daymarkBridge';
+import { DailyDocument, ResolvedAppearance } from '../types/daymark';
+import { consumeWidgetActions, isNativeApp, pushWidgetSnapshot, setAppColors } from '../native/daymarkBridge';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
 
 /**
@@ -13,12 +13,20 @@ export function useWidgetSync(
   today: string,
   todayDoc: DailyDocument | undefined,
   onToggleTask: (taskId: string) => void,
-  onCapture: () => void
+  onCapture: () => void,
+  onConfigure: (widgetId: number) => void,
+  appearance: ResolvedAppearance,
 ): void {
   const toggleRef = useRef(onToggleTask);
   toggleRef.current = onToggleTask;
   const captureRef = useRef(onCapture);
   captureRef.current = onCapture;
+  const configureRef = useRef(onConfigure);
+  configureRef.current = onConfigure;
+
+  useEffect(() => {
+    void setAppColors({ headerBg: appearance.headerBgOpaque, headerText: appearance.headerText, accent: appearance.accent, dark: appearance.theme === 'dark' });
+  }, [appearance.headerBgOpaque, appearance.headerText, appearance.accent, appearance.theme]);
 
   // Apply widget actions on start and whenever the app returns to the foreground
   useEffect(() => {
@@ -27,6 +35,7 @@ export function useWidgetSync(
       for (const action of await consumeWidgetActions()) {
         if (action.type === 'toggle') toggleRef.current(action.taskId);
         else if (action.type === 'capture') captureRef.current();
+        else if (action.type === 'configure') configureRef.current(action.widgetId);
       }
     };
     const onVisible = () => {

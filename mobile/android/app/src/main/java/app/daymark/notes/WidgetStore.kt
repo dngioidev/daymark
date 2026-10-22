@@ -42,6 +42,7 @@ object WidgetStore {
                     title = t.optString("title"),
                     status = t.optString("status", "in-progress"),
                     createdDate = t.optString("createdDate"),
+                    section = t.optString("section"),
                 )
             }
             WidgetSnapshot(obj.optString("date"), WidgetModel.applyToggles(tasks, queued))
@@ -75,6 +76,50 @@ object WidgetStore {
         prefs(context).edit().remove(KEY_ACTIONS).apply()
         actions
     }
+
+    fun defaultStyle(context: Context): WidgetStyle = WidgetStyle.parse(prefs(context).getString("style_default", null))
+
+    /** Copy the default once; future default edits must not restyle existing widgets. */
+    fun style(context: Context, id: Int): WidgetStyle = synchronized(lock) {
+        val raw = prefs(context).getString("style_$id", null)
+        if (raw != null) WidgetStyle.parse(raw) else defaultStyle(context).also {
+            prefs(context).edit().putString("style_$id", it.toJson()).apply()
+        }
+    }
+
+    fun setStyle(context: Context, id: String, style: WidgetStyle) = synchronized(lock) {
+        prefs(context).edit().putString("style_$id", style.toJson()).apply()
+    }
+
+    fun removeStyle(context: Context, id: Int) = synchronized(lock) {
+        val editor = prefs(context).edit().remove("style_$id")
+        if (prefs(context).getInt("configure_request", -1) == id) editor.remove("configure_request")
+        editor.apply()
+    }
+
+    fun requestConfigure(context: Context, id: Int) = synchronized(lock) {
+        style(context, id)
+        prefs(context).edit().putInt("configure_request", id).apply()
+    }
+
+    fun consumeConfigureRequest(context: Context): Int? = synchronized(lock) {
+        val id = prefs(context).getInt("configure_request", -1)
+        prefs(context).edit().remove("configure_request").apply()
+        id.takeIf { it > 0 }
+    }
+
+    fun setAppColors(context: Context, colors: AppColors) = synchronized(lock) {
+        val json = JSONObject().put("headerBg", colors.headerBg).put("headerText", colors.headerText)
+            .put("accent", colors.accent).put("dark", colors.dark)
+        prefs(context).edit().putString("app_colors", json.toString()).apply()
+    }
+
+    fun appColors(context: Context): AppColors? = try {
+        val raw = prefs(context).getString("app_colors", null)
+        if (raw == null) null else JSONObject(raw).let {
+            AppColors(it.getString("headerBg"), it.getString("headerText"), it.getString("accent"), it.getBoolean("dark"))
+        }
+    } catch (_: Exception) { null }
 
     private fun readActions(context: Context): List<String> {
         val raw = prefs(context).getString(KEY_ACTIONS, null) ?: return emptyList()
