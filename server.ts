@@ -1,11 +1,10 @@
-import express from 'express';
 import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createApp } from './server/app';
 import { DEV_DEFAULT_PASSWORD, loadConfig, passwordProblem } from './server/config';
 import { FileStore } from './server/store';
-import { createSiteGate } from './server/gate';
+import { createSiteGate, mountProductionWeb } from './server/gate';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,18 +46,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const dist = path.resolve(__dirname, 'dist');
-    const signInPage = fs.readFileSync(path.join(dist, 'signin.html'), 'utf8');
-    app.use(createSiteGate(store, () => signInPage));
-    // Hashed assets can be cached forever; index.html and the service worker must revalidate
-    app.use(
-      express.static(dist, {
-        setHeaders: (res, file) => {
-          if (/[\\/]assets[\\/]/.test(file)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          else res.setHeader('Cache-Control', 'no-cache');
-        },
-      })
-    );
-    app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+    mountProductionWeb(app, store, dist);
   }
 
   app.listen(config.port, '0.0.0.0', () => {
