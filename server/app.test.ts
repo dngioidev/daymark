@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DailyDocument, StandaloneNote, TaskItem } from '../src/types/daymark';
 import { DEFAULT_SETTINGS } from '../src/utils/defaultData';
 import { performDailyRollover } from '../src/utils/lifecycleEngine';
-import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
+import { applySyncOutcome, rebaseAfterVaultReplace, SyncState, syncOnce, VaultData } from '../src/sync/syncClient';
+import { signIn, TokenManager } from '../src/sync/authClient';
 import { checkRefreshToken, createApp } from './app';
 import { loadConfig } from './config';
 import { FileStore } from './store';
@@ -45,10 +46,9 @@ const post = (url: string, body: unknown, token?: string) =>
     body: JSON.stringify(body),
   });
 
-async function connect(name: string): Promise<SyncState & { refreshToken?: string }> {
-  const response = await post('/api/auth/login', { username: 'admin', password: PASSWORD, deviceName: name, platform: 'test' });
-  const data = await response.json();
-  return { serverUrl: base, username: data.username, deviceName: data.device.name, token: data.accessToken, deviceId: data.device.id, refreshToken: data.refreshToken, lastRev: 0, bases: {}, lastSyncAt: null };
+async function connect(name: string): Promise<SyncState & { accessToken: string }> {
+  const data = await signIn(fetch, base, 'body', { username: 'admin', password: PASSWORD, deviceName: name, platform: 'test' });
+  return { serverUrl: base, username: data.username, deviceName: data.device.name, accessToken: data.accessToken, deviceId: data.device.id, refreshToken: data.refreshToken, lastRev: 0, bases: {}, lastSyncAt: null };
 }
 
 const task = (id: string, status = 'in-progress'): TaskItem => ({
@@ -80,7 +80,10 @@ const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData =
 
 /** Simulates one device: its vault plus sync state. */
 async function sync(device: { vault: VaultData; state: SyncState }) {
-  const outcome = await syncOnce(fetch, device.vault, device.state);
+  const manager = new TokenManager({ fetchFn: fetch, serverUrl: device.state.serverUrl, mode: 'body',
+    getRefreshToken: () => device.state.refreshToken,
+    setRefreshToken: (token) => { device.state.refreshToken = token; }, onSessionEnded: () => {}, locks: null, channel: null });
+  const outcome = await syncOnce(fetch, device.vault, device.state, await manager.getAccessToken());
   device.vault = applySyncOutcome(device.vault, outcome);
   device.state = outcome.state;
   return outcome;
@@ -204,9 +207,9 @@ describe('auth', () => {
 
   it('access tokens expire at the 15-minute boundary', async () => {
     const a = await connect('Phone');
-    const payload = verifyToken(a.token, fileStore.auth.secret)!;
-    expect(verifyToken(a.token, fileStore.auth.secret, payload.exp * 1000 - 1)).not.toBeNull();
-    expect(verifyToken(a.token, fileStore.auth.secret, payload.exp * 1000)).toBeNull();
+    const payload = verifyToken(a.accessToken, fileStore.auth.secret)!;
+    expect(verifyToken(a.accessToken, fileStore.auth.secret, payload.exp * 1000 - 1)).not.toBeNull();
+    expect(verifyToken(a.accessToken, fileStore.auth.secret, payload.exp * 1000)).toBeNull();
   });
 
   it('parses cookies without crashing on malformed values', () => {
@@ -234,7 +237,7 @@ describe('auth', () => {
     expect(res.headers.getSetCookie()).toHaveLength(2);
     for (const cookie of res.headers.getSetCookie()) expect(cookie).toContain('Max-Age=0');
     expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
-    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
+    expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${a.accessToken}` } })).status).toBe(401);
     expect((await post('/api/auth/logout', { refreshToken: a.refreshToken })).status).toBe(200);
   });
 
@@ -265,37 +268,37 @@ describe('auth', () => {
   it('disconnecting a device revokes its token', async () => {
     const a = await connect('Phone');
     const b = await connect('Laptop');
-    const del = await fetch(`${base}/api/devices/${a.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${b.token}` } });
+    const del = await fetch(`${base}/api/devices/${a.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${b.accessToken}` } });
     expect(del.status).toBe(200);
-    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
+    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.accessToken}` } })).status).toBe(401);
     expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
   });
 
   it('changing the password signs out every device including this one', async () => {
     const a = await connect('Phone');
     const b = await connect('Laptop');
-    const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'a much better one' }, b.token);
+    const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'a much better one' }, b.accessToken);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.token}` } })).status).toBe(401);
-    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${b.token}` } })).status).toBe(401);
+    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${a.accessToken}` } })).status).toBe(401);
+    expect((await fetch(`${base}/api/sync`, { headers: { Authorization: `Bearer ${b.accessToken}` } })).status).toBe(401);
     for (const device of [a, b]) expect((await post('/api/auth/refresh', { refreshToken: device.refreshToken })).status).toBe(401);
     expect(fileStore.devices.every((d) => d.revoked)).toBe(true);
   });
 
   it('a repeat sign-in from the same install does not add a duplicate device', async () => {
     const creds = { username: 'admin', password: PASSWORD, deviceName: 'Phone', platform: 'android', installId: 'install-abc12345' };
-    const first = await login(fetch, base, creds);
-    const second = await login(fetch, base, { ...creds, deviceName: 'Pixel' });
-    expect(second.deviceId).toBe(first.deviceId);
+    const first = await signIn(fetch, base, 'body', creds);
+    const second = await signIn(fetch, base, 'body', { ...creds, deviceName: 'Pixel' });
+    expect(second.device.id).toBe(first.device.id);
     const other = await connect('Laptop');
-    const res = await (await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${other.token}` } })).json();
+    const res = await (await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${other.accessToken}` } })).json();
     expect(res.devices.map((d: { name: string }) => d.name).sort()).toEqual(['Laptop', 'Pixel']);
   });
 
   it('rejects weak new passwords', async () => {
     const a = await connect('Phone');
-    const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'short' }, a.token);
+    const res = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'short' }, a.accessToken);
     expect(res.status).toBe(400);
   });
 });
@@ -344,7 +347,7 @@ describe('sync between two devices', () => {
 
     // The phone restores an older backup that only has n3
     phone.vault = vault([], [note('n3', 'from backup')]);
-    phone.state = rebaseAfterVaultReplace(phone.state);
+    phone.state = { ...phone.state, ...rebaseAfterVaultReplace(phone.state) };
     await sync(phone);
     await sync(laptop);
 
@@ -405,7 +408,7 @@ describe('sync between two devices', () => {
 
   it('rejects invalid entity keys', async () => {
     const a = await connect('Phone');
-    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: '__proto__', base: null, value: {} }] }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: '__proto__', base: null, value: {} }] }, a.accessToken);
     expect(res.status).toBe(400);
   });
 });
@@ -418,13 +421,13 @@ describe('sync validation', () => {
     fileStore.vault.entities['doc:2026-10-20'] = corrupt;
     fileStore.vault.entities['note:good'] = { rev: 2, value: note('good', 'Keep this note'), updatedBy: a.deviceId, updatedAt: '2026-10-20T00:00:00Z' };
     const res = method === 'GET'
-      ? await fetch(base + '/api/sync?since=0', { headers: { Authorization: `Bearer ${a.token}` } })
-      : await post('/api/sync', { sinceRev: 0, changes: [] }, a.token);
+      ? await fetch(base + '/api/sync?since=0', { headers: { Authorization: `Bearer ${a.accessToken}` } })
+      : await post('/api/sync', { sinceRev: 0, changes: [] }, a.accessToken);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.entities.map((e: { key: string }) => e.key)).toEqual(['note:good']);
     expect(fileStore.vault.entities['doc:2026-10-20']).toEqual(corrupt);
-    const repaired = await post('/api/sync', { sinceRev: body.rev, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.token);
+    const repaired = await post('/api/sync', { sinceRev: body.rev, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.accessToken);
     expect(repaired.status).toBe(200);
     expect((await repaired.json()).entities).toContainEqual(expect.objectContaining({ key: 'doc:2026-10-20', value: day([task('a')]) }));
   });
@@ -433,21 +436,21 @@ describe('sync validation', () => {
 
   it('rejects a doc without headings with 400 and stores nothing', async () => {
     const a = await connect('Phone');
-    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: { date: '2026-10-20', junk: true } }] }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: { date: '2026-10-20', junk: true } }] }, a.accessToken);
     expect(res.status).toBe(400);
-    expect(await dailyNotes(a.token)).toBe(0);
+    expect(await dailyNotes(a.accessToken)).toBe(0);
   });
 
   it('rejects a doc whose date does not match its key', async () => {
     const a = await connect('Phone');
-    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-01-01', base: null, value: day([]) }] }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-01-01', base: null, value: day([]) }] }, a.accessToken);
     expect(res.status).toBe(400);
-    expect(await dailyNotes(a.token)).toBe(0);
+    expect(await dailyNotes(a.accessToken)).toBe(0);
   });
 
   it('rejects a note whose id does not match its key', async () => {
     const a = await connect('Phone');
-    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'note:other', base: null, value: note('n1', 'x') }] }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'note:other', base: null, value: note('n1', 'x') }] }, a.accessToken);
     expect(res.status).toBe(400);
   });
 
@@ -457,16 +460,16 @@ describe('sync validation', () => {
       { key: 'doc:2026-10-20', base: null, value: day([task('a')]) },
       { key: 'doc:2026-10-21', base: null, value: { date: '2026-10-21' } },
     ];
-    const res = await post('/api/sync', { sinceRev: 0, changes }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes }, a.accessToken);
     expect(res.status).toBe(400);
-    expect(await dailyNotes(a.token)).toBe(0);
+    expect(await dailyNotes(a.accessToken)).toBe(0);
   });
 
   it('repairs a corrupt stored entity instead of failing every sync', async () => {
     const a = await connect('Phone');
     fileStore.vault.rev += 1;
     fileStore.vault.entities['doc:2026-10-20'] = { rev: fileStore.vault.rev, value: { junk: true }, updatedBy: 'x', updatedAt: '2026-10-20T00:00:00Z' };
-    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.token);
+    const res = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'doc:2026-10-20', base: null, value: day([task('a')]) }] }, a.accessToken);
     expect(res.status).toBe(200);
     expect(fileStore.vault.entities['doc:2026-10-20'].value).toEqual(day([task('a')]));
   });

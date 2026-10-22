@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
-import { applySyncOutcome, login, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, VaultData } from '../sync/syncClient';
+import { applySyncOutcome, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, VaultData } from '../sync/syncClient';
+import { SessionEndedError, signIn, TokenManager } from '../sync/authClient';
 import { loadSyncState, saveSyncState } from '../utils/vaultStore';
 import { getInstallId } from '../utils/deviceName';
 
@@ -42,6 +43,8 @@ export function useSync(
   const [state, setState] = useState<SyncState | null>(loadSyncState);
   const [status, setStatus] = useState<SyncStatus>(state ? 'idle' : 'off');
   const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const manager = useRef<TokenManager | null>(null);
 
   const vaultRef = useRef(vault);
   vaultRef.current = vault;
@@ -60,6 +63,19 @@ export function useSync(
     saveSyncState(next);
   };
 
+  // Temporary adapter for the existing UI; Task 4 replaces its raw token interface.
+  const tokenManager = () => {
+    if (!manager.current) manager.current = new TokenManager({
+      fetchFn: fetch, serverUrl: stateRef.current!.serverUrl, mode: platform === 'android' ? 'body' : 'cookie',
+      getRefreshToken: () => stateRef.current?.refreshToken,
+      setRefreshToken: (refreshToken) => {
+        if (stateRef.current) persistState({ ...stateRef.current, refreshToken });
+      },
+      onSessionEnded: () => { blocked.current = true; setToken(null); },
+    });
+    return manager.current;
+  };
+
   const run = useCallback(async () => {
     const current = stateRef.current;
     if (!current || blocked.current) return;
@@ -73,7 +89,9 @@ export function useSync(
       do {
         rerun.current = false;
         const startedAt = epoch.current;
-        const outcome = await syncOnce(fetch, vaultRef.current, stateRef.current!);
+        const accessToken = await tokenManager().getAccessToken();
+        setToken(accessToken);
+        const outcome = await syncOnce(fetch, vaultRef.current, stateRef.current!, accessToken);
         if (startedAt !== epoch.current) {
           // The vault was replaced while this round was in flight: start over from fresh bases
           rerun.current = true;
@@ -98,7 +116,7 @@ export function useSync(
       setStatus('idle');
     } catch (err) {
       const e = err as SyncHttpError;
-      if (e.status === 401) {
+      if (e.status === 401 || err instanceof SessionEndedError) {
         blocked.current = true;
         setError('This device was signed out by the server. Connect again to resume syncing.');
         setStatus('error');
@@ -120,11 +138,11 @@ export function useSync(
     const timer = setTimeout(run, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vault.docs, vault.notes, vault.settings, state?.token]);
+  }, [vault.docs, vault.notes, vault.settings, state?.deviceId]);
 
   // Start, reconnect, foreground and periodic triggers
   useEffect(() => {
-    if (!state?.token) return;
+    if (!state?.deviceId) return;
     void run();
     const onVisible = () => document.visibilityState === 'visible' && void run();
     const interval = setInterval(run, PERIODIC_SYNC_MS);
@@ -135,16 +153,20 @@ export function useSync(
       window.removeEventListener('online', run);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [state?.token, run]);
+  }, [state?.deviceId, run]);
 
   const connect = useCallback(
     async (serverUrl: string, username: string, password: string, deviceName: string) => {
       setError(null);
       try {
-        const session = await login(fetch, serverUrl, { username, password, deviceName, platform, installId: getInstallId() });
+        const session = await signIn(fetch, serverUrl, platform === 'android' ? 'body' : 'cookie', { username, password, deviceName, platform, installId: getInstallId() });
+        manager.current = null;
+        setToken(session.accessToken);
         blocked.current = false;
         // Fresh bases: the first sync merges this device's vault with the server's
-        persistState({ ...session, lastRev: 0, bases: {}, lastSyncAt: null });
+        persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
+          deviceId: session.device.id, deviceName: session.device.name,
+          ...(platform === 'android' ? { refreshToken: session.refreshToken } : {}), lastRev: 0, bases: {}, lastSyncAt: null });
         setStatus('idle');
       } catch (err) {
         setError((err as Error).message);
@@ -159,11 +181,10 @@ export function useSync(
     const current = stateRef.current;
     if (current) {
       // Best effort: tell the server to forget this device; local data stays untouched
-      await fetch(`${current.serverUrl}/api/devices/${current.deviceId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${current.token}` },
-      }).catch(() => undefined);
+      await tokenManager().signOut().catch(() => undefined);
     }
+    manager.current = null;
+    setToken(null);
     blocked.current = false;
     persistState(null);
     setError(null);
@@ -186,6 +207,6 @@ export function useSync(
       epoch.current++;
       persistState(rebaseAfterVaultReplace(stateRef.current));
     },
-    token: state?.token ?? null,
+    token,
   };
 }

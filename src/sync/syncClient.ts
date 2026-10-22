@@ -1,6 +1,6 @@
 import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
 import { canonicalJson, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
-import { LoginRequest, LoginResponse, SyncChange, SyncRequest, SyncResponse } from './protocol';
+import { SyncChange, SyncRequest, SyncResponse } from './protocol';
 
 /**
  * Client side of sync, kept free of React and storage so it can be tested against the real
@@ -16,7 +16,8 @@ export interface VaultData {
 /** Per-device sync bookkeeping, stored next to the vault (never synced). */
 export interface SyncState {
   serverUrl: string;
-  token: string;
+  /** Native only; web refresh credentials stay in the HttpOnly cookie. */
+  refreshToken?: string;
   username: string;
   deviceId: string;
   deviceName: string;
@@ -110,19 +111,6 @@ async function request<T>(fetchFn: FetchLike, url: string, init: RequestInit, to
   return data as T;
 }
 
-export async function login(
-  fetchFn: FetchLike,
-  serverUrl: string,
-  credentials: LoginRequest
-): Promise<Omit<SyncState, 'lastRev' | 'bases' | 'lastSyncAt'>> {
-  const base = normalizeServerUrl(serverUrl);
-  const data = await request<LoginResponse>(fetchFn, `${base}/api/auth/login`, {
-    method: 'POST',
-    body: JSON.stringify(credentials),
-  });
-  return { serverUrl: base, token: data.accessToken, username: data.username, deviceId: data.device.id, deviceName: data.device.name };
-}
-
 export interface SyncOutcome {
   /** Server value for every entity it returned (null = deleted). */
   serverValues: Map<string, unknown | null>;
@@ -135,11 +123,11 @@ export interface SyncOutcome {
 }
 
 /** One round trip: push local changes, receive merged results and other devices' changes. */
-export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState): Promise<SyncOutcome> {
+export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string): Promise<SyncOutcome> {
   const snapshot = toEntities(local);
   const changes = collectChanges(snapshot, state);
   const body: SyncRequest = { sinceRev: state.lastRev, changes };
-  const res = await request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, state.token);
+  const res = await request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
 
   const serverValues = new Map<string, unknown | null>();
   for (const e of res.entities) serverValues.set(e.key, e.value);
