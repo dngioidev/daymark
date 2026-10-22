@@ -81,17 +81,22 @@ const signedIn = async () => {
   await synced(page);
   return { context, page, session };
 };
+const onlyPublicShellCaches = (entries) => entries.every((cache) =>
+  cache.name.startsWith('daymark-shell-') && cache.urls.every((url) => !url.includes('/api/')));
 const assertWiped = async (page, id) => {
   await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
-  // The sign-in form is revealed only after startup cleanup has finished.
+  // Wait for the sign-in startup checks to finish before inspecting storage.
   await page.getByLabel('Password', { exact: true }).waitFor();
   const storage = await page.evaluate(async () => ({
     databases: (await indexedDB.databases()).map((db) => db.name),
     keys: Object.keys(localStorage).filter((key) => key.startsWith('daymark')),
-    caches: await caches.keys(),
+    caches: await Promise.all((await caches.keys()).map(async (name) => ({
+      name,
+      urls: (await caches.open(name).then((c) => c.keys())).map((request) => request.url),
+    }))),
   }));
-  check(id, !storage.databases.includes('daymark') && storage.keys.length === 0 && storage.caches.length === 0,
-    'sign-out shows sign-in and wipes IndexedDB, daymark localStorage and caches', JSON.stringify(storage));
+  check(id, !storage.databases.includes('daymark') && storage.keys.length === 0 && onlyPublicShellCaches(storage.caches),
+    'sign-out shows sign-in and wipes IndexedDB and daymark localStorage, allowing only public shell caches without API requests', JSON.stringify(storage));
 };
 
 await run('A1', async () => {
@@ -211,7 +216,7 @@ await run('A5', async () => {
       marker: document.cookie.split(';').some((cookie) => cookie.trim().startsWith('daymark_signed_in=')),
     }));
     check('A5c', !storage.databases.includes('daymark') && storage.keys.length === 0
-      && storage.caches.every((cache) => cache.name.startsWith('daymark-shell-') && cache.urls.every((url) => !url.includes('/api/')))
+      && onlyPublicShellCaches(storage.caches)
       && !storage.marker && storage.pendingLogout === '1',
       'unreachable-server forced sign-out wipes local storage and marker, allowing only public shell caches without API requests and retaining pending logout', JSON.stringify(storage));
     await context.unroute('**/api/**');
@@ -237,6 +242,51 @@ await run('A5', async () => {
 });
 
 // ---------------------------------------------------------------------------
+await run('A6', async () => {
+  const observer = await browser.newContext();
+  const admin = await signIn(observer, base, 'qa-password-123');
+  await resetServerVault(observer, base, admin.accessToken);
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const title = 'A6 pre-upgrade local task';
+    await seedVault(page, base, { docs: [doc(TODAY, [task('upgrade-v1', 'in-progress', TODAY, { title })])] });
+    await page.evaluate(async (origin) => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('daymark', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put({ serverUrl: origin, token: 'legacy-v1-token', username: 'admin',
+            deviceId: 'legacy-browser', deviceName: 'Old browser', lastRev: 99, bases: {}, lastSyncAt: null }, 'sync_state');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally { db.close(); }
+    }, base);
+    if ((await context.cookies()).length) throw new Error('upgrade fixture must have no cookies');
+    const response = await page.goto(base, { waitUntil: 'networkidle' });
+    await page.getByLabel('Password', { exact: true }).waitFor();
+    check('A6a', response.status() === 401 && titlesOn(await readDocs(page), TODAY).some((t) => t.startsWith(title + '|')),
+      'upgrade sign-in page preserves the pre-v2 IndexedDB vault without cookies');
+    await page.getByLabel('Username', { exact: true }).fill('admin');
+    await page.getByLabel('Password', { exact: true }).fill('qa-password-123');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('button', { name: `Mark "${title}" done`, exact: true }).waitFor();
+    await synced(page);
+    const serverVault = await observer.request.get(base + '/api/sync?since=0', {
+      headers: { Authorization: 'Bearer ' + admin.accessToken },
+    });
+    if (!serverVault.ok()) throw new Error('observer could not read merged vault');
+    const { entities } = await serverVault.json();
+    check('A6b', entities.some((e) => e.key === 'doc:' + TODAY && e.value?.headings.some((h) => h.items.some((t) => t.title === title))),
+      'first sign-in keeps the seeded task visible and merges it to the server');
+  } finally { await context.close(); await observer.close(); }
+});
+
 await run('B1', async () => {
   const { page, context } = await fresh({ docs: [doc(Y1, [task('a', 'in-progress', Y1, { title: 'Carried task' })])] });
   check('B1a', await page.getByRole('button', { name: 'Mark "Carried task" done' }).isVisible(), 'unfinished task from yesterday is carried to today on open');

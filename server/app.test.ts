@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import express from 'express';
 import { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,12 +21,18 @@ let server: Server;
 let base: string;
 let fileStore: FileStore;
 
-function start() {
-  const config = { ...loadConfig({ NODE_ENV: 'test' }), dataDir: dir, initialPassword: PASSWORD };
+function start(trustProxy = 'loopback', proxyAddress?: string) {
+  const config = { ...loadConfig({ NODE_ENV: 'test', DAYMARK_TRUST_PROXY: trustProxy }), dataDir: dir, initialPassword: PASSWORD };
   const store = new FileStore(dir);
   fileStore = store;
   store.init(config.username, config.initialPassword);
-  server = createApp(config, store).listen(0);
+  const app = express();
+  if (proxyAddress) app.use((req, _res, next) => {
+    Object.defineProperty(req.socket, 'remoteAddress', { value: proxyAddress, configurable: true });
+    next();
+  });
+  app.use(createApp(config, store));
+  server = app.listen(0);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 const stop = () => new Promise<void>((r) => server.close(() => r()));
@@ -97,6 +104,42 @@ describe('auth', () => {
   });
   const webRefresh = (cookie: string, header = true) => fetch(`${base}/api/auth/refresh`, {
     method: 'POST', headers: { Cookie: cookie, ...(header ? { 'X-Daymark-Client': 'web' } : {}) },
+  });
+
+  it('trusts a configured Docker proxy for Secure cookies and per-client login limits', async () => {
+    await stop();
+    start('uniquelocal', '172.18.0.2');
+    const forwarded = { 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '203.0.113.10' };
+    const login = await webLogin(forwarded);
+    expect(login.status).toBe(200);
+    expect(login.headers.getSetCookie().every((cookie) => cookie.includes('; Secure'))).toBe(true);
+    for (let i = 0; i < 10; i++) {
+      const bad = await fetch(base + '/api/auth/login', { method: 'POST', headers: { ...forwarded, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'wrong', password: 'wrong' }) });
+      expect(bad.status).toBe(401);
+    }
+    expect((await webLogin(forwarded)).status).toBe(429);
+    expect((await webLogin({ ...forwarded, 'X-Forwarded-For': '203.0.113.11' })).status).toBe(200);
+  });
+
+  it('does not clear cookies or revoke the cookie session on a headerless logout', async () => {
+    const login = await webLogin();
+    const cookie = login.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    const response = await fetch(base + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: '' });
+    expect(response.status).toBe(200);
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect((await webRefresh(cookie)).status).toBe(200);
+  });
+
+  it('revokes refresh sessions durably when auth.json is deleted and the account recreated', async () => {
+    const session = await connect('Phone');
+    await stop();
+    fs.unlinkSync(path.join(dir, 'auth.json'));
+    start();
+    expect(fileStore.devices.every((d) => d.revoked && d.refreshHash === null && d.refreshExpiresAt === null && d.retiredRefreshHashes.length === 0)).toBe(true);
+    expect((await post('/api/auth/refresh', { refreshToken: session.refreshToken })).status).toBe(401);
+    await stop();
+    start();
+    expect((await post('/api/auth/refresh', { refreshToken: session.refreshToken })).status).toBe(401);
   });
 
   it('login returns a 15-minute access token and a refresh token', async () => {
@@ -229,16 +272,25 @@ describe('auth', () => {
     expect((await fetch(`${base}/api/devices`, { headers: { Cookie: res.headers.get('set-cookie')! } })).status).toBe(401);
   });
 
-  it('logout revokes the device and clears cookies', async () => {
+  it('body logout revokes the device without touching cookies', async () => {
     const a = await connect('Phone');
     const res = await post('/api/auth/logout', { refreshToken: a.refreshToken });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect(res.headers.getSetCookie()).toHaveLength(2);
-    for (const cookie of res.headers.getSetCookie()) expect(cookie).toContain('Max-Age=0');
+    expect(res.headers.getSetCookie()).toEqual([]);
     expect((await post('/api/auth/refresh', { refreshToken: a.refreshToken })).status).toBe(401);
     expect((await fetch(`${base}/api/devices`, { headers: { Authorization: `Bearer ${a.accessToken}` } })).status).toBe(401);
     expect((await post('/api/auth/logout', { refreshToken: a.refreshToken })).status).toBe(200);
+  });
+
+  it('web logout revokes the cookie session and clears both cookies', async () => {
+    const login = await webLogin();
+    const cookie = login.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    const res = await fetch(base + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookie, 'X-Daymark-Client': 'web' } });
+    expect(res.status).toBe(200);
+    expect(res.headers.getSetCookie()).toHaveLength(2);
+    for (const cleared of res.headers.getSetCookie()) expect(cleared).toContain('Max-Age=0');
+    expect((await webRefresh(cookie)).status).toBe(401);
   });
 
   it('rejects pre-upgrade tokens', async () => {

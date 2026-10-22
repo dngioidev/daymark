@@ -8,8 +8,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      # Behind a host reverse proxy, replace the mapping above with:
+      # - "127.0.0.1:3000:3000"
     environment:
       DAYMARK_USER: ${DAYMARK_USER:-admin}
       DAYMARK_PASSWORD: ${DAYMARK_PASSWORD:-}
+      DAYMARK_TRUST_PROXY: ${DAYMARK_TRUST_PROXY:-loopback}
     volumes:
       - ./data:/data

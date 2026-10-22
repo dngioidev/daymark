@@ -13,6 +13,10 @@ Date: 2026-10-22 · Branch: `feat/server-sign-in` · Tag: none
 
 ## Upgrade and self-hosting
 
+### Upgrading
+
+Data already in a browser is kept and merged into the server on first sign-in. Phones need to sign in once more; their local data is kept. To reset the account, stop the server and delete `DATA_DIR/auth.json`, then restart with `DAYMARK_PASSWORD`; recreating the account revokes every existing device session while preserving the server vault.
+
 After upgrading, **every device signs in once more**. The old 90-day tokens no longer work. Replace `DAYMARK_TOKEN_TTL_DAYS` with `DAYMARK_REFRESH_TTL_DAYS` (default **30**). The access-token lifetime stays at **15 minutes**.
 
 Use a positive, finite refresh lifetime or leave it unset. Invalid or ≤ 0 values fall back to 30 days.
@@ -20,6 +24,17 @@ Use a positive, finite refresh lifetime or leave it unset. Invalid or ≤ 0 valu
 **Plain HTTP is for LAN only:** its refresh cookie is not `Secure`. Use HTTPS (e.g. Caddy) on a public address. The server keeps the refresh token in an `HttpOnly`, `SameSite=Strict` cookie; data routes still require a Bearer access token. The account remains the single self-hosted account created on first start from `DAYMARK_USER` (default `admin`) and `DAYMARK_PASSWORD`.
 
 See the [self-hosting instructions](../../../README.md#self-hosting-the-sync-server) and [configuration/API reference](../../../.ai-configs/project/api-and-sync.md).
+
+Behind a reverse proxy in Docker, set e.g. `DAYMARK_TRUST_PROXY=uniquelocal` (default `loopback`) for Secure cookies over forwarded HTTPS and per-client login limits. Trust only your proxy network and bind the upstream port to loopback. For Caddy on the host, replace the default Compose port mapping and proxy to `127.0.0.1:3000`:
+
+```yaml
+services:
+  daymark:
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DAYMARK_TRUST_PROXY: uniquelocal
+```
 
 ## Screenshots
 

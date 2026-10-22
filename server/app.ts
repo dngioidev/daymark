@@ -29,7 +29,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
   let syncQueue: Promise<unknown> = Promise.resolve();
 
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback'); // honour X-Forwarded-For from a local reverse proxy
+  app.set('trust proxy', config.trustProxy); // trust only the configured reverse-proxy hops
   app.use('/api', express.json({ limit: '25mb' }));
 
   // CORS: the Android app and PWAs on other origins call the API directly
@@ -147,8 +147,10 @@ export function createApp(config: ServerConfig, store: FileStore) {
       store.addLog({ deviceId: device.id, deviceName: device.name, action: 'device_disconnected', details: 'Signed out' });
       await store.persist('devices.json', 'sync-log.json');
     }
-    res.cookie(REFRESH_COOKIE, '', { ...cookieOptions(req), httpOnly: true, maxAge: 0 });
-    res.cookie(SIGNED_IN_COOKIE, '', { ...cookieOptions(req), maxAge: 0 });
+    if (req.get(WEB_CLIENT_HEADER) === 'web') {
+      res.cookie(REFRESH_COOKIE, '', { ...cookieOptions(req), httpOnly: true, maxAge: 0 });
+      res.cookie(SIGNED_IN_COOKIE, '', { ...cookieOptions(req), maxAge: 0 });
+    }
     res.json({ ok: true });
   });
 

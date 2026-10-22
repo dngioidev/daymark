@@ -3,6 +3,8 @@ import { isStandaloneNote } from './vaultValidation';
 import { DEFAULT_SETTINGS, SEED_STANDALONE_NOTES } from './defaultData';
 import { initVaultStore, keepValid, parseVaultMessage, saveSyncState } from './vaultStore';
 
+vi.mock('../native/daymarkBridge', () => ({ isNativeApp: () => false }));
+
 describe('keepValid (load-time filter)', () => {
   it('returns the same array when nothing is dropped', () => {
     const notes: unknown[] = [...SEED_STANDALONE_NOTES];
@@ -85,4 +87,33 @@ describe('sync credential persistence', () => {
       errors.mockRestore();
     }
   });
+});
+
+it('allows writes and another wipe after a failed deletion', async () => {
+  vi.resetModules();
+  vi.stubGlobal('BroadcastChannel', undefined);
+  const values = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  });
+  let fail = true;
+  const deletion = vi.fn(() => {
+    const request = { error: new Error('delete failed'), onerror: () => {}, onsuccess: () => {} };
+    queueMicrotask(() => fail ? request.onerror() : request.onsuccess());
+    return request;
+  });
+  vi.stubGlobal('indexedDB', { deleteDatabase: deletion });
+  try {
+    const store = await import('./vaultStore');
+    await expect(store.wipeLocalVault()).rejects.toThrow('delete failed');
+    await store.saveSyncState(null);
+    expect(values.get('daymark_sync_state_v1')).toBe('null');
+    fail = false;
+    await store.wipeLocalVault();
+    expect(deletion).toHaveBeenCalledTimes(2);
+    expect(values.size).toBe(0);
+  } finally { vi.unstubAllGlobals(); }
 });

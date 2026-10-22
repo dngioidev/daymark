@@ -66,7 +66,10 @@ export function useSync(
   };
 
   const wipeAndLeave = () => {
-    if (!wiped.current) wiped.current = wipeLocalVault().then(() => { location.replace('/'); });
+    if (!wiped.current) wiped.current = wipeLocalVault().then(() => { location.replace('/'); }).catch((err) => {
+      wiped.current = null;
+      throw err;
+    });
     return wiped.current;
   };
 
@@ -227,8 +230,8 @@ export function useSync(
     await running.current?.catch(() => undefined);
     manager.current = null;
     if (mode === 'server') {
-      await wipeLocalVault();
       if (logoutFailed) localStorage.setItem(LOGOUT_PENDING_KEY, '1');
+      await wipeLocalVault();
       location.replace('/');
     }
     else {

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createApp } from './server/app';
-import { DEV_DEFAULT_PASSWORD, loadConfig, passwordProblem } from './server/config';
+import { DEV_DEFAULT_PASSWORD, devFileDeny, loadConfig, passwordProblem } from './server/config';
 import { FileStore } from './server/store';
 import { createSiteGate, mountProductionWeb } from './server/gate';
 
@@ -36,7 +36,7 @@ async function startServer() {
 
   if (!config.production) {
     const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    const vite = await createViteServer({ server: { middlewareMode: true, fs: { deny: devFileDeny(config.dataDir) } }, appType: 'spa' });
     const gate = createSiteGate(store, () => vite.transformIndexHtml('/signin.html', fs.readFileSync(path.join(__dirname, 'signin.html'), 'utf8')));
     app.use((req, res, next) => {
       // Vite injects these extensionless script URLs into the sign-in page.

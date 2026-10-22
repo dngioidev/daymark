@@ -34,8 +34,9 @@ async function page(response: Response | Error, pathname = '/notes', cookie = ''
   vi.stubGlobal('location', { pathname, href: `https://daymark.test${pathname}?date=today`, replace });
   vi.stubGlobal('fetch', fetcher);
   await import('./main');
-  await vi.waitFor(() => expect(elements['signin-form'].hidden).toBe(false));
-  expect(values.has('daymark_install_id')).toBe(!!cookie);
+  await vi.waitFor(() => expect(elements['signin-form'].hidden).toBe(pendingLogout));
+  if (pendingLogout) await vi.waitFor(() => expect(elements['signin-error'].textContent).toContain('finish signing out'));
+  expect(values.has('daymark_install_id')).toBe(!pendingLogout);
   if (submitForm) await submit!({ preventDefault: () => {} });
   return { elements, replace, fetcher, submit: () => submit!({ preventDefault: () => {} }) };
 }
@@ -47,7 +48,7 @@ it.each(['/signin.html', '/notes'])('signs in as a web client and returns to %s'
   expect(options.method).toBe('POST');
   expect(options.headers).toEqual({ 'Content-Type': 'application/json', 'X-Daymark-Client': 'web' });
   expect(JSON.parse(options.body as string)).toEqual({ username: 'admin', password: 'secret', deviceName: 'Windows browser', platform: 'web', installId: expect.any(String) });
-  expect(JSON.parse(options.body as string).installId).not.toBe('inst-existing');
+  expect(JSON.parse(options.body as string).installId).toBe('inst-existing');
   expect(replace).toHaveBeenCalledWith(pathname === '/signin.html' ? '/' : 'https://daymark.test/notes?date=today');
 });
 
@@ -79,31 +80,34 @@ it('shows the form offline and retries the session check on online without wipin
   expect(result.fetcher).toHaveBeenCalledTimes(2);
 });
 
-it.each([
-  [new Error('offline'), 200],
-  [new Response('{}', { status: 503 }), 503],
-  [new Error('offline'), new Error('offline')],
-])('finishes pending logout before login and clears the flag before redirect (%s, %s)', async (sessionCheck, logout) => {
-  const result = await page(sessionCheck, '/signin.html', 'daymark_signed_in=1', false, true);
-  let finishLogout!: () => void;
-  result.fetcher.mockImplementationOnce(() => new Promise<Response>((resolve, reject) => {
-    finishLogout = () => logout instanceof Error ? reject(logout) : resolve(new Response('{}', { status: logout }));
-  })).mockResolvedValue(new Response('{}'));
-  const flagsAtRedirect: (string | null)[] = [];
-  result.replace.mockImplementation(() => { flagsAtRedirect.push(localStorage.getItem('daymark_logout_pending')); });
-
-  const submitted = result.submit();
-  expect(result.fetcher.mock.calls).toHaveLength(2);
-  expect(result.fetcher.mock.calls[1]).toEqual(['/api/auth/logout', {
+it.each([new Error('offline'), new Response('{}', { status: 503 })])('blocks login while logout is pending, then retries online (%s)', async (logoutFailure) => {
+  const result = await page(logoutFailure, '/signin.html', 'daymark_signed_in=1', false, true);
+  expect(result.fetcher.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual(['/api/auth/logout']);
+  expect(result.fetcher.mock.calls[0]).toEqual(['/api/auth/logout', {
     method: 'POST', headers: { 'X-Daymark-Client': 'web' }, credentials: 'same-origin',
   }]);
+  await result.submit();
+  expect(result.fetcher).toHaveBeenCalledTimes(1);
+  expect(localStorage.getItem('daymark_logout_pending')).toBe('1');
   expect(result.replace).not.toHaveBeenCalled();
-  finishLogout();
-  await submitted;
 
-  expect(result.fetcher.mock.calls.map((call) => (call as unknown as [string])[0]))
-    .toEqual(['/api/auth/refresh', '/api/auth/logout', '/api/auth/login']);
-  expect(result.replace).toHaveBeenCalledWith('/');
-  expect(flagsAtRedirect).toEqual([null]);
+  result.fetcher.mockResolvedValue(new Response('{}'));
+  window.dispatchEvent(new Event('online'));
+  await vi.waitFor(() => expect(result.elements['signin-form'].hidden).toBe(false));
   expect(localStorage.getItem('daymark_logout_pending')).toBeNull();
+  await result.submit();
+  expect(result.fetcher.mock.calls.map((call) => (call as unknown as [string])[0]))
+    .toEqual(['/api/auth/logout', '/api/auth/logout', '/api/auth/login']);
+  expect(result.replace).toHaveBeenCalledWith('/');
+});
+
+it('keeps login blocked through failed pending-logout retries', async () => {
+  const result = await page(new Error('offline'), '/signin.html', '', false, true);
+  window.dispatchEvent(new Event('online'));
+  await vi.waitFor(() => expect(result.fetcher).toHaveBeenCalledTimes(2));
+  expect(result.elements['signin-form'].hidden).toBe(true);
+  expect(localStorage.getItem('daymark_logout_pending')).toBe('1');
+  await result.submit();
+  expect(result.fetcher).toHaveBeenCalledTimes(2);
+  expect(result.replace).not.toHaveBeenCalled();
 });

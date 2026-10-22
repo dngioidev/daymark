@@ -58,15 +58,28 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-it('records failed forced logout after wiping and expires the marker', async () => {
+it('records failed forced logout before wiping and expires the marker', async () => {
   const values = new Map<string, string>();
   vi.stubGlobal('navigator', { onLine: false, locks: { request: (_name: string, run: () => unknown) => run() } });
   vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) });
-  vi.mocked(wipeLocalVault).mockImplementationOnce(async () => { values.clear(); });
+  vi.mocked(wipeLocalVault).mockImplementationOnce(async () => {
+    expect(values.get('daymark_logout_pending')).toBe('1');
+  });
   fetchFn.mockRejectedValue(new Error('offline'));
   expect(await render().signOut({ force: true })).toBe('done');
   expect(document.cookie).toBe('daymark_signed_in=; Max-Age=0; Path=/');
   expect(values.get('daymark_logout_pending')).toBe('1');
+});
+
+it('retries a failed remote-session wipe on the next sign-out', async () => {
+  vi.mocked(wipeLocalVault).mockRejectedValueOnce(new Error('storage blocked'));
+  fetchFn.mockResolvedValue(Response.json({ error: 'ended' }, { status: 401 }));
+  await expect(render().syncNow()).rejects.toBeInstanceOf(SessionEndedError);
+  await vi.waitFor(() => expect(render().error).toBe('storage blocked'));
+  expect(replace).not.toHaveBeenCalled();
+  expect(await render().signOut()).toBe('done');
+  expect(wipeLocalVault).toHaveBeenCalledTimes(2);
+  expect(replace).toHaveBeenCalledWith('/');
 });
 
 it('bootstraps server account from refresh before the first sync', async () => {

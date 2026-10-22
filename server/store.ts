@@ -105,6 +105,15 @@ export class FileStore {
       refreshExpiresAt: device.refreshExpiresAt ?? null,
       retiredRefreshHashes: (device.retiredRefreshHashes ?? []).slice(-50),
     }));
+    if (createdAccount) {
+      for (const device of this.devices) {
+        device.revoked = true;
+        device.refreshHash = null;
+        device.refreshExpiresAt = null;
+        device.retiredRefreshHashes = [];
+      }
+      this.writeNow('devices.json', this.devices);
+    }
     this.log = this.read<SyncLogEntry[]>('sync-log.json', []);
     return { createdAccount };
   }

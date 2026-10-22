@@ -9,19 +9,20 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
 | `PORT` | `3000` | HTTP port |
+| `DAYMARK_TRUST_PROXY` | `loopback` | Express `trust proxy` range/list; behind a reverse proxy in Docker set e.g. `uniquelocal` and bind the published port to `127.0.0.1` (example below). Controls HTTPS detection and per-client rate-limit IPs. |
 | `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json` |
 | `DAYMARK_USER` | `admin` | Account name |
-| `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json`. |
+| `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json` and restart with a password; account recreation revokes all devices and clears refresh hashes, preserving the vault. |
 | `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API; does not enable cross-origin browser sign-in or credentialed CORS |
 | `DAYMARK_REFRESH_TTL_DAYS` | `30` | Refresh token lifetime in days, reset on each refresh. Replaces `DAYMARK_TOKEN_TTL_DAYS`; access tokens always last 900 seconds (15 minutes). Use a positive, finite number; invalid or ≤ 0 values fall back to 30. |
 | `NODE_ENV` / `--production` | dev | Production serves `dist/` (`npm start` passes `--production`) |
 
 ## 2. Authentication and site gate
 - `POST /api/auth/login` accepts `{ username, password, deviceName, platform, installId? }` and returns `{ accessToken, expiresIn, username, device }`. `expiresIn` is 900 seconds and `device` contains `id` and `name`. Each login registers a **device**; a valid stable `installId` reuses its active entry.
-- Web clients send `X-Daymark-Client: web` on login, refresh and logout. Login/refresh set the `daymark_refresh` cookie (`HttpOnly`, `SameSite=Strict`, path `/`) and the readable `daymark_signed_in` marker. Cookies are `Secure` when Express sees HTTPS, including through its trusted loopback proxy. Plain HTTP is for LAN only because its cookie is not `Secure`; use HTTPS (e.g. Caddy) on a public address.
+- Web clients send `X-Daymark-Client: web` on login, refresh and logout. Login/refresh set the `daymark_refresh` cookie (`HttpOnly`, `SameSite=Strict`, path `/`) and the readable `daymark_signed_in` marker. Cookies are `Secure` when Express sees HTTPS, including through a proxy trusted by `DAYMARK_TRUST_PROXY` (default `loopback`). Plain HTTP is for LAN only because its cookie is not `Secure`; use HTTPS (e.g. Caddy) on a public address.
 - Android omits the web header, receives `refreshToken` in the login/refresh response, stores it in app storage and sends `{ refreshToken }` in the body for refresh/logout. Access tokens stay in memory on both platforms.
-- `POST /api/auth/refresh` accepts the refresh cookie for web clients or the body credential for Android. It returns a new access token and rotates the refresh token, extending its expiry by 30 days by default. Only refresh hashes are stored on the server. Reusing a retained retired token revokes that device's whole session and records `refresh_reuse` in the sync log. Detection has no grace window; a lost refresh response can require signing in again. Browser tabs coordinate refresh using Web Locks with a BroadcastChannel fallback.
-- `POST /api/auth/logout` uses the same refresh credentials, revokes the device session when valid, clears both cookies and returns `{ ok: true }`.
+- `POST /api/auth/refresh` accepts the refresh cookie for web clients or the body credential for Android. It returns a new access token and rotates the refresh token, extending its expiry by 30 days by default. Only refresh hashes are stored on the server. Reusing a retained retired token revokes that device's whole session and records `refresh_reuse` in the sync log. Detection has no grace window; a lost refresh response can require signing in again. Browser tabs coordinate refresh using Web Locks or a localStorage lease, with BroadcastChannel token sharing.
+- `POST /api/auth/logout` uses the same refresh credentials, revokes the device session when valid, clears both cookies only for web-header requests and returns `{ ok: true }`.
 - Except for `/api/health`, login, refresh and logout (and CORS preflight), all `/api/*` routes require `Authorization: Bearer <accessToken>`. Data routes are **Bearer-only**: a refresh cookie alone cannot read or change a vault.
 - Access tokens use `base64url(payload).HMAC-SHA256` with `{ typ: 'access', sub, did, ver, exp }`. They are rejected when expired, when the device is revoked, or when the account token version differs. Changing the password bumps that version and revokes all devices, including the caller.
 - Failed logins are rate-limited per IP (10 per 15 min → 429).
@@ -64,6 +65,17 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 - Android **Disconnect this device** stops syncing and keeps the local copy. Remote sign-out and password changes wipe the browser copy when it next receives a session-ended response, without the unsent-change confirmation; Android keeps its local notes.
 
 ## 6. Deployment
+- Behind Docker + a host reverse proxy such as Caddy, trust the private proxy hop and prevent direct public access to the upstream port. Replace the default port mapping with this configuration, then proxy HTTPS traffic to `127.0.0.1:3000`. Restrict the trusted ranges to your deployment's proxy network:
+
+  ```yaml
+  services:
+    daymark:
+      ports:
+        - "127.0.0.1:3000:3000"
+      environment:
+        DAYMARK_TRUST_PROXY: uniquelocal
+  ```
+
 - Docker: `DAYMARK_PASSWORD='…' docker compose up -d` (see `Dockerfile`, `docker-compose.yml`); data in `./data`; health check on `/api/health`; runs as the `node` user.
 - Bare Node: `npm ci && npm run build && DAYMARK_PASSWORD='…' npm start`.
 - Backup: copy `DATA_DIR` (plain JSON files) while the server is stopped, or export a vault ZIP from any device.

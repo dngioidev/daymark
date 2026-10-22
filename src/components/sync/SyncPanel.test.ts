@@ -3,12 +3,30 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { UseSyncResult } from '../../hooks/useSync';
 import { SyncPanel } from './SyncPanel';
-import { confirmDialog } from '../ui/feedback';
+import { alertDialog, confirmDialog } from '../ui/feedback';
 
-vi.mock('../ui/feedback', () => ({ confirmDialog: vi.fn(async () => false) }));
+vi.mock('../ui/feedback', () => ({ confirmDialog: vi.fn(async () => false), alertDialog: vi.fn(async () => {}) }));
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
   return { ...actual, useState: vi.fn(actual.useState) };
+});
+
+it('handles a failed server sign-out and displays the error', async () => {
+  const { useState } = await import('react');
+  vi.mocked(useState).mockImplementation((initial?: unknown): [unknown, React.Dispatch<unknown>] => [typeof initial === 'function' ? initial() : initial, vi.fn()]);
+  try {
+    const element = await SyncPanel({ sync: { ...sync, mode: 'server', status: 'idle',
+      account: { serverUrl: 'https://daymark.test', username: 'admin', deviceName: 'Browser' },
+      signOut: vi.fn(async () => { throw new Error('Browser storage is blocked'); }),
+    }, defaultDeviceName: 'Browser' });
+    const find = (node: React.ReactNode): React.ReactElement<{ onClick: () => Promise<void> }> | undefined => {
+      if (!React.isValidElement<{ children?: React.ReactNode; onClick: () => Promise<void> }>(node)) return;
+      if (node.type === 'button' && node.props.children === 'Sign out') return node;
+      return React.Children.toArray(node.props.children).map(find).find(Boolean);
+    };
+    await expect(find(element)!.props.onClick()).resolves.toBeUndefined();
+    expect(alertDialog).toHaveBeenCalledWith('Could not sign out', 'Browser storage is blocked');
+  } finally { vi.mocked(useState).mockRestore(); }
 });
 
 const sync: UseSyncResult = {

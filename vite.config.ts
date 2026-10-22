@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
 import {defineConfig, type Plugin} from 'vite';
+import { devFileDeny, loadConfig } from './server/config.ts';
 
 /** Emits /asset-manifest.json (every built JS/CSS file) so the service worker can precache lazy chunks too. */
 const assetManifest = (): Plugin => ({
@@ -33,6 +34,7 @@ export default defineConfig(() => {
       },
     },
     server: {
+      fs: { deny: devFileDeny(loadConfig().dataDir) },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

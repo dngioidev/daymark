@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, CloudOff, Loader2, RefreshCw } from 'lucide-
 import { UseSyncResult } from '../../hooks/useSync';
 import { formatDateTime } from '../../utils/dateFormat';
 import { buttonClass } from '../ui/Dialog';
-import { confirmDialog } from '../ui/feedback';
+import { alertDialog, confirmDialog } from '../ui/feedback';
 
 interface SyncPanelProps {
   sync: UseSyncResult;
@@ -163,6 +163,8 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ sync, defaultDeviceName })
                   });
                   if (ok) await sync.signOut({ force: true });
                 }
+              } catch (err) {
+                await alertDialog('Could not sign out', err instanceof Error ? err.message : 'Please try signing out again.');
               } finally { setBusy(false); }
               return;
             }

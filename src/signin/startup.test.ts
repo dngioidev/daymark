@@ -11,6 +11,7 @@ it('wipes leftover vault before showing sign-in and keeps pending logout when of
   const values = new Map([['daymark_notes_v1', 'private'], ['daymark_logout_pending', '1'], ['unrelated', 'keep']]);
   vi.stubGlobal('localStorage', {
     get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
+    setItem: (key: string, value: string) => values.set(key, value),
     getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => values.delete(key),
   });
   let deletion!: { onblocked: () => void; onsuccess: () => void };
@@ -48,6 +49,7 @@ async function sessionPage(response: Response | Error, cookie = 'other=1; daymar
   const values = new Map([['daymark_notes_v1', 'unsent edit']]);
   vi.stubGlobal('localStorage', {
     get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
+    setItem: (key: string, value: string) => values.set(key, value),
     getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => values.delete(key),
   });
   const deleteDatabase = vi.fn(() => {
@@ -76,6 +78,40 @@ it('redirects a valid session without wiping or broadcasting to signed-in app ta
   expect(page.values.get('daymark_notes_v1')).toBe('unsent edit');
   expect(page.deleteDatabase).not.toHaveBeenCalled();
   expect(page.broadcast).not.toHaveBeenCalled();
+});
+
+it.each(['none', 'legacy', 'v2'])('keeps the vault without session evidence regardless of stored sync state: %s', async (state) => {
+  const page = await sessionPage(new Response(null, { status: 401 }), '');
+  if (state !== 'none') page.values.set('daymark_sync_state_v1', JSON.stringify({ ...(state === 'legacy' ? { token: 'legacy' } : {}), serverUrl: 'https://daymark.test' }));
+  expect(await page.prepareSignIn()).toBe('ready');
+  expect(page.values.get('daymark_notes_v1')).toBe('unsent edit');
+  expect(page.values.has('daymark_sync_state_v1')).toBe(state !== 'none');
+  expect(page.deleteDatabase).not.toHaveBeenCalled();
+  expect(page.request).not.toHaveBeenCalled();
+  expect(page.broadcast).not.toHaveBeenCalled();
+});
+
+it('takes the app refresh Web Lock before probing the marker session', async () => {
+  const page = await sessionPage(new Response('{}'));
+  let unlock!: () => void;
+  const lock = vi.fn((_name: string, run: () => Promise<unknown>) => new Promise<void>((resolve) => { unlock = resolve; }).then(run));
+  vi.stubGlobal('navigator', { locks: { request: lock } });
+  const pending = page.prepareSignIn();
+  expect(lock).toHaveBeenCalledWith('daymark-refresh', expect.any(Function));
+  expect(page.request).not.toHaveBeenCalled();
+  unlock();
+  expect(await pending).toBe('redirecting');
+});
+
+it('waits for the shared localStorage refresh lease when Web Locks are unavailable', async () => {
+  const page = await sessionPage(new Response('{}'));
+  vi.stubGlobal('navigator', {});
+  page.values.set('daymark_refresh_lock', JSON.stringify({ id: 'app-tab', until: Date.now() + 10000 }));
+  const pending = page.prepareSignIn();
+  expect(page.request).not.toHaveBeenCalled();
+  page.values.delete('daymark_refresh_lock');
+  expect(await pending).toBe('redirecting');
+  expect(page.values.has('daymark_refresh_lock')).toBe(false);
 });
 
 it('wipes and broadcasts only after refresh confirms 401', async () => {

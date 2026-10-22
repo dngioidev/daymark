@@ -51,6 +51,48 @@ interface TokenManagerOptions {
   channel?: BroadcastChannel | null;
 }
 
+function browserStorage(): Storage | null {
+  try { return typeof localStorage === 'undefined' ? null : localStorage; }
+  catch { return null; }
+}
+
+export async function withRefreshLock<T>(run: () => Promise<T>,
+  locks: LockManager | null = typeof navigator === 'undefined' ? null : navigator.locks ?? null,
+  storage: Storage | null = browserStorage()): Promise<T> {
+  if (locks) return locks.request('daymark-refresh', run);
+  if (!storage) return run();
+  const key = 'daymark_refresh_lock';
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const leaseMs = 10_000;
+  const read = (): { id: string; until: number } | undefined => {
+    try {
+      const value = JSON.parse(storage.getItem(key) ?? 'null');
+      if (typeof value?.id === 'string' && typeof value.until === 'number') return value;
+    } catch { /* A malformed or unavailable entry cannot hold a lease. */ }
+    return undefined;
+  };
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 30 + Math.random() * 40));
+  for (;;) {
+    const held = read();
+    if (!held || held.until <= Date.now()) {
+      storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
+      // Give competing tabs time to publish their claim, then confirm ownership.
+      await pause();
+      if (read()?.id === id) break;
+    }
+    await pause();
+  }
+  // Keep a slow network request from outliving its lease in an active tab.
+  const renew = setInterval(() => {
+    if (read()?.id === id) storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
+  }, leaseMs / 3);
+  try { return await run(); }
+  finally {
+    clearInterval(renew);
+    if (read()?.id === id) storage.removeItem(key);
+  }
+}
+
 export class TokenManager {
   private token?: AccessToken;
   private pending?: Promise<string>;
@@ -86,42 +128,6 @@ export class TokenManager {
       this.channel?.postMessage({ type: 'token', ...this.token });
     }
   };
-
-  private async withRefreshLock<T>(run: () => Promise<T>): Promise<T> {
-    if (this.locks) return this.locks.request('daymark-refresh', run);
-    const storage = this.storage;
-    if (!storage) return run();
-    const key = 'daymark_refresh_lock';
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const leaseMs = 10_000;
-    const read = (): { id: string; until: number } | undefined => {
-      try {
-        const value = JSON.parse(storage.getItem(key) ?? 'null');
-        if (typeof value?.id === 'string' && typeof value.until === 'number') return value;
-      } catch { /* A malformed or unavailable entry cannot hold a lease. */ }
-      return undefined;
-    };
-    const pause = () => new Promise((resolve) => setTimeout(resolve, 30 + Math.random() * 40));
-    for (;;) {
-      const held = read();
-      if (!held || held.until <= Date.now()) {
-        storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
-        // Give competing tabs time to publish their claim, then confirm ownership.
-        await pause();
-        if (read()?.id === id) break;
-      }
-      await pause();
-    }
-    // Keep a slow network request from outliving its lease in an active tab.
-    const renew = setInterval(() => {
-      if (read()?.id === id) storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
-    }, leaseMs / 3);
-    try { return await run(); }
-    finally {
-      clearInterval(renew);
-      if (read()?.id === id) storage.removeItem(key);
-    }
-  }
 
   private endSession() {
     this.token = undefined;
@@ -188,7 +194,7 @@ export class TokenManager {
       this.channel?.postMessage({ type: 'token', ...this.token });
       return data.accessToken;
     };
-    const operation = this.withRefreshLock(run);
+    const operation = withRefreshLock(run, this.locks, this.storage);
     this.pending = operation.finally(() => { this.pending = undefined; });
     return this.pending;
   }
@@ -215,7 +221,7 @@ export class TokenManager {
     const run = () => authRequest(this.opts.fetchFn, `${this.serverUrl}/api/auth/logout`,
       authInit(this.opts.mode, this.opts.mode === 'body' ? { refreshToken: this.opts.getRefreshToken() } : undefined));
     try {
-      await this.withRefreshLock(run);
+      await withRefreshLock(run, this.locks, this.storage);
     } finally {
       this.endSession();
     }

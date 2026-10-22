@@ -304,7 +304,7 @@ export function wipeLocalVault(): Promise<void> {
     if (typeof caches !== 'undefined') {
       await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
     }
-  })().catch((err) => { wipePromise = null; throw err; });
+  })().catch((err) => { wipePromise = null; wiping = false; throw err; });
   return wipePromise;
 }
 

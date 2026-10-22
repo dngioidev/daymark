@@ -40,6 +40,17 @@ Access tokens last **15 minutes**. Refresh tokens last **30 days**, renewed on e
 
 **Plain HTTP is for LAN only:** the sign-in cookie is not `Secure` there. Use HTTPS (e.g. Caddy) on a public address. Full configuration and API reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md). See the [server sign-in release notes](./docs/releases/server-sign-in/README.md) for the screens and upgrade notes.
 
+Behind a reverse proxy in Docker, set `DAYMARK_TRUST_PROXY=uniquelocal` (default: `loopback`) so Express trusts the private proxy hop for HTTPS cookies and per-client sign-in limits. Limit trust to your proxy network and bind the published port to loopback so clients cannot supply trusted forwarding headers directly. For Caddy running on the host, use this Compose configuration and proxy to `127.0.0.1:3000`:
+
+```yaml
+services:
+  daymark:
+    ports:
+      - "127.0.0.1:3000:3000" # replace the default 3000:3000 mapping
+    environment:
+      DAYMARK_TRUST_PROXY: uniquelocal
+```
+
 ### Your data
 - Stored in the browser/app (IndexedDB) on each device. The server-hosted web app syncs automatically after sign-in; Android sync is optional and a standalone web build stays local-only.
 - **Settings → Backup & restore → Back up now** saves a ZIP of Markdown files (plus a full snapshot); **Choose a backup file…** restores one. A technical JSON backup is under **Advanced**. On Android the file opens in the share sheet (save to Drive, Files, email…). Restoring while sync is on merges the backup with your server instead of deleting anything.
