@@ -5,14 +5,17 @@
  * Usage: node scripts/capture-screenshots.mjs <cycle-name> [--url http://localhost:3100]
  * Example: node scripts/capture-screenshots.mjs cycle-0
  *
- * Starts `npm run dev` on port 3100 unless --url is given. Uses the locally
+ * Starts a disposable production server on port 3100 unless --url is given. Uses the locally
  * installed Chrome/Edge (no browser download). Shots are defined in SHOTS below;
- * add per-cycle shots there as features land.
+ * add per-cycle shots there as features land. For --url, set DAYMARK_PASSWORD;
+ * screenshots use that server vault without seeding or resetting it.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { chromium } from 'playwright-core';
+import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
 
 const args = process.argv.slice(2);
 const cycle = args.find((a) => !a.startsWith('--'));
@@ -23,6 +26,8 @@ if (!cycle) {
 const urlFlag = args.indexOf('--url');
 const externalUrl = urlFlag >= 0 ? args[urlFlag + 1] : null;
 const PORT = 3100;
+const password = externalUrl ? process.env.DAYMARK_PASSWORD : 'screenshots-password-123';
+if (!password) throw new Error('Set DAYMARK_PASSWORD to sign in to --url');
 const baseUrl = externalUrl || `http://localhost:${PORT}`;
 const outDir = path.resolve('docs', 'releases', cycle, 'images');
 fs.mkdirSync(outDir, { recursive: true });
@@ -34,11 +39,12 @@ const VIEWPORTS = {
 };
 
 // { name, viewport, prepare?(page) } - extend per cycle.
-// A fresh browser profile shows the welcome dialog; load the sample vault so shots show real content.
+// Context setup seeds the sample vault before opening the server app.
 const loadSample = async (page) => {
-  await page.getByRole('button', { name: /sample data/i }).click();
+  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(500);
-  // Let the "sample loaded" toast go so it doesn't cover the shot
+  // Dismiss any toast so it does not cover the shot
   await page.getByRole('button', { name: 'Dismiss' }).click().catch(() => {});
 };
 const then = (...steps) => async (page) => {
@@ -91,8 +97,8 @@ async function waitForServer(url, ms = 30000) {
 
 let server;
 if (!externalUrl) {
-  server = spawn('npm', ['run', 'dev'], {
-    env: { ...process.env, PORT: String(PORT), DISABLE_HMR: 'true' },
+  server = spawn('npx', ['tsx', 'server.ts', '--production'], {
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-shots-')), DAYMARK_PASSWORD: password },
     shell: true,
     stdio: 'ignore',
   });
@@ -105,7 +111,10 @@ try {
   // Shots without `cycles` are the generic pair; tagged shots run only for their cycle
   for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle))))) {
     const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], colorScheme: shot.dark ? 'dark' : 'light' });
+    const session = await signIn(ctx, baseUrl, password);
+    if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
     const page = await ctx.newPage();
+    if (!externalUrl) await seedSample(page, baseUrl);
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     if (shot.prepare) await shot.prepare(page);
     const file = path.join(outDir, `${shot.name}.png`);

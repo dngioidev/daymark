@@ -1,9 +1,10 @@
 // Daymark QA regression suite (from the 2026-10-21 QA e2e report). Each check asserts CORRECT behaviour; FAIL = open bug. Exits 1 if any check fails. Run from repo root after `npm run build`: npm run test:qa [-- scenarioPrefix] (prefix match: "B1" also runs B10..B14).
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { signIn, resetServerVault, seedVault } from './helpers/server-session.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -19,10 +20,15 @@ const server = spawn('npx', ['tsx', 'server.ts'], {
   shell: true,
   stdio: 'ignore',
 });
+let browser;
+try {
+let ready = false;
 for (let i = 0; i < 60; i++) {
-  try { if ((await fetch(`${base}/api/health`)).ok) break; } catch {}
+  try { if ((await fetch(`${base}/api/health`)).ok) { ready = true; break; } } catch {}
   await new Promise((r) => setTimeout(r, 500));
 }
+
+if (!ready) throw new Error('production server did not start');
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return ymd(d); };
@@ -31,7 +37,7 @@ const TODAY = day(0), Y1 = day(-1), Y2 = day(-2), Y5 = day(-5);
 const task = (id, status, created, extra = {}) => ({ id, title: `Task ${id}`, status, createdDate: created, originalNoteDate: created, heading: 'Work', order: 1, historyLog: [], ...extra });
 const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ name: 'Work', items, notesContent: notes }, { name: 'Ideas', items: [], notesContent: '' }], updatedAt: `${date}T08:00:00Z` });
 
-const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
+browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
 async function fresh({ docs = [], notes = [], mobile = false, origin = base } = {}) {
   const context = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } });
@@ -39,14 +45,10 @@ async function fresh({ docs = [], notes = [], mobile = false, origin = base } = 
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  const session = await signIn(context, origin, 'qa-password-123');
+  await resetServerVault(context, origin, session.accessToken);
+  await seedVault(page, origin, { docs, notes });
   await page.goto(origin, { waitUntil: 'networkidle' });
-  await page.evaluate(async ({ docs, notes }) => {
-    const db = await new Promise((res, rej) => { const r = indexedDB.open('daymark', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    const put = (k, v) => new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-    await put('daily_docs', docs); await put('notes', notes); await put('onboarded', true);
-    db.close();
-  }, { docs, notes });
-  await page.reload({ waitUntil: 'networkidle' });
   return { context, page, errors };
 }
 const readDocs = (page) => page.evaluate(async () => {
@@ -58,7 +60,143 @@ const settle = (page, ms = 600) => page.waitForTimeout(ms);
 const run = async (id, fn) => {
   if (only && !id.startsWith(only)) return;
   try { await fn(); } catch (e) { check(id, false, 'scenario crashed', e.message.split('\n')[0]); }
+  finally { for (const context of browser.contexts()) await context.close(); }
 };
+
+
+const synced = (page) => page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
+const openSync = (page) => page.getByRole('button', { name: /open sync settings/i }).click();
+const addTask = async (page, title) => {
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder(/what do you need to do/i).fill(title);
+  await page.getByRole('button', { name: 'Add task', exact: true }).click();
+  await page.getByRole('button', { name: `Mark "${title}" done` }).waitFor();
+};
+const signedIn = async () => {
+  const context = await browser.newContext();
+  const session = await signIn(context, base, 'qa-password-123');
+  await resetServerVault(context, base, session.accessToken);
+  const page = await context.newPage();
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await synced(page);
+  return { context, page, session };
+};
+const assertWiped = async (page, id) => {
+  await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+  // The sign-in form is revealed only after startup cleanup has finished.
+  await page.getByLabel('Password', { exact: true }).waitFor();
+  const storage = await page.evaluate(async () => ({
+    databases: (await indexedDB.databases()).map((db) => db.name),
+    keys: Object.keys(localStorage).filter((key) => key.startsWith('daymark')),
+    caches: await caches.keys(),
+  }));
+  check(id, !storage.databases.includes('daymark') && storage.keys.length === 0 && storage.caches.length === 0,
+    'sign-out shows sign-in and wipes IndexedDB, daymark localStorage and caches', JSON.stringify(storage));
+};
+
+await run('A1', async () => {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const response = await page.goto(base, { waitUntil: 'networkidle' });
+    await page.getByLabel('Password', { exact: true }).waitFor();
+    check('A1a', response.status() === 401 && await page.getByRole('heading', { name: 'Sign in', exact: true }).isVisible(), 'fresh navigation returns the 401 sign-in form');
+    await page.getByLabel('Username', { exact: true }).fill('admin');
+    await page.getByLabel('Password', { exact: true }).fill('wrong-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Wrong username or password' }).waitFor();
+    check('A1b', true, 'wrong password shows Wrong username or password');
+    await page.getByLabel('Password', { exact: true }).fill('qa-password-123');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    check('A1c', true, 'right password opens Today');
+  } finally { await context.close(); }
+});
+
+await run('A2', async () => {
+  const { context, page } = await signedIn();
+  try {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    const response = await context.request.post(base + '/api/auth/logout', { headers: { 'X-Daymark-Client': 'web' } });
+    if (!response.ok()) throw new Error('logout failed: ' + response.status());
+    const navigation = await page.reload({ waitUntil: 'networkidle' });
+    await page.getByLabel('Password', { exact: true }).waitFor();
+    check('A2', navigation.status() === 401 && !(await page.getByRole('heading', { name: 'Today', exact: true }).isVisible()), 'installed service worker does not serve the app after logout');
+  } finally { await context.close(); }
+});
+
+await run('A3', async () => {
+  const { context, page, session } = await signedIn();
+  try {
+    const second = await context.newPage();
+    await second.goto(base, { waitUntil: 'networkidle' });
+    await synced(second);
+    // Playwright's page clock applies to every page in this context.
+    await page.clock.install();
+    await Promise.all([page, second].map(openSync));
+    const rotations = [];
+    for (const p of [page, second]) p.on('response', (r) => { if (r.url().endsWith('/api/auth/refresh')) rotations.push(r.status()); });
+    await page.clock.setSystemTime(Date.now() + 16 * 60 * 1000);
+    await Promise.all([page, second].map(async (p) => {
+      const sync = p.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+      await p.getByRole('button', { name: 'Sync now', exact: true }).click();
+      if (!(await sync).ok()) throw new Error('sync after expiration failed');
+      await p.getByText(/up to date/i).first().waitFor();
+    }));
+    const response = await context.request.get(base + '/api/devices', { headers: { Authorization: 'Bearer ' + session.accessToken } });
+    if (!response.ok()) throw new Error('device list failed: ' + response.status());
+    const { devices } = await response.json();
+    check('A3', rotations.length > 0 && rotations.every((status) => status === 200) && devices.some((d) => d.id === session.device.id && !d.revoked)
+      && await page.getByRole('button', { name: 'Sign out', exact: true }).isVisible()
+      && await second.getByRole('button', { name: 'Sign out', exact: true }).isVisible(), 'two tabs rotate after a 16 min clock jump and keep their device active', JSON.stringify({ rotations, deviceActive: devices.some((d) => d.id === session.device.id) }));
+  } finally { await context.close(); }
+});
+
+await run('A4', async () => {
+  const { context, page } = await signedIn();
+  try {
+    await addTask(page, 'A4 synced task');
+    await openSync(page);
+    const pushed = page.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Sync now', exact: true }).click();
+    if (!(await pushed).ok()) throw new Error('task sync failed');
+    await page.getByText(/up to date/i).first().waitFor();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await synced(page);
+    await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+    await page.getByRole('tab', { name: 'Sync', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await assertWiped(page, 'A4');
+  } finally { await context.close(); }
+});
+
+await run('A5', async () => {
+  const { context, page } = await signedIn();
+  try {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    await context.setOffline(true);
+    await addTask(page, 'A5 unsent task');
+    await openSync(page);
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Sign out?' });
+    await dialog.waitFor();
+    check('A5a', (await dialog.innerText()).includes('1 change'), 'offline sign-out warns about 1 change', await dialog.innerText());
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    check('A5b', await page.getByRole('button', { name: 'Mark "A5 unsent task" done' }).isVisible(), 'Cancel keeps the offline task visible');
+    await openSync(page);
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    const leaving = page.waitForRequest((request) => request.isNavigationRequest() && request.url() === base + '/');
+    await dialog.getByRole('button', { name: 'Sign out anyway', exact: true }).click();
+    // Navigation starts after the offline wipe; reconnect to finish pending logout and show sign-in.
+    await leaving;
+    await context.setOffline(false);
+    await page.goto(base, { waitUntil: 'networkidle' });
+    await assertWiped(page, 'A5c');
+  } finally { await context.close(); }
+});
 
 // ---------------------------------------------------------------------------
 await run('B1', async () => {
@@ -287,13 +425,10 @@ await run('B13', async () => {
   const page = await context.newPage();
   const now = new Date(); now.setHours(23, 59, 0, 0);
   await page.clock.install({ time: now });
+  const session = await signIn(context, base, 'qa-password-123');
+  await resetServerVault(context, base, session.accessToken);
+  await seedVault(page, base, { docs: [doc(TODAY, [task('m', 'in-progress', TODAY, { title: 'Overnight task' })])] });
   await page.goto(base, { waitUntil: 'networkidle' });
-  await page.evaluate(async (docs) => {
-    const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); });
-    const put = (k, v) => new Promise((res) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; });
-    await put('daily_docs', docs); await put('onboarded', true);
-  }, [doc(TODAY, [task('m', 'in-progress', TODAY, { title: 'Overnight task' })])]);
-  await page.reload({ waitUntil: 'networkidle' });
   await page.clock.fastForward('02:00');
   await settle(page, 1000);
   const docs = await readDocs(page);
@@ -453,6 +588,9 @@ await run('C6', async () => {
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
-await browser.close();
-server.kill();
-process.exit(results.some((r) => !r.ok) ? 1 : 0);
+process.exitCode = results.some((r) => !r.ok) ? 1 : 0;
+} finally {
+  await browser?.close();
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+  else server.kill();
+}

@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
+import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
 
 const require = createRequire(import.meta.url);
 // A step that fails mid-test can leave a waitForEvent promise behind; don't let it kill the run
@@ -61,10 +62,14 @@ const expect = (cond, message) => {
   if (!cond) throw new Fail(message);
 };
 
-/** Opens the app in a fresh profile. sample: 'sample' | 'empty' | 'none' (leave welcome open). */
+/** Opens a signed-in profile with a sample or empty disposable server vault. */
 async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}) {
   const ctx = await browser.newContext({ ...ENVS[env], colorScheme: scheme, acceptDownloads: true });
+  const origin = new URL(url).origin;
+  const session = await signIn(ctx, origin, PASSWORD);
+  await resetServerVault(ctx, origin, session.accessToken);
   const page = await ctx.newPage();
+  if (start === 'sample') await seedSample(page, origin);
   const dialogs = [];
   page.dialogPolicy = 'dismiss';
   page.promptAnswer = '';
@@ -78,12 +83,11 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
   });
   page.on('pageerror', (e) => consoleErrors.push({ env, url: page.url(), text: `pageerror: ${e.message}`.slice(0, 300) }));
   await page.goto(url, { waitUntil: 'networkidle' });
-  if (start === 'sample') await page.getByRole('button', { name: /sample data/i }).click();
-  if (start === 'empty') await page.getByRole('button', { name: /start fresh/i }).click();
+  await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(400);
   // The "loaded" toast would cover content in scans and screenshots
   await page.getByRole('button', { name: 'Dismiss' }).click({ timeout: 500 }).catch(() => {});
-  return { ctx, page, dialogs };
+  return { ctx, page, dialogs, session };
 }
 
 async function tc(id, title, env, fn) {
@@ -101,6 +105,8 @@ async function tc(id, title, env, fn) {
   } catch (e) {
     status = 'fail';
     details = (e instanceof Fail ? '' : 'Error: ') + e.message.split('\n')[0];
+  } finally {
+    for (const context of browser.contexts()) await context.close();
   }
   results.push({ id, title, env, status, details, ms: Date.now() - started });
   log(`${status.toUpperCase().padEnd(4)} ${id} ${title}${details ? ` -- ${details}` : ''}`);
@@ -223,7 +229,7 @@ async function scan(page, env, scheme, screen) {
 }
 
 const PHONE_SCREENS = {
-  welcome: { start: 'none', open: async () => {} },
+  'signed-in-start': { start: 'none', open: async () => {} },
   today: { open: async () => {} },
   'quick-capture': { open: async (p) => newTask(p).click() },
   'task-status-menu': { open: async (p) => statusChip(p, T1).click() },
@@ -318,14 +324,12 @@ const noIso = (text) => !/\b20\d\d-\d\d-\d\d\b/.test(text);
 
 async function functional() {
   // ---- GL
-  await tc('GL-01', 'First launch shows welcome', 'P412', async () => {
+  await tc('GL-01', 'Server sign-in opens Today without welcome', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'none' });
-    expect(await dialog(page, /welcome to daymark/i).isVisible(), 'welcome dialog not visible');
-    const focusableBehind = await page.evaluate(
-      () => [...document.querySelectorAll('#root button, #root input, #root a[href]')].filter((el) => !el.closest('[inert]') && el.tabIndex >= 0).length
-    );
+    const today = await page.getByRole('heading', { name: 'Today', exact: true }).isVisible();
+    const welcome = await dialog(page, /welcome to daymark/i).isVisible();
     await ctx.close();
-    expect(focusableBehind === 0, `${focusableBehind} controls behind the dialog are focusable`);
+    expect(today && !welcome, 'signed-in server did not open Today directly');
   });
 
   await tc('GL-02', 'Start empty', 'P412', async () => {
@@ -1065,142 +1069,115 @@ async function functional() {
     expect(box.width >= 44, 'back button below 44 px');
   });
 
-  // ---- SY
-  const syncForm = async (page, url, pass) => {
-    await page.getByLabel('Server address').fill(url);
-    await page.getByLabel('Password').fill(pass);
-    await btn(page, /connect and sync/i).click();
-  };
-  await tc('SY-01', 'Sync form labels and input types', 'P412', async () => {
+  // ---- SY: browser sync is automatic; address/password forms belong to native.
+  await tc('SY-01', 'Account view replaces the connection form', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /open sync settings/i).click();
-    const urlMode = await page.getByLabel('Server address').getAttribute('inputmode');
-    const pwType = await page.getByLabel('Password').getAttribute('type');
-    const device = await page.getByLabel('Name for this device').inputValue();
-    const help = await page.getByText(/don't have a server/i).isVisible();
-    const yamlHidden = !(await page.getByText(/restart: unless-stopped/).isVisible());
+    expect(await page.getByText('admin', { exact: true }).isVisible(), 'account missing');
+    expect(await btn(page, /^sign out$/i).isVisible(), 'Sign out missing');
+    expect(await page.getByLabel('Server address').count() === 0, 'native connection form shown on server');
     await ctx.close();
-    expect(urlMode === 'url' && pwType === 'password' && device.length > 0, 'input types');
-    expect(help && yamlHidden, 'server set-up not behind a help link');
   });
 
-  await tc('SY-02', 'Unreachable server', 'P412', async () => {
+  await tc('SY-02', 'Offline account keeps changes locally', 'P412', async () => {
     const { ctx, page } = await open('P412');
+    await ctx.setOffline(true);
     await btn(page, /open sync settings/i).click();
-    await syncForm(page, 'http://127.0.0.1:9', 'whatever1');
-    const alert = dialog(page, 'Settings').getByRole('alert');
-    await alert.waitFor({ timeout: 8000 });
-    const msg = await alert.innerText();
-    const kept = await page.getByLabel('Server address').inputValue();
+    await btn(page, /^sync now$/i).click();
+    await page.getByRole('status').filter({ hasText: /changes are saved here/i }).waitFor();
+    expect(await btn(page, /^sign out$/i).isVisible(), 'account actions disappeared offline');
     await ctx.close();
-    expect(/cannot reach/i.test(msg), `message "${msg}"`);
-    expect(kept.includes('127.0.0.1'), 'form cleared');
   });
 
-  await tc('SY-03', 'Wrong password', 'P412', async () => {
+  await tc('SY-03', 'Sign out returns to the sign-in form', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /open sync settings/i).click();
-    await syncForm(page, BASE, 'wrong-password');
-    const alert = dialog(page, 'Settings').getByRole('alert');
-    await alert.waitFor({ timeout: 8000 });
-    const msg = await alert.innerText();
+    await btn(page, /^sign out$/i).click();
+    await page.getByLabel('Password', { exact: true }).waitFor();
+    expect(await page.getByRole('heading', { name: 'Sign in', exact: true }).isVisible(), 'sign-in form missing');
     await ctx.close();
-    expect(/wrong username or password/i.test(msg), `message "${msg}"`);
   });
 
-  await tc('SY-04', 'Connect, header status, Sync now', 'P412', async () => {
+  await tc('SY-04', 'Automatic sync, header status, Sync now', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /open sync settings/i).click();
-    await syncForm(page, BASE, PASSWORD);
-    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await btn(page, /sync now/i).click();
-    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
+    const response = page.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+    await btn(page, /^sync now$/i).click();
+    expect((await response).ok(), 'manual sync failed');
+    await page.getByText(/up to date/i).first().waitFor();
     await btn(page, /^done$/i).click();
-    const synced = await btn(page, /sync: synced/i).isVisible();
+    expect(await btn(page, /sync: synced/i).isVisible(), 'header status not Synced');
     await ctx.close();
-    expect(synced, 'header status not "Synced"');
   });
 
   await tc('SY-05', 'Devices, activity, password validation', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /open sync settings/i).click();
-    await syncForm(page, BASE, PASSWORD);
     await page.getByText(/this device/i).first().waitFor({ timeout: 15000 });
     await page.getByLabel('Current password').fill('nope-wrong');
     await page.getByLabel('New password').fill('newpassword123');
     await btn(page, /change password/i).click();
-    await page.waitForTimeout(800);
+    await page.getByText(/current password is wrong/i).waitFor();
     const t = await dialog(page, 'Settings').innerText();
     await shot(page, 'SY-05-server-view');
     await ctx.close();
     expect(/recent activity/i.test(t) && /this device/i.test(t), 'devices/activity missing');
     expect(!/change\(s\)|conflict\(s\)/.test(t), 'raw server log wording');
-    expect(/current password is wrong/i.test(t), 'wrong current password not reported');
   });
 
-  await tc('SY-06', 'Disconnect asks first (DS-06)', 'P412', async () => {
-    const { ctx, page } = await open('P412');
+  await tc('SY-06', 'Unsent sign-out asks first and Cancel keeps the task', 'P412', async () => {
+    const { ctx, page } = await open('P412', { start: 'empty' });
+    await ctx.setOffline(true);
+    await capture(page, 'Keep this offline task');
     await btn(page, /open sync settings/i).click();
-    await syncForm(page, BASE, PASSWORD);
-    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await btn(page, /disconnect this device/i).click();
-    const asked = await alertDialog(page).isVisible();
-    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
-    const still = await btn(page, /sync now/i).isVisible();
+    await btn(page, /^sign out$/i).click();
+    const warning = alertDialog(page);
+    await warning.waitFor();
+    expect((await warning.innerText()).includes('1 change'), 'unsent count missing');
+    await warning.getByRole('button', { name: /^cancel$/i }).click();
+    await btn(page, /^done$/i).click();
+    expect(await taskTitle(page, 'Keep this offline task').isVisible(), 'Cancel lost the task');
     await ctx.close();
-    expect(asked && still, 'disconnected without confirmation');
   });
 
   await tc('SY-07', 'Restore on a synced device keeps server data', 'D1440', async () => {
-    // Device A (sample, synced) then device B restores a 1-task backup; the server must keep A's data
-    const a = await open('D1440');
-    await btn(a.page, /open sync settings/i).click();
-    await syncForm(a.page, BASE, PASSWORD);
-    await a.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await a.ctx.close();
     const b = await open('D1440', { start: 'empty' });
     await capture(b.page, 'Only task in backup');
     await openSettings(b.page);
     await b.page.getByRole('tab', { name: /^advanced$/i }).click();
     const dl = b.page.waitForEvent('download');
     await btn(b.page, /download \.json/i).click();
-    const backup = path.join(os.tmpdir(), `daymark-sy07-${Date.now()}.json`);
+    const backup = path.join(os.tmpdir(), 'daymark-sy07-' + Date.now() + '.json');
     fs.copyFileSync(await (await dl).path(), backup);
-    await b.page.getByRole('tab', { name: /^sync$/i }).click();
-    await syncForm(b.page, BASE, PASSWORD);
-    await b.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await b.page.getByRole('tab', { name: /backup & restore/i }).click();
-    const chooser = b.page.waitForEvent('filechooser');
-    await btn(b.page, /choose a backup file/i).click();
-    await (await chooser).setFiles(backup);
-    await alertDialog(b.page).getByRole('button', { name: /^restore$/i }).click();
-    await b.page.waitForTimeout(4500);
-    await openSettings(b.page);
-    await b.page.getByRole('tab', { name: /^sync$/i }).click();
-    await btn(b.page, /sync now/i).click();
-    await b.page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await b.page.waitForTimeout(800);
-    const text = await dialog(b.page, 'Settings').innerText();
     await b.ctx.close();
-    const notes = Number(text.match(/(\d+)\s*Notes/)?.[1]);
-    expect(notes >= 4, `server notes after restore: ${notes}`);
+    const a = await open('D1440');
+    await openSettings(a.page);
+    const chooser = a.page.waitForEvent('filechooser');
+    await btn(a.page, /choose a backup file/i).click();
+    await (await chooser).setFiles(backup);
+    await alertDialog(a.page).getByRole('button', { name: /^restore$/i }).click();
+    await openSettings(a.page);
+    await a.page.getByRole('tab', { name: /^sync$/i }).click();
+    const response = a.page.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+    await btn(a.page, /^sync now$/i).click();
+    expect((await response).ok(), 'restored vault sync failed');
+    await a.page.getByText(/up to date/i).first().waitFor();
+    const stats = await a.ctx.request.get(BASE + '/api/server/stats', { headers: { Authorization: 'Bearer ' + a.session.accessToken } });
+    expect(stats.ok() && (await stats.json()).notes >= 4, 'restore removed server notes');
+    await btn(a.page, /^done$/i).click();
+    expect(await taskTitle(a.page, 'Only task in backup').isVisible(), 'backup task missing after merge');
+    await a.ctx.close();
   });
 
-  await tc('SY-08', 'Repeat sign-in does not duplicate the device', 'P412', async () => {
-    const { ctx, page } = await open('P412');
-    await btn(page, /open sync settings/i).click();
-    await syncForm(page, BASE, PASSWORD);
-    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await btn(page, /disconnect this device/i).click();
-    await alertDialog(page).getByRole('button', { name: /^disconnect$/i }).click();
-    await page.getByLabel('Name for this device').fill('Twice');
-    await syncForm(page, BASE, PASSWORD);
-    await page.getByText(/up to date/i).first().waitFor({ timeout: 15000 });
-    await page.getByText(/^this device$/i).first().waitFor({ timeout: 15000 });
-    // Listed once in Devices (the account summary above names it too)
-    const twice = await dialog(page, 'Settings').locator('ul.divide-y > li', { hasText: 'Twice' }).count();
+  await tc('SY-08', 'Reload keeps the same signed-in device', 'P412', async () => {
+    const { ctx, page, session } = await open('P412');
+    await page.reload({ waitUntil: 'networkidle' });
+    await btn(page, /sync: synced/i).waitFor({ timeout: 20000 });
+    const response = await ctx.request.get(BASE + '/api/devices', { headers: { Authorization: 'Bearer ' + session.accessToken } });
+    expect(response.ok(), 'device list failed');
+    const { devices } = await response.json();
+    expect(devices.filter((d) => d.id === session.device.id).length === 1, 'reload duplicated or revoked device');
     await ctx.close();
-    expect(twice === 1, `"Twice" listed ${twice} times`);
   });
 
   // ---- SE
@@ -1281,19 +1258,12 @@ async function functional() {
     expect(dialogs.length === 0, 'browser alert()/confirm() used');
   });
 
-  await tc('SE-05', 'Sample data asks first; unavailable while synced (DS-04)', 'P412', async () => {
+  await tc('SE-05', 'Sample replacement is unavailable while signed in (DS-04)', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'empty' });
-    await capture(page, 'My own task');
     await openSettings(page);
     await page.getByRole('tab', { name: /^advanced$/i }).click();
-    await btn(page, /replace with sample data/i).click();
-    const asked = await alertDialog(page).isVisible();
-    await alertDialog(page).getByRole('button', { name: /^cancel$/i }).click();
-    await btn(page, /^cancel$/i).last().click().catch(() => {});
-    await page.keyboard.press('Escape');
-    const kept = await taskTitle(page, 'My own task').isVisible();
+    expect(await btn(page, /replace with sample data/i).isDisabled(), 'sample replacement enabled on synced server');
     await ctx.close();
-    expect(asked && kept, 'no confirmation or data replaced on cancel');
   });
 
   await tc('SE-06', 'Statuses: add, save; fits on phones', 'D1440+P412', async () => {
@@ -1419,12 +1389,14 @@ async function functional() {
 }
 // ---------------------------------------------------------------- main
 try {
+  let ready = false;
   for (let i = 0; i < 75; i++) {
     try {
-      if ((await fetch(`${BASE}/api/health`)).ok) break;
+      if ((await fetch(`${BASE}/api/health`)).ok) { ready = true; break; }
     } catch {}
     await new Promise((r) => setTimeout(r, 400));
   }
+  if (!ready) throw new Error('production server did not start');
   browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
   await functional();
   let scanData = null;
@@ -1436,6 +1408,7 @@ try {
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify({ ranAt: new Date().toISOString(), results, consoleErrors: consoleErrors.slice(0, 50) }, null, 1));
   const tally = results.reduce((a, r) => ((a[r.status] = (a[r.status] || 0) + 1), a), {});
   log('\nSummary:', JSON.stringify(tally));
+  process.exitCode = tally.fail ? 1 : 0;
 } finally {
   await browser?.close();
   stopServer();

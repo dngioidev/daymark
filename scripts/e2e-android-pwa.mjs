@@ -6,7 +6,7 @@
  * Usage: npm run build && npm run test:e2e              (checks only)
  *        npm run build && node scripts/e2e-android-pwa.mjs <cycle-name>   (also writes screenshots)
  *
- * Verifies: first-run welcome, real date, quick capture, persistence across reload,
+ * Verifies: signed-in first run, real date, quick capture, persistence across reload,
  * service worker control, offline reload, offline capture persisting, manifest/icons.
  * Exits non-zero on any failed check.
  */
@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { signIn } from './helpers/server-session.mjs';
 
 const noShots = process.argv.includes('--no-shots');
 const cycle = process.argv.slice(2).find((a) => !a.startsWith('--')) || 'cycle-1';
@@ -63,6 +64,7 @@ try {
     deviceScaleFactor: 2,
     serviceWorkers: 'allow',
   });
+  await signIn(context, base, 'e2e-password-123');
   const page = await context.newPage();
   const shot = (name) => (noShots ? undefined : page.screenshot({ path: path.join(outDir, `${name}.png`) }));
 
@@ -75,11 +77,11 @@ try {
     check(res.ok && res.headers.get('content-type') === 'image/png', `icon served as PNG: ${icon.src}`);
   }
 
-  // First run: welcome dialog on an empty profile
+  // First run: server sign-in opens Today directly
   await page.goto(base, { waitUntil: 'networkidle' });
-  check(await page.getByRole('dialog', { name: /welcome to daymark/i }).isVisible(), 'first-run welcome is shown');
-  await shot('android-1-welcome');
-  await page.getByRole('button', { name: /start fresh/i }).click();
+  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  check(!(await page.getByRole('dialog', { name: /welcome to daymark/i }).isVisible()), 'signed-in server opens Today without welcome');
+  await shot('android-1-signed-in');
 
   // Real date, not the old demo date
   const today = localToday();

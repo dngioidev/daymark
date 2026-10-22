@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { signIn } from './helpers/server-session.mjs';
 
 const cycle = process.argv[2];
 const outDir = cycle ? path.resolve('docs', 'releases', cycle, 'images') : null;
@@ -52,14 +53,7 @@ const killServer = (server) =>
     }
   });
 
-async function connect(page, deviceName) {
-  await page.getByLabel('Server address').fill(base);
-  await page.getByLabel('Username').fill('admin');
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByLabel('Name for this device').fill(deviceName);
-  await page.getByRole('button', { name: /connect and sync/i }).click();
-  await page.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
-}
+const synced = (page) => page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
 
 let server = startServer();
 let browser;
@@ -68,26 +62,29 @@ try {
   browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
   const laptopCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const phoneCtx = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await signIn(laptopCtx, base, PASSWORD);
+  await signIn(phoneCtx, base, PASSWORD);
   const laptop = await laptopCtx.newPage();
   const phone = await phoneCtx.newPage();
 
-  // Laptop: start empty, capture a task, connect
+  // Laptop: sign in, capture a task, sync
   await laptop.goto(base, { waitUntil: 'networkidle' });
-  await laptop.getByRole('button', { name: /start fresh/i }).click();
+  await synced(laptop);
   await laptop.getByRole('button', { name: /^new task/i }).click();
   await laptop.getByPlaceholder(/what do you need to do/i).fill('Written on the laptop');
   await laptop.getByRole('button', { name: /^add task$/i }).click();
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
-  await connect(laptop, 'Laptop');
+  await laptop.getByRole('button', { name: /sync now/i }).click();
+  await laptop.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
   check(true, 'laptop connected and synced');
   await shot(laptop, 'sync-1-laptop-connected');
 
-  // Phone: start empty, connect from the Sync tab, receive the laptop's task
+  // Phone: sign in and automatically receive the laptop's task
   await phone.goto(base, { waitUntil: 'networkidle' });
-  await phone.getByRole('button', { name: /start fresh/i }).click();
+  await synced(phone);
   await phone.getByRole('button', { name: /open sync settings/i }).click();
-  await shot(phone, 'sync-2-phone-connect-form');
-  await connect(phone, 'Phone');
+  await shot(phone, 'sync-2-phone-account');
+  await phone.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
   await phone.getByRole('button', { name: /^done$/i }).click();
   await phone.getByText('Written on the laptop').first().waitFor({ timeout: 15000 });
   check(true, 'phone received the laptop task');
@@ -113,8 +110,9 @@ try {
 
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
-  await laptop.getByText('Phone', { exact: true }).waitFor({ timeout: 10000 }).catch(() => {});
-  check(await laptop.getByText('Phone', { exact: true }).isVisible().catch(() => false), 'server lists the phone as a connected device');
+  const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });
+  await deviceRows.nth(1).waitFor({ timeout: 10000 });
+  check(await deviceRows.count() === 2, 'server lists both signed-in browser devices');
   await shot(laptop, 'sync-5-server-dashboard');
 
   // Server restart keeps everything; a new device gets the full vault
@@ -123,10 +121,11 @@ try {
   await waitForServer();
   const thirdCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const third = await thirdCtx.newPage();
+  await signIn(thirdCtx, base, PASSWORD);
   await third.goto(base, { waitUntil: 'networkidle' });
-  await third.getByRole('button', { name: /start fresh/i }).click();
+  await synced(third);
   await third.getByRole('button', { name: /open sync settings/i }).click();
-  await connect(third, 'Desktop 2');
+  await third.getByText(/up to date/i).first().waitFor({ timeout: 20000 });
   await third.getByRole('button', { name: /^done$/i }).click();
   await third.getByRole('button', { name: /^done \(1\)$/i }).click().catch(() => {});
   const both = (await third.getByText('Written on the laptop').count()) > 0 && (await third.getByText('Written on the phone').count()) > 0;

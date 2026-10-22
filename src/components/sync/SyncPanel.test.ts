@@ -3,6 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { UseSyncResult } from '../../hooks/useSync';
 import { SyncPanel } from './SyncPanel';
+import { confirmDialog } from '../ui/feedback';
+
+vi.mock('../ui/feedback', () => ({ confirmDialog: vi.fn(async () => false) }));
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react')>();
+  return { ...actual, useState: vi.fn(actual.useState) };
+});
 
 const sync: UseSyncResult = {
   mode: 'local-web', status: 'off', account: null, lastSyncAt: null, error: null,
@@ -35,4 +42,24 @@ describe('SyncPanel modes', () => {
     expect(html).not.toContain('<form');
     expect(html).toContain('Sync');
   });
+});
+
+it('counts unsent changes in the offline sign-out warning', async () => {
+  const { useState } = await import('react');
+  vi.mocked(useState).mockImplementation((initial?: unknown): [unknown, React.Dispatch<unknown>] => [typeof initial === 'function' ? initial() : initial, vi.fn()]);
+  try {
+    const element = SyncPanel({ sync: { ...sync, mode: 'server', status: 'offline',
+      account: { serverUrl: 'https://daymark.test', username: 'admin', deviceName: 'Browser' },
+      signOut: vi.fn(async () => 'needs-confirm-unreachable' as const), pendingChanges: () => 1,
+    }, defaultDeviceName: 'Browser' });
+    const findSignOut = (node: React.ReactNode): React.ReactElement<{ onClick: () => Promise<void> }> | undefined => {
+      if (!React.isValidElement<{ children?: React.ReactNode; onClick: () => Promise<void> }>(node)) return;
+      if (node.type === 'button' && node.props.children === 'Sign out') return node;
+      return React.Children.toArray(node.props.children).map(findSignOut).find(Boolean);
+    };
+    const button = findSignOut(await element);
+    if (!button) throw new Error('Sign out button missing');
+    await button.props.onClick();
+    expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('1 change') }));
+  } finally { vi.mocked(useState).mockRestore(); }
 });

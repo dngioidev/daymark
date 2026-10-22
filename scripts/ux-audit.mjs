@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
 
 const cycle = process.argv[2] || 'cycle-4';
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').split('=')[1];
@@ -80,10 +81,11 @@ try {
     for (const [vpName, opts, screens] of viewports) {
       for (const [screen, action] of screens) {
         const ctx = await browser.newContext({ ...opts, colorScheme: scheme });
+        const session = await signIn(ctx, base, 'audit-password-1');
+        await resetServerVault(ctx, base, session.accessToken);
         const page = await ctx.newPage();
+        await seedSample(page, base);
         await page.goto(base, { waitUntil: 'networkidle' });
-        await tryClick(page.getByRole('button', { name: /try it with sample data/i }));
-        await page.getByRole('dialog', { name: 'Welcome to Daymark' }).waitFor({ state: 'hidden' });
         await page.waitForTimeout(800);
         await action(page);
         await page.waitForTimeout(700);

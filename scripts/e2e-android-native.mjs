@@ -234,8 +234,9 @@ try {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'admin', password: SYNC_PASSWORD, deviceName: 'e2e check', platform: 'test' }),
   });
-  const { token } = await loginRes.json();
-  const stats = await (await fetch(`http://127.0.0.1:${SYNC_PORT}/api/server/stats`, { headers: { Authorization: `Bearer ${token}` } })).json();
+  if (!loginRes.ok) throw new Error(`API check sign-in failed: ${loginRes.status}`);
+  const { accessToken } = await loginRes.json();
+  const stats = await (await fetch(`http://127.0.0.1:${SYNC_PORT}/api/server/stats`, { headers: { Authorization: `Bearer ${accessToken}` } })).json();
   check(stats.dailyNotes >= 1, 'the phone vault reached the server', `${stats.dailyNotes} daily notes, ${stats.notes} notes`);
 
   // ---- Android Back button ----
