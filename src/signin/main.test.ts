@@ -4,7 +4,7 @@ vi.mock('../native/daymarkBridge', () => ({ isNativeApp: () => false }));
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function page(response: Response | Error, pathname = '/notes') {
+async function page(response: Response | Error, pathname = '/notes', cookie = '', submitForm = true) {
   vi.resetModules();
   let submit: (event: { preventDefault: () => void }) => Promise<void>;
   const elements = {
@@ -14,7 +14,7 @@ async function page(response: Response | Error, pathname = '/notes') {
   };
   const replace = vi.fn();
   const fetcher = vi.fn(async () => { if (response instanceof Error) throw response; return response; });
-  vi.stubGlobal('document', { getElementById: (id: keyof typeof elements) => elements[id] });
+  vi.stubGlobal('document', { cookie, getElementById: (id: keyof typeof elements) => elements[id] });
   vi.stubGlobal('navigator', { userAgent: 'Windows NT' });
   const values = new Map([['daymark_install_id', 'inst-existing']]);
   vi.stubGlobal('localStorage', {
@@ -34,8 +34,8 @@ async function page(response: Response | Error, pathname = '/notes') {
   vi.stubGlobal('fetch', fetcher);
   await import('./main');
   await vi.waitFor(() => expect(elements['signin-form'].hidden).toBe(false));
-  expect(values.has('daymark_install_id')).toBe(false);
-  await submit!({ preventDefault: () => {} });
+  expect(values.has('daymark_install_id')).toBe(!!cookie);
+  if (submitForm) await submit!({ preventDefault: () => {} });
   return { elements, replace, fetcher };
 }
 
@@ -65,4 +65,15 @@ it('shows a connection error and allows retry when offline', async () => {
   expect(result.elements['signin-error'].textContent).toBeTruthy();
   expect(result.elements['signin-submit'].disabled).toBe(false);
   expect(result.replace).not.toHaveBeenCalled();
+});
+
+it('shows the form offline and retries the session check on online without wiping', async () => {
+  const result = await page(new Error('offline'), '/signin.html', 'daymark_signed_in=1', false);
+  expect(result.elements['signin-error'].textContent).toContain('offline');
+  expect(result.replace).not.toHaveBeenCalled();
+  result.fetcher.mockResolvedValue(new Response('{}'));
+  window.dispatchEvent(new Event('online'));
+  await vi.waitFor(() => expect(result.replace).toHaveBeenCalledWith('/'));
+  expect(localStorage.getItem('daymark_install_id')).toBe('inst-existing');
+  expect(result.fetcher).toHaveBeenCalledTimes(2);
 });

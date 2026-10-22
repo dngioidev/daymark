@@ -11,13 +11,19 @@ const submit = document.getElementById('signin-submit') as HTMLButtonElement;
 
 let ready = false;
 let preparing = false;
+let needsRetry = true;
 async function start() {
-  if (ready || preparing) return;
+  if (!needsRetry || preparing) return;
   preparing = true;
   try {
-    ready = await prepareSignIn();
+    const result = await prepareSignIn();
+    ready = result === 'ready' || result === 'offline';
+    needsRetry = result === 'offline' || result === 'logout-pending';
     form.hidden = !ready;
-    error.textContent = ready ? '' : 'Unable to reach the server to finish signing out. Reconnect to continue.';
+    error.textContent = result === 'offline'
+      ? 'Unable to check your session. You may be offline. Reconnect to try again.'
+      : result === 'logout-pending'
+        ? 'Unable to reach the server to finish signing out. Reconnect to continue.' : '';
   } catch {
     error.textContent = 'Could not clear this browser vault. Reload to try again.';
   } finally { preparing = false; }

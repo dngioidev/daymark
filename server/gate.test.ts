@@ -72,7 +72,7 @@ it('marks the public sign-in page so navigation cannot cache it as the app shell
   expect(response.headers.get('X-Daymark-Sign-In')).toBe('1');
 });
 
-it.each(['/assets/x.js', '/sw.js', '/manifest.json', '/icons/icon-192.png', '/signin.html', '/api/health', '/api/notes.html'])('static assets, explicit sign-in and API routes are not gated: %s', async (url) => {
+it.each(['/assets/x.js', '/sw.js', '/manifest.json', '/icons/icon-192.png', '/api/health', '/api/notes.html'])('static assets and API routes are not gated: %s', async (url) => {
   const response = await fetch(base + url);
   expect(response.status).toBe(200);
   expect(await response.text()).toBe('APP');
@@ -84,6 +84,30 @@ it('valid refresh cookie lets the app through without rotating it', async () => 
   const response = await fetch(base + '/', { headers: { Cookie: cookie } });
   expect(await response.text()).toBe('APP');
   expect(JSON.stringify(store.devices)).toBe(before);
+});
+
+it.each(['GET', 'HEAD'])('redirects authenticated %s sign-in requests after decoding and ignoring case', async (method) => {
+  const cookie = await loginCookie();
+  const before = JSON.stringify(store.devices);
+  for (const url of ['/signin.html', '/SIGNIN.HTML', '/%73ignin.htm%6C?restored=1']) {
+    const response = await fetch(base + url, { method, headers: { Cookie: cookie }, redirect: 'manual' });
+    expect(response.status, url).toBe(302);
+    expect(response.headers.get('Location')).toBe('/');
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    if (method === 'HEAD') expect(await response.text()).toBe('');
+  }
+  expect(JSON.stringify(store.devices)).toBe(before);
+});
+
+it.each(['missing', 'revoked', 'expired'])('serves the explicit sign-in page for a %s refresh cookie', async (state) => {
+  const cookie = state === 'missing' ? '' : await loginCookie();
+  if (state === 'revoked') store.devices[0].revoked = true;
+  if (state === 'expired') store.devices[0].refreshExpiresAt = new Date(0).toISOString();
+  for (const url of ['/signin.html', '/SIGNIN.HTML', '/%73ignin.htm%6C']) {
+    const response = await fetch(base + url, { headers: { Cookie: cookie } });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(SIGNIN);
+  }
 });
 
 it.each(['revoked', 'expired', 'invalid', 'hint-only'])('%s cookie gets the sign-in page', async (state) => {

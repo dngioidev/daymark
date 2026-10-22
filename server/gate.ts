@@ -48,9 +48,20 @@ export function createSiteGate(store: FileStore, signInPage: () => string | Prom
   const requireRefresh = createRefreshGate(store, signInPage);
   return (req, res, next) => {
     if ((req.method !== 'GET' && req.method !== 'HEAD') || req.path.startsWith('/api/')) return next();
-    if (req.path === '/signin.html') {
-      res.set('X-Daymark-Sign-In', '1');
-      return next();
+    let decodedPath: string;
+    try {
+      decodedPath = decodeURIComponent(req.path).toLowerCase();
+    } catch {
+      return res.sendStatus(400);
+    }
+    if (decodedPath === '/signin.html') {
+      res.set('Cache-Control', 'no-store');
+      const token = parseCookies(req.headers.cookie)[REFRESH_COOKIE];
+      if (token && checkRefreshToken(store, token)) return res.redirect(302, '/');
+      Promise.resolve().then(signInPage).then((html) => {
+        res.set('X-Daymark-Sign-In', '1').type('html').send(html);
+      }).catch(next);
+      return;
     }
     if (req.path !== '/' && !req.path.endsWith('.html') && path.extname(req.path)) return next();
     requireRefresh(req, res, next);

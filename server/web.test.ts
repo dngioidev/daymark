@@ -90,6 +90,15 @@ it('production serves and marks the public sign-in page', async () => {
   expect(response.headers['x-daymark-sign-in']).toBe('1');
 });
 
+it.each(['GET', 'HEAD'])('production redirects signed-in %s sign-in navigation', async (method) => {
+  const cookie = await loginCookie();
+  for (const url of ['/signin.html', '/SIGNIN.HTML', '/%73ignin.htm%6c']) {
+    const response = await get(url, cookie, method);
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/');
+  }
+});
+
 it('production serves HTML only through the authenticated shell handler', async () => {
   const cookie = await loginCookie();
   const before = JSON.stringify(store.devices);
