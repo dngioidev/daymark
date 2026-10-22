@@ -170,7 +170,7 @@ export const Dialog: React.FC<DialogProps> = ({
 /** Shared button styles so primary/secondary/danger look the same everywhere. */
 export const buttonClass = {
   primary:
-    'inline-flex items-center justify-center gap-1.5 min-h-11 sm:min-h-9 px-4 text-sm font-semibold rounded-lg text-white bg-amber-700 hover:bg-amber-800 dark:bg-amber-500 dark:text-stone-950 dark:hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed',
+    'inline-flex items-center justify-center gap-1.5 min-h-11 sm:min-h-9 px-4 text-sm font-semibold rounded-lg bg-accent text-accent-fg hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed',
   secondary:
     'inline-flex items-center justify-center gap-1.5 min-h-11 sm:min-h-9 px-4 text-sm font-medium rounded-lg text-stone-800 bg-white border border-stone-300 hover:bg-stone-50 dark:text-stone-100 dark:bg-stone-800 dark:border-stone-700 dark:hover:bg-stone-700',
   ghost:

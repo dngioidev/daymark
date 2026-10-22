@@ -1,10 +1,24 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-accent: var(--dm-accent);
+  --color-accent-fg: var(--dm-accent-fg);
+}
+
 @layer base {
   :root {
+    --dm-accent: #b45309;
+    --dm-accent-fg: #ffffff;
     --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  :root.dark {
+    --dm-accent: #f59e0b;
+    --dm-accent-fg: #1c1917;
   }
 
   body {
@@ -169,11 +183,9 @@
   font-weight: 500;
 }
 
-@media (prefers-color-scheme: dark) {
-  .daymark-markdown-body code {
-    color: #fbbf24;
-    background-color: rgba(120, 113, 108, 0.28);
-  }
+.dark .daymark-markdown-body code {
+  color: #fbbf24;
+  background-color: rgba(120, 113, 108, 0.28);
 }
 
 /* Code Blocks */

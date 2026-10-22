@@ -88,7 +88,7 @@ export const DailyHistoryView: React.FC<DailyHistoryViewProps> = ({
   return (
     <div className={compact ? 'space-y-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4 text-sm'}>
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-50">History</h1>
+        <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">History</h1>
         <p className="text-stone-700 dark:text-stone-300">
           Last 7 days: <strong>{week.done} done</strong> · {week.open} still open
         </p>
@@ -147,7 +147,7 @@ export const DailyHistoryView: React.FC<DailyHistoryViewProps> = ({
                       isSelected
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-bold'
                         : isToday
-                          ? 'ring-2 ring-amber-600 dark:ring-amber-400 font-bold text-stone-900 dark:text-stone-50'
+                          ? 'ring-2 ring-accent font-bold text-stone-900 dark:text-stone-50'
                           : isFuture
                             ? 'text-stone-400 dark:text-stone-600'
                             : doc

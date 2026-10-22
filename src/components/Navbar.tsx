@@ -46,8 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       aria-current={activeTab === tab ? 'page' : undefined}
       className={`flex items-center gap-1.5 min-h-9 px-3 rounded-lg whitespace-nowrap ${
         activeTab === tab
-          ? 'text-stone-950 dark:text-stone-50 font-semibold bg-stone-200/80 dark:bg-stone-800'
-          : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-stone-50 hover:bg-stone-100 dark:hover:bg-stone-900'
+          ? 'bg-accent text-accent-fg font-semibold'
+          : 'hover:underline underline-offset-4'
       }`}
     >
       {icon}
@@ -59,12 +59,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const sync = SYNC_LABELS[syncStatus];
 
   return (
-    <header className="sticky top-0 z-40 bg-stone-50/95 dark:bg-stone-950/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800">
+    <header className="sticky top-0 z-40 bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] backdrop-blur-md border-b border-stone-200 dark:border-stone-800">
       <div className="w-full max-w-[1800px] mx-auto flex items-center gap-3 lg:gap-6 px-4 sm:px-6 lg:px-8 py-2">
         <button
           type="button"
           onClick={() => onTabChange('today')}
-          className="text-lg font-bold tracking-tight text-stone-900 dark:text-stone-100 flex items-center gap-2 shrink-0"
+          className="text-lg font-bold tracking-tight flex items-center gap-2 shrink-0"
         >
           <span className="w-3 h-3 rounded-sm bg-amber-600 dark:bg-amber-500" aria-hidden="true" />
           Daymark
@@ -95,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={onOpenSync}
             aria-label={`Sync: ${sync.label}. Open sync settings`}
-            className="inline-flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
+            className="inline-flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg text-sm hover:underline underline-offset-4"
           >
             <span className={`w-2 h-2 rounded-full ${sync.dot}`} aria-hidden="true" />
             <span className="hidden lg:inline">{sync.label}</span>
@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={onSwitchToMobileApp}
               aria-label="Phone layout preview"
               title="Phone layout preview"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:underline underline-offset-4"
             >
               <Smartphone className="w-4 h-4" />
             </button>
@@ -116,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={onOpenSettings}
             aria-label="Settings"
             title="Settings"
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-900"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:underline underline-offset-4"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -124,11 +124,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={onOpenQuickCapture}
             aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
-            className="inline-flex items-center gap-1.5 min-h-9 px-3 text-sm font-semibold rounded-lg text-white bg-amber-700 hover:bg-amber-800 dark:bg-amber-500 dark:text-stone-950 dark:hover:bg-amber-400 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 min-h-9 px-3 text-sm font-semibold rounded-lg bg-accent text-accent-fg hover:brightness-95 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>New task</span>
-            <kbd className="hidden lg:inline ml-1 px-1 rounded bg-amber-950/35 dark:bg-stone-950/15 text-xs font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+            <kbd className="hidden lg:inline ml-1 px-1 rounded bg-black/10 text-xs font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
         </div>
       </div>

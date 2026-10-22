@@ -75,7 +75,7 @@ export const HistoricalCompletionModal: React.FC<HistoricalCompletionModalProps>
               onClick={() => setSelectedDate(d)}
               className={`min-h-11 sm:min-h-9 px-3.5 rounded-full border font-medium ${
                 selectedDate === d
-                  ? 'bg-amber-700 border-amber-700 text-white dark:bg-amber-500 dark:border-amber-500 dark:text-stone-950'
+                  ? 'bg-accent border-accent text-accent-fg'
                   : 'bg-white border-stone-300 text-stone-800 hover:bg-stone-50 dark:bg-stone-800 dark:border-stone-700 dark:text-stone-100'
               }`}
             >

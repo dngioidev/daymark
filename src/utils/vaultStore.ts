@@ -5,6 +5,7 @@ import type { SyncState } from '../sync/syncClient';
 import { isDailyDocument, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
+import { decideInitialAppearance } from './appearance';
 
 /**
  * Vault persistence.
@@ -243,9 +244,17 @@ function loadValid<T>(key: string, isValid: (v: unknown) => v is T, label: strin
 
 export function loadSettings(): AppSettings {
   const value = cache.get(KEYS.SETTINGS) as AppSettings | undefined;
-  if (!value) return DEFAULT_SETTINGS;
+  let settings = value ?? DEFAULT_SETTINGS;
+  if (!value?.appearance) {
+    const hasExistingData = [KEYS.SETTINGS, KEYS.DAILY_DOCS, KEYS.NOTES].some(
+      (key) => cache.has(key) || readLegacyLocalStorage(key) !== undefined,
+    );
+    const systemPrefersDark = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    settings = { ...settings, appearance: decideInitialAppearance(hasExistingData, systemPrefersDark) };
+    saveSettings(settings);
+  }
   // Older versions defaulted the date override to a fixed demo date
-  return normalizeSettings(value.simulatedToday === LEGACY_SIMULATED_DATE ? { ...value, simulatedToday: '' } : value);
+  return normalizeSettings(settings.simulatedToday === LEGACY_SIMULATED_DATE ? { ...settings, simulatedToday: '' } : settings);
 }
 
 export function saveSettings(settings: AppSettings): void {

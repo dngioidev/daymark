@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAppearance } from './hooks/useAppearance';
+import { DEFAULT_APPEARANCE } from './utils/defaultData';
 import {
   DailyDocument,
   StandaloneNote,
@@ -77,6 +79,7 @@ export default function App() {
 
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, null);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;

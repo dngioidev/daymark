@@ -1,4 +1,10 @@
-import { AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
+import { AppearanceSettings, AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
+
+export const DEFAULT_APPEARANCE: AppearanceSettings = {
+  theme: 'light', textSize: 'm', dim: 35, blur: 4,
+  light: { headerBg: '#fafaf9', headerOpacity: 100, headerText: 'auto', pageText: 'auto', accent: 'auto' },
+  dark: { headerBg: '#0c0a09', headerOpacity: 100, headerText: 'auto', pageText: 'auto', accent: 'auto' },
+};
 
 export const DEFAULT_STATUSES: StatusDefinition[] = [
   {
@@ -79,13 +85,21 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
     return label === s.label && s.color === builtIn.color ? s : { ...s, label, color: builtIn.color };
   });
   const defaultHeadings = settings.defaultHeadings.length ? settings.defaultHeadings : [...DEFAULT_HEADINGS];
-  return defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
-    ? settings : { ...settings, statuses, defaultHeadings };
+  const filledAppearance = {
+    ...DEFAULT_APPEARANCE, ...settings.appearance,
+    light: { ...DEFAULT_APPEARANCE.light, ...settings.appearance?.light },
+    dark: { ...DEFAULT_APPEARANCE.dark, ...settings.appearance?.dark },
+  };
+  const appearance = JSON.stringify(filledAppearance) === JSON.stringify(settings.appearance)
+    ? settings.appearance : filledAppearance;
+  return appearance === settings.appearance && defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
+    ? settings : { ...settings, statuses, defaultHeadings, appearance };
 }
 
 export const DEFAULT_HEADINGS = ['Work', 'Meetings', 'Ideas', 'Attention'];
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  appearance: DEFAULT_APPEARANCE,
   defaultHeadings: DEFAULT_HEADINGS,
   agingThresholds: {
     attentionDays: 3,

@@ -432,7 +432,7 @@ export const MobileCodeHub: React.FC<MobileCodeHubProps> = ({
 
         <button
           onClick={handleDownloadNativeZip}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs transition-colors self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-accent text-accent-fg hover:brightness-95 rounded-md shadow-2xs transition-colors self-start sm:self-auto"
         >
           <Download className="w-3.5 h-3.5" />
           <span>Download Native Code (.zip)</span>

@@ -90,7 +90,41 @@ export interface SyncConfiguration {
   status: 'offline' | 'synced' | 'syncing' | 'error';
 }
 
+export type ThemeMode = 'light' | 'dark';
+export type TextSize = 's' | 'm' | 'l';
+/** 'auto' or a '#rrggbb' colour. */
+export type ColorChoice = string;
+export interface ThemeColors {
+  headerBg: string;
+  headerOpacity: number;
+  headerText: ColorChoice;
+  pageText: ColorChoice;
+  accent: ColorChoice;
+}
+export interface AppearanceSettings {
+  theme: ThemeMode;
+  textSize: TextSize;
+  dim: number;
+  blur: number;
+  light: ThemeColors;
+  dark: ThemeColors;
+}
+export interface ResolvedAppearance {
+  theme: ThemeMode;
+  rootFontPx: 15 | 16 | 17.5;
+  headerBg: string;
+  headerBgOpaque: string;
+  headerText: string;
+  pageText: string;
+  accent: string;
+  accentText: string;
+  dim: number;
+  blur: number;
+  warnings: { field: 'headerText' | 'pageText' | 'accent'; ratio: number }[];
+}
+
 export interface AppSettings {
+  appearance?: AppearanceSettings;
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;
   statuses: StatusDefinition[];

@@ -365,7 +365,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         <ChevronLeft className="w-5 h-5" />
       </button>
       <div className="min-w-0 flex-1 sm:flex-none text-center sm:text-left sm:min-w-56">
-        <h1 className="text-xl font-bold leading-tight text-stone-900 dark:text-stone-50">{formatDay(date, simulatedToday)}</h1>
+        <h1 className="text-xl font-bold leading-tight text-[var(--dm-page-fg)]">{formatDay(date, simulatedToday)}</h1>
         <p className="text-sm text-stone-600 dark:text-stone-400 truncate">{formatLongDate(date)}</p>
       </div>
       <button type="button" onClick={() => changeDay(getNextDate(date))} aria-label="Next day" className={iconBtn}>

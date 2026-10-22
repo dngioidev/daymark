@@ -202,6 +202,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       <ul className="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
         {filteredNotes.length > 0 ? (
           filteredNotes.map((note) => {
+            const isSelected = note.id === activeNote?.id && !compact;
             const checklist = noteChecklist(note.content);
             const preview = notePreview(note.content.replace(new RegExp(`^#\\s+${note.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), ''));
             return (
@@ -212,16 +213,16 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                     setSelectedNoteId(note.id);
                     setPane('editor');
                   }}
-                  aria-current={note.id === activeNote?.id && !compact ? 'true' : undefined}
+                  aria-current={isSelected ? 'true' : undefined}
                   className={`w-full text-left px-3 py-2.5 ${
-                    note.id === activeNote?.id && !compact ? 'bg-amber-50 dark:bg-amber-950/30' : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
+                    isSelected ? 'bg-accent text-accent-fg' : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="flex-1 min-w-0 font-semibold text-[15px] sm:text-sm text-stone-900 dark:text-stone-100 truncate">{note.title || 'Untitled'}</span>
-                    {note.pinned && <Pin className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" role="img" aria-label="Pinned" />}
+                    <span className={`flex-1 min-w-0 font-semibold text-[15px] sm:text-sm truncate ${isSelected ? '' : 'text-stone-900 dark:text-stone-100'}`}>{note.title || 'Untitled'}</span>
+                    {note.pinned && <Pin className={`w-4 h-4 shrink-0 ${isSelected ? '' : 'text-amber-700 dark:text-amber-400'}`} role="img" aria-label="Pinned" />}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
+                  <div className={`mt-0.5 flex items-center gap-2 text-xs ${isSelected ? '' : 'text-stone-600 dark:text-stone-400'}`}>
                     <span className="font-medium">{note.folder}</span>
                     <span aria-hidden="true">·</span>
                     <span>{formatNoteDate(note.updatedAt)}</span>
@@ -231,7 +232,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                       </span>
                     )}
                   </div>
-                  {preview && <p className="mt-1 text-sm text-stone-600 dark:text-stone-400 line-clamp-2">{preview}</p>}
+                  {preview && <p className={`mt-1 text-sm line-clamp-2 ${isSelected ? '' : 'text-stone-600 dark:text-stone-400'}`}>{preview}</p>}
                 </button>
               </li>
             );
@@ -410,7 +411,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     >
       {(pane === 'list' || !compact) && (
         <div className={`flex items-center gap-2 ${pane === 'editor' ? 'hidden lg:flex' : ''}`}>
-          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-50 mr-auto">Notes</h1>
+          <h1 className="text-xl font-bold text-[var(--dm-page-fg)] mr-auto">Notes</h1>
           <button type="button" onClick={() => setShowNewFolder(!showNewFolder)} className={buttonClass.ghost}>
             <FolderPlus className="w-4 h-4" /> <span className="hidden sm:inline">New folder</span>
             <span className="sm:hidden">Folder</span>

@@ -34,7 +34,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onStartEmpty
         type="button"
         data-autofocus
         onClick={onStartEmpty}
-        className="w-full flex items-center gap-3 px-4 py-3 min-h-14 rounded-xl text-left font-semibold text-white bg-amber-700 hover:bg-amber-800 dark:bg-amber-500 dark:text-stone-950 dark:hover:bg-amber-400"
+        className="w-full flex items-center gap-3 px-4 py-3 min-h-14 rounded-xl text-left font-semibold bg-accent text-accent-fg hover:brightness-95"
       >
         <FileText className="w-5 h-5 shrink-0" />
         <span>

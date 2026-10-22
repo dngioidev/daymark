@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      try {
+        const a = JSON.parse(localStorage.getItem('daymark_theme') || 'null');
+        document.documentElement.classList.toggle('dark', a ? a.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.style.fontSize = ({ s: 15, m: 16, l: 17.5 }[a?.textSize] || 16) + 'px';
+      } catch {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1c1917" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased font-sans min-h-screen selection:bg-amber-200 dark:selection:bg-amber-900/60 selection:text-amber-900 dark:selection:text-amber-100">
+  <body class="bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased font-sans min-h-screen selection:bg-accent selection:text-accent-fg">
     <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#78716c;font-size:14px">Opening your vault…</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
