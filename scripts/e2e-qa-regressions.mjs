@@ -371,15 +371,15 @@ await run('B5', async () => {
 
 await run('B6', async () => {
   const { page, context } = await fresh({ docs: [doc(Y2, [task('a', 'in-progress', Y2, { title: 'Past task' })]), doc(Y1, [task('a', 'done', Y2, { title: 'Past task', carriedFromDate: Y2, completedDate: Y1 })]), doc(TODAY, [task('z', 'in-progress', TODAY, { title: 'filler' })])] });
-  await page.getByRole('button', { name: /^History$/ }).first().click();
+  await page.getByRole('button', { name: /^Calendar$/ }).first().click();
   await settle(page);
   await page.getByRole('button', { name: 'Reopen' }).first().click();
   await settle(page);
   const docs = await readDocs(page);
-  check('B6a', titlesOn(docs, Y1)[0]?.endsWith('|in-progress'), 'History > Reopen marks the task not done on that day', JSON.stringify(titlesOn(docs, Y1)));
+  check('B6a', titlesOn(docs, Y1)[0]?.endsWith('|in-progress'), 'Calendar > Reopen marks the task not done on that day', JSON.stringify(titlesOn(docs, Y1)));
   await page.getByRole('button', { name: /^Today$/ }).first().click();
   await settle(page);
-  check('B6b', await page.getByRole('button', { name: 'Mark "Past task" done' }).isVisible(), 'a task reopened in History shows up on Today', 'not on Today until tomorrow / manual refresh');
+  check('B6b', await page.getByRole('button', { name: 'Mark "Past task" done' }).isVisible(), 'a task reopened in Calendar shows up on Today', 'not on Today until tomorrow / manual refresh');
   await context.close();
 });
 
@@ -525,7 +525,7 @@ await run('B13', async () => {
 });
 
 await run('B14', async () => {
-  // Mobile: complete flow - capture, toggle, history, notes
+  // Mobile: complete flow - capture, toggle, calendar, notes
   const { page, context, errors } = await fresh({ mobile: true, docs: [doc(Y1, [task('a', 'in-progress', Y5, { title: 'Phone carried task' })])] });
   check('B14a', await page.getByText('Phone carried task').isVisible(), 'phone: carried task visible');
   await page.getByRole('button', { name: 'Mark "Phone carried task" done' }).click();

@@ -237,7 +237,7 @@ const PHONE_SCREENS = {
   'task-details': { open: async (p) => taskTitle(p, T1).click() },
   'historical-modal': { open: async (p) => { await optionsButton(p, T1).click(); await p.getByRole('menuitem', { name: /another day/i }).click(); } },
   'markdown-mode': { open: async (p) => { await btn(p, /more options for this day/i).click(); await p.getByRole('menuitem', { name: /edit as markdown/i }).click(); } },
-  history: { open: async (p) => btn(p, /^history$/i).click() },
+  calendar: { open: async (p) => btn(p, /^calendar$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   'note-editor': { open: async (p) => { await btn(p, /^notes$/i).click(); await p.getByText('Weekly Sprint Sync Notes').click(); } },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
@@ -248,7 +248,7 @@ const DESKTOP_SCREENS = {
   today: { open: async () => {} },
   'split-mode': { open: async (p) => btn(p, /^split$/i).click() },
   'quick-capture': { open: async (p) => newTask(p).click() },
-  history: { open: async (p) => btn(p, /^history$/i).click() },
+  calendar: { open: async (p) => btn(p, /^calendar$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
   'settings-backup': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: 'Backup & restore', exact: true }).click(); } },
@@ -278,7 +278,7 @@ async function runScans() {
   const responsive = [];
   for (const env of ['D320', 'P360', 'P412', 'T768', 'D1024', 'D1280', 'D1440', 'D1920']) {
     const phoneLayout = ENVS[env].viewport.width < 768;
-    const screens = phoneLayout ? ['today', 'history', 'notes', 'sync', 'settings-backup', 'settings-statuses'] : ['today', 'history', 'notes', 'sync', 'settings-backup', 'settings-statuses'];
+    const screens = phoneLayout ? ['today', 'calendar', 'notes', 'sync', 'settings-backup', 'settings-statuses'] : ['today', 'calendar', 'notes', 'sync', 'settings-backup', 'settings-statuses'];
     for (const screen of screens) {
       const def = (phoneLayout ? PHONE_SCREENS : DESKTOP_SCREENS)[screen];
       const { ctx, page } = await open(env);
@@ -390,7 +390,7 @@ async function functional() {
     const { ctx, page } = await open('P412');
     const nav = page.getByRole('navigation', { name: 'Main' });
     for (const [name, check] of [
-      [/^history$/i, async () => /last 7 days/i.test(await visibleText(page))],
+      [/^calendar$/i, async () => /last 7 days/i.test(await visibleText(page))],
       [/^notes$/i, async () => /new note/i.test(await visibleText(page))],
       [/^today$/i, async () => taskTitle(page, T1).isVisible()],
       [/^settings$/i, async () => isOpenDialog(page, 'Settings')],
@@ -441,8 +441,8 @@ async function functional() {
       const { ctx, page } = await open(env);
       const fits = await page.evaluate(() => [...document.querySelectorAll('header button')].every((b) => b.getBoundingClientRect().right <= innerWidth));
       expect(fits, `${env}: navbar item off-screen`);
-      await btn(page, /^history$/i).click();
-      expect(/last 7 days/i.test(await visibleText(page)), `${env}: history not shown`);
+      await btn(page, /^calendar$/i).click();
+      expect(/last 7 days/i.test(await visibleText(page)), `${env}: calendar not shown`);
       await btn(page, /^notes$/i).click();
       expect(/new folder/i.test(await visibleText(page)), `${env}: notes not shown`);
       await openSettings(page);
@@ -453,7 +453,7 @@ async function functional() {
 
   await tc('NAV-06', 'Logo returns to Today', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^history$/i).click();
+    await btn(page, /^calendar$/i).click();
     await btn(page, /^daymark$/i).click();
     await page.waitForTimeout(300);
     const ok = await taskTitle(page, T1).isVisible();
@@ -895,10 +895,10 @@ async function functional() {
   });
 
   // ---- HI
-  await tc('HI-01', 'History opens on the latest day', 'P412+D1440', async () => {
+  await tc('HI-01', 'Calendar opens on the latest day', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
-      await btn(page, /^history$/i).first().click();
+      await btn(page, /^calendar$/i).first().click();
       const h = await page.locator('h2').filter({ hasText: /day|,/ }).last().innerText();
       await ctx.close();
       expect(/\d/.test(h), `${env}: no day shown (${h})`);
@@ -907,7 +907,7 @@ async function functional() {
 
   await tc('HI-02', 'Calendar day select, empty day wording', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^history$/i).click();
+    await btn(page, /^calendar$/i).click();
     const empty = page.getByRole('button', { name: /: nothing recorded$/i }).first();
     await empty.click();
     const text = await visibleText(page);
@@ -921,7 +921,7 @@ async function functional() {
 
   await tc('HI-03', 'Month navigation', 'P412', async () => {
     const { ctx, page } = await open('P412');
-    await btn(page, /^history$/i).click();
+    await btn(page, /^calendar$/i).click();
     const m0 = await page.locator('h2').first().innerText();
     await btn(page, /previous month/i).click();
     const m1 = await page.locator('h2').first().innerText();
@@ -935,7 +935,7 @@ async function functional() {
 
   await tc('HI-04', 'Recent days list and "Open this day"', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
-    await btn(page, /^history$/i).click();
+    await btn(page, /^calendar$/i).click();
     const list = await page.getByRole('heading', { name: /recent days/i }).isVisible();
     await btn(page, /open this day/i).click();
     const onToday = await btn(page, /^today$/i).last().isVisible();

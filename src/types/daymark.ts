@@ -63,6 +63,17 @@ export interface DailyDocument {
   updatedAt: string;
 }
 
+export interface CalendarCell {
+  date: string;
+  inMonth: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+  done: number;
+  total: number;
+  hasNotes: boolean;
+  titles: string[];
+}
+
 export interface StandaloneNote {
   id: string;
   title: string;
@@ -133,11 +144,11 @@ export interface AppSettings {
   syncConfig: SyncConfiguration;
 }
 
-export type ViewTab = 'today' | 'history' | 'notes' | 'mobile-code' | 'server' | 'settings';
+export type ViewTab = 'today' | 'calendar' | 'notes' | 'mobile-code' | 'server' | 'settings';
 
 export type AppMode = 'desktop' | 'mobile-app' | 'web-server';
 
-export type MobileTab = 'today' | 'history' | 'notes' | 'sync' | 'settings';
+export type MobileTab = 'today' | 'calendar' | 'notes' | 'sync' | 'settings';
 
 export interface ServerAuthState {
   isLoggedIn: boolean;

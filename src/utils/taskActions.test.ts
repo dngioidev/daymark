@@ -47,10 +47,10 @@ describe('move to tomorrow menu destination', () => {
 });
 
 describe('move date validation', () => {
-  it('rejects an empty date, past dates, today and the source day inline', () => {
+  it('rejects an empty date, past dates and the source day, allowing today as a Calendar destination', () => {
     expect(getMoveTaskDateError('', '2026-10-25', '2026-10-22')).toBe('Choose a date.');
-    expect(getMoveTaskDateError('2026-10-21', '2026-10-25', '2026-10-22')).toBe('Choose tomorrow or a later day.');
-    expect(getMoveTaskDateError('2026-10-22', '2026-10-25', '2026-10-22')).toBe('Choose tomorrow or a later day.');
+    expect(getMoveTaskDateError('2026-10-21', '2026-10-25', '2026-10-22')).toBe('Choose today or a later day.');
+    expect(getMoveTaskDateError('2026-10-22', '2026-10-25', '2026-10-22')).toBeNull();
     expect(getMoveTaskDateError('2026-10-25', '2026-10-25', '2026-10-22')).toBe('Choose a different day from the source day.');
     expect(getMoveTaskDateError('2026-10-23', '2026-10-25', '2026-10-22')).toBeNull();
   });

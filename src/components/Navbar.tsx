@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, FileText, FolderOpen, Plus, Settings, Smartphone } from 'lucide-react';
+import { Calendar, CalendarDays, FolderOpen, Plus, Settings, Smartphone } from 'lucide-react';
 import { ViewTab } from '../types/daymark';
 
 export type NavSyncStatus = 'off' | 'synced' | 'syncing' | 'offline' | 'error';
@@ -85,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             )
           )}
-          {link('history', <FileText className="w-4 h-4" />, 'History')}
+          {link('calendar', <CalendarDays className="w-4 h-4" />, 'Calendar')}
           {link('notes', <FolderOpen className="w-4 h-4" />, 'Notes')}
           {showDevTabs && link('mobile-code', <Smartphone className="w-4 h-4" />, 'Mobile & Code')}
         </nav>

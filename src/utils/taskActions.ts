@@ -11,7 +11,7 @@ export function getMoveToTomorrowDate(status: TaskItem['status'], fromDate: stri
 export function getMoveTaskDateError(toDate: string, fromDate: string, today: string): string | null {
   if (!toDate) return 'Choose a date.';
   if (toDate === fromDate) return 'Choose a different day from the source day.';
-  if (toDate <= today) return 'Choose tomorrow or a later day.';
+  if (toDate < today) return 'Choose today or a later day.';
   return null;
 }
 

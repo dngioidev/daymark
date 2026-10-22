@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Calendar, FileText, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Settings } from 'lucide-react';
 import { AppSettings, DailyDocument, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
-import { DailyHistoryView } from '../DailyHistoryView';
+import { CalendarView } from '../CalendarView';
 import { StandaloneNotesView } from '../StandaloneNotesView';
 import { SyncStatus } from '../../hooks/useSync';
 import { getMostRecentPastDate } from '../../utils/lifecycleEngine';
@@ -25,10 +25,10 @@ interface MobileAppShellProps {
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
-  onMoveTask?: (taskId: string, toDate: string) => void;
+  onMoveTask: (taskId: string, toDate: string, fromDate?: string) => void;
   onReopenTask: (taskId: string, targetDate: string) => void;
   onTriggerRollover: () => void;
-  /** Shows a past day in the Today tab. */
+  /** Shows any day in the Today editor. */
   onOpenDay: (date: string) => void;
   /** Present on wide screens: return to the desktop layout. */
   onSwitchToDesktop?: () => void;
@@ -63,11 +63,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   initialTab,
   onOpenSettings,
 }) => {
-  const [activeTab, setActiveTab] = useState<MobileTab>(initialTab === 'today' || initialTab === 'history' || initialTab === 'notes' ? initialTab : 'today');
+  const [activeTab, setActiveTab] = useState<MobileTab>(initialTab === 'today' || initialTab === 'calendar' || initialTab === 'notes' ? initialTab : 'today');
   const isOnline = useOnlineStatus();
   const { canInstall, install } = usePwaInstall();
   const [frame, setFrame] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth >= 768);
-  const [historyDate, setHistoryDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, simulatedToday));
+  const [calendarDate, setCalendarDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, simulatedToday));
 
   // Android Back: other tab -> Today, then leave the app
   useBackHandler(() => {
@@ -164,16 +164,17 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'history' && (
-            <DailyHistoryView
+          {activeTab === 'calendar' && (
+            <CalendarView
               compact
               dailyDocuments={dailyDocs}
-              selectedDate={historyDate}
+              selectedDate={calendarDate}
               simulatedToday={simulatedToday}
               statuses={settings.statuses}
-              onSelectDate={setHistoryDate}
+              onSelectDate={setCalendarDate}
               onReopenTask={onReopenTask}
               onMarkDoneOnDay={onQuickHistoricalDone}
+              onMoveTask={(taskId, fromDate, toDate) => onMoveTask(taskId, toDate, fromDate)}
               onOpenDay={(date) => {
                 onOpenDay(date);
                 setActiveTab('today');
@@ -191,9 +192,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           }`}
         >
           {tabButton('today', <Calendar className="w-5 h-5" />, 'Today')}
-          {tabButton('history', <FileText className="w-5 h-5" />, 'History', () => {
-            setActiveTab('history');
-            if (!dailyDocs.some((d) => d.date === historyDate)) setHistoryDate(getMostRecentPastDate(dailyDocs, simulatedToday));
+          {tabButton('calendar', <CalendarDays className="w-5 h-5" />, 'Calendar', () => {
+            setActiveTab('calendar');
+            if (calendarDate <= simulatedToday && !dailyDocs.some((d) => d.date === calendarDate)) {
+              setCalendarDate(getMostRecentPastDate(dailyDocs, simulatedToday));
+            }
           })}
           <button
             type="button"

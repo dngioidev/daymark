@@ -47,7 +47,7 @@ import {
 } from './utils/lifecycleEngine';
 import { Navbar } from './components/Navbar';
 import { TodayView } from './components/TodayView';
-import { DailyHistoryView } from './components/DailyHistoryView';
+import { CalendarView } from './components/CalendarView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 // Developer-only screen (large embedded code samples): loaded on demand
 const MobileCodeHub = React.lazy(() => import('./components/MobileCodeHub').then((m) => ({ default: m.MobileCodeHub })));
@@ -77,7 +77,11 @@ export default function App() {
   });
 
   // Desktop active tab
-  const [activeDesktopTab, setActiveDesktopTab] = useState<ViewTab>('today');
+  const [activeDesktopTab, setActiveDesktopTab] = useState<ViewTab>(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab === 'history') return 'calendar';
+    return tab === 'today' || tab === 'calendar' || tab === 'notes' ? tab : 'today';
+  });
 
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
@@ -98,12 +102,13 @@ export default function App() {
   const realToday = useRealToday();
   const today = resolveToday(settings.simulatedToday, realToday);
   const [currentDate, setCurrentDate] = useState<string>(today);
-  const [historySelectedDate, setHistorySelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
 
   // Deep link target for the mobile shell (?tab=notes from manifest shortcuts)
   const [initialMobileTab] = useState<MobileTab | undefined>(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'today' || tab === 'history' || tab === 'notes' ? tab : undefined;
+    if (tab === 'history') return 'calendar';
+    return tab === 'today' || tab === 'calendar' || tab === 'notes' ? tab : undefined;
   });
 
   // First-run welcome (empty vault) and dev-only UI
@@ -149,7 +154,7 @@ export default function App() {
     previousTodayRef.current = today;
     if (previousToday !== today) {
       setCurrentDate((prev) => (prev === previousToday ? today : prev));
-      setHistorySelectedDate(getMostRecentPastDate(dailyDocs, today));
+      setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
     const { updatedDocs, carriedCount } = performDailyRollover(
       today,
@@ -174,10 +179,10 @@ export default function App() {
     return false;
   });
 
-  // History opens on the latest day that actually has a note
+  // Keep the latest recorded past day as the initial review, preserving future selections.
   useEffect(() => {
-    if (activeDesktopTab === 'history' && !dailyDocs.some((d) => d.date === historySelectedDate)) {
-      setHistorySelectedDate(getMostRecentPastDate(dailyDocs, today));
+    if (activeDesktopTab === 'calendar' && calendarSelectedDate <= today && !dailyDocs.some((d) => d.date === calendarSelectedDate)) {
+      setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDesktopTab]);
@@ -218,7 +223,7 @@ export default function App() {
   );
 
 
-  // Ensure document exists for currentDate
+  // Synthesize an unsaved day for the editor; opening a date never persists it.
   const currentDoc = useMemo(() => {
     let doc = dailyDocs.find((d) => d.date === currentDate);
     if (!doc) {
@@ -555,8 +560,7 @@ export default function App() {
       action: { label: 'Undo', onClick: () => patchDocument(date, (d) => restoreTaskToDocument(d, removed)) },
     });
   };
-  const handleMoveTask = (taskId: string, toDate: string): void => {
-    const fromDate = currentDate;
+  const handleMoveTask = (taskId: string, toDate: string, fromDate = currentDate): void => {
     const error = getMoveTaskDateError(toDate, fromDate, today);
     if (error) {
       showToast(error, { tone: 'error' });
@@ -613,15 +617,16 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'history' && (
-              <DailyHistoryView
+            {activeDesktopTab === 'calendar' && (
+              <CalendarView
                 dailyDocuments={dailyDocs}
-                selectedDate={historySelectedDate}
+                selectedDate={calendarSelectedDate}
                 simulatedToday={today}
                 statuses={settings.statuses}
-                onSelectDate={setHistorySelectedDate}
+                onSelectDate={setCalendarSelectedDate}
                 onReopenTask={handleReopenTask}
                 onMarkDoneOnDay={handleQuickHistoricalDone}
+                onMoveTask={(taskId, fromDate, toDate) => handleMoveTask(taskId, toDate, fromDate)}
                 onOpenDay={(date) => {
                   setCurrentDate(date);
                   setActiveDesktopTab('today');

@@ -301,7 +301,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           <input
             id={`${moveId}-date`}
             type="date"
-            min={tomorrow}
+            min={today}
             value={moveDate}
             onChange={(e) => {
               setMoveDate(e.target.value);
