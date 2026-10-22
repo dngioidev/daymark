@@ -37,6 +37,7 @@ interface TodayViewProps {
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
+  onMoveTask?: (taskId: string, toDate: string) => void;
   onTriggerRollover: () => void;
   /** Phone layout: tighter spacing, no Split view, no manual refresh (rollover runs automatically). */
   compact?: boolean;
@@ -87,6 +88,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
+  onMoveTask,
   onTriggerRollover,
 }) => {
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
@@ -337,6 +339,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   const cardProps = {
     currentDate: date,
+    today: simulatedToday,
+    onMoveTask,
     statuses,
     agingThresholds,
     onUpdateTask: handleTaskUpdate,

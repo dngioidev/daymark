@@ -25,6 +25,7 @@ interface MobileAppShellProps {
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
+  onMoveTask?: (taskId: string, toDate: string) => void;
   onReopenTask: (taskId: string, targetDate: string) => void;
   onTriggerRollover: () => void;
   /** Shows a past day in the Today tab. */
@@ -53,6 +54,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
+  onMoveTask,
   onReopenTask,
   onTriggerRollover,
   onOpenDay,
@@ -156,6 +158,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               onOpenHistoricalModal={onOpenHistoricalModal}
               onOpenHistoryDrawer={onOpenHistoryDrawer}
               onQuickHistoricalDone={onQuickHistoricalDone}
+              onMoveTask={onMoveTask}
               onTriggerRollover={onTriggerRollover}
             />
           )}

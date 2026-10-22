@@ -102,6 +102,7 @@ export function performDailyRollover(
   // (or edited) later is never resurrected from a stale copy.
   const seenTaskIds = new Set<string>();
   for (const pastDoc of pastDocs) {
+    for (const id of pastDoc.removedTaskIds ?? []) seenTaskIds.add(id);
     for (const heading of pastDoc.headings) {
       for (const task of heading.items) {
         if (seenTaskIds.has(task.id)) continue;

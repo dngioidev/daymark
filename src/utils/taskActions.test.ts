@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
+import { DEFAULT_SETTINGS } from './defaultData';
+import { performDailyRollover } from './lifecycleEngine';
 import { isDailyDocument } from './vaultValidation';
-import { applyMarkdownEdit, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
+import { applyMarkdownEdit, getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
   id,
@@ -22,6 +24,16 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 });
 
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
+
+describe('move date validation', () => {
+  it('rejects an empty date, past dates, today and the source day inline', () => {
+    expect(getMoveTaskDateError('', '2026-10-25', '2026-10-22')).toBe('Choose a date.');
+    expect(getMoveTaskDateError('2026-10-21', '2026-10-25', '2026-10-22')).toBe('Choose tomorrow or a later day.');
+    expect(getMoveTaskDateError('2026-10-22', '2026-10-25', '2026-10-22')).toBe('Choose tomorrow or a later day.');
+    expect(getMoveTaskDateError('2026-10-25', '2026-10-25', '2026-10-22')).toBe('Choose a different day from the source day.');
+    expect(getMoveTaskDateError('2026-10-23', '2026-10-25', '2026-10-22')).toBeNull();
+  });
+});
 
 describe('toggleTaskDoneInDocument', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -140,5 +152,102 @@ describe('replaceTaskInDocument', () => {
     const done = { ...task('b', 'B'), status: 'done' };
     const next = replaceTaskInDocument({ ...d, headings: [{ ...d.headings[0], items: [task('a', 'A renamed'), done] }] }, task('b', 'B'));
     expect(next.headings[0].items.map((t) => `${t.title}:${t.status}`)).toEqual(['A renamed:in-progress', 'B:in-progress']);
+  });
+});
+
+
+describe('moveTaskToDate / undoMoveTask', () => {
+  const FROM = '2026-10-21';
+  const TO = '2026-10-22';
+  const NOW = '2026-10-21T12:00:00.000Z';
+  const DEFAULT_HEADINGS = DEFAULT_SETTINGS.defaultHeadings;
+  const findDoc = (docs: DailyDocument[], date: string) => docs.find((d) => d.date === date)!;
+  const items = (docs: DailyDocument[], date: string) => findDoc(docs, date).headings.flatMap((h) => h.items);
+  const move = (docs: DailyDocument[], to = TO) => moveTaskToDate(docs, 't1', FROM, to, DEFAULT_HEADINGS, NOW)!;
+
+  it('moves a task to tomorrow: tombstone on source, same id live on target with a history entry', () => {
+    const source = doc([{ ...task('t1'), carriedFromDate: '2026-10-20', description: 'Keep notes', checklist: [{ id: 'c1', text: 'Check', done: false }] }]);
+    const out = move([source]);
+    expect(items(out, FROM)).toEqual([]);
+    expect(findDoc(out, FROM).removedTaskIds).toContain('t1');
+    expect(items(out, TO)[0]).toMatchObject({ ...source.headings[0].items[0], heading: 'Work', order: 1, historyLog: [{ id: 'hist-move-t1-2026-10-22', timestamp: NOW, action: 'moved', date: FROM, details: 'Moved from 2026-10-21 to 2026-10-22' }] });
+    expect(source.headings[0].items).toHaveLength(1);
+    expect(source.removedTaskIds).toBeUndefined();
+  });
+
+  it('creates the target doc with default headings when it does not exist', () => {
+    const target = findDoc(move([doc([task('t1')])], '2026-10-30'), '2026-10-30');
+    expect(target.headings.map((h) => h.name)).toEqual(DEFAULT_HEADINGS);
+    expect(target.type).toBe('daily');
+    expect(target.updatedAt).toBe(NOW);
+  });
+
+  it('creates the heading on the target when missing', () => {
+    const source = doc([{ ...task('t1'), heading: 'Ideas' }]);
+    source.headings[0].name = 'Ideas';
+    const target = { ...doc([]), date: TO };
+    const out = move([source, target]);
+    expect(findDoc(out, TO).headings.map((h) => h.name)).toEqual(['Work', 'Ideas']);
+    expect(items(out, TO)[0].heading).toBe('Ideas');
+  });
+
+  it('matches headings case-insensitively and appends after planned tasks, clearing a target tombstone', () => {
+    const target = { ...doc([task('p1')]), date: TO, removedTaskIds: ['t1', 'other'] };
+    target.headings[0].name = 'work';
+    const out = move([doc([task('t1')]), target]);
+    expect(findDoc(out, TO).headings).toHaveLength(1);
+    expect(items(out, TO).map((t) => [t.id, t.order])).toEqual([['p1', 1], ['t1', 2]]);
+    expect(items(out, TO)[1].heading).toBe('work');
+    expect(findDoc(out, TO).removedTaskIds).toEqual(['other']);
+    expect(target.removedTaskIds).toEqual(['t1', 'other']);
+  });
+
+  it('moving 5 days ahead leaves no copy on the days between after their rollovers', () => {
+    let rolled = move([{ ...doc([task('t1')]), date: '2026-10-20' }, doc([task('t1')])], '2026-10-26');
+    for (const d of ['2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25', '2026-10-26']) {
+      rolled = performDailyRollover(d, rolled, DEFAULT_SETTINGS.statuses).updatedDocs;
+      expect(items(rolled, d).map((t) => t.id)).toEqual(d === '2026-10-26' ? ['t1'] : []);
+    }
+  });
+
+  it('is idempotent on the target: moving again when the target already has the id returns null', () => {
+    const docs = [doc([task('t1')]), { ...doc([task('t1')]), date: TO }];
+    expect(move(docs)).toBeNull();
+    const once = move([doc([task('t1')])]);
+    expect(move(once)).toBeNull();
+  });
+
+  it('undoMoveTask restores the source exactly and removes the target copy (and an auto-created empty target doc)', () => {
+    const source = doc([task('a'), task('t1'), task('b')]);
+    const before = { doc: undefined, removed: removeTaskFromDocument(source, 't1')!.removed };
+    const out = undoMoveTask(move([source]), 't1', FROM, TO, before);
+    expect(out.map((d) => d.date)).toEqual([FROM]);
+    expect(findDoc(out, FROM).headings).toEqual(source.headings);
+    expect(findDoc(out, FROM).removedTaskIds).toBeUndefined();
+  });
+
+  it('undo keeps an existing target, its original tombstone and later edits on both days', () => {
+    const source = doc([task('t1'), task('b')]);
+    const target = { ...doc([]), date: TO, removedTaskIds: ['t1'] };
+    const moved = move([source, target]).map((d) => ({ ...d, headings: d.headings.map((h) => ({ ...h, notesContent: 'New notes', items: h.items.map((t) => t.id === 'b' ? { ...t, title: 'Renamed' } : t) })) }));
+    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: target, removed: removeTaskFromDocument(source, 't1')!.removed });
+    expect(items(out, FROM).map((t) => t.title)).toEqual(['t1', 'Renamed']);
+    expect(items(out, TO)).toEqual([]);
+    expect(findDoc(out, TO).removedTaskIds).toEqual(['t1']);
+    expect(findDoc(out, TO).headings[0].notesContent).toBe('New notes');
+  });
+
+  it('undo keeps notes and other tasks added to an auto-created target', () => {
+    const source = doc([task('t1')]);
+    const moved = move([source]).map((d) => d.date !== TO ? d : { ...d, headings: d.headings.map((h, i) => i ? h : { ...h, notesContent: 'Keep', items: [...h.items, task('new')] }) });
+    const out = undoMoveTask(moved, 't1', FROM, TO, { doc: undefined, removed: removeTaskFromDocument(source, 't1')!.removed });
+    expect(items(out, TO).map((t) => t.id)).toEqual(['new']);
+    expect(findDoc(out, TO).headings[0].notesContent).toBe('Keep');
+  });
+
+  it('returns null for the same day or when the task is not on the source day', () => {
+    expect(move([doc([task('t1')])], FROM)).toBeNull();
+    expect(move([doc([task('other')])])).toBeNull();
+    expect(move([])).toBeNull();
   });
 });

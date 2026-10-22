@@ -40,6 +40,29 @@ const allItems = (docs: DailyDocument[], date: string) =>
 describe('performDailyRollover', () => {
   const statuses = DEFAULT_SETTINGS.statuses;
 
+  it('a task deleted on a day does not come back from older copies the next morning', () => {
+    const first = performDailyRollover('2026-10-21', [doc('2026-10-20', [task('t1', 'in-progress', '2026-10-20')])], statuses).updatedDocs;
+    const deleted = first.map((d) => d.date === '2026-10-21' ? removeTaskFromDocument(d, 't1')!.doc : d);
+    const out = performDailyRollover('2026-10-22', deleted, statuses).updatedDocs;
+    expect(allItems(out, '2026-10-22').map((t) => t.id)).not.toContain('t1');
+  });
+
+  it('a tombstone hides only that task; other carried tasks still roll', () => {
+    const first = performDailyRollover('2026-10-21', [doc('2026-10-20', ['t1', 't2'].map((id) => task(id, 'in-progress', '2026-10-20')))], statuses).updatedDocs;
+    const deleted = first.map((d) => d.date === '2026-10-21' ? removeTaskFromDocument(d, 't1')!.doc : d);
+    expect(allItems(performDailyRollover('2026-10-22', deleted, statuses).updatedDocs, '2026-10-22').map((t) => t.id)).toEqual(['t2']);
+  });
+
+  it('future documents are never rollover sources', () => {
+    const out = performDailyRollover('2026-10-22', [doc('2026-10-25', [task('f1', 'in-progress', '2026-10-25')])], statuses).updatedDocs;
+    expect(allItems(out, '2026-10-22').map((t) => t.id)).not.toContain('f1');
+  });
+
+  it('rollover into an existing future-planned doc appends carried tasks after planned ones', () => {
+    const out = performDailyRollover('2026-10-22', [doc('2026-10-22', [{ ...task('p1', 'in-progress', '2026-10-22'), title: 'p1' }]), doc('2026-10-21', [{ ...task('c1', 'in-progress', '2026-10-21'), title: 'c1' }])], statuses).updatedDocs;
+    expect(allItems(out, '2026-10-22').map((t) => t.title)).toEqual(['p1', 'c1']);
+  });
+
   it('carries unfinished tasks forward and skips done ones', () => {
     const docs = [doc('2026-10-15', [task('a', 'in-progress', '2026-10-15'), task('b', 'done', '2026-10-15')])];
     const { updatedDocs, carriedCount } = performDailyRollover('2026-10-16', docs, statuses);

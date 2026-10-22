@@ -19,7 +19,7 @@ export interface TaskHistoryItem {
   id: string;
   timestamp: string;
   date: string;
-  action: 'created' | 'status_changed' | 'carried_forward' | 'historical_completion' | 'reopened' | 'archived';
+  action: 'created' | 'status_changed' | 'carried_forward' | 'historical_completion' | 'reopened' | 'archived' | 'moved';
   details: string;
 }
 

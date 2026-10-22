@@ -30,7 +30,7 @@ import { vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
+import { getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -61,6 +61,7 @@ import { SettingsModal, SettingsTab } from './components/SettingsModal';
 import { FeedbackHost, alertDialog, confirmDialog, showToast } from './components/ui/feedback';
 import { normalizeSettings } from './utils/defaultData';
 import { inlineDay } from './components/TaskItemCard';
+import { formatDay } from './utils/dateFormat';
 
 export default function App() {
   // App Mode: auto-detect mobile vs desktop, with instant user switcher
@@ -543,6 +544,21 @@ export default function App() {
       action: { label: 'Undo', onClick: () => patchDocument(date, (d) => restoreTaskToDocument(d, removed)) },
     });
   };
+  const handleMoveTask = (taskId: string, toDate: string): void => {
+    const fromDate = currentDate;
+    if (getMoveTaskDateError(toDate, fromDate, today)) return;
+    const docs = dailyDocsRef.current;
+    const source = docs.find((d) => d.date === fromDate);
+    const removed = source && removeTaskFromDocument(source, taskId)?.removed;
+    if (!removed) return;
+    const before = { doc: docs.find((d) => d.date === toDate), removed };
+    const updated = moveTaskToDate(docs, taskId, fromDate, toDate, settings.defaultHeadings, new Date().toISOString());
+    if (!updated) return;
+    setDailyDocs(updated);
+    showToast(`Moved “${removed.task.title}” to ${formatDay(toDate, today)}`, {
+      action: { label: 'Undo', onClick: () => setDailyDocs((prev) => undoMoveTask(prev, taskId, fromDate, toDate, before)) },
+    });
+  };
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
   return (
@@ -575,6 +591,7 @@ export default function App() {
                 onOpenHistoricalModal={setHistoricalModalTask}
                 onOpenHistoryDrawer={openDetails}
                 onQuickHistoricalDone={handleQuickHistoricalDone}
+                onMoveTask={handleMoveTask}
                 onTriggerRollover={handleTriggerRollover}
               />
             )}
@@ -630,6 +647,7 @@ export default function App() {
           onOpenHistoricalModal={setHistoricalModalTask}
           onOpenHistoryDrawer={openDetails}
           onQuickHistoricalDone={handleQuickHistoricalDone}
+          onMoveTask={handleMoveTask}
           onReopenTask={handleReopenTask}
           onTriggerRollover={handleTriggerRollover}
           onOpenDay={setCurrentDate}

@@ -1,5 +1,13 @@
 import { DailyDocument, TaskItem } from '../types/daymark';
 
+/** Validation shared by the move dialog and its caller; destinations start tomorrow. */
+export function getMoveTaskDateError(toDate: string, fromDate: string, today: string): string | null {
+  if (!toDate) return 'Choose a date.';
+  if (toDate === fromDate) return 'Choose a different day from the source day.';
+  if (toDate <= today) return 'Choose tomorrow or a later day.';
+  return null;
+}
+
 /** Shared checkbox behaviour for task rows and queued Android widget actions. */
 export function toggleTaskDone(task: TaskItem, date: string): TaskItem {
   const wasDone = task.status === 'done';
@@ -46,6 +54,77 @@ export interface RemovedTask {
   task: TaskItem;
   heading: string;
   index: number;
+}
+
+/** Moves a task without changing its identity or carry-forward origin. */
+export function moveTaskToDate(
+  docs: DailyDocument[],
+  taskId: string,
+  fromDate: string,
+  toDate: string,
+  defaultHeadings: string[],
+  nowIso: string
+): DailyDocument[] | null {
+  if (fromDate === toDate) return null;
+  const source = docs.find((d) => d.date === fromDate);
+  const target = docs.find((d) => d.date === toDate);
+  if (!source || target?.headings.some((h) => h.items.some((t) => t.id === taskId))) return null;
+  const result = removeTaskFromDocument(source, taskId);
+  if (!result) return null;
+  const targetDoc: DailyDocument = target ?? {
+    date: toDate,
+    type: 'daily',
+    headings: defaultHeadings.map((name) => ({ name, items: [], notesContent: '' })),
+    updatedAt: nowIso,
+  };
+  const headingName = result.removed.heading;
+  const matchingHeading = targetDoc.headings.find((h) => h.name.toLowerCase() === headingName.toLowerCase());
+  const headings = matchingHeading ? targetDoc.headings : [...targetDoc.headings, { name: headingName, items: [], notesContent: '' }];
+  const movedTask = result.removed.task;
+  const { removedTaskIds, ...rest } = targetDoc;
+  const remaining = (removedTaskIds ?? []).filter((id) => id !== taskId);
+  const nextTarget: DailyDocument = {
+    ...rest,
+    updatedAt: nowIso,
+    ...(remaining.length ? { removedTaskIds: remaining } : {}),
+    headings: headings.map((h) => h.name !== (matchingHeading?.name ?? headingName) ? h : {
+      ...h,
+      items: [...h.items, {
+        ...movedTask,
+        heading: h.name,
+        order: h.items.length + 1,
+        historyLog: [...(movedTask.historyLog ?? []), {
+          id: `hist-move-${taskId}-${toDate}`,
+          timestamp: nowIso,
+          date: fromDate,
+          action: 'moved',
+          details: `Moved from ${fromDate} to ${toDate}`,
+        }],
+      }],
+    }),
+  };
+  return [...docs.filter((d) => d.date !== fromDate && d.date !== toDate), { ...result.doc, updatedAt: nowIso }, nextTarget]
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Undoes only this move, preserving other edits made since it. `before.doc` is the old target. */
+export function undoMoveTask(
+  docs: DailyDocument[],
+  taskId: string,
+  fromDate: string,
+  toDate: string,
+  before: { doc: DailyDocument | undefined; removed: RemovedTask }
+): DailyDocument[] {
+  return docs.flatMap((doc) => {
+    if (doc.date === fromDate) return [restoreTaskToDocument(doc, before.removed)];
+    if (doc.date !== toDate) return [doc];
+    const headings = doc.headings.map((h) => ({ ...h, items: h.items.filter((t) => t.id !== taskId) }));
+    const { removedTaskIds, ...rest } = doc;
+    const remaining = (removedTaskIds ?? []).filter((id) => id !== taskId);
+    if (before.doc?.removedTaskIds?.includes(taskId)) remaining.push(taskId);
+    if (!before.doc && !remaining.length && !doc.rawMarkdown && headings.every((h) => !h.items.length && !h.notesContent?.trim())) return [];
+    return [{ ...rest, headings, ...(remaining.length ? { removedTaskIds: remaining } : {}), updatedAt: new Date().toISOString() }];
+  });
 }
 
 /**

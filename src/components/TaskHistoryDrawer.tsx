@@ -21,7 +21,8 @@ interface TaskDetailsSheetProps {
 
 /** History entries were written with ISO dates and "#Section"; show them in everyday words. */
 export const humanizeLog = (text: string, today: string): string =>
-  text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, (d) => formatDay(d, today)).replace(/#(\w[\w-]*)/g, '$1');
+  text.replace(/^Moved from \d{4}-\d{2}-\d{2} to /, 'Moved to ')
+    .replace(/\b\d{4}-\d{2}-\d{2}\b/g, (d) => formatDay(d, today)).replace(/#(\w[\w-]*)/g, '$1');
 
 /**
  * Task details: notes, checklist, history and the less frequent actions. Opened by tapping a

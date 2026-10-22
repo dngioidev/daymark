@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -15,15 +15,17 @@ import {
   Trash2,
 } from 'lucide-react';
 import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
-import { calculateTaskAge, getAgingSeverity, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
+import { calculateTaskAge, formatFullDate, getAgingSeverity, getNextDate, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
 import { formatAge, formatDay } from '../utils/dateFormat';
-import { toggleTaskDone } from '../utils/taskActions';
+import { getMoveTaskDateError, toggleTaskDone } from '../utils/taskActions';
 import { Menu } from './ui/Menu';
+import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog } from './ui/feedback';
 
 interface TaskItemCardProps {
   task: TaskItem;
   currentDate: string;
+  today?: string;
   statuses: StatusDefinition[];
   agingThresholds: AgingThresholds;
   onUpdateTask: (task: TaskItem) => void;
@@ -33,6 +35,7 @@ interface TaskItemCardProps {
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onToggleAlertDismiss: (taskId: string) => void;
+  onMoveTask?: (taskId: string, toDate: string) => void;
 }
 
 /** "today" / "yesterday" / "on Fri 16 Oct", for use inside a sentence. */
@@ -53,6 +56,7 @@ export const pickableStatuses = (statuses: StatusDefinition[], current?: string)
 export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   task,
   currentDate,
+  today = currentDate,
   statuses,
   agingThresholds,
   onUpdateTask,
@@ -61,9 +65,25 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
   onToggleAlertDismiss,
+  onMoveTask,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDate, setMoveDate] = useState('');
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const moveId = useId();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const tomorrow = getNextDate(today);
+
+  const submitMove = (e: React.FormEvent) => {
+    e.preventDefault();
+    const error = getMoveTaskDateError(moveDate, currentDate, today);
+    setMoveError(error);
+    if (error) return;
+    onMoveTask?.(task.id, moveDate);
+    setMoveOpen(false);
+  };
 
   const statusDef = statuses.find((s) => s.id === task.status) ?? {
     id: task.status,
@@ -229,6 +249,16 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                 { label: 'Mark done on another day…', icon: <CalendarCheck className="w-4 h-4" />, onSelect: () => onOpenHistoricalModal(task) },
               ]
             : []),
+          ...(onMoveTask ? [
+            ...(!isDone ? [{ label: 'Move to tomorrow', onSelect: () => onMoveTask(task.id, tomorrow) }] : []),
+            { label: 'Move to date…', onSelect: () => {
+              // The menu item unmounts; the dialog must return focus to its persistent trigger.
+              menuButtonRef.current?.focus();
+              setMoveDate(tomorrow === currentDate ? getNextDate(tomorrow) : tomorrow);
+              setMoveError(null);
+              setMoveOpen(true);
+            } },
+          ] : []),
           { label: 'Rename', icon: <Edit2 className="w-4 h-4" />, onSelect: () => (setTitleDraft(task.title), setIsEditingTitle(true)) },
           { label: 'Details & history', icon: <PanelRightOpen className="w-4 h-4" />, onSelect: () => onOpenHistoryDrawer(task) },
           ...(severity !== 'normal'
@@ -244,6 +274,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
         ]}
         trigger={(props) => (
           <button
+            ref={menuButtonRef}
             type="button"
             {...props}
             aria-label={`More actions for "${task.title}"`}
@@ -253,6 +284,35 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           </button>
         )}
       />
+      <Dialog
+        isOpen={moveOpen}
+        onClose={() => setMoveOpen(false)}
+        title="Move to date…"
+        description={`Move “${task.title}” from ${formatFullDate(currentDate)}.`}
+        size="sm"
+        footer={<>
+          <button type="button" className={buttonClass.secondary} onClick={() => setMoveOpen(false)}>Cancel</button>
+          <button type="submit" form={moveId} className="min-h-11 sm:min-h-9 px-4 rounded-lg bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 text-sm font-semibold">Move</button>
+        </>}
+      >
+        <form id={moveId} onSubmit={submitMove} noValidate className="px-5 py-4 space-y-2">
+          <label htmlFor={`${moveId}-date`} className="block text-sm font-medium">Move to</label>
+          <input
+            id={`${moveId}-date`}
+            type="date"
+            min={tomorrow}
+            value={moveDate}
+            onChange={(e) => {
+              setMoveDate(e.target.value);
+              setMoveError(getMoveTaskDateError(e.target.value, currentDate, today));
+            }}
+            aria-invalid={Boolean(moveError)}
+            aria-describedby={moveError ? `${moveId}-error` : undefined}
+            className="w-full min-h-11 px-3 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
+          />
+          {moveError && <p id={`${moveId}-error`} role="alert" className="text-sm text-stone-700 dark:text-stone-300">{moveError}</p>}
+        </form>
+      </Dialog>
     </div>
   );
 };
