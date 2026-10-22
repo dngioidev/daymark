@@ -4,7 +4,7 @@ vi.mock('../native/daymarkBridge', () => ({ isNativeApp: () => false }));
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function page(response: Response | Error, pathname = '/notes', cookie = '', submitForm = true) {
+async function page(response: Response | Error, pathname = '/notes', cookie = '', submitForm = true, pendingLogout = false) {
   vi.resetModules();
   let submit: (event: { preventDefault: () => void }) => Promise<void>;
   const elements = {
@@ -17,6 +17,7 @@ async function page(response: Response | Error, pathname = '/notes', cookie = ''
   vi.stubGlobal('document', { cookie, getElementById: (id: keyof typeof elements) => elements[id] });
   vi.stubGlobal('navigator', { userAgent: 'Windows NT' });
   const values = new Map([['daymark_install_id', 'inst-existing']]);
+  if (pendingLogout) values.set('daymark_logout_pending', '1');
   vi.stubGlobal('localStorage', {
     get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
     getItem: (key: string) => values.get(key) ?? null,
@@ -36,7 +37,7 @@ async function page(response: Response | Error, pathname = '/notes', cookie = ''
   await vi.waitFor(() => expect(elements['signin-form'].hidden).toBe(false));
   expect(values.has('daymark_install_id')).toBe(!!cookie);
   if (submitForm) await submit!({ preventDefault: () => {} });
-  return { elements, replace, fetcher };
+  return { elements, replace, fetcher, submit: () => submit!({ preventDefault: () => {} }) };
 }
 
 it.each(['/signin.html', '/notes'])('signs in as a web client and returns to %s', async (pathname) => {
@@ -76,4 +77,33 @@ it('shows the form offline and retries the session check on online without wipin
   await vi.waitFor(() => expect(result.replace).toHaveBeenCalledWith('/'));
   expect(localStorage.getItem('daymark_install_id')).toBe('inst-existing');
   expect(result.fetcher).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+  [new Error('offline'), 200],
+  [new Response('{}', { status: 503 }), 503],
+  [new Error('offline'), new Error('offline')],
+])('finishes pending logout before login and clears the flag before redirect (%s, %s)', async (sessionCheck, logout) => {
+  const result = await page(sessionCheck, '/signin.html', 'daymark_signed_in=1', false, true);
+  let finishLogout!: () => void;
+  result.fetcher.mockImplementationOnce(() => new Promise<Response>((resolve, reject) => {
+    finishLogout = () => logout instanceof Error ? reject(logout) : resolve(new Response('{}', { status: logout }));
+  })).mockResolvedValue(new Response('{}'));
+  const flagsAtRedirect: (string | null)[] = [];
+  result.replace.mockImplementation(() => { flagsAtRedirect.push(localStorage.getItem('daymark_logout_pending')); });
+
+  const submitted = result.submit();
+  expect(result.fetcher.mock.calls).toHaveLength(2);
+  expect(result.fetcher.mock.calls[1]).toEqual(['/api/auth/logout', {
+    method: 'POST', headers: { 'X-Daymark-Client': 'web' }, credentials: 'same-origin',
+  }]);
+  expect(result.replace).not.toHaveBeenCalled();
+  finishLogout();
+  await submitted;
+
+  expect(result.fetcher.mock.calls.map((call) => (call as unknown as [string])[0]))
+    .toEqual(['/api/auth/refresh', '/api/auth/logout', '/api/auth/login']);
+  expect(result.replace).toHaveBeenCalledWith('/');
+  expect(flagsAtRedirect).toEqual([null]);
+  expect(localStorage.getItem('daymark_logout_pending')).toBeNull();
 });

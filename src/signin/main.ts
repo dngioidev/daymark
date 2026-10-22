@@ -1,6 +1,7 @@
 import '../index.css';
 import { WEB_CLIENT_HEADER } from '../sync/protocol';
 import { defaultDeviceName, getInstallId } from '../utils/deviceName';
+import { LOGOUT_PENDING_KEY, retryPendingLogout } from '../utils/logoutPending';
 import { prepareSignIn } from './startup';
 
 const form = document.getElementById('signin-form') as HTMLFormElement;
@@ -37,12 +38,15 @@ form.addEventListener('submit', async (event) => {
   submit.disabled = true;
   error.textContent = '';
   try {
+    // Finish the old session before login can replace its cookie; failure is best effort.
+    await retryPendingLogout();
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [WEB_CLIENT_HEADER]: 'web' },
       body: JSON.stringify({ username: username.value, password: password.value, deviceName: defaultDeviceName(), platform: 'web', installId: getInstallId() }),
     });
     if (response.status === 200) {
+      localStorage.removeItem(LOGOUT_PENDING_KEY);
       location.replace(location.pathname === '/signin.html' ? '/' : location.href);
     } else {
       const data = await response.json();
