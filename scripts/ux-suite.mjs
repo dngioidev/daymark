@@ -697,6 +697,7 @@ async function functional() {
     await page.getByLabel('Notes', { exact: true }).fill('Edited context');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
     await page.reload({ waitUntil: 'networkidle' });
     await taskTitle(page, T1).click();
     const v = await page.getByLabel('Notes', { exact: true }).inputValue();

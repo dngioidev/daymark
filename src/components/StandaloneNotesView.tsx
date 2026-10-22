@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Code,
   Columns,
+  ChevronDown,
   Edit2,
   Eye,
   FilePlus,
@@ -12,6 +13,7 @@ import {
   Heading2,
   Italic,
   ListChecks,
+  Maximize2,
   MoreHorizontal,
   Pin,
   Search,
@@ -24,6 +26,8 @@ import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
 import { useBackHandler } from '../native/backButton';
 import { formatNoteDate, noteChecklist, notePreview, sortNotes } from '../utils/notes';
+import { NOTE_TEMPLATES, wordCount } from '../utils/noteTemplates';
+import { formatLocalDate } from '../utils/clock';
 
 interface StandaloneNotesViewProps {
   notes: StandaloneNote[];
@@ -44,12 +48,38 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [newFolderInput, setNewFolderInput] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [pane, setPane] = useState<'list' | 'editor'>('list');
+  const [focusMode, setFocusMode] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const focusTitle = useRef(false);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Task 8 will move this listener to the App shortcut handler.
+  useEffect(() => {
+    if (compact) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      const typing = target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === '.' && !typing) {
+        event.preventDefault();
+        setFocusMode((focused) => !focused);
+        setPane('editor');
+      } else if (event.key === 'Escape' && focusMode && target?.tagName !== 'TEXTAREA') {
+        setFocusMode(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [compact, focusMode]);
+
   // Android Back: editor -> list
-  useBackHandler(() => (setPane('list'), true), pane === 'editor');
+  useBackHandler(() => (setFocusMode(false), setPane('list'), true), pane === 'editor');
 
   const allFolders = useMemo(() => [...new Set(notes.map((n) => n.folder).filter(Boolean))].sort(), [notes]);
 
@@ -63,6 +93,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   }, [sorted, selectedFolder, searchQuery]);
 
   const activeNote = notes.find((n) => n.id === selectedNoteId) || filteredNotes[0] || null;
+  const editedMinutes = activeNote ? Math.max(0, Math.floor((now - new Date(activeNote.updatedAt).getTime()) / 60_000)) : 0;
+  const editedLabel = editedMinutes < 1 ? 'just now' : editedMinutes < 60 ? `${editedMinutes} min ago` : activeNote ? formatNoteDate(activeNote.updatedAt) : '';
+  const words = activeNote ? wordCount(activeNote.content) : 0;
 
   useEffect(() => {
     if (focusTitle.current && titleRef.current) {
@@ -77,15 +110,23 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     onUpdateNotes(notes.map((n) => (n.id === activeNote.id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)));
   };
 
-  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled') => {
+  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled', content = '') => {
     const now = new Date().toISOString();
-    const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content: '', tags: [], createdAt: now, updatedAt: now, pinned: false };
+    const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content, tags: [], createdAt: now, updatedAt: now, pinned: false };
     onUpdateNotes([note, ...notes]);
     setSelectedNoteId(note.id);
     setViewMode(compact ? 'edit' : 'split');
     setPane('editor');
     focusTitle.current = true;
     return note;
+  };
+
+  const createFromTemplate = (template: (typeof NOTE_TEMPLATES)[number]) => {
+    const today = formatLocalDate();
+    const folder = template.folder ?? (selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder);
+    setSelectedFolder(folder);
+    setSearchQuery('');
+    createNote(folder, template.title(today), template.body(today));
   };
 
   const deleteNote = async (note: StandaloneNote) => {
@@ -152,8 +193,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     }`;
 
   const list = (
-    <div className={`dm-card flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
-      <div className="p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
+    <div className={`dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
+      <div className="shrink-0 p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
         <div className="relative">
           <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <label htmlFor="notes-search" className="sr-only">
@@ -167,6 +208,25 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800/80 border border-stone-300 dark:border-stone-700 rounded-lg placeholder:text-stone-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
           />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex">
+            <button type="button" onClick={() => createFromTemplate(NOTE_TEMPLATES[0])} className={`${buttonClass.primary} rounded-r-none px-2 sm:px-3`}>
+              <FilePlus className="w-4 h-4" /> New note
+            </button>
+            <Menu
+              align="right"
+              items={NOTE_TEMPLATES.map((template) => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
+              trigger={(props) => (
+                <button type="button" {...props} aria-label="Note templates" className={`${buttonClass.primary} rounded-l-none border-l border-stone-500 px-2`}>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
+            />
+          </div>
+          <button type="button" onClick={() => setShowNewFolder(!showNewFolder)} className={`${buttonClass.ghost} px-2`}>
+            <FolderPlus className="w-4 h-4" /> Folder
+          </button>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Folders">
           <button type="button" aria-pressed={selectedFolder === 'all'} onClick={() => setSelectedFolder('all')} className={chip(selectedFolder === 'all')}>
@@ -199,7 +259,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
         )}
       </div>
 
-      <ul className="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
+      <ul className="flex-1 min-h-0 overflow-y-auto rounded-b-xl divide-y divide-stone-100 dark:divide-stone-800">
         {filteredNotes.length > 0 ? (
           filteredNotes.map((note) => {
             const isSelected = note.id === activeNote?.id && !compact;
@@ -247,12 +307,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   );
 
   const editor = (
-    <div className={`dm-card flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' ? 'hidden lg:flex' : 'flex'}`}>
+    <div className={`dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'}`}>
       {activeNote ? (
         <>
-          <div className="px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">
+          <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => setPane('list')} aria-label="Back to notes" className={`${iconBtn} lg:hidden`}>
+              <button type="button" onClick={() => { setFocusMode(false); setPane('list'); }} aria-label="Back to notes" className={`${iconBtn} lg:hidden`}>
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <label htmlFor="note-title" className="sr-only">
@@ -294,6 +354,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   </button>
                 )}
               />
+              {!compact && (
+                <button type="button" aria-label="Focus mode" aria-pressed={focusMode} title="Focus mode (Ctrl/⌘ + .)" onClick={() => { setFocusMode((focused) => !focused); setPane('editor'); }} className={iconBtn}>
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1 px-1">
@@ -363,7 +428,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             )}
           </div>
 
-          <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'grid grid-cols-1 md:grid-cols-2 divide-x divide-stone-200 dark:divide-stone-800' : 'flex flex-col'}`}>
+          <div className={`flex-1 min-h-0 overflow-hidden ${viewMode === 'split' ? 'grid grid-cols-1 md:grid-cols-2 grid-rows-[minmax(0,1fr)] divide-x divide-stone-200 dark:divide-stone-800' : 'flex flex-col'}`}>
             {viewMode !== 'preview' && (
               <>
                 <label htmlFor="note-editor-textarea" className="sr-only">
@@ -374,21 +439,26 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   ref={editorRef}
                   value={activeNote.content}
                   onChange={(e) => updateActive({ content: e.target.value })}
-                  className={`w-full flex-1 p-4 sm:p-5 text-[15px] sm:text-sm leading-relaxed bg-transparent border-0 focus:outline-hidden text-stone-900 dark:text-stone-100 resize-none placeholder:text-stone-500 ${compact ? 'min-h-[60dvh]' : ''}`}
+                  className="w-full h-full flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 text-[15px] sm:text-sm leading-relaxed bg-transparent border-0 focus:outline-hidden text-stone-900 dark:text-stone-100 resize-none placeholder:text-stone-500"
                   placeholder="Start writing… Markdown works: # heading, - [ ] checklist, **bold**"
                 />
               </>
             )}
             {viewMode !== 'edit' && (
-              <div className="p-4 sm:p-6 overflow-y-auto flex-1" tabIndex={0} role="region" aria-label="Note preview">
-                {activeNote.content.trim() ? (
-                  <MarkdownPreview content={activeNote.content} onInternalLinkClick={openLinkedNote} onToggleTaskItem={toggleCheckbox} />
-                ) : (
-                  <p className="text-stone-600 dark:text-stone-400">This note is empty. Tap Edit to write.</p>
-                )}
+              <div className={`p-4 sm:p-6 min-h-0 overflow-y-auto flex-1 ${viewMode === 'split' ? 'hidden md:block' : ''}`} tabIndex={0} role="region" aria-label="Note preview">
+                <div className={viewMode === 'preview' ? 'w-full max-w-[75ch] mx-auto' : ''}>
+                  {activeNote.content.trim() ? (
+                    <MarkdownPreview content={activeNote.content} onInternalLinkClick={openLinkedNote} onToggleTaskItem={toggleCheckbox} />
+                  ) : (
+                    <p className="text-stone-600 dark:text-stone-400">This note is empty. Tap Edit to write.</p>
+                  )}
+                </div>
               </div>
             )}
           </div>
+          <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
+            {`Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
+          </footer>
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-stone-600 dark:text-stone-400">
@@ -396,6 +466,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
           <button type="button" onClick={() => createNote()} className={buttonClass.primary}>
             <FilePlus className="w-4 h-4" /> New note
           </button>
+          {focusMode && <button type="button" aria-label="Focus mode" aria-pressed={focusMode} onClick={() => setFocusMode(false)} className={iconBtn}><Maximize2 className="w-4 h-4" /></button>}
         </div>
       )}
     </div>
@@ -405,29 +476,22 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     <div
       className={
         compact
-          ? 'flex flex-col gap-3 text-sm'
-          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 h-[calc(100dvh-3.5rem)] flex flex-col gap-3 text-sm'
+          ? 'flex-1 min-h-0 flex flex-col gap-3 text-sm'
+          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 min-h-0 flex flex-col gap-3 text-sm'
       }
     >
       {(pane === 'list' || !compact) && (
         <div className={`flex items-center gap-2 ${pane === 'editor' ? 'hidden lg:flex' : ''}`}>
           <h1 className="text-xl font-bold text-[var(--dm-page-fg)] mr-auto">Notes</h1>
-          <button type="button" onClick={() => setShowNewFolder(!showNewFolder)} className={buttonClass.ghost}>
-            <FolderPlus className="w-4 h-4" /> <span className="hidden sm:inline">New folder</span>
-            <span className="sm:hidden">Folder</span>
-          </button>
-          <button type="button" onClick={() => createNote()} className={buttonClass.primary}>
-            <FilePlus className="w-4 h-4" /> New note
-          </button>
         </div>
       )}
 
       {compact ? (
         pane === 'list' ? list : editor
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-4 xl:col-span-3 min-h-0 flex flex-col">{list}</div>
-          <div className="lg:col-span-8 xl:col-span-9 min-h-0 flex flex-col">{editor}</div>
+        <div className={`flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 ${focusMode ? '' : 'lg:grid-cols-12'}`}>
+          {!focusMode && <div className={`lg:col-span-4 xl:col-span-3 min-h-0 flex-col ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>{list}</div>}
+          <div className={`min-h-0 flex-col ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'} ${focusMode ? '' : 'lg:col-span-8 xl:col-span-9'}`}>{editor}</div>
         </div>
       )}
     </div>

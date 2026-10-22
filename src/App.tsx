@@ -577,10 +577,10 @@ export default function App() {
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
   return (
-    <div className={`dm-app relative isolate min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
+    <div className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
-        <div className="flex flex-col min-h-screen w-full">
+        <div className={`flex flex-col w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
           <Navbar
             activeTab={activeDesktopTab}
             onTabChange={setActiveDesktopTab}
@@ -593,7 +593,7 @@ export default function App() {
             showDevTabs={devMode}
           />
 
-          <main className="dm-backdrop-surface flex-1 w-full bg-stone-50 dark:bg-stone-950">
+          <main className={`dm-backdrop-surface flex-1 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
             {activeDesktopTab === 'today' && (
               <TodayView
                 currentDocument={currentDoc}

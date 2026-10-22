@@ -92,9 +92,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   );
 
   return (
-    <div className={`dm-backdrop-surface min-h-screen flex flex-col items-center ${frame ? 'bg-stone-900 sm:py-3' : 'bg-stone-50 dark:bg-stone-950'}`}>
+    <div className={`dm-backdrop-surface flex flex-col items-center ${activeTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'} ${frame ? 'bg-stone-900 sm:py-3' : 'bg-stone-50 dark:bg-stone-950'}`}>
       {onSwitchToDesktop && (
-        <div className="hidden sm:flex w-full max-w-md px-2 pb-2 items-center justify-end gap-2 text-sm">
+        <div className="shrink-0 hidden sm:flex w-full max-w-md px-2 pb-2 items-center justify-end gap-2 text-sm">
           <button
             type="button"
             onClick={() => setFrame(!frame)}
@@ -114,11 +114,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       )}
 
       <div
-        className={`dm-backdrop-surface w-full flex-1 flex flex-col bg-stone-50 dark:bg-stone-950 ${
-          frame ? 'sm:max-w-[430px] sm:h-[860px] sm:flex-none sm:border-4 sm:border-stone-800 sm:rounded-[40px] sm:overflow-hidden relative' : 'max-w-2xl min-h-screen'
+        className={`dm-backdrop-surface w-full flex-1 flex flex-col bg-stone-50 dark:bg-stone-950 ${activeTab === 'notes' ? 'min-h-0 overflow-hidden' : ''} ${
+          frame ? `sm:max-w-[430px] sm:h-[860px] ${activeTab === 'notes' ? 'sm:flex-initial' : 'sm:flex-none'} sm:border-4 sm:border-stone-800 sm:rounded-[40px] sm:overflow-hidden relative` : `max-w-2xl ${activeTab === 'notes' ? '' : 'min-h-screen'}`
         }`}
       >
-        <header className="px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-2 sticky top-0 z-30">
+        <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-2 sticky top-0 z-30">
           <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
           <span className="font-bold text-base tracking-tight mr-auto">Daymark</span>
           {canInstall && (
@@ -143,7 +143,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </div>
         )}
 
-        <main className={`flex-1 overflow-y-auto pb-24 text-stone-900 dark:text-stone-100 ${activeTab === 'notes' ? 'p-2.5' : 'p-3'}`}>
+        <main className={`flex-1 text-stone-900 dark:text-stone-100 ${activeTab === 'notes' ? 'min-h-0 flex overflow-hidden p-2.5' : 'overflow-y-auto pb-24 p-3'}`}>
           {activeTab === 'today' && (
             <TodayView
               compact
@@ -187,7 +187,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         <nav
           aria-label="Main"
           className={`bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 flex items-center justify-around pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] px-1 z-30 ${
-            frame ? 'sm:absolute fixed bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
+            activeTab === 'notes' ? 'shrink-0' : frame ? 'sm:absolute fixed bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
           }`}
         >
           {tabButton('today', <Calendar className="w-5 h-5" />, 'Today')}
