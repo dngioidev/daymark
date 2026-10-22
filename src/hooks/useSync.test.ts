@@ -58,6 +58,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+it('records failed forced logout after wiping and expires the marker', async () => {
+  const values = new Map<string, string>();
+  vi.stubGlobal('navigator', { onLine: false, locks: { request: (_name: string, run: () => unknown) => run() } });
+  vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) });
+  vi.mocked(wipeLocalVault).mockImplementationOnce(async () => { values.clear(); });
+  fetchFn.mockRejectedValue(new Error('offline'));
+  expect(await render().signOut({ force: true })).toBe('done');
+  expect(document.cookie).toBe('daymark_signed_in=; Max-Age=0; Path=/');
+  expect(values.get('daymark_logout_pending')).toBe('1');
+});
+
 it('bootstraps server account from refresh before the first sync', async () => {
   vi.mocked(loadSyncState).mockReturnValue(null);
   const sync = render();
@@ -84,7 +95,7 @@ it('requires confirmation after a failed sync even with no pending changes, then
     return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
   });
   const sync = render();
-  expect(await sync.signOut()).toBe('needs-confirm');
+  expect(await sync.signOut()).toBe('needs-confirm-unreachable');
   expect(sync.pendingChanges()).toBe(0);
   expect(fetchFn.mock.calls.some(([url]) => url.endsWith('/sync'))).toBe(true);
   expect(wipeLocalVault).not.toHaveBeenCalled();

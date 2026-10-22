@@ -1,12 +1,14 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('../native/daymarkBridge', () => ({ isNativeApp: () => false }));
+
 afterEach(() => vi.unstubAllGlobals());
 
 async function page(response: Response | Error, pathname = '/notes') {
   vi.resetModules();
   let submit: (event: { preventDefault: () => void }) => Promise<void>;
   const elements = {
-    'signin-form': { addEventListener: (_name: string, handler: typeof submit) => { submit = handler; } },
+    'signin-form': { hidden: true, addEventListener: (_name: string, handler: typeof submit) => { submit = handler; } },
     username: { value: 'admin' }, password: { value: 'secret' },
     'signin-error': { textContent: '' }, 'signin-submit': { disabled: false },
   };
@@ -14,10 +16,25 @@ async function page(response: Response | Error, pathname = '/notes') {
   const fetcher = vi.fn(async () => { if (response instanceof Error) throw response; return response; });
   vi.stubGlobal('document', { getElementById: (id: keyof typeof elements) => elements[id] });
   vi.stubGlobal('navigator', { userAgent: 'Windows NT' });
-  vi.stubGlobal('localStorage', { getItem: () => 'inst-existing' });
+  const values = new Map([['daymark_install_id', 'inst-existing']]);
+  vi.stubGlobal('localStorage', {
+    get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key),
+  });
+  vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('BroadcastChannel', undefined);
+  vi.stubGlobal('indexedDB', { deleteDatabase: () => {
+    const request = { onsuccess: () => {} };
+    queueMicrotask(() => request.onsuccess());
+    return request;
+  } });
+  vi.stubGlobal('caches', { keys: async () => [] });
   vi.stubGlobal('location', { pathname, href: `https://daymark.test${pathname}?date=today`, replace });
   vi.stubGlobal('fetch', fetcher);
   await import('./main');
+  await vi.waitFor(() => expect(elements['signin-form'].hidden).toBe(false));
+  expect(values.has('daymark_install_id')).toBe(false);
   await submit!({ preventDefault: () => {} });
   return { elements, replace, fetcher };
 }
@@ -28,7 +45,8 @@ it.each(['/signin.html', '/notes'])('signs in as a web client and returns to %s'
   expect(url).toBe('/api/auth/login');
   expect(options.method).toBe('POST');
   expect(options.headers).toEqual({ 'Content-Type': 'application/json', 'X-Daymark-Client': 'web' });
-  expect(JSON.parse(options.body as string)).toEqual({ username: 'admin', password: 'secret', deviceName: 'Windows browser', platform: 'web', installId: 'inst-existing' });
+  expect(JSON.parse(options.body as string)).toEqual({ username: 'admin', password: 'secret', deviceName: 'Windows browser', platform: 'web', installId: expect.any(String) });
+  expect(JSON.parse(options.body as string).installId).not.toBe('inst-existing');
   expect(replace).toHaveBeenCalledWith(pathname === '/signin.html' ? '/' : 'https://daymark.test/notes?date=today');
 });
 

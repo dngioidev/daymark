@@ -5,6 +5,7 @@ import { SessionEndedError, signIn, TokenManager } from '../sync/authClient';
 import { loadSyncState, markOnboarded, saveSyncState, wipeLocalVault } from '../utils/vaultStore';
 import { getInstallId } from '../utils/deviceName';
 import { getHostMode } from '../utils/hostMode';
+import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -22,7 +23,7 @@ export interface UseSyncResult {
   mode: ReturnType<typeof getHostMode>;
   connect: (serverUrl: string, username: string, password: string, deviceName: string) => Promise<void>;
   disconnect: () => Promise<void>;
-  signOut: (opts?: { force?: boolean }) => Promise<'done' | 'needs-confirm'>;
+  signOut: (opts?: { force?: boolean }) => Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'>;
   pendingChanges: () => number;
   authFetch: (path: string, init?: RequestInit) => Promise<Response>;
   syncNow: () => Promise<void>;
@@ -207,20 +208,29 @@ export function useSync(
 
   const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current), stateRef.current).length : 0;
 
-  const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm'> => {
+  const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';
     if (mode === 'server') {
       let failed = false;
       try { await run(); } catch { failed = true; }
       if (blocked.current && !closing.current) { await wipeAndLeave(); return 'done'; }
-      if (!opts?.force && (failed || pendingChanges() > 0)) return 'needs-confirm';
+      if (!opts?.force && failed) return 'needs-confirm-unreachable';
+      if (!opts?.force && pendingChanges() > 0) return 'needs-confirm';
     }
     closing.current = true;
     epoch.current++;
-    if (mode === 'server' || stateRef.current) await tokenManager().signOut().catch(() => undefined);
+    let logoutFailed = false;
+    if (mode === 'server' || stateRef.current) await tokenManager().signOut().catch(() => {
+      logoutFailed = true;
+      if (mode === 'server') document.cookie = 'daymark_signed_in=; Max-Age=0; Path=/';
+    });
     await running.current?.catch(() => undefined);
     manager.current = null;
-    if (mode === 'server') await wipeAndLeave();
+    if (mode === 'server') {
+      await wipeLocalVault();
+      if (logoutFailed) localStorage.setItem(LOGOUT_PENDING_KEY, '1');
+      location.replace('/');
+    }
     else {
       await persistState(null);
       blocked.current = false;

@@ -4,6 +4,7 @@ import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
 import { isDailyDocument, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
+import { LOGOUT_PENDING_KEY } from './logoutPending';
 
 /**
  * Vault persistence.
@@ -115,8 +116,7 @@ export async function initVaultStore(): Promise<void> {
     db.onversionchange = () => {
       db?.close();
       db = null;
-      wiping = true;
-      cache.clear();
+      reportError('Daymark storage changed in another tab. Please reload this tab.');
     };
     const stored = await readAll(db);
     stored.forEach((value, key) => cache.set(key, value));
@@ -292,16 +292,19 @@ export function wipeLocalVault(): Promise<void> {
         const request = indexedDB.deleteDatabase(DB_NAME);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
+        // The deletion request remains queued and completes when old tabs close.
+        // Do not let an old bundle block the rest of the sign-out cleanup.
+        request.onblocked = () => resolve();
       });
     }
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key?.startsWith('daymark')) localStorage.removeItem(key);
+      if (key?.startsWith('daymark') && key !== LOGOUT_PENDING_KEY) localStorage.removeItem(key);
     }
     if (typeof caches !== 'undefined') {
       await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
     }
-  })();
+  })().catch((err) => { wipePromise = null; throw err; });
   return wipePromise;
 }
 

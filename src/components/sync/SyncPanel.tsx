@@ -150,10 +150,13 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ sync, defaultDeviceName })
             if (sync.mode === 'server') {
               setBusy(true);
               try {
-                if (await sync.signOut() === 'needs-confirm') {
+                const result = await sync.signOut();
+                if (result !== 'done') {
                   const ok = await confirmDialog({
                     title: 'Sign out?',
-                    message: `${sync.pendingChanges()} change(s) haven't reached the server and will be deleted from this browser.`,
+                    message: result === 'needs-confirm-unreachable'
+                      ? 'The server could not be reached. Unsent changes on this browser will be deleted.'
+                      : `${sync.pendingChanges()} change(s) haven't reached the server and will be deleted from this browser.`,
                     cancelLabel: 'Cancel',
                     confirmLabel: 'Sign out anyway',
                     danger: true,

@@ -4,9 +4,20 @@ import './index.css';
 import { initVaultStore } from './utils/vaultStore';
 import { isNativeApp } from './native/daymarkBridge';
 import { installBackButton } from './native/backButton';
+import { LOGOUT_PENDING_KEY, retryPendingLogout } from './utils/logoutPending';
 
-// Hydrate the vault from IndexedDB before the first render so the app never flashes empty data
-initVaultStore().finally(() => {
+async function start() {
+  if (!isNativeApp() && localStorage.getItem(LOGOUT_PENDING_KEY) === '1') {
+    if (await retryPendingLogout()) location.replace('/');
+    else {
+      document.getElementById('root')!.textContent = 'Unable to reach the server to finish signing out. Reconnect to continue.';
+      window.addEventListener('online', () => { void start(); }, { once: true });
+    }
+    return;
+  }
+
+  // Hydrate the vault before rendering so the app never flashes empty data.
+  await initVaultStore();
   createRoot(document.getElementById('root')!).render(<App />);
   void installBackButton();
 
@@ -19,4 +30,6 @@ initVaultStore().finally(() => {
     if (document.readyState === 'complete') register();
     else window.addEventListener('load', register);
   }
-});
+}
+
+void start();

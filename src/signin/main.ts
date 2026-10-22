@@ -1,6 +1,7 @@
 import '../index.css';
 import { WEB_CLIENT_HEADER } from '../sync/protocol';
 import { defaultDeviceName, getInstallId } from '../utils/deviceName';
+import { prepareSignIn } from './startup';
 
 const form = document.getElementById('signin-form') as HTMLFormElement;
 const username = document.getElementById('username') as HTMLInputElement;
@@ -8,9 +9,25 @@ const password = document.getElementById('password') as HTMLInputElement;
 const error = document.getElementById('signin-error') as HTMLParagraphElement;
 const submit = document.getElementById('signin-submit') as HTMLButtonElement;
 
+let ready = false;
+let preparing = false;
+async function start() {
+  if (ready || preparing) return;
+  preparing = true;
+  try {
+    ready = await prepareSignIn();
+    form.hidden = !ready;
+    error.textContent = ready ? '' : 'Unable to reach the server to finish signing out. Reconnect to continue.';
+  } catch {
+    error.textContent = 'Could not clear this browser vault. Reload to try again.';
+  } finally { preparing = false; }
+}
+void start();
+window.addEventListener('online', () => { void start(); });
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (submit.disabled) return;
+  if (!ready || submit.disabled) return;
   submit.disabled = true;
   error.textContent = '';
   try {
