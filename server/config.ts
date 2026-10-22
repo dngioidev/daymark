@@ -34,6 +34,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     initialPassword: env.DAYMARK_PASSWORD || (production ? null : DEV_DEFAULT_PASSWORD),
     corsOrigins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()).filter(Boolean),
     accessTtlSeconds: 900,
-    refreshTtlDays: 30,
+    refreshTtlDays: Number(env.DAYMARK_REFRESH_TTL_DAYS) || 30,
   };
 }
