@@ -51,6 +51,7 @@ import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { ServerDashboard } from './components/server/ServerDashboard';
 import { useSync } from './hooks/useSync';
 import { isNativeApp } from './native/daymarkBridge';
+import { defaultDeviceName as browserDeviceName } from './utils/deviceName';
 import { useBackHandler } from './native/backButton';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { HistoricalCompletionModal } from './components/HistoricalCompletionModal';
@@ -518,9 +519,7 @@ export default function App() {
   );
   const defaultDeviceName = useMemo(() => {
     if (isNativeApp()) return 'Android phone';
-    const ua = navigator.userAgent;
-    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iPhone' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : 'Linux';
-    return `${os} browser`;
+    return browserDeviceName();
   }, []);
   const navbarSyncStatus = ({ off: 'off', idle: 'synced', syncing: 'syncing', offline: 'offline', error: 'error' } as const)[sync.status];
 

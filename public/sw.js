@@ -6,7 +6,7 @@
  * - /api/*: never cached (sync must hit the server).
  * Bump CACHE_VERSION to force clients to drop old caches.
  */
-const CACHE_VERSION = 'daymark-shell-v2';
+const CACHE_VERSION = 'daymark-shell-v3';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (event) => {
@@ -15,7 +15,7 @@ self.addEventListener('install', (event) => {
       const cache = await caches.open(CACHE_VERSION);
       const shell = await fetch('/', { cache: 'reload' });
       const html = await shell.clone().text();
-      await cache.put('/', shell);
+      if (shell.ok) await cache.put('/', shell);
       const assetUrls = Array.from(html.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css|png|svg|json))"/g)).map((m) => m[1]);
       // Lazy-loaded chunks (export/import, developer screens) are listed by the build
       const built = await fetch('/asset-manifest.json', { cache: 'reload' })
@@ -55,7 +55,7 @@ self.addEventListener('fetch', (event) => {
         const cache = await caches.open(CACHE_VERSION);
         try {
           const fresh = await fetch(request);
-          if (fresh.ok) cache.put('/', fresh.clone());
+          if (fresh.ok && !fresh.headers.has('X-Daymark-Sign-In')) cache.put('/', fresh.clone());
           return fresh;
         } catch {
           return (await cache.match('/')) || Response.error();

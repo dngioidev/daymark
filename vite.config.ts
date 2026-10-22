@@ -19,6 +19,11 @@ const assetManifest = (): Plugin => ({
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss(), assetManifest()],
+    build: {
+      rollupOptions: {
+        input: { main: 'index.html', signin: 'signin.html' },
+      },
+    },
     define: {
       __APP_VERSION__: JSON.stringify(JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version),
     },

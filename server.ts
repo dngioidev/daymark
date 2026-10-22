@@ -1,9 +1,11 @@
 import express from 'express';
+import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createApp } from './server/app';
 import { DEV_DEFAULT_PASSWORD, loadConfig, passwordProblem } from './server/config';
 import { FileStore } from './server/store';
+import { createSiteGate } from './server/gate';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,9 +38,17 @@ async function startServer() {
   if (!config.production) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    const gate = createSiteGate(store, () => vite.transformIndexHtml('/signin.html', fs.readFileSync(path.join(__dirname, 'signin.html'), 'utf8')));
+    app.use((req, res, next) => {
+      // Vite injects these extensionless script URLs into the sign-in page.
+      if (req.path === '/@vite/client' || req.path === '/@react-refresh') return next();
+      gate(req, res, next);
+    });
     app.use(vite.middlewares);
   } else {
     const dist = path.resolve(__dirname, 'dist');
+    const signInPage = fs.readFileSync(path.join(dist, 'signin.html'), 'utf8');
+    app.use(createSiteGate(store, () => signInPage));
     // Hashed assets can be cached forever; index.html and the service worker must revalidate
     app.use(
       express.static(dist, {
