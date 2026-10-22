@@ -908,12 +908,14 @@ async function functional() {
   await tc('HI-02', 'Calendar day select, empty day wording', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /^calendar$/i).click();
-    const empty = page.getByRole('button', { name: /: nothing recorded$/i }).first();
-    await empty.click();
-    const text = await visibleText(page);
     const recorded = page.getByRole('button', { name: /\d+ of \d+ done$/i }).first();
+    const recordedMonth = (await recorded.getAttribute('data-date')).slice(0, 7);
     await recorded.click();
     const tasksShown = /tasks done/i.test(await visibleText(page));
+    const empty = page.getByRole('button', { name: /: nothing recorded$/i })
+      .and(page.locator(`button[data-date^="${recordedMonth}"]`)).first();
+    await empty.click();
+    const text = await visibleText(page);
     await ctx.close();
     expect(/nothing was recorded on/i.test(text) && noIso(text), 'empty day message');
     expect(tasksShown, 'recorded day not shown');

@@ -24,6 +24,7 @@ interface MobileAppShellProps {
   onOpenQuickCapture: () => void;
   onOpenSearch: () => void;
   openNoteId?: string;
+  onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
@@ -57,6 +58,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onOpenQuickCapture,
   onOpenSearch,
   openNoteId,
+  onOpenNoteConsumed,
   focusToggleSignal,
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
@@ -192,7 +194,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} focusToggleSignal={focusToggleSignal} />}
+          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} />}
         </main>
 
         <nav

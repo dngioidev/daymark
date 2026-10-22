@@ -28,3 +28,14 @@ it('ignores fields, unrelated keys and extra modifiers', () => {
   expect(shortcutFor(key('k', { ctrlKey: true, altKey: true }), false, body)).toBeNull();
   expect(shortcutFor(key('.', { ctrlKey: true, shiftKey: true }), false, body)).toBeNull();
 });
+
+it('blocks search, help and navigation when a dialog or menu is open', () => {
+  for (const letter of ['/', '?', 'g', 't', 'c', 'n']) {
+    expect(shortcutFor(key(letter), true, body, true)).toBeNull();
+  }
+  for (const modifier of ['ctrlKey', 'metaKey']) {
+    expect(shortcutFor(key('F', { [modifier]: true, shiftKey: true }), false, body, true)).toBeNull();
+    expect(shortcutFor(key('k', { [modifier]: true }), false, body, true)).toBe('new-task');
+    expect(shortcutFor(key('.', { [modifier]: true }), false, field, true)).toBe('focus-notes');
+  }
+});

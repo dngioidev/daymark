@@ -117,6 +117,32 @@ it('opens a requested note in the compact editor', () => {
   expect(find(tree, (el) => el.props.id === 'note-title')?.props.value).toBe('Chosen');
 });
 
+it('ignores focus signals on compact screens without jumping from the list to the editor', () => {
+  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
+  render(true, { focusToggleSignal: 0 });
+  hooks.effects.forEach((effect) => effect());
+  render(true, { focusToggleSignal: 1 });
+  hooks.effects.forEach((effect) => effect());
+  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.props.id === 'note-title')).toBeUndefined();
+});
+
+it.each([false, true])('consumes a note-open request once (compact=%s)', (compact) => {
+  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const consumed = vi.fn();
+  render(compact, { openNoteId: note.id, onOpenNoteConsumed: consumed });
+  hooks.effects.forEach((effect) => effect());
+  expect(consumed).toHaveBeenCalledOnce();
+  const tree = render(compact, { onOpenNoteConsumed: consumed });
+  expect(find(tree, (el) => el.props.id === 'note-title')?.props.value).toBe('Existing');
+  find(tree, (el) => el.props['aria-label'] === 'Back to notes')!.props.onClick();
+  render(compact, { onOpenNoteConsumed: consumed });
+  hooks.effects.forEach((effect) => effect());
+  expect(consumed).toHaveBeenCalledOnce();
+  expect(find(render(compact), (el) => el.props.id === 'notes-search')).toBeDefined();
+});
+
 it('keeps All and a matching search when creating a blank note', () => {
   const input = find(render(), (el) => el.props.id === 'notes-search')!;
   (input.props.onChange as (e: unknown) => void)({ target: { value: 'untitled' } });

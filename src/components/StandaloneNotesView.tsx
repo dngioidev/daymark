@@ -35,13 +35,14 @@ interface StandaloneNotesViewProps {
   /** Phone shell: one pane at a time, no outer page padding. */
   compact?: boolean;
   openNoteId?: string;
+  onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
 }
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
 /** Notes: searchable list (pinned first) and a Markdown editor with preview. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, focusToggleSignal = 0 }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0 }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,9 +66,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   useEffect(() => {
     if (previousFocusSignal.current === focusToggleSignal) return;
     previousFocusSignal.current = focusToggleSignal;
+    if (compact) return;
     setFocusMode((focused) => !focused);
     setPane('editor');
-  }, [focusToggleSignal]);
+  }, [focusToggleSignal, compact]);
 
   useEffect(() => {
     if (!openNoteId || !notes.some((note) => note.id === openNoteId)) return;
@@ -75,7 +77,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     setSelectedFolder('all');
     setSearchQuery('');
     setPane('editor');
-  }, [openNoteId]);
+    onOpenNoteConsumed?.();
+  }, [openNoteId, notes, onOpenNoteConsumed]);
 
   useEffect(() => {
     if (compact) return;

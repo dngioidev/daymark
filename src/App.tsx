@@ -70,6 +70,8 @@ import { shortcutFor } from './utils/shortcuts';
 import type { SearchResult } from './utils/search';
 import { SearchDialog } from './components/SearchDialog';
 import { ShortcutHelp } from './components/ShortcutHelp';
+import { isDialogOpen } from './components/ui/Dialog';
+import { isMenuOpen } from './components/ui/Menu';
 
 export default function App() {
   // App Mode: auto-detect mobile vs desktop, with instant user switcher
@@ -135,8 +137,6 @@ export default function App() {
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(getLastBackupDate);
 
   const openSearch = () => {
-    // A new search can request the same note again after local Notes navigation.
-    setOpenNoteId(undefined);
     setIsSearchOpen(true);
   };
   const goToTab = (tab: 'today' | 'calendar' | 'notes') => {
@@ -168,7 +168,7 @@ export default function App() {
     let timer: number | undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat || e.isComposing) return;
-      const action = shortcutFor(e, pendingG, e.target);
+      const action = shortcutFor(e, pendingG, e.target, isDialogOpen() || isMenuOpen());
       pendingG = false;
       window.clearTimeout(timer);
       if (!action) return;
@@ -688,7 +688,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} focusToggleSignal={focusToggleSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -722,6 +722,7 @@ export default function App() {
           onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
           onOpenSearch={openSearch}
           openNoteId={openNoteId}
+          onOpenNoteConsumed={() => setOpenNoteId(undefined)}
           focusToggleSignal={focusToggleSignal}
           onOpenHistoricalModal={setHistoricalModalTask}
           onOpenHistoryDrawer={openDetails}

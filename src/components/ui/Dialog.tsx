@@ -12,6 +12,11 @@ import { X } from 'lucide-react';
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const stack: HTMLElement[] = [];
 
+/** Read at keydown time so nested and locally-owned dialogs block global navigation. */
+export function isDialogOpen(): boolean {
+  return stack.length > 0;
+}
+
 function setAppInert(inert: boolean) {
   const root = document.getElementById('root');
   if (!root) return;

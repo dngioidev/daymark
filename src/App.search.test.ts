@@ -42,6 +42,9 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 import { MobileAppShell } from './components/mobile/MobileAppShell';
+const overlays = vi.hoisted(() => ({ dialog: false, menu: false }));
+vi.mock('./components/ui/Dialog', async (original) => ({ ...await original<typeof import('./components/ui/Dialog')>(), isDialogOpen: () => overlays.dialog }));
+vi.mock('./components/ui/Menu', async (original) => ({ ...await original<typeof import('./components/ui/Menu')>(), isMenuOpen: () => overlays.menu }));
 type Element = React.ReactElement<Record<string, unknown>>;
 function elements(node: React.ReactNode): Element[] {
   if (Array.isArray(node)) return node.flatMap(elements);
@@ -53,6 +56,7 @@ function props(type: unknown) { return render().find((el) => el.type === type)!.
 let listener: (e: unknown) => void;
 function key(key: string, extra = {}) { listener({ key, target: { closest: () => null }, preventDefault: vi.fn(), ...extra }); }
 beforeEach(() => {
+  overlays.dialog = false; overlays.menu = false;
   hooks.values = []; vi.useFakeTimers();
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' }, setTimeout, clearTimeout,
     addEventListener: (name: string, fn: (e: unknown) => void) => { if (name === 'keydown') listener = fn; }, removeEventListener: vi.fn() });
@@ -97,10 +101,38 @@ it('routes search results into the controlled phone tab', () => {
 });
 it('allows searching for the same note again after selecting another note locally', () => {
   (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'note', noteId: 'chosen' });
-  // Clear the previous request when opening search so choosing the same id triggers Notes again.
+  (props(StandaloneNotesView).onOpenNoteConsumed as () => void)();
   const header = render().find((el) => typeof el.props.onOpenSearch === 'function')!;
   (header.props.onOpenSearch as () => void)();
   expect(props(StandaloneNotesView).openNoteId).toBeUndefined();
   (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'note', noteId: 'chosen' });
   expect(props(StandaloneNotesView).openNoteId).toBe('chosen');
+});
+
+it.each(['dialog', 'menu'] as const)('blocks global shortcuts while a %s is open, preserving exceptions', (overlay) => {
+  key('g'); key('n');
+  render(); hooks.effects.forEach((effect) => effect());
+  key('g');
+  overlays[overlay] = true;
+  key('t'); key('/'); key('?'); key('F', { ctrlKey: true, shiftKey: true }); key('g'); key('t');
+  expect(props(SearchDialog).isOpen).toBe(false);
+  expect(props(ShortcutHelp).isOpen).toBe(false);
+  expect(props(StandaloneNotesView).focusToggleSignal).toBe(0);
+  key('k', { ctrlKey: true });
+  expect(props(QuickCaptureModal).isOpen).toBe(true);
+  key('.', { metaKey: true });
+  expect(props(StandaloneNotesView).focusToggleSignal).toBe(1);
+  overlays[overlay] = false;
+  key('t'); // The prefix used inside the overlay must not leak out.
+  expect(render().some((el) => el.type === StandaloneNotesView)).toBe(true);
+  key('/'); expect(props(SearchDialog).isOpen).toBe(true);
+});
+
+it.each([false, true])('clears a consumed note request before Notes is revisited (phone=%s)', (phone) => {
+  if (phone) (render().find((el) => typeof el.props.onSwitchToMobileApp === 'function')!.props.onSwitchToMobileApp as () => void)();
+  (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'note', noteId: 'chosen' });
+  const component = phone ? MobileAppShell : StandaloneNotesView;
+  (props(component).onOpenNoteConsumed as () => void)();
+  key('g'); key('t'); key('g'); key('n');
+  expect(props(component).openNoteId).toBeUndefined();
 });

@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+let openMenus = 0;
+
+export function isMenuOpen(): boolean {
+  return openMenus > 0;
+}
+
 /**
  * Small dropdown menu: closes on outside tap, Esc and after picking an item; arrow keys move
  * between items. `trigger` receives the props to spread on the button that opens it.
@@ -35,6 +41,7 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', head
 
   useEffect(() => {
     if (!open) return;
+    openMenus += 1;
     const onPointer = (e: PointerEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -55,6 +62,7 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', head
     document.addEventListener('keydown', onKey, true);
     requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
     return () => {
+      openMenus -= 1;
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };

@@ -4,6 +4,7 @@ export function shortcutFor(
   e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>,
   pendingG: boolean,
   target: EventTarget | null,
+  modalOpen = false,
 ): ShortcutAction | 'g-prefix' | null {
   if (e.altKey) return null;
   const key = e.key.toLowerCase();
@@ -11,6 +12,7 @@ export function shortcutFor(
   // Preserve new-task from anywhere; focus-notes is the other explicit typing exception.
   if (mod && key === 'k') return 'new-task';
   if (mod && !e.shiftKey && key === '.') return 'focus-notes';
+  if (modalOpen) return null;
   const element = target as Element | null;
   if (element?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return null;
   if (mod) return e.shiftKey && key === 'f' ? 'search' : null;
