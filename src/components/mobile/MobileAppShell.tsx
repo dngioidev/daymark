@@ -199,7 +199,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
         <nav
           aria-label="Main"
-          className={`bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 flex items-center justify-around pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] px-1 z-30 ${
+          className={`dm-card bg-white! dark:bg-stone-900! border-t border-stone-200 dark:border-stone-800 flex items-center justify-around pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] px-1 z-30 ${
             activeTab === 'notes' ? 'shrink-0' : frame ? 'sm:absolute fixed bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
           }`}
         >

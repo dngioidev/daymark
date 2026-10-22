@@ -55,7 +55,7 @@ import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { ServerDashboard } from './components/server/ServerDashboard';
 import { useSync } from './hooks/useSync';
 import { getHostMode } from './utils/hostMode';
-import { isNativeApp } from './native/daymarkBridge';
+import { applySystemBars, isNativeApp } from './native/daymarkBridge';
 import { defaultDeviceName as browserDeviceName } from './utils/deviceName';
 import { useBackHandler } from './native/backButton';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
@@ -92,7 +92,7 @@ export default function App() {
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const background = useBackgroundPhoto();
-  useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, background.meta);
+  const appearance = useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, background.meta);
   useEffect(() => {
     // Dialogs are portalled to body, so the glass scope includes them too.
     document.documentElement.classList.toggle('dm-glass', !!background.url);
@@ -131,6 +131,14 @@ export default function App() {
   const [openNoteId, setOpenNoteId] = useState<string | undefined>();
   const [focusToggleSignal, setFocusToggleSignal] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const settingsStatusStrip = appMode === 'mobile-app' && isSettingsOpen;
+  useEffect(() => {
+    // Fullscreen phone Settings paints a stone-900 strip beneath the status icons.
+    void applySystemBars(
+      settingsStatusStrip ? '#1c1917' : appearance.headerBgOpaque,
+      settingsStatusStrip || appearance.headerText === '#ffffff',
+    );
+  }, [appearance.headerBgOpaque, appearance.headerText, settingsStatusStrip]);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
   const [historicalModalTask, setHistoricalModalTask] = useState<TaskItem | null>(null);
   const [detailsTaskId, setDetailsTaskId] = useState<string | null>(null);

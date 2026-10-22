@@ -17,7 +17,11 @@ vi.mock('./utils/vaultStore', async (original) => ({
   loadDailyDocuments: () => docs, loadSettings: () => DEFAULT_SETTINGS,
   loadStandaloneNotes: () => [], needsOnboarding: () => false,
 }));
-vi.mock('./hooks/useAppearance', () => ({ useAppearance: () => {} }));
+vi.mock('./hooks/useAppearance', async () => {
+  const { resolveAppearance } = await import('./utils/appearance');
+  const { DEFAULT_APPEARANCE } = await import('./utils/defaultData');
+  return { useAppearance: () => resolveAppearance(DEFAULT_APPEARANCE, null) };
+});
 vi.mock('./hooks/useBackgroundPhoto', () => ({ useBackgroundPhoto: () => ({ url: null, meta: null, photos: [], select: vi.fn(), add: vi.fn(), remove: vi.fn() }) }));
 vi.mock('./hooks/useRealToday', () => ({ useRealToday: () => '2026-10-21' }));
 vi.mock('./hooks/useWidgetSync', () => ({ useWidgetSync: () => {} }));

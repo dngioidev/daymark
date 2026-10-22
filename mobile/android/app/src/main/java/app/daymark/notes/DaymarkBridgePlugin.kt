@@ -2,6 +2,10 @@ package app.daymark.notes
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.graphics.Color
+import android.os.Build
+import android.view.View
+import android.view.WindowInsetsController
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -13,11 +17,44 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * Bridge between the web app (WebView) and the home-screen widget.
+ * Bridge between the web app (WebView), system bars and the home-screen widget.
  * JS side: src/native/daymarkBridge.ts.
  */
 @CapacitorPlugin(name = "DaymarkBridge")
 class DaymarkBridgePlugin : Plugin() {
+
+    @PluginMethod
+    fun setSystemBars(call: PluginCall) {
+        val color = call.getString("color")
+        val lightIcons = call.getBoolean("lightIcons")
+        if (color == null || !color.matches(Regex("^#[0-9a-fA-F]{6}$")) || lightIcons == null) {
+            call.reject("Expected an opaque hex colour and lightIcons")
+            return
+        }
+        val statusBarColor = Color.parseColor(color)
+        activity.runOnUiThread {
+            try {
+                val window = activity.window
+                window.statusBarColor = statusBarColor
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    window.insetsController?.setSystemBarsAppearance(
+                        if (lightIcons) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    )
+                } else {
+                    val decor = window.decorView
+                    decor.systemUiVisibility = if (lightIcons) {
+                        decor.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    } else {
+                        decor.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    }
+                }
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject("Could not update the system bars", e)
+            }
+        }
+    }
 
     @PluginMethod
     fun setSnapshot(call: PluginCall) {

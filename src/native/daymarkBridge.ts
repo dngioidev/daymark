@@ -5,6 +5,7 @@ import { WidgetSnapshot } from '../utils/widgetSnapshot';
 export type WidgetAction = { type: 'toggle'; taskId: string } | { type: 'capture' };
 
 interface DaymarkBridgePlugin {
+  setSystemBars(options: { color: string; lightIcons: boolean }): Promise<void>;
   setSnapshot(snapshot: WidgetSnapshot): Promise<void>;
   consumeActions(): Promise<{ actions: WidgetAction[] }>;
   pinWidget(): Promise<{ requested: boolean }>;
@@ -15,6 +16,16 @@ const Bridge = registerPlugin<DaymarkBridgePlugin>('DaymarkBridge');
 
 /** True when running inside the Android app shell (not the browser/PWA). */
 export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
+
+/** Matches Android's status bar to the resolved header; browsers need no native update. */
+export async function applySystemBars(color: string, lightIcons: boolean): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await Bridge.setSystemBars({ color, lightIcons });
+  } catch (err) {
+    console.error('Could not update the system bars', err);
+  }
+}
 
 export async function pushWidgetSnapshot(snapshot: WidgetSnapshot): Promise<void> {
   if (!isNativeApp()) return;

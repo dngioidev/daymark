@@ -21,7 +21,13 @@ vi.mock('./utils/vaultStore', async (original) => ({
   loadDailyDocuments: () => docs, loadSettings: () => DEFAULT_SETTINGS,
   loadStandaloneNotes: () => [], needsOnboarding: () => false,
 }));
-vi.mock('./hooks/useAppearance', () => ({ useAppearance: () => {} }));
+const systemBars = vi.hoisted(() => ({ apply: vi.fn(), headerBg: '#12345680', headerBgOpaque: '#123456', headerText: '#ffffff' }));
+vi.mock('./hooks/useAppearance', async () => {
+  const { resolveAppearance } = await import('./utils/appearance');
+  const { DEFAULT_APPEARANCE } = await import('./utils/defaultData');
+  return { useAppearance: () => ({ ...resolveAppearance(DEFAULT_APPEARANCE, null), headerBg: systemBars.headerBg, headerBgOpaque: systemBars.headerBgOpaque, headerText: systemBars.headerText }) };
+});
+vi.mock('./native/daymarkBridge', () => ({ isNativeApp: () => false, applySystemBars: systemBars.apply }));
 vi.mock('./hooks/useBackgroundPhoto', () => ({ useBackgroundPhoto: () => ({ url: null, meta: null, photos: [], select: vi.fn(), add: vi.fn(), remove: vi.fn() }) }));
 vi.mock('./hooks/useRealToday', () => ({ useRealToday: () => '2026-10-21' }));
 vi.mock('./hooks/useWidgetSync', () => ({ useWidgetSync: () => {} }));
@@ -42,6 +48,7 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 import { MobileAppShell } from './components/mobile/MobileAppShell';
+import { SettingsModal } from './components/SettingsModal';
 const overlays = vi.hoisted(() => ({ dialog: false, menu: false }));
 vi.mock('./components/ui/Dialog', async (original) => ({ ...await original<typeof import('./components/ui/Dialog')>(), isDialogOpen: () => overlays.dialog }));
 vi.mock('./components/ui/Menu', async (original) => ({ ...await original<typeof import('./components/ui/Menu')>(), isMenuOpen: () => overlays.menu }));
@@ -56,6 +63,7 @@ function props(type: unknown) { return render().find((el) => el.type === type)!.
 let listener: (e: unknown) => void;
 function key(key: string, extra = {}) { listener({ key, target: { closest: () => null }, preventDefault: vi.fn(), ...extra }); }
 beforeEach(() => {
+  systemBars.headerBgOpaque = '#123456'; systemBars.headerText = '#ffffff';
   overlays.dialog = false; overlays.menu = false;
   hooks.values = []; vi.useFakeTimers();
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' }, setTimeout, clearTimeout,
@@ -66,6 +74,22 @@ beforeEach(() => {
   render(); hooks.effects.forEach((effect) => effect());
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it('updates system bars with the opaque header colour and resolved icon contrast', () => {
+  expect(systemBars.apply).toHaveBeenLastCalledWith('#123456', true);
+  systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';
+  render(); hooks.effects.forEach((effect) => effect());
+  expect(systemBars.apply).toHaveBeenLastCalledWith('#eeeeee', false);
+});
+it('keeps light icons over the phone Settings dark strip and restores the header on close', () => {
+  systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';
+  (render().find((el) => typeof el.props.onSwitchToMobileApp === 'function')!.props.onSwitchToMobileApp as () => void)();
+  (props(MobileAppShell).onOpenSettings as () => void)();
+  render(); hooks.effects.forEach((effect) => effect());
+  expect(systemBars.apply).toHaveBeenLastCalledWith('#1c1917', true);
+  (props(SettingsModal).onClose as () => void)();
+  render(); hooks.effects.forEach((effect) => effect());
+  expect(systemBars.apply).toHaveBeenLastCalledWith('#eeeeee', false);
+});
 it('keeps Ctrl K new-task, opens search and help, and expires g after 1.5 seconds', () => {
   key('k', { ctrlKey: true }); expect(props(QuickCaptureModal).isOpen).toBe(true);
   key('F', { ctrlKey: true, shiftKey: true }); expect(props(SearchDialog).isOpen).toBe(true);
