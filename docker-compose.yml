@@ -1,5 +1,7 @@
 # Start:  DAYMARK_PASSWORD='choose-a-strong-one' docker compose up -d
 # The password is only used to create the account on first start (stored hashed in ./data).
+# Open the server address to sign in. Plain HTTP is for LAN only (cookie is not Secure);
+# use HTTPS (e.g. Caddy) for a public address. Upgrading requires every device to sign in again.
 services:
   daymark:
     build: .

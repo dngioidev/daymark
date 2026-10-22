@@ -38,7 +38,7 @@ const VIEWPORTS = {
   laptop: { viewport: { width: 1024, height: 768 } },
 };
 
-// { name, viewport, prepare?(page) } - extend per cycle.
+// { name, viewport, signedOut?, prepare?(page) } - extend per cycle.
 // Context setup seeds the sample vault before opening the server app.
 const loadSample = async (page) => {
   await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
@@ -58,6 +58,25 @@ const click = (role, name) => (page) => page.getByRole(role, { name }).first().c
 const SHOTS = [
   { name: 'desktop-today', viewport: 'desktop', prepare: loadSample },
   { name: 'android-today', viewport: 'android', prepare: loadSample },
+  // Server sign-in: a phone viewport still runs the server web app, not native Android.
+  { name: 'sign-in', viewport: 'desktop', signedOut: true, cycles: ['server-sign-in'], prepare: async (page) => {
+    await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor();
+  } },
+  { name: 'sync-account', viewport: 'android', cycles: ['server-sign-in'], prepare: then(
+    click('button', /open sync settings/i),
+    (page) => page.getByRole('button', { name: 'Sign out', exact: true }).waitFor(),
+  ) },
+  { name: 'sign-out-warning', viewport: 'android', cycles: ['server-sign-in'], prepare: then(async (page) => {
+    await page.route('**/api/**', (route) => route.abort());
+    await page.getByRole('button', { name: 'New task', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Task', exact: true }).fill('Save this change when the server is back');
+    await page.getByRole('button', { name: 'Add task', exact: true }).click();
+    await page.getByRole('button', { name: /open sync settings/i }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByRole('alertdialog', { name: 'Sign out?', exact: true }).waitFor();
+    await page.getByText(/The server could not be reached\./).waitFor();
+  }) },
   // Cycle 5: UX redesign
   { name: 'phone-today', viewport: 'android', cycles: ['cycle-5'], prepare: loadSample },
   { name: 'phone-today-dark', viewport: 'android', dark: true, cycles: ['cycle-5'], prepare: loadSample },
@@ -111,10 +130,12 @@ try {
   // Shots without `cycles` are the generic pair; tagged shots run only for their cycle
   for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle))))) {
     const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], colorScheme: shot.dark ? 'dark' : 'light' });
-    const session = await signIn(ctx, baseUrl, password);
-    if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
+    if (!shot.signedOut) {
+      const session = await signIn(ctx, baseUrl, password);
+      if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
+    }
     const page = await ctx.newPage();
-    if (!externalUrl) await seedSample(page, baseUrl);
+    if (!externalUrl && !shot.signedOut) await seedSample(page, baseUrl);
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     if (shot.prepare) await shot.prepare(page);
     const file = path.join(outDir, `${shot.name}.png`);

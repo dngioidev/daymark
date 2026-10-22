@@ -12,15 +12,23 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json` |
 | `DAYMARK_USER` | `admin` | Account name |
 | `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json`. |
-| `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API (bearer auth, no cookies) |
-| `DAYMARK_TOKEN_TTL_DAYS` | `90` | Device token lifetime |
+| `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API; does not enable cross-origin browser sign-in or credentialed CORS |
+| `DAYMARK_REFRESH_TTL_DAYS` | `30` | Refresh token lifetime in days, reset on each refresh. Replaces `DAYMARK_TOKEN_TTL_DAYS`; access tokens always last 900 seconds (15 minutes). Use a positive, finite number; see the validation limitation below. |
 | `NODE_ENV` / `--production` | dev | Production serves `dist/` (`npm start` passes `--production`) |
 
-## 2. Authentication
-- `POST /api/auth/login` `{ username, password, deviceName, platform }` → `{ token, username, device }`. Each login registers a **device**.
-- Every other `/api/*` route (except `/api/health`) needs `Authorization: Bearer <token>`.
-- Tokens: `base64url(payload).HMAC-SHA256` with `{ sub, did, ver, exp }`. Rejected when expired, when the device is disconnected, or when `ver` ≠ the account's token version (changing the password bumps it and signs out every device).
+Configuration validation limitation: values ≤ 0 or invalid should fall back to **30** days. Currently `server/config.ts` uses `Number(value) || 30`: missing, empty, nonnumeric and zero values fall back, but negative numbers and `Infinity` do not. Until the parser is corrected, set a positive, finite value or leave the variable unset.
+
+## 2. Authentication and site gate
+- `POST /api/auth/login` accepts `{ username, password, deviceName, platform, installId? }` and returns `{ accessToken, expiresIn, username, device }`. `expiresIn` is 900 seconds and `device` contains `id` and `name`. Each login registers a **device**; a valid stable `installId` reuses its active entry.
+- Web clients send `X-Daymark-Client: web` on login, refresh and logout. Login/refresh set the `daymark_refresh` cookie (`HttpOnly`, `SameSite=Strict`, path `/`) and the readable `daymark_signed_in` marker. Cookies are `Secure` when Express sees HTTPS, including through its trusted loopback proxy. Plain HTTP is for LAN only because its cookie is not `Secure`; use HTTPS (e.g. Caddy) on a public address.
+- Android omits the web header, receives `refreshToken` in the login/refresh response, stores it in app storage and sends `{ refreshToken }` in the body for refresh/logout. Access tokens stay in memory on both platforms.
+- `POST /api/auth/refresh` accepts the refresh cookie for web clients or the body credential for Android. It returns a new access token and rotates the refresh token, extending its expiry by 30 days by default. Only refresh hashes are stored on the server. Reusing a retained retired token revokes that device's whole session and records `refresh_reuse` in the sync log. Detection has no grace window; a lost refresh response can require signing in again. Browser tabs coordinate refresh using Web Locks with a BroadcastChannel fallback.
+- `POST /api/auth/logout` uses the same refresh credentials, revokes the device session when valid, clears both cookies and returns `{ ok: true }`.
+- Except for `/api/health`, login, refresh and logout (and CORS preflight), all `/api/*` routes require `Authorization: Bearer <accessToken>`. Data routes are **Bearer-only**: a refresh cookie alone cannot read or change a vault.
+- Access tokens use `base64url(payload).HMAC-SHA256` with `{ typ: 'access', sub, did, ver, exp }`. They are rejected when expired, when the device is revoked, or when the account token version differs. Changing the password bumps that version and revokes all devices, including the caller.
 - Failed logins are rate-limited per IP (10 per 15 min → 429).
+- The site gate (`server/gate.ts`) checks the refresh cookie before serving HTML navigation in development and production. Signed-out navigation returns the standalone **Sign in** page with status 401, `Cache-Control: no-store` and `X-Daymark-Sign-In: 1`; `/signin.html` can be opened directly and redirects signed-in visitors to `/`. App code files stay public but contain no user data. `/api/health` stays public.
+- After upgrading, every device signs in once more: legacy 90-day tokens are not accepted. `DAYMARK_TOKEN_TTL_DAYS` is no longer read.
 
 ## 3. Endpoints
 
@@ -28,10 +36,12 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | :--- | :--- | :--- |
 | GET | `/api/health` | `{ status, service, version }` (no account details) |
 | POST | `/api/auth/login` | Sign in a device |
+| POST | `/api/auth/refresh` | Rotate refresh credentials and issue an access token |
+| POST | `/api/auth/logout` | Revoke this device session and clear cookies; `{ ok: true }` |
 | GET | `/api/auth/session` | Current account and device |
-| POST | `/api/auth/change-password` | `{ currentPassword, newPassword }` → new token for this device; all others signed out |
+| POST | `/api/auth/change-password` | `{ currentPassword, newPassword }` → `{ ok: true }`; every device signed out, including the caller |
 | GET | `/api/devices` | Connected devices (`current` marks the caller) |
-| DELETE | `/api/devices/:id` | Disconnect a device (revokes its token; its local data is untouched) |
+| DELETE | `/api/devices/:id` | Revoke a device's session; on learning this, web wipes its local copy and Android keeps its notes |
 | GET | `/api/server/stats` | Counts, last sync, version |
 | GET | `/api/sync/log` | Last 100 audit entries |
 | POST | `/api/sync` | Push changes and pull everything newer (below) |
@@ -46,11 +56,14 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 - Response: `{ rev, entities: [{ key, rev, value }], conflicts: [...] }` = everything with rev > sinceRev plus the merged result of every pushed key.
 - Client applies each returned entity to its vault *as it is now*: unchanged since the request → take the server value; edited meanwhile → merge again with the sent snapshot as base (kept and pushed next round). Bases and `lastRev` are updated.
 - Merge rules: one side changed → take it; both the same → take it; delete vs edit → keep the edit. Both edited: daily notes merge task by task (same task on both → incoming wins), heading notes text keeps both versions with a separator, standalone notes keep the server copy and add an incoming "(conflict copy)", settings → incoming wins. Every both-edited case is reported in `conflicts` and shown to the user.
-- Triggers (`src/hooks/useSync.ts`): app start, 2.5 s after any local change, coming online, returning to the foreground, every 60 s. A 401 stops auto-sync and asks the user to reconnect.
+- Triggers (`src/hooks/useSync.ts`): app start, 2.5 s after any local change, coming online, returning to the foreground, every 60 s. The token manager refreshes expired access tokens and retries; a session-ended response stops sync. Server web clients wipe their local vault and return to sign-in; Android clears credentials and keeps its notes.
 
 ## 5. Clients
-- Same-origin PWA (served by the server) and other-origin browsers use `fetch` with CORS.
-- Android app: `CapacitorHttp` (native HTTP, no CORS/mixed-content limits) and `usesCleartextTraffic` so LAN servers on `http://` work. Prefer HTTPS via a reverse proxy when the server is reachable from the internet.
+- Same-origin web/PWA: sign in at the server address, then sync automatically against that origin. No local-only choice or server-address field. A signed-in PWA can edit its local copy offline and sync when back online.
+- A web build hosted on another origin is **local-only**, with no sign-in or sync. Move notes using **Backup & restore**. CORS configuration does not change this app mode.
+- Android: the welcome screen offers **Sign in to sync** or local use (**Start fresh**, the current button label). Sign-in opens Settings → Sync for server address, username, password and device name, then **Connect and sync**. Local users can connect later; existing local data merges on first sync. Native HTTP supports LAN servers over `http://`; use HTTPS on a public address.
+- Web **Settings → Sync → Sign out** first syncs. Failed sync or unsent changes opens **Sign out?**, showing the number of changes that would be deleted, with **Cancel** and **Sign out anyway**. Confirmed sign-out revokes the session, clears the vault in IndexedDB and its localStorage fallback, sync state, Daymark localStorage keys and service-worker caches, then returns to sign-in. If logout cannot reach the server, it records a pending logout for retry before showing the sign-in form.
+- Android **Disconnect this device** stops syncing and keeps the local copy. Remote sign-out and password changes wipe the browser copy when it next receives a session-ended response, without the unsent-change confirmation; Android keeps its local notes.
 
 ## 6. Deployment
 - Docker: `DAYMARK_PASSWORD='…' docker compose up -d` (see `Dockerfile`, `docker-compose.yml`); data in `./data`; health check on `/api/health`; runs as the `node` user.

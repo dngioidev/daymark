@@ -30,10 +30,18 @@ npm ci && npm run build
 DAYMARK_PASSWORD='choose-a-strong-one' npm start
 ```
 
-Then on each device open **Settings → Sync** (or tap the sync status in the header), enter `http://<server-ip>:3000`, the user `admin` and your password. Devices merge edits task by task; nothing is overwritten. The password is only read on the first start (8+ characters); change it later from the app. Put the server behind HTTPS (e.g. Caddy or nginx) if it is reachable from the internet. Full reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md).
+Open `http://<server-ip>:3000` in your browser and **Sign in** with the user `admin` (or `DAYMARK_USER`) and your password. The site needs sign-in before you can use the notebook, in development and production. App code files stay public but contain no user data; data routes require an access token. The browser syncs with the server that serves it, with no server-address field or local-only choice. A web build hosted on another origin is local-only; use **Backup & restore** to move its notes.
+
+On Android, **Sign in to sync** on the welcome screen opens **Settings → Sync**: enter your server address, username, password and a name for the device, then **Connect and sync**. To use the app locally, choose **Start fresh** instead; you can connect later. Existing local notes merge into the server on first sign-in. The password is only read on the first start (8+ characters); change it later from the app.
+
+Access tokens last **15 minutes**. Refresh tokens last **30 days**, renewed on each refresh, so active devices stay signed in. `DAYMARK_REFRESH_TTL_DAYS` replaces `DAYMARK_TOKEN_TTL_DAYS`; after upgrading, every device must sign in once more. Each refresh replaces the previous refresh token. Reusing a retired token signs that device out; a lost response on a bad connection can also mean signing in again. Changing the password signs out every device, including the current one.
+
+**Sign out** in **Settings → Sync** first tries to sync, then removes the vault, sync state and cached app files from that browser. If the server cannot be reached or edits are still unsent, a warning shows how many changes would be lost: choose **Cancel** to keep working or **Sign out anyway** to discard them. Android's **Disconnect this device** stops syncing and keeps its local notes. Remote sign-out or a password change wipes the browser copy when it next learns the session has ended; Android keeps its local copy.
+
+**Plain HTTP is for LAN only:** the sign-in cookie is not `Secure` there. Use HTTPS (e.g. Caddy) on a public address. Full configuration and API reference: [`.ai-configs/project/api-and-sync.md`](./.ai-configs/project/api-and-sync.md). See the [server sign-in release notes](./docs/releases/server-sign-in/README.md) for the screens and upgrade notes.
 
 ### Your data
-- Stored in the browser/app (IndexedDB) on each device; nothing leaves the device unless you connect a sync server.
+- Stored in the browser/app (IndexedDB) on each device. The server-hosted web app syncs automatically after sign-in; Android sync is optional and a standalone web build stays local-only.
 - **Settings → Backup & restore → Back up now** saves a ZIP of Markdown files (plus a full snapshot); **Choose a backup file…** restores one. A technical JSON backup is under **Advanced**. On Android the file opens in the share sheet (save to Drive, Files, email…). Restoring while sync is on merges the backup with your server instead of deleting anything.
 - Uninstalling the app or clearing site data deletes the local vault, so keep a backup or use sync.
 
