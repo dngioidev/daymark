@@ -25,12 +25,16 @@ interface DialogProps {
   title: React.ReactNode;
   /** Short line under the title. */
   description?: React.ReactNode;
+  /** Optional live status alongside the heading, outside the accessible title. */
+  headerStatus?: React.ReactNode;
   icon?: React.ReactNode;
   children: React.ReactNode;
   /** Sticky action row at the bottom. */
   footer?: React.ReactNode;
   variant?: 'center' | 'sheet' | 'fullscreen-mobile';
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Fixed settings shell; tab content owns scrolling. */
+  fixedSettingsSize?: boolean;
   /** Close on backdrop tap (default true). */
   dismissible?: boolean;
   /** Use "alertdialog" for confirmations. */
@@ -44,12 +48,14 @@ export const Dialog: React.FC<DialogProps> = ({
   onClose,
   title,
   description,
+  headerStatus,
   icon,
   children,
   footer,
   variant = 'center',
   size = 'md',
   dismissible = true,
+  fixedSettingsSize = false,
   role = 'dialog',
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -107,7 +113,9 @@ export const Dialog: React.FC<DialogProps> = ({
       : variant === 'fullscreen-mobile'
         ? 'items-stretch sm:items-center sm:p-4'
         : 'items-center p-4';
-  const panelShape =
+  const panelShape = fixedSettingsSize
+    ? 'h-dvh sm:w-[min(760px,calc(100vw-2rem))] sm:h-[min(560px,calc(100vh-2rem))] sm:rounded-xl pb-[env(safe-area-inset-bottom)] sm:pb-0'
+    :
     variant === 'sheet'
       ? 'rounded-t-2xl sm:rounded-xl max-h-[92dvh] pb-[env(safe-area-inset-bottom)] sm:pb-0'
       : variant === 'fullscreen-mobile'
@@ -128,13 +136,13 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`relative w-full ${SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
+        className={`relative w-full ${fixedSettingsSize ? '' : SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
       >
         {variant === 'fullscreen-mobile' && (
           // Dark strip under the Android status bar so its light icons stay visible
           <div aria-hidden="true" className="sm:hidden shrink-0 h-[env(safe-area-inset-top)] bg-stone-900" />
         )}
-        <div className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-stone-200 dark:border-stone-800">
+        <div className="shrink-0 flex items-start gap-3 px-5 pt-4 pb-3 border-b border-stone-200 dark:border-stone-800">
           {icon && <div className="mt-0.5 shrink-0">{icon}</div>}
           <div className="flex-1 min-w-0">
             <h2 id={titleId} className="text-base font-semibold leading-snug">
@@ -146,6 +154,7 @@ export const Dialog: React.FC<DialogProps> = ({
               </p>
             )}
           </div>
+          {headerStatus}
           <button
             type="button"
             onClick={onClose}
@@ -155,7 +164,7 @@ export const Dialog: React.FC<DialogProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        <div className={`flex-1 min-h-0 ${fixedSettingsSize ? 'overflow-hidden' : 'overflow-y-auto overscroll-contain'}`}>{children}</div>
         {footer && (
           <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900">
             {footer}

@@ -1,11 +1,12 @@
 import type { AppearanceSettings, ResolvedAppearance } from '../types/daymark';
-import { DEFAULT_APPEARANCE } from './defaultData';
+import { DEFAULT_APPEARANCE, normalizeAppearance } from './defaultData';
 import { autoTextOn, composite, contrastRatio, parseHex, toHex } from './color';
 
 export type { ResolvedAppearance } from '../types/daymark';
 export const THEME_MIRROR_KEY = 'daymark_theme';
 
 export function resolveAppearance(a: AppearanceSettings, photo: { luminance: number } | null): ResolvedAppearance {
+  a = normalizeAppearance(a);
   const colors = a[a.theme];
   const page = a.theme === 'light' ? '#fafaf9' : '#0c0a09';
   const overlay = a.theme === 'light' ? '#ffffff' : '#000000';
@@ -23,7 +24,7 @@ export function resolveAppearance(a: AppearanceSettings, photo: { luminance: num
   }
   const opacity = colors.headerOpacity / 100;
   const headerBgOpaque = composite(colors.headerBg, opacity, backdrop);
-  const rgb = parseHex(colors.headerBg)!;
+  const rgb = parseHex(colors.headerBg) ?? [250, 250, 249];
   const headerBg = opacity === 1 ? colors.headerBg : `rgb(${rgb.join(' ')} / ${opacity})`;
   const autoHeader = autoTextOn(headerBgOpaque);
   // A narrow mid-grey band fails with both white and stone; black closes that gap.

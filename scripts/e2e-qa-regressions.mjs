@@ -167,7 +167,7 @@ await run('A4', async () => {
     await page.getByRole('button', { name: 'Sync now', exact: true }).click();
     if (!(await pushed).ok()) throw new Error('task sync failed');
     await page.getByText(/up to date/i).first().waitFor();
-    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
     await synced(page);
     await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
     await page.getByRole('tab', { name: 'Sync', exact: true }).click();
@@ -191,7 +191,7 @@ await run('A5', async () => {
     await dialog.waitFor();
     check('A5a', (await dialog.innerText()).includes('1 change'), 'offline sign-out warns about 1 change', await dialog.innerText());
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
     check('A5b', await page.getByRole('button', { name: 'Mark "A5 unsent task" done' }).isVisible(), 'Cancel keeps the offline task visible');
     await openSync(page);
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
@@ -460,7 +460,7 @@ await run('B10', async () => {
   await page.getByRole('tab', { name: /warn|aging|old/i }).first().click();
   await page.locator('#aging-attentionDays').fill('20');
   await page.locator('#aging-criticalDays').fill('5');
-  await page.getByRole('button', { name: /^save/i }).last().click();
+  await page.locator('#aging-criticalDays').press('Enter');
   await settle(page);
   const s = await page.evaluate(async () => {
     const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => res(r.result); });
@@ -479,7 +479,7 @@ await run('B11', async () => {
     if (await remove.isEnabled()) await remove.click();
   }
   check('B11-last-section', await page.getByRole('button', { name: 'Remove section Attention' }).isDisabled(), 'settings keeps at least one section');
-  await page.getByRole('button', { name: /^save/i }).last().click();
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await settle(page);
   await page.getByRole('button', { name: 'Next day' }).click();
   await page.keyboard.press('Control+k');

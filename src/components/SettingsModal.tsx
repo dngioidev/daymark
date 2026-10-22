@@ -1,20 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, FlaskConical, LayoutGrid, Plus, Upload, X } from 'lucide-react';
-import { AppSettings, LifecycleAction, StatusDefinition } from '../types/daymark';
+import { AppSettings, LifecycleAction, StatusDefinition, SettingsTab } from '../types/daymark';
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
 import { formatDateTime } from '../utils/dateFormat';
 import { isNativeApp, requestPinWidget } from '../native/daymarkBridge';
 import { Dialog, buttonClass } from './ui/Dialog';
-import { alertDialog, confirmDialog } from './ui/feedback';
+import { alertDialog, confirmDialog, showToast } from './ui/feedback';
 
-export type SettingsTab = 'storage' | 'sync' | 'lifecycle' | 'aging' | 'headings' | 'advanced';
+import { AppearanceTab } from './settings/AppearanceTab';
+import { resetTab, useInstantSettings } from './settings/useInstantSettings';
+import { DEFAULT_APPEARANCE } from '../utils/defaultData';
+
+export type { SettingsTab } from '../types/daymark';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
-  onSaveSettings: (settings: AppSettings) => void;
+  onChangeSettings: (settings: AppSettings) => void;
   onExportZip: () => void;
   onExportJson: () => void;
   onImportJson: (jsonStr: string) => void;
@@ -30,6 +34,7 @@ interface SettingsModalProps {
 }
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'appearance', label: 'Appearance' },
   { id: 'storage', label: 'Backup & restore' },
   { id: 'sync', label: 'Sync' },
   { id: 'lifecycle', label: 'Statuses' },
@@ -59,64 +64,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   settings,
-  onSaveSettings,
+  onChangeSettings,
   onExportZip,
   onExportJson,
   onImportJson,
   onImportZip,
   onResetVault,
   syncPanel,
-  initialTab = 'storage',
+  initialTab = 'appearance',
   isSynced = false,
   lastBackupAt = null,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  const [draft, setDraft] = useState<AppSettings>(settings);
-  const [error, setError] = useState<string | null>(null);
+  const { draft, setDraft, error, setError, saved, commit } = useInstantSettings(settings, onChangeSettings, isOpen);
   const [newStatusLabel, setNewStatusLabel] = useState('');
   const [newStatusAction, setNewStatusAction] = useState<LifecycleAction>('carry-forward');
   const [newStatusAging, setNewStatusAging] = useState(true);
   const [newHeading, setNewHeading] = useState('');
+  const [verticalTabs, setVerticalTabs] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 640px)');
+    const update = () => setVerticalTabs(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  const handleTabKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const forward = verticalTabs ? 'ArrowDown' : 'ArrowRight';
+    const back = verticalTabs ? 'ArrowUp' : 'ArrowLeft';
+    const index = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+    let next: number;
+    if (e.key === forward) next = (index + 1) % SETTINGS_TABS.length;
+    else if (e.key === back) next = (index - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = SETTINGS_TABS.length - 1;
+    else return;
+    e.preventDefault();
+    selectTab(SETTINGS_TABS[next].id);
+    document.getElementById(`settings-tab-${SETTINGS_TABS[next].id}`)?.focus();
+  };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setActiveTab(initialTab);
-    setDraft(JSON.parse(JSON.stringify(settings)));
+    setNewStatusLabel('');
+    setNewHeading('');
+  }, [isOpen, initialTab]);
+
+  const selectTab = (tab: SettingsTab) => {
+    setDraft(settings);
     setError(null);
-  }, [isOpen, initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
-  const actsImmediately = activeTab === 'storage' || activeTab === 'sync';
-
-  const close = async () => {
-    if (dirty && !(await confirmDialog({ title: 'Discard unsaved changes?', confirmLabel: 'Discard', danger: true }))) return;
-    onClose();
+    setActiveTab(tab);
   };
-
-  const save = () => {
-    if (draft.agingThresholds.criticalDays <= draft.agingThresholds.attentionDays) {
-      setActiveTab('aging');
-      setError('"Urgent" must be more days than "Needs attention".');
-      return;
-    }
-    onSaveSettings(draft);
-    onClose();
+  const close = onClose;
+  const reset = () => {
+    const previous = settings;
+    if (commit(resetTab(activeTab, settings))) showToast('Reset to defaults.', {
+      action: { label: 'Undo', onClick: () => commit(previous) },
+    });
   };
 
   const setStatus = (id: string, patch: Partial<StatusDefinition>) =>
-    setDraft({ ...draft, statuses: draft.statuses.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+    commit({ ...settings, statuses: settings.statuses.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
 
   const addStatus = (e: React.FormEvent) => {
     e.preventDefault();
     const label = newStatusLabel.trim();
     if (!label) return;
     const id = label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `status-${Date.now()}`;
-    if (draft.statuses.some((s) => s.id === id)) return setError(`There is already a status called "${label}".`);
-    setDraft({
-      ...draft,
+    if (settings.statuses.some((s) => s.id === id)) return setError(`There is already a status called "${label}".`);
+    commit({
+      ...settings,
       statuses: [
-        ...draft.statuses,
+        ...settings.statuses,
         {
           id,
           label,
@@ -135,7 +156,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const addHeading = (e: React.FormEvent) => {
     e.preventDefault();
     const h = newHeading.trim();
-    if (h && !draft.defaultHeadings.includes(h)) setDraft({ ...draft, defaultHeadings: [...draft.defaultHeadings, h] });
+    if (h && !settings.defaultHeadings.includes(h)) commit({ ...settings, defaultHeadings: [...settings.defaultHeadings, h] });
     setNewHeading('');
   };
 
@@ -179,31 +200,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       variant="fullscreen-mobile"
       size="xl"
       title="Settings"
-      footer={
-        actsImmediately ? (
-          <button type="button" onClick={onClose} className={buttonClass.primary}>
-            Done
-          </button>
-        ) : (
-          <>
-            <button type="button" onClick={close} className={buttonClass.ghost}>
-              Cancel
-            </button>
-            <button type="button" onClick={save} disabled={!dirty} className={buttonClass.primary}>
-              Save changes
-            </button>
-          </>
-        )
-      }
+      headerStatus={<span role="status" className="text-xs text-stone-500">{saved ? 'Saved' : ''}</span>}
+      fixedSettingsSize
     >
-      <div role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 flex flex-wrap gap-1.5 px-4 py-3 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+      <div className="flex h-full min-h-0 flex-col sm:flex-row">
+      <div role="tablist" aria-label="Settings sections" aria-orientation={verticalTabs ? 'vertical' : 'horizontal'} className="shrink-0 flex flex-nowrap overflow-x-auto gap-1.5 px-4 py-3 border-b sm:border-b-0 sm:border-r sm:w-[180px] sm:flex-col border-stone-200 dark:border-stone-800">
         {SETTINGS_TABS.map((tab) => (
           <button
             key={tab.id}
             role="tab"
+            id={`settings-tab-${tab.id}`}
+            aria-controls={`settings-panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onKeyDown={handleTabKey}
             aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`min-h-11 sm:min-h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap ${
+            onClick={() => selectTab(tab.id)}
+            className={`min-h-11 sm:min-h-9 px-3.5 rounded-full sm:rounded-lg sm:text-left text-sm font-semibold whitespace-nowrap ${
               activeTab === tab.id
                 ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                 : 'bg-stone-100 text-stone-700 hover:text-stone-900 dark:bg-stone-800 dark:text-stone-300 dark:hover:text-stone-100'
@@ -214,12 +226,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         ))}
       </div>
 
-      <div role="tabpanel" className="p-4 sm:p-5 space-y-4 text-sm">
-        {error && (
-          <p role="alert" className="p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900">
+      <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`} className="min-w-0 min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-sm">
+        {error && activeTab !== 'aging' && (
+          <p role="alert" className="p-3 rounded-lg bg-stone-50 text-stone-800 border border-stone-200 dark:bg-stone-950 dark:text-stone-200 dark:border-stone-800">
             {error}
           </p>
         )}
+
+        {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} onChange={(appearance) => commit({ ...settings, appearance })} />}
 
         {activeTab === 'storage' && (
           <>
@@ -278,7 +292,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <>
             <p className={hint}>Choose what happens each morning to tasks left in each status.</p>
             <ul className="space-y-2">
-              {draft.statuses.map((status) => (
+              {settings.statuses.map((status) => (
                 <li key={status.id} className={`${card} flex flex-wrap items-center gap-x-4 gap-y-2`}>
                   <span className={`inline-flex px-2 py-0.5 rounded-md border text-xs font-semibold ${status.color}`}>{status.label}</span>
                   <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-48 basis-full sm:basis-auto">
@@ -310,7 +324,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="button"
                       aria-label={`Remove status ${status.label}`}
-                      onClick={() => setDraft({ ...draft, statuses: draft.statuses.filter((s) => s.id !== status.id) })}
+                      onClick={() => commit({ ...settings, statuses: settings.statuses.filter((s) => s.id !== status.id) })}
                       className="ml-auto inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800"
                     >
                       <X className="w-4 h-4" />
@@ -379,13 +393,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     inputMode="numeric"
                     min={min}
                     max={max}
-                    value={draft.agingThresholds[key]}
-                    onChange={(e) => setDraft({ ...draft, agingThresholds: { ...draft.agingThresholds, [key]: parseInt(e.target.value, 10) || 1 } })}
+                    value={Number.isNaN(draft.agingThresholds[key]) ? '' : draft.agingThresholds[key]}
+                    onChange={(e) => setDraft({ ...draft, agingThresholds: { ...draft.agingThresholds, [key]: e.target.value === '' ? NaN : Number(e.target.value) } })}
+                    onBlur={() => commit()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? `aging-error-${key}` : undefined}
                     className={`${input} w-24`}
                   />
                   <span className="text-stone-700 dark:text-stone-300">days</span>
                 </div>
                 <p className={`${hint} mt-1`}>{help}</p>
+                {error && <p id={`aging-error-${key}`} role="alert" className={hint}>{error}</p>}
               </div>
             ))}
           </>
@@ -395,15 +414,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <>
             <p className={hint}>Every new day starts with these sections.</p>
             <ul className="space-y-2">
-              {draft.defaultHeadings.map((heading) => (
+              {settings.defaultHeadings.map((heading) => (
                 <li key={heading} className={`${card} py-1.5 flex items-center justify-between`}>
                   <span className="font-semibold">{heading}</span>
                   <button
                     type="button"
                     aria-label={`Remove section ${heading}`}
-                    disabled={draft.defaultHeadings.length === 1}
-                    title={draft.defaultHeadings.length === 1 ? 'Keep at least one section' : undefined}
-                    onClick={() => setDraft({ ...draft, defaultHeadings: draft.defaultHeadings.filter((h) => h !== heading) })}
+                    disabled={settings.defaultHeadings.length === 1}
+                    title={settings.defaultHeadings.length === 1 ? 'Keep at least one section' : undefined}
+                    onClick={() => commit({ ...settings, defaultHeadings: settings.defaultHeadings.filter((h) => h !== heading) })}
                     className="inline-flex items-center justify-center w-11 h-11 rounded-lg text-stone-500 hover:text-rose-700 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
@@ -466,12 +485,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="date"
                   value={draft.simulatedToday}
                   onChange={(e) => setDraft({ ...draft, simulatedToday: e.target.value })}
+                  onBlur={() => commit()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
                   className={input}
                 />
-                <button type="button" onClick={() => setDraft({ ...draft, simulatedToday: '' })} className={buttonClass.ghost}>
+                <button type="button" onClick={() => commit({ ...settings, simulatedToday: '' })} className={buttonClass.ghost}>
                   Use real date
                 </button>
-                <button type="button" onClick={() => setDraft({ ...draft, simulatedToday: getNextDate(formatLocalDate(), 1) })} className={buttonClass.ghost}>
+                <button type="button" onClick={() => commit({ ...settings, simulatedToday: getNextDate(formatLocalDate(), 1) })} className={buttonClass.ghost}>
                   Tomorrow
                 </button>
               </div>
@@ -480,6 +501,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <p className={hint}>Daymark {__APP_VERSION__}{lastBackupAt ? ` · last backup ${formatDateTime(lastBackupAt)}` : ''}</p>
           </>
         )}
+        {['appearance', 'lifecycle', 'aging', 'headings'].includes(activeTab) && <button type="button" onClick={reset} className={buttonClass.secondary}>Reset to defaults</button>}
+      </div>
       </div>
     </Dialog>
   );

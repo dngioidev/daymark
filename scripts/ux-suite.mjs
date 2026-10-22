@@ -241,7 +241,7 @@ const PHONE_SCREENS = {
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   'note-editor': { open: async (p) => { await btn(p, /^notes$/i).click(); await p.getByText('Weekly Sprint Sync Notes').click(); } },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
-  'settings-backup': { open: async (p) => btn(p, /^settings$/i).click() },
+  'settings-backup': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: 'Backup & restore', exact: true }).click(); } },
   'settings-statuses': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: /statuses/i }).click(); } },
 };
 const DESKTOP_SCREENS = {
@@ -251,7 +251,7 @@ const DESKTOP_SCREENS = {
   history: { open: async (p) => btn(p, /^history$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
-  'settings-backup': { open: async (p) => btn(p, /^settings$/i).click() },
+  'settings-backup': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: 'Backup & restore', exact: true }).click(); } },
   'settings-statuses': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: /statuses/i }).click(); } },
 };
 
@@ -315,7 +315,11 @@ const capture = async (page, title, { section, status } = {}) => {
   if (status) await page.getByLabel('Status', { exact: true }).selectOption({ label: status });
   await dialog(page, /new task/i).getByRole('button', { name: /^add task$/i }).click();
 };
-const openSettings = (page) => btn(page, /^settings$/i).first().click();
+// Existing backup cases explicitly choose their tab; the app itself opens Appearance.
+const openSettings = async (page, tab = 'Backup & restore') => {
+  await btn(page, /^settings$/i).first().click();
+  await page.getByRole('tab', { name: tab, exact: true }).click();
+};
 const openMenuItem = async (page, title, item) => {
   await optionsButton(page, title).click();
   await page.getByRole('menuitem', { name: item }).click();
@@ -1107,7 +1111,7 @@ async function functional() {
     await btn(page, /^sync now$/i).click();
     expect((await response).ok(), 'manual sync failed');
     await page.getByText(/up to date/i).first().waitFor();
-    await btn(page, /^done$/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     expect(await btn(page, /sync: synced/i).isVisible(), 'header status not Synced');
     await ctx.close();
   });
@@ -1137,7 +1141,7 @@ async function functional() {
     await warning.waitFor();
     expect((await warning.innerText()).includes('1 change'), 'unsent count missing');
     await warning.getByRole('button', { name: /^cancel$/i }).click();
-    await btn(page, /^done$/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     expect(await taskTitle(page, 'Keep this offline task').isVisible(), 'Cancel lost the task');
     await ctx.close();
   });
@@ -1166,7 +1170,7 @@ async function functional() {
     await a.page.getByText(/up to date/i).first().waitFor();
     const stats = await a.ctx.request.get(BASE + '/api/server/stats', { headers: { Authorization: 'Bearer ' + a.session.accessToken } });
     expect(stats.ok() && (await stats.json()).notes >= 4, 'restore removed server notes');
-    await btn(a.page, /^done$/i).click();
+    await dialog(a.page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     expect(await taskTitle(a.page, 'Only task in backup').isVisible(), 'backup task missing after merge');
     await a.ctx.close();
   });
@@ -1186,27 +1190,30 @@ async function functional() {
   await tc('SE-01', 'Settings tabs', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);
-      await openSettings(page);
-      for (const name of ['Backup & restore', 'Sync', 'Statuses', 'Old-task warnings', 'Sections', 'Advanced']) {
+      await openSettings(page, 'Appearance');
+      const shell = await dialog(page, 'Settings').boundingBox();
+      const orientation = await page.getByRole('tablist', { name: 'Settings sections' }).getAttribute('aria-orientation');
+      expect(orientation === (env === 'D1440' ? 'vertical' : 'horizontal'), `${env}: wrong tab orientation`);
+      expect(await page.getByRole('tab', { name: 'Widget', exact: true }).count() === 0, 'Widget must stay hidden until Task 10');
+      for (const name of ['Appearance', 'Backup & restore', 'Sync', 'Statuses', 'Old-task warnings', 'Sections', 'Advanced']) {
         const t = page.getByRole('tab', { name, exact: true });
         expect(await t.isVisible(), `${env}: tab ${name} not visible`);
         await t.click();
         expect((await t.getAttribute('aria-selected')) === 'true', `${env}: ${name} not selected`);
+        const box = await dialog(page, 'Settings').boundingBox();
+        expect(box && shell && Math.abs(box.width - shell.width) < 1 && Math.abs(box.height - shell.height) < 1, `${env}: ${name} changed the dialog size`);
       }
       await ctx.close();
     }
   });
 
-  await tc('SE-02', 'Close settings (X, Done, Esc, backdrop)', 'D1440', async () => {
+  await tc('SE-02', 'Close settings (X, Esc, backdrop)', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     const isOpen = () => isOpenDialog(page, 'Settings');
     const r = {};
     await openSettings(page);
     await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     r.x = !(await isOpen());
-    await openSettings(page);
-    await btn(page, /^done$/i).click();
-    r.done = !(await isOpen());
     await openSettings(page);
     await page.keyboard.press('Escape');
     r.esc = !(await isOpen());
@@ -1274,7 +1281,7 @@ async function functional() {
     await page.getByRole('tab', { name: /statuses/i }).click();
     await page.getByLabel('Status name').fill('Review');
     await btn(page, /^add status$/i).click();
-    await btn(page, /save changes/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     await statusChip(page, T1).click();
     const hasReview = await page.getByRole('menuitem', { name: /^review$/i }).count();
     await ctx.close();
@@ -1283,7 +1290,7 @@ async function functional() {
     await p.page.getByRole('tab', { name: /statuses/i }).click();
     const over = await p.page.evaluate(() => {
       const d = document.querySelector('[role=dialog]');
-      return [...d.querySelectorAll('*')].some((el) => el.getBoundingClientRect().right > innerWidth + 1);
+      return [...d.querySelectorAll('[role=tabpanel] *')].some((el) => el.getBoundingClientRect().right > innerWidth + 1);
     });
     const jargon = /participates in aging|lifecycle/i.test(await dialog(p.page, 'Settings').innerText());
     await shot(p.page, 'SE-06-statuses-phone');
@@ -1299,11 +1306,11 @@ async function functional() {
     await page.getByRole('tab', { name: /old-task warnings/i }).click();
     await page.getByLabel(/needs attention after/i).fill('9');
     await page.getByLabel(/urgent after/i).fill('5');
-    await btn(page, /save changes/i).click();
-    const err = await dialog(page, 'Settings').getByRole('alert').isVisible();
+    await page.getByLabel(/urgent after/i).press('Enter');
+    const err = await dialog(page, 'Settings').getByRole('alert').first().isVisible();
     await page.getByLabel(/needs attention after/i).fill('20');
     await page.getByLabel(/urgent after/i).fill('30');
-    await btn(page, /save changes/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     await page.waitForTimeout(300);
     const t = await visibleText(page);
     await ctx.close();
@@ -1329,13 +1336,13 @@ async function functional() {
     await openSettings(page);
     await page.getByRole('tab', { name: /^advanced$/i }).click();
     await btn(page, /^tomorrow$/i).click();
-    await btn(page, /save changes/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     await page.waitForTimeout(300);
     const h1 = await page.locator('h1').first().innerText();
     await openSettings(page);
     await page.getByRole('tab', { name: /^advanced$/i }).click();
     await btn(page, /use real date/i).click();
-    await btn(page, /save changes/i).click();
+    await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     await ctx.close();
     expect(/today/i.test(h1), `title "${h1}"`);
   });

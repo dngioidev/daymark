@@ -108,12 +108,12 @@ export default function App() {
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('storage');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
   const [historicalModalTask, setHistoricalModalTask] = useState<TaskItem | null>(null);
   const [detailsTaskId, setDetailsTaskId] = useState<string | null>(null);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(getLastBackupDate);
 
-  const openSettings = (tab: SettingsTab = 'storage') => {
+  const openSettings = (tab: SettingsTab = 'appearance') => {
     setSettingsTab(tab);
     setIsSettingsOpen(true);
   };
@@ -715,10 +715,9 @@ export default function App() {
         settings={settings}
         isSynced={Boolean(sync.account)}
         lastBackupAt={lastBackupAt}
-        onSaveSettings={(newSettings) => {
+        onChangeSettings={(newSettings) => {
           setSettings(newSettings);
           setCurrentDate(resolveToday(newSettings.simulatedToday, realToday));
-          showToast('Settings saved.');
         }}
         onExportZip={handleExportVaultZip}
         onExportJson={handleExportJson}

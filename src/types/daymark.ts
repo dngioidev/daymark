@@ -146,3 +146,5 @@ export interface ServerAuthState {
 }
 
 export type EditorMode = 'visual' | 'split' | 'raw';
+
+export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'lifecycle' | 'aging' | 'headings' | 'widget' | 'advanced';
