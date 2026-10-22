@@ -60,7 +60,7 @@ export function useSync(
   const persistState = (next: SyncState | null) => {
     stateRef.current = next;
     setState(next);
-    saveSyncState(next);
+    return saveSyncState(next);
   };
 
   // Temporary adapter for the existing UI; Task 4 replaces its raw token interface.
@@ -69,7 +69,7 @@ export function useSync(
       fetchFn: fetch, serverUrl: stateRef.current!.serverUrl, mode: platform === 'android' ? 'body' : 'cookie',
       getRefreshToken: () => stateRef.current?.refreshToken,
       setRefreshToken: (refreshToken) => {
-        if (stateRef.current) persistState({ ...stateRef.current, refreshToken });
+        if (stateRef.current) return persistState({ ...stateRef.current, refreshToken });
       },
       onSessionEnded: () => { blocked.current = true; setToken(null); },
     });

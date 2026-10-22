@@ -44,7 +44,7 @@ interface TokenManagerOptions {
   serverUrl: string;
   mode: AuthMode;
   getRefreshToken: () => string | undefined;
-  setRefreshToken: (t: string) => void;
+  setRefreshToken: (t: string) => Promise<void> | void;
   onSessionEnded: () => void;
   locks?: LockManager | null;
   channel?: BroadcastChannel | null;
@@ -59,10 +59,13 @@ export class TokenManager {
   private readonly channel: BroadcastChannel | null;
   private readonly ownsChannel: boolean;
   private readonly serverUrl: string;
+  private readonly storage: Storage | null;
 
   constructor(private readonly opts: TokenManagerOptions) {
     this.serverUrl = normalizeServerUrl(opts.serverUrl);
     this.locks = opts.locks === undefined ? (typeof navigator === 'undefined' ? null : navigator.locks ?? null) : opts.locks;
+    try { this.storage = typeof localStorage === 'undefined' ? null : localStorage; }
+    catch { this.storage = null; }
     this.ownsChannel = opts.channel === undefined && opts.mode === 'cookie' && typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined';
     this.channel = opts.channel === undefined ? (this.ownsChannel ? new BroadcastChannel('daymark-auth') : null) : opts.channel;
     this.channel?.addEventListener('message', this.onMessage);
@@ -73,10 +76,51 @@ export class TokenManager {
   }
 
   private onMessage = (event: MessageEvent) => {
+    const data = event.data;
+    if (!this.ended && !this.closing && data?.type === 'token' && typeof data.accessToken === 'string' &&
+      typeof data.expiresAt === 'number' && this.valid(data)) {
+      this.token = { accessToken: data.accessToken, expiresAt: data.expiresAt };
+    }
     if (!this.ended && !this.closing && event.data?.type === 'need-token' && this.valid(this.token)) {
       this.channel?.postMessage({ type: 'token', ...this.token });
     }
   };
+
+  private async withRefreshLock<T>(run: () => Promise<T>): Promise<T> {
+    if (this.locks) return this.locks.request('daymark-refresh', run);
+    const storage = this.storage;
+    if (!storage) return run();
+    const key = 'daymark_refresh_lock';
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const leaseMs = 10_000;
+    const read = (): { id: string; until: number } | undefined => {
+      try {
+        const value = JSON.parse(storage.getItem(key) ?? 'null');
+        if (typeof value?.id === 'string' && typeof value.until === 'number') return value;
+      } catch { /* A malformed or unavailable entry cannot hold a lease. */ }
+      return undefined;
+    };
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 30 + Math.random() * 40));
+    for (;;) {
+      const held = read();
+      if (!held || held.until <= Date.now()) {
+        storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
+        // Give competing tabs time to publish their claim, then confirm ownership.
+        await pause();
+        if (read()?.id === id) break;
+      }
+      await pause();
+    }
+    // Keep a slow network request from outliving its lease in an active tab.
+    const renew = setInterval(() => {
+      if (read()?.id === id) storage.setItem(key, JSON.stringify({ id, until: Date.now() + leaseMs }));
+    }, leaseMs / 3);
+    try { return await run(); }
+    finally {
+      clearInterval(renew);
+      if (read()?.id === id) storage.removeItem(key);
+    }
+  }
 
   private endSession() {
     this.token = undefined;
@@ -120,7 +164,7 @@ export class TokenManager {
     if (this.pending) return this.pending;
     const run = async () => {
       if (this.ended) throw new SessionEndedError();
-      if (this.valid(this.token) && this.token !== rejected) return this.token.accessToken;
+      if (this.valid(this.token) && this.token.accessToken !== rejected?.accessToken) return this.token.accessToken;
       const peer = await this.peerToken(rejected);
       if (peer) {
         this.token = peer;
@@ -137,12 +181,12 @@ export class TokenManager {
         }
         throw error;
       }
-      if (this.opts.mode === 'body' && data.refreshToken) this.opts.setRefreshToken(data.refreshToken);
+      if (this.opts.mode === 'body' && data.refreshToken) await this.opts.setRefreshToken(data.refreshToken);
       this.token = { accessToken: data.accessToken, expiresAt: Date.now() + data.expiresIn * 1000 };
       this.channel?.postMessage({ type: 'token', ...this.token });
       return data.accessToken;
     };
-    const operation = this.locks ? this.locks.request('daymark-refresh', run) : run();
+    const operation = this.withRefreshLock(run);
     this.pending = operation.finally(() => { this.pending = undefined; });
     return this.pending;
   }
@@ -168,8 +212,7 @@ export class TokenManager {
     const run = () => authRequest(this.opts.fetchFn, `${this.serverUrl}/api/auth/logout`,
       authInit(this.opts.mode, this.opts.mode === 'body' ? { refreshToken: this.opts.getRefreshToken() } : undefined));
     try {
-      if (this.locks) await this.locks.request('daymark-refresh', run);
-      else await run();
+      await this.withRefreshLock(run);
     } finally {
       this.endSession();
     }

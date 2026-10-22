@@ -27,6 +27,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -64,6 +65,74 @@ async function session(fetchFn: FetchLike = fetch, mode: AuthMode = 'body') {
 }
 
 describe('TokenManager', () => {
+  it('without Web Locks shares one cookie refresh across tabs using localStorage', async () => {
+    const values = new Map<string, string>();
+    values.set('daymark_refresh_lock', JSON.stringify({ id: 'closed-tab', until: Date.now() - 1 }));
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    });
+    let cookie = '';
+    let refreshes = 0;
+    const fetchFn: FetchLike = async (url, init) => {
+      if (url.endsWith('/refresh')) refreshes++;
+      const headers = new Headers(init?.headers);
+      if (cookie) headers.set('Cookie', cookie);
+      const response = await fetch(url, { ...init, headers });
+      const rotated = response.headers.getSetCookie().find((value) => value.startsWith(REFRESH_COOKIE + '='));
+      if (rotated) cookie = rotated.split(';')[0];
+      return response;
+    };
+    const s = await session(fetchFn, 'cookie');
+    const channel = channels();
+    const managers = Array.from({ length: 2 }, () => new TokenManager({ ...s.opts, locks: null, channel: channel() }));
+    const results = await Promise.allSettled(managers.map((manager) => manager.getAccessToken()));
+    expect(refreshes).toBe(1);
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+    expect(new Set(results.map((result) => result.status === 'fulfilled' ? result.value : undefined)).size).toBe(1);
+    expect(store.devices[0].revoked).toBe(false);
+    expect(store.devices[0].retiredRefreshHashes).toHaveLength(1);
+    expect(values.has('daymark_refresh_lock')).toBe(false);
+  });
+
+  it('adopts an unsolicited valid token broadcast', async () => {
+    const s = await session();
+    const channel = channels();
+    const sender = channel();
+    const manager = new TokenManager({ ...s.opts, channel: channel() });
+    sender.postMessage({ type: 'token', accessToken: s.login.accessToken, expiresAt: Date.now() + 900_000 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(await manager.getAccessToken() === s.login.accessToken).toBe(true);
+    expect(store.devices[0].retiredRefreshHashes).toHaveLength(0);
+  });
+
+  it('awaits durable refresh persistence before returning or releasing the lock', async () => {
+    const s = await session();
+    let finishWrite!: () => void;
+    const write = new Promise<void>((resolve) => { finishWrite = resolve; });
+    let startedWrite!: () => void;
+    const started = new Promise<void>((resolve) => { startedWrite = resolve; });
+    let released = false;
+    let resolved = false;
+    const lock = { request: async (_name: string, run: () => Promise<string>) => {
+      try { return await run(); } finally { released = true; }
+    } } as unknown as LockManager;
+    const manager = new TokenManager({ ...s.opts, locks: lock, setRefreshToken: async (token) => {
+      startedWrite();
+      await write;
+      s.opts.setRefreshToken(token);
+    } });
+    const pending = manager.getAccessToken().then((token) => { resolved = true; return token; });
+    await started;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const beforeWrite = { resolved, released };
+    finishWrite();
+    await pending;
+    expect(beforeWrite).toEqual({ resolved: false, released: false });
+    expect(s.refreshToken()).not.toBe(s.login.refreshToken);
+  });
+
   it('body mode: getAccessToken refreshes and rotates the stored refresh token', async () => {
     const s = await session();
     const manager = new TokenManager(s.opts);

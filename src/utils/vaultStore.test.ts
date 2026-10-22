@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isStandaloneNote } from './vaultValidation';
 import { DEFAULT_SETTINGS, SEED_STANDALONE_NOTES } from './defaultData';
-import { keepValid, parseVaultMessage } from './vaultStore';
+import { initVaultStore, keepValid, parseVaultMessage, saveSyncState } from './vaultStore';
 
 describe('keepValid (load-time filter)', () => {
   it('returns the same array when nothing is dropped', () => {
@@ -35,5 +35,54 @@ describe('parseVaultMessage (cross-tab messages)', () => {
     expect(parseVaultMessage({ key: 'settings', value: null })).toBeNull();
     expect(parseVaultMessage(null)).toBeNull();
     expect(parseVaultMessage('x')).toBeNull();
+  });
+});
+
+describe('sync credential persistence', () => {
+  it('resolves only after the IndexedDB transaction completes and propagates write failures', async () => {
+    const writes: { oncomplete?: () => void; onerror?: () => void; error?: Error }[] = [];
+    const database = {
+      transaction: (_store: string, mode: string) => {
+        if (mode === 'readonly') return { objectStore: () => ({ openCursor: () => {
+          const cursor = { result: null, onsuccess: () => {} };
+          queueMicrotask(() => cursor.onsuccess());
+          return cursor;
+        } }) };
+        const tx: { objectStore: () => { put: ReturnType<typeof vi.fn> }; oncomplete?: () => void;
+          onerror?: () => void; error?: Error } = { objectStore: () => ({ put: vi.fn() }) };
+        writes.push(tx);
+        return tx;
+      },
+    };
+    vi.stubGlobal('indexedDB', { open: () => {
+      const request = { result: database, onsuccess: () => {} };
+      queueMicrotask(() => request.onsuccess());
+      return request;
+    } });
+    vi.stubGlobal('navigator', { storage: { persist: async () => true } });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await initVaultStore();
+      const state = { serverUrl: 'http://localhost', username: 'admin', deviceId: 'test', deviceName: 'Phone',
+        refreshToken: 'test-credential', lastRev: 0, bases: {}, lastSyncAt: null };
+      let resolved = false;
+      const pending = saveSyncState(state).then(() => { resolved = true; });
+      await Promise.resolve();
+      expect(writes).toHaveLength(1);
+      expect(resolved).toBe(false);
+      writes[0].oncomplete!();
+      await pending;
+      expect(resolved).toBe(true);
+
+      const failed = saveSyncState({ ...state, lastRev: 1 });
+      const rejection = expect(failed).rejects.toThrow('write failed');
+      await Promise.resolve();
+      writes[1].error = new Error('write failed');
+      writes[1].onerror!();
+      await rejection;
+    } finally {
+      vi.unstubAllGlobals();
+      errors.mockRestore();
+    }
   });
 });

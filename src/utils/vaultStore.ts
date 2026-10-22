@@ -33,6 +33,7 @@ const LEGACY_KEYS: Record<string, string> = {
   [KEYS.SETTINGS]: 'daymark_settings_v1',
   [KEYS.DAILY_DOCS]: 'daymark_daily_docs_v1',
   [KEYS.NOTES]: 'daymark_notes_v1',
+  [KEYS.SYNC_STATE]: 'daymark_sync_state_v1',
 };
 
 // The pre-Cycle-1 default for the date override; treated as "no override"
@@ -171,12 +172,12 @@ export function subscribeExternalChanges(listener: ExternalListener): () => void
   return () => externalListeners.delete(listener);
 }
 
-function writeValue(key: string, value: unknown): void {
+function writeValue(key: string, value: unknown): Promise<void> {
   const previous = cache.get(key);
   // Loop guard: a value received from another tab is saved back by the same reference.
   // Settings are re-normalized into a new object, so they are compared by content.
-  if (value === previous) return;
-  if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return;
+  if (value === previous && key !== KEYS.SYNC_STATE) return writeChain;
+  if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return writeChain;
   cache.set(key, value);
   if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES) {
     try {
@@ -187,18 +188,22 @@ function writeValue(key: string, value: unknown): void {
   }
   if (storageMode === 'localstorage' || !db) {
     const legacyKey = LEGACY_KEYS[key];
-    if (!legacyKey) return;
+    if (!legacyKey) return Promise.resolve();
     try {
       localStorage.setItem(legacyKey, JSON.stringify(value));
     } catch (err) {
       reportError('Could not save your changes: browser storage is full or blocked.', err);
+      const failed = Promise.reject<void>(err);
+      // Keep fire-and-forget callers handled; credential writes still observe failure.
+      void failed.catch(() => undefined);
+      return failed;
     }
-    return;
+    return Promise.resolve();
   }
   const database = db;
-  writeChain = writeChain
-    .then(() => putValue(database, key, value))
-    .catch((err) => reportError('Could not save your changes: browser storage is full or blocked.', err));
+  const written = writeChain.then(() => putValue(database, key, value));
+  writeChain = written.catch((err) => reportError('Could not save your changes: browser storage is full or blocked.', err));
+  return written;
 }
 
 function readArray<T>(key: string, fallback: T[]): T[] {
@@ -254,8 +259,8 @@ export function loadSyncState(): SyncState | null {
   return (cache.get(KEYS.SYNC_STATE) as SyncState | undefined) ?? null;
 }
 
-export function saveSyncState(state: SyncState | null): void {
-  writeValue(KEYS.SYNC_STATE, state);
+export function saveSyncState(state: SyncState | null): Promise<void> {
+  return writeValue(KEYS.SYNC_STATE, state);
 }
 
 /** True once the user has chosen how to start (empty vault or sample data), or has any data. */
