@@ -13,10 +13,8 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | `DAYMARK_USER` | `admin` | Account name |
 | `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json`. |
 | `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API; does not enable cross-origin browser sign-in or credentialed CORS |
-| `DAYMARK_REFRESH_TTL_DAYS` | `30` | Refresh token lifetime in days, reset on each refresh. Replaces `DAYMARK_TOKEN_TTL_DAYS`; access tokens always last 900 seconds (15 minutes). Use a positive, finite number; see the validation limitation below. |
+| `DAYMARK_REFRESH_TTL_DAYS` | `30` | Refresh token lifetime in days, reset on each refresh. Replaces `DAYMARK_TOKEN_TTL_DAYS`; access tokens always last 900 seconds (15 minutes). Use a positive, finite number; invalid or ≤ 0 values fall back to 30. |
 | `NODE_ENV` / `--production` | dev | Production serves `dist/` (`npm start` passes `--production`) |
-
-Configuration validation limitation: values ≤ 0 or invalid should fall back to **30** days. Currently `server/config.ts` uses `Number(value) || 30`: missing, empty, nonnumeric and zero values fall back, but negative numbers and `Infinity` do not. Until the parser is corrected, set a positive, finite value or leave the variable unset.
 
 ## 2. Authentication and site gate
 - `POST /api/auth/login` accepts `{ username, password, deviceName, platform, installId? }` and returns `{ accessToken, expiresIn, username, device }`. `expiresIn` is 900 seconds and `device` contains `id` and `name`. Each login registers a **device**; a valid stable `installId` reuses its active entry.

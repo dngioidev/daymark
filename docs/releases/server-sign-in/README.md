@@ -15,7 +15,7 @@ Date: 2026-10-22 · Branch: `feat/server-sign-in` · Tag: none
 
 After upgrading, **every device signs in once more**. The old 90-day tokens no longer work. Replace `DAYMARK_TOKEN_TTL_DAYS` with `DAYMARK_REFRESH_TTL_DAYS` (default **30**). The access-token lifetime stays at **15 minutes**.
 
-Use a positive, finite refresh lifetime or leave it unset. Values ≤ 0 or invalid should fall back to 30, but the current parser does not reject negative numbers or `Infinity`; this needs a separate server fix. Missing, empty, nonnumeric and zero values already fall back to 30.
+Use a positive, finite refresh lifetime or leave it unset. Invalid or ≤ 0 values fall back to 30 days.
 
 **Plain HTTP is for LAN only:** its refresh cookie is not `Secure`. Use HTTPS (e.g. Caddy) on a public address. The server keeps the refresh token in an `HttpOnly`, `SameSite=Strict` cookie; data routes still require a Bearer access token. The account remains the single self-hosted account created on first start from `DAYMARK_USER` (default `admin`) and `DAYMARK_PASSWORD`.
 
@@ -23,7 +23,7 @@ See the [self-hosting instructions](../../../README.md#self-hosting-the-sync-ser
 
 ## Screenshots
 
-Capture is pending on the controller: `node scripts/capture-screenshots.mjs server-sign-in`. These are the three configured views; images have not been generated or visually checked in the sandbox.
+The controller captured these three views with `node scripts/capture-screenshots.mjs server-sign-in` and visually checked all three images.
 
 | Screen | Image |
 | :--- | :--- |
@@ -35,10 +35,17 @@ The Android first-run screen is described above. It requires the native app and 
 
 ## How it was verified
 
-Documentation was checked against the design and the implemented configuration, API, gate, sync hook and account panel. `npm run lint` and `node --check scripts/capture-screenshots.mjs` pass. `npm run validate:ai` fails because the three screenshot files are still missing (three image links and the release screenshot check). No server, browser or screenshot capture was started in this sandbox; the new capture entries still need a live run and visual review.
+Documentation was checked against the design and the implemented configuration, API, gate, sync hook and account panel. Controller verification completed:
+
+- `npm run test:qa`: 0 failed across 55 checks, including A1–A5.
+- `npm run test:e2e` and `npm run test:sync`: passed.
+- UX suite: 80/80 passed.
+- Android debug build: succeeded.
+- Unit tests, `npm run lint` and `npm run validate:ai`: passed.
+- All three release screenshots above: captured and visually checked.
+
+`node --check scripts/capture-screenshots.mjs` also passed during the documentation task.
 
 ## Known gaps
 
-- The controller must capture and inspect the three screenshots above. Link and release-image validation will fail until those files exist.
-- Refresh lifetime validation still accepts negative and non-finite numbers; use a positive, finite value or the default until corrected.
 - Native Android first-run behaviour is described from the current UI code, without a new device capture.

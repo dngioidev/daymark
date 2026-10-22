@@ -26,6 +26,7 @@ export function passwordProblem(password: string): string | null {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const production = env.NODE_ENV === 'production';
   const origins = (env.DAYMARK_CORS_ORIGINS ?? '*').trim();
+  const refreshTtlDays = Number(env.DAYMARK_REFRESH_TTL_DAYS);
   return {
     port: Number(env.PORT) || 3000,
     dataDir: path.resolve(env.DATA_DIR || 'data'),
@@ -34,6 +35,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     initialPassword: env.DAYMARK_PASSWORD || (production ? null : DEV_DEFAULT_PASSWORD),
     corsOrigins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()).filter(Boolean),
     accessTtlSeconds: 900,
-    refreshTtlDays: Number(env.DAYMARK_REFRESH_TTL_DAYS) || 30,
+    refreshTtlDays: Number.isFinite(refreshTtlDays) && refreshTtlDays > 0 ? refreshTtlDays : 30,
   };
 }

@@ -6,7 +6,7 @@ describe('loadConfig refresh TTL', () => {
     expect(loadConfig({ DAYMARK_REFRESH_TTL_DAYS: '14' }).refreshTtlDays).toBe(14);
   });
 
-  it.each([undefined, '', 'invalid', '0'])('defaults to 30 days for %s', (value) => {
+  it.each([undefined, '', 'invalid', '0', '-5', 'Infinity', '1e400', 'abc'])('defaults to 30 days for %s', (value) => {
     expect(loadConfig({ DAYMARK_REFRESH_TTL_DAYS: value }).refreshTtlDays).toBe(30);
   });
 
