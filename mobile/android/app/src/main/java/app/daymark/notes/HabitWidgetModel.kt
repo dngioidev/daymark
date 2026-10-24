@@ -33,9 +33,16 @@ data class HabitAction(val habitId: String, val date: String, val done: Boolean,
 data class HabitRow(val id: String, val name: String, val done: Boolean, val streak: Int, val missedDays: Long, val warning: Boolean)
 data class HabitWidgetView(val rows: List<HabitRow>, val done: Int, val total: Int)
 data class HabitWidgetLayout(val rows: List<HabitRow>, val hidden: Int)
+enum class HabitWidgetMode { EMPTY, COUNTER, COMPACT, CHECKLIST }
 
 /** Pure date replay: an absent day is unticked, and today's miss cannot break yesterday's streak. */
 object HabitWidgetModel {
+    fun mode(widthDp: Float, total: Int): HabitWidgetMode = when {
+        total == 0 -> HabitWidgetMode.EMPTY
+        widthDp < 110 -> HabitWidgetMode.COUNTER
+        widthDp < 180 -> HabitWidgetMode.COMPACT
+        else -> HabitWidgetMode.CHECKLIST
+    }
     /** A damaged entry must not discard valid ticks elsewhere in the persisted queue. */
     fun parseActions(json: String?): List<HabitAction> {
         val arr = try { JSONArray(json ?: "[]") } catch (_: Exception) { return emptyList() }
@@ -76,11 +83,11 @@ object HabitWidgetModel {
     }
 
     /** Same header/overflow budget as WidgetModel; habits remain visible when ticked. */
-    fun layout(rows: List<HabitRow>, style: WidgetStyle, heightDp: Float): HabitWidgetLayout {
+    fun layout(rows: List<HabitRow>, style: WidgetStyle, heightDp: Float, compact: Boolean = false): HabitWidgetLayout {
         val rowHeight = rowHeightDp(style)
-        val budget = (heightDp - 60).coerceAtLeast(rowHeight.toFloat())
+        val budget = (heightDp - if (compact) 52 else 60).coerceAtLeast(rowHeight.toFloat())
         if (rows.size * rowHeight <= budget) return HabitWidgetLayout(rows, 0)
-        val count = ((budget - rowHeight) / rowHeight).toInt().coerceAtLeast(0)
+        val count = ((budget - rowHeight) / rowHeight).toInt().coerceAtLeast(if (compact) 1 else 0)
         return HabitWidgetLayout(rows.take(count), rows.size - count)
     }
 }

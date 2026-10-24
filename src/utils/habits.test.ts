@@ -140,7 +140,7 @@ describe('habits', () => {
     ], days: [] };
     const moved = moveHabit(data, 'h1', 1, later);
     expect(activeHabits(moved, today).map((habit) => habit.id)).toEqual(['h3', 'h1']);
-    expect(moved.habits.find((habit) => habit.id === 'h1')).toMatchObject({ order: 4, updatedAt: later });
+    expect(moved.habits.find((habit) => habit.id === 'h1')).toMatchObject({ order: 1, updatedAt: later });
     expect(moved.habits[0]).toMatchObject({ order: 0, updatedAt: later });
     expect(moved.habits[1]).toEqual(data.habits[1]);
     expect(moveHabit(moved, 'h1', 1, later)).toBe(moved);
@@ -199,4 +199,28 @@ describe('habits', () => {
     expect(newHabitId()).toMatch(/^habit-\d+-[a-z0-9]{6}$/);
     expect(addHabit(EMPTY_HABITS, 'Walk', today, at).habits[0].id).toMatch(/^habit-\d+-[a-z0-9]{6}$/);
   });
+});
+
+it('moves habits sharing order in either direction with deterministic ties', () => {
+  const data: HabitData = { habits: [{ ...h1, id: 'a' }, { ...h1, id: 'b' }], days: [] };
+  expect(activeHabits(moveHabit(data, 'a', 1, later), today).map(h => h.id)).toEqual(['b', 'a']);
+  expect(activeHabits(moveHabit(data, 'b', -1, later), today).map(h => h.id)).toEqual(['b', 'a']);
+});
+it('indexes a two-year history for ten habits and invalidates on a new data object', () => {
+  const days = Array.from({ length: 731 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10));
+  const habits = Array.from({ length: 10 }, (_, i) => ({ ...h1, id: String(i), addedOn: days[0] }));
+  let reads = 0;
+  const data: HabitData = { habits, days: days.map(date => ({ get date() { reads++; return date; }, ticks: Object.fromEntries(habits.map(h => [h.id, { done: true, at }])) })) };
+  const start = performance.now();
+  const items = habitsForDay(data, days[730], days[730]);
+  expect(performance.now() - start).toBeLessThan(50);
+  expect(items).toHaveLength(10);
+  expect(items.every(item => item.done && item.streak === 731 && item.missedDays === 0 && !item.warning)).toBe(true);
+  expect(reads).toBeLessThanOrEqual(731);
+  const before = reads;
+  expect(daySummary(data, days[730], days[730])).toMatchObject({ done: 10, total: 10 });
+  expect(reads).toBe(before);
+  const changed = setTick(data, '0', days[730], false, days[730], later);
+  expect(isDoneOn(changed, '0', days[730])).toBe(false);
+  expect(isDoneOn(data, '0', days[730])).toBe(true);
 });

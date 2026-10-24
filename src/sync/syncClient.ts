@@ -1,6 +1,7 @@
 import { AppSettings, DailyDocument, HabitData, HabitDay, StandaloneNote } from '../types/daymark';
 import { canonicalJson, isHabitEntityKey, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
 import { SyncChange, SyncRequest, SyncResponse } from './protocol';
+import { uneditedRecoveredHabits } from '../utils/habits';
 
 /**
  * Client side of sync, kept free of React and storage so it can be tested against the real
@@ -23,6 +24,8 @@ export interface SyncState {
   deviceId: string;
   deviceName: string;
   lastRev: number;
+  /** Whether this device has backfilled habit history at least once. */
+  habitsSynced?: boolean;
   /** Canonical JSON of the last version agreed with the server, per entity key. */
   bases: Record<string, string>;
   lastSyncAt: string | null;
@@ -136,9 +139,9 @@ export interface SyncOutcome {
 /** One round trip: push local changes, receive merged results and other devices' changes. */
 export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string, habitsUnsupported = false): Promise<SyncOutcome> {
   const snapshot = toEntities(local, !habitsUnsupported);
-  let changes = collectChanges(snapshot, state, !habitsUnsupported);
+  let changes = collectChanges(snapshot, state, !habitsUnsupported && !uneditedRecoveredHabits.has(local.habits));
   const send = () => {
-    const body: SyncRequest = { sinceRev: state.lastRev, changes, features: ['habits'] };
+    const body: SyncRequest = { sinceRev: !habitsUnsupported && !state.habitsSynced ? 0 : state.lastRev, changes, features: ['habits'] };
     return request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
   };
   let res: SyncResponse;
@@ -169,7 +172,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
     habitsUnsupported,
     serverValues,
     snapshot,
-    state: { ...state, bases, lastRev: res.rev, lastSyncAt: new Date().toISOString() },
+    state: { ...state, bases, lastRev: res.rev, habitsSynced: !habitsUnsupported, lastSyncAt: new Date().toISOString() },
     conflicts: res.conflicts,
     pushed: changes.length,
     received: res.entities.length,
@@ -196,5 +199,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
       for (const extra of merged.extraNotes ?? []) now.set(`note:${extra.id}`, extra);
     }
   }
-  return fromEntities(now, current.settings);
+  const next = fromEntities(now, current.settings);
+  if (uneditedRecoveredHabits.has(current.habits)) uneditedRecoveredHabits.add(next.habits);
+  return next;
 }

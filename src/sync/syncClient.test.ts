@@ -76,3 +76,27 @@ it('keeps local ticks made while sync was in flight', async () => {
     water: { done: true, at: '2026-10-24T10:00:00Z' }, reading: { done: true, at: '2026-10-24T09:00:00Z' },
   });
 });
+
+it('backfills habits once and clears the marker after fallback', async () => {
+  const calls: SyncRequest[] = [];
+  const fetcher = async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as SyncRequest;
+    calls.push(body);
+    return Response.json({ rev: 99, entities: [], conflicts: [] });
+  };
+  const first = await syncOnce(fetcher, vault, { ...state, lastRev: 90 }, 'access');
+  expect(calls[0].sinceRev).toBe(0);
+  expect(first.state.habitsSynced).toBe(true);
+  await syncOnce(fetcher, vault, first.state, 'access');
+  expect(calls[1].sinceRev).toBe(99);
+  let rejected = false;
+  const fallback = await syncOnce(async (url, init) => {
+    if (!rejected) { rejected = true; return Response.json({ error: 'Invalid entity key' }, { status: 400 }); }
+    return fetcher(url, init);
+  }, vault, first.state, 'access');
+  expect(fallback.state.habitsSynced).toBe(false);
+  const disabled = await syncOnce(fetcher, vault, first.state, 'access', true);
+  expect(disabled.state.habitsSynced).toBe(false);
+  await syncOnce(fetcher, vault, fallback.state, 'access');
+  expect(calls.at(-1)!.sinceRev).toBe(0);
+});

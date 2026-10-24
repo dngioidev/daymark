@@ -239,6 +239,29 @@ it('remembers unsupported habits when a vault replacement discards the round', a
   expect(render().pendingChanges()).toBe(0);
 });
 
+it('clears the backfill marker even if a fallback result becomes stale', async () => {
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, habitsSynced: true });
+  const original = fetchFn.getMockImplementation()!;
+  let release!: () => void;
+  let calls = 0;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    calls++;
+    if (calls === 1) return Response.json({ error: 'Invalid entity key' }, { status: 400 });
+    if (calls === 2) await new Promise<void>(resolve => { release = resolve; });
+    if (calls === 3) throw new Error('offline');
+    return Response.json({ rev: 5, entities: [], conflicts: [] });
+  });
+  const sync = render();
+  const pending = sync.syncNow();
+  const rejection = expect(pending).rejects.toThrow();
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+  sync.rebaseAfterReplace();
+  release();
+  await rejection;
+  expect(saveSyncState).toHaveBeenLastCalledWith(expect.objectContaining({ habitsSynced: false }));
+});
+
 it('applies incoming habit-only changes to the vault', async () => {
   const onChange = vi.fn();
   const habits = { habits: [], days: [{ date: '2026-10-24', ticks: { a: { done: true, at: '2026-10-24T08:00:00Z' } } }] };

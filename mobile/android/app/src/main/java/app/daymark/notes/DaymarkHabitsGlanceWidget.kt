@@ -86,6 +86,7 @@ class DaymarkHabitsGlanceWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        WidgetMidnightAlarm.schedule(context)
         provideContent {
             val version = currentState<Preferences>()[HABIT_VERSION]
             val today = remember(version) { LocalDate.now() }
@@ -96,7 +97,14 @@ class DaymarkHabitsGlanceWidget : GlanceAppWidget() {
                 HabitPaint(style, style.resolve(WidgetStore.appColors(context)))
             }
             val size = LocalSize.current
-            if (size.width < 180.dp) {
+            val mode = HabitWidgetModel.mode(size.width.value, view.total)
+            if (mode == HabitWidgetMode.EMPTY) {
+                Box(modifier = GlanceModifier.fillMaxSize().background(paint.background)
+                    .cornerRadius(paint.style.cornerDp.dp).padding(4.dp).clickable(openHabitsAction()),
+                    contentAlignment = Alignment.Center) {
+                    Text(text = "Add habits in Daymark", style = paint.type(paint.muted, 12))
+                }
+            } else if (mode == HabitWidgetMode.COUNTER) {
                 Column(
                     modifier = GlanceModifier.fillMaxSize().background(paint.background)
                         .cornerRadius(paint.style.cornerDp.dp).padding(10.dp).clickable(openHabitsAction()),
@@ -107,22 +115,24 @@ class DaymarkHabitsGlanceWidget : GlanceAppWidget() {
                     Text(text = "habits", style = paint.type(paint.muted, 12))
                 }
             } else {
-                HabitsContent(view, today, size.height.value, paint)
+                HabitsContent(view, today, size.height.value, paint, mode == HabitWidgetMode.COMPACT)
             }
         }
     }
 }
 
 @Composable
-private fun HabitsContent(view: HabitWidgetView, today: LocalDate, heightDp: Float, paint: HabitPaint) {
-    val layout = HabitWidgetModel.layout(view.rows, paint.style, heightDp)
-    Column(modifier = GlanceModifier.fillMaxSize().background(paint.background).padding(8.dp).cornerRadius(paint.style.cornerDp.dp)) {
+private fun HabitsContent(view: HabitWidgetView, today: LocalDate, heightDp: Float, paint: HabitPaint, compact: Boolean) {
+    val layout = HabitWidgetModel.layout(view.rows, paint.style, heightDp, compact)
+    Column(modifier = GlanceModifier.fillMaxSize().background(paint.background).padding(if (compact) 4.dp else 8.dp).cornerRadius(paint.style.cornerDp.dp)) {
         Row(modifier = GlanceModifier.fillMaxWidth().height(44.dp).clickable(openHabitsAction()), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "Habits", style = paint.type(size = 14, weight = FontWeight.Bold))
-            Spacer(modifier = GlanceModifier.width(8.dp))
-            Text(text = today.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())), style = paint.type(paint.muted, 12))
+            Text(text = "Habits", style = paint.type(size = if (compact) 12 else 14, weight = FontWeight.Bold))
+            if (!compact) {
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(text = today.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())), style = paint.type(paint.muted, 12))
+            }
             Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(text = "${view.done} of ${view.total}", style = paint.type(paint.muted, 12))
+            Text(text = if (compact) "${view.done}/${view.total}" else "${view.done} of ${view.total}", style = paint.type(paint.muted, if (compact) 11 else 12))
         }
         if (view.rows.isEmpty()) {
             Box(modifier = GlanceModifier.fillMaxSize().clickable(openHabitsAction()), contentAlignment = Alignment.Center) {
@@ -130,7 +140,7 @@ private fun HabitsContent(view: HabitWidgetView, today: LocalDate, heightDp: Flo
             }
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(layout.rows) { row -> HabitContentRow(row, paint) }
+                items(layout.rows) { row -> HabitContentRow(row, paint, compact) }
                 if (layout.hidden > 0) {
                     item {
                         Box(modifier = GlanceModifier.fillMaxWidth().height(HabitWidgetModel.rowHeightDp(paint.style).dp)
@@ -145,7 +155,7 @@ private fun HabitsContent(view: HabitWidgetView, today: LocalDate, heightDp: Flo
 }
 
 @Composable
-private fun HabitContentRow(row: HabitRow, paint: HabitPaint) {
+private fun HabitContentRow(row: HabitRow, paint: HabitPaint, compact: Boolean) {
     Row(modifier = GlanceModifier.fillMaxWidth().height(HabitWidgetModel.rowHeightDp(paint.style).dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = GlanceModifier.size(44.dp)
@@ -158,13 +168,13 @@ private fun HabitContentRow(row: HabitRow, paint: HabitPaint) {
                 if (row.done) Text(text = "✓", style = paint.type(paint.checkmark, 13, FontWeight.Bold))
             }
         }
-        Spacer(modifier = GlanceModifier.width(8.dp))
+        Spacer(modifier = GlanceModifier.width(if (compact) 2.dp else 8.dp))
         Box(modifier = GlanceModifier.defaultWeight().height(44.dp).clickable(openHabitsAction()), contentAlignment = Alignment.CenterStart) {
-            Text(text = row.name, maxLines = 1, style = paint.type())
+            Text(text = row.name, maxLines = 1, style = paint.type(if (row.warning) paint.warning else paint.text, if (compact) 11 else 13))
         }
-        if (row.warning) {
+        if (row.warning && !compact) {
             Text(text = "⚠ ${row.missedDays}d", style = paint.type(paint.warning, 12, FontWeight.Bold))
-        } else if (paint.style.show.streaks) {
+        } else if (paint.style.show.streaks && !compact) {
             Text(text = HabitWidgetModel.streakLabel(row.streak), style = paint.type(paint.muted, 12))
         }
     }
@@ -182,6 +192,7 @@ class ToggleHabitActionCallback : ActionCallback {
 }
 
 suspend fun DaymarkHabitsGlanceWidget.refreshAll(context: Context) {
+    WidgetMidnightAlarm.schedule(context)
     for (id in GlanceAppWidgetManager(context).getGlanceIds(DaymarkHabitsGlanceWidget::class.java)) {
         updateAppWidgetState(context, id) { it[HABIT_VERSION] = System.nanoTime() }
         update(context, id)

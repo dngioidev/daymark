@@ -202,6 +202,11 @@ export function mergeSettings(
   return { value: theirs, conflicts: ['Settings were changed on two devices; kept the latest change'] };
 }
 
+const timestamp = (value: string): number => {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? -Infinity : parsed;
+};
+
 /** Missing individual habits are retained; whole-entity deletions use three-way equality. */
 export function mergeHabitList(
   base: { habits: Habit[] } | null,
@@ -227,8 +232,8 @@ export function mergeHabitList(
     const result = pick3(b.get(id), mine, incoming);
     if (result.kind === 'value') habits.push(result.value!);
     else {
-      habits.push(mine.removedOn ? mine : incoming);
-      conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept ${mine.removedOn || incoming.removedOn ? 'the removal' : 'the latest change'}`);
+      habits.push(mine.removedOn ? mine : incoming.removedOn ? incoming : timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming);
+      conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept ${mine.removedOn || incoming.removedOn ? 'the removal' : 'the edit with the newer timestamp (incoming on ties)'}`);
     }
   }
   return { value: { habits }, conflicts };
@@ -242,7 +247,7 @@ export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, thei
   if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
   const ticks = { ...ours.ticks };
   for (const [id, tick] of Object.entries(theirs.ticks)) {
-    if (!Object.hasOwn(ticks, id) || tick.at >= ticks[id].at) ticks[id] = tick;
+    if (!Object.hasOwn(ticks, id) || timestamp(tick.at) >= timestamp(ticks[id].at)) ticks[id] = tick;
   }
   return { value: { date: theirs.date, ticks }, conflicts: [] };
 }

@@ -83,9 +83,9 @@ export const HabitEditor: React.FC<HabitEditorProps> = ({ isOpen, onClose, data,
                     onBlur={(event) => {
                       const days = event.currentTarget.valueAsNumber;
                       if (!Number.isFinite(days)) { event.currentTarget.value = String(habit.warnAfterDays); return; }
-                      const next = setWarnAfter(data, habit.id, days, timestamp());
-                      onChange(next);
-                      event.currentTarget.value = String(next.habits.find(item => item.id === habit.id)!.warnAfterDays);
+                      const clamped = Math.max(1, Math.min(365, Math.round(days)));
+                      if (clamped !== habit.warnAfterDays) onChange(setWarnAfter(data, habit.id, clamped, timestamp()));
+                      event.currentTarget.value = String(clamped);
                     }} />
                   <span>days</span>
                 </label>

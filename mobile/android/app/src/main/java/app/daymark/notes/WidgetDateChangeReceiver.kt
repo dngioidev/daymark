@@ -11,7 +11,9 @@ import kotlinx.coroutines.launch
 /** Refresh date-dependent compositions even when the app and widget sessions are closed. */
 class WidgetDateChangeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action !in setOf(Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
+        if (intent.action !in setOf(WidgetMidnightAlarm.ACTION, Intent.ACTION_BOOT_COMPLETED,
+                Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
+        WidgetMidnightAlarm.schedule(context)
         val pending = goAsync()
         val appContext = context.applicationContext
         CoroutineScope(Dispatchers.Default).launch {

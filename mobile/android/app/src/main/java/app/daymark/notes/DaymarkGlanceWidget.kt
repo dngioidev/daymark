@@ -98,6 +98,7 @@ class DaymarkGlanceWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        WidgetMidnightAlarm.schedule(context)
         provideContent {
             val version = currentState<Preferences>()[VERSION_KEY]
             val today = remember(version) { LocalDate.now() }
@@ -278,6 +279,7 @@ private val VERSION_KEY = longPreferencesKey("version")
 
 /** Redraws every placed Daymark widget from the latest stored snapshot and queued toggles. */
 suspend fun DaymarkGlanceWidget.refreshAll(context: Context) {
+    WidgetMidnightAlarm.schedule(context)
     val ids = GlanceAppWidgetManager(context).getGlanceIds(DaymarkGlanceWidget::class.java)
     for (id in ids) {
         updateAppWidgetState(context, id) { it[VERSION_KEY] = System.nanoTime() }

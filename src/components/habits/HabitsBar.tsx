@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { HabitData } from '../../types/daymark';
 import { daySummary, habitsForDay, setTick } from '../../utils/habits';
@@ -28,9 +28,10 @@ export const HabitsBar: React.FC<HabitsBarProps> = ({ data, date, today, onChang
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const interacted = useRef(false);
-  const lastSignal = useRef(0);
+  const lastSignal = useRef(openSignal);
   const panelId = useId();
-  const summary = daySummary(data, date, today);
+  const summary = useMemo(() => daySummary(data, date, today), [data, date, today]);
+  const items = useMemo(() => habitsForDay(data, date, today), [data, date, today]);
   const changeOpen = useCallback((next: boolean) => {
     interacted.current = true;
     setOpen(next);
@@ -75,7 +76,7 @@ export const HabitsBar: React.FC<HabitsBarProps> = ({ data, date, today, onChang
       </button>
       <div id={panelId} hidden={!open}>
         {open && <div className={`border-t border-stone-200 pb-2 dark:border-stone-800 ${compact ? 'px-3' : 'px-4'}`}>
-          <HabitChecklist items={habitsForDay(data, date, today)} onToggle={(id, done) => onChange(setTick(data, id, date, done, today, new Date().toISOString()))} />
+          <HabitChecklist showStreaks={date === today} items={items} onToggle={(id, done) => onChange(setTick(data, id, date, done, today, new Date().toISOString()))} />
           <button type="button" className={buttonClass.ghost} onClick={() => setEditing(true)}>Edit</button>
         </div>}
       </div>

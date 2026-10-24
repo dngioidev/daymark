@@ -88,6 +88,22 @@ const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData =
 describe('habit sync', () => {
   const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
   const ticks = { date: '2026-10-24', ticks: { water: { done: true, at: '2026-10-24T08:00:00Z' } } };
+  it('backfills all habit days when a previously synced 1.3.0 device upgrades', async () => {
+    const writer = await connect('Writer');
+    await post('/api/sync', { sinceRev: 0, features: ['habits'], changes: [
+      { key: 'habits', base: null, value: list },
+      { key: 'habitday:2026-10-24', base: null, value: ticks },
+      { key: 'habitday:2026-10-25', base: null, value: { ...ticks, date: '2026-10-25' } },
+    ] }, writer.accessToken);
+    const old = await connect('Old client');
+    const legacy = await (await post('/api/sync', { sinceRev: 0, changes: [
+      { key: 'doc:2026-10-20', base: null, value: day([]) },
+    ] }, old.accessToken)).json();
+    expect(legacy.entities.every((e: { key: string }) => !e.key.startsWith('habit'))).toBe(true);
+    const outcome = await syncOnce(fetch, vault([]), { ...old, lastRev: legacy.rev }, old.accessToken);
+    expect(applySyncOutcome(vault([]), outcome).habits.days).toEqual([ticks, { ...ticks, date: '2026-10-25' }]);
+    expect(outcome.state.habitsSynced).toBe(true);
+  });
   it('old client never sees or deletes habits', async () => {
     const client = await connect('New client');
     const pushed = await post('/api/sync', { sinceRev: 0, features: ['habits'], changes: [

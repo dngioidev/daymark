@@ -81,6 +81,39 @@ async function habitStoreTest(run: (env: {
 }
 
 describe('habit storage', () => {
+  it('keeps valid habits, days and ticks when sibling entries are damaged', async () => {
+    const damaged = { habits: [habits.habits[0], { id: 'bad' }], days: [
+      { ...habits.days[0], ticks: { ...habits.days[0].ticks, bad: { done: 'yes' } } },
+      { date: 'broken', ticks: {} },
+    ] };
+    await habitStoreTest(async ({ store, values }) => {
+      expect(store.loadHabits()).toEqual(habits);
+      expect(store.loadHabits()).toBe(store.loadHabits());
+      store.saveHabits(store.loadHabits());
+      expect(JSON.parse(values.get('daymark_habits_v1')!)).toEqual(damaged);
+    }, false, JSON.stringify(damaged));
+  });
+  it.each(['{bad json', JSON.stringify({ habits: [{ bad: true }], days: 'bad' }), 'null'])('does not overwrite invalid storage or push habit deletions before an edit: %s', async (legacy) => {
+    await habitStoreTest(async ({ store, values, messages }) => {
+      const loaded = store.loadHabits();
+      expect(loaded).toEqual(EMPTY_HABITS);
+      store.saveHabits(loaded);
+      expect(values.get('daymark_habits_v1')).toBe(legacy);
+      expect(messages).toEqual([]);
+      const { syncOnce } = await import('../sync/syncClient');
+      const sent: { changes: { key: string }[] }[] = [];
+      await syncOnce(async (_url, init) => {
+        sent.push(JSON.parse(String(init?.body)));
+        return Response.json({ rev: 2, entities: [], conflicts: [] });
+      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded }, {
+        serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
+        bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
+      }, 'access');
+      expect(sent[0].changes.some(c => c.key.startsWith('habit'))).toBe(false);
+      store.saveHabits(habits);
+      expect(JSON.parse(values.get('daymark_habits_v1')!)).toEqual(habits);
+    }, false, legacy);
+  });
   it.each([undefined, '{bad json', JSON.stringify({ habits: [], days: 'bad' })])('loadHabits returns EMPTY_HABITS when absent or damaged: %s', async (legacy) => {
     await habitStoreTest(async ({ store }) => expect(store.loadHabits()).toEqual(EMPTY_HABITS), false, legacy);
   });

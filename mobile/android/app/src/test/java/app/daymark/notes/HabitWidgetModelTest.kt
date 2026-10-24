@@ -114,4 +114,23 @@ class HabitWidgetModelTest {
         assertEquals(0, HabitWidgetModel.layout(rows, WidgetStyle(), 80f).rows.size)
         assertEquals(0, HabitWidgetModel.layout(emptyList(), WidgetStyle(), 80f).hidden)
     }
+
+    @Test fun `default two by two sizes show a compact checklist`() {
+        assertEquals(HabitWidgetMode.COMPACT, HabitWidgetModel.mode(110f, 2))
+        assertEquals(HabitWidgetMode.COMPACT, HabitWidgetModel.mode(179f, 2))
+        assertEquals(HabitWidgetMode.CHECKLIST, HabitWidgetModel.mode(180f, 2))
+        assertEquals(HabitWidgetMode.COUNTER, HabitWidgetModel.mode(109f, 2))
+        val rows = listOf(
+            HabitRow("a", "Water", false, 0, 0, false),
+            HabitRow("b", "Read", true, 5, 0, false),
+        )
+        val layout = HabitWidgetModel.layout(rows, WidgetStyle(), 110f, compact = true)
+        assertEquals(1, layout.rows.size)
+        assertEquals(1, layout.hidden)
+    }
+    @Test fun `empty widgets always invite adding habits at every size`() {
+        for (width in listOf(80f, 110f, 179f, 240f)) {
+            assertEquals(HabitWidgetMode.EMPTY, HabitWidgetModel.mode(width, 0))
+        }
+    }
 }

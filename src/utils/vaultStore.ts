@@ -1,9 +1,9 @@
 import { AppSettings, DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
-import { EMPTY_HABITS } from './habits';
+import { EMPTY_HABITS, uneditedRecoveredHabits } from './habits';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
-import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from './vaultValidation';
+import { isDailyDocument, isHabit, isHabitData, isHabitDay, isHabitTick, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
 import { decideInitialAppearance } from './appearance';
@@ -146,7 +146,11 @@ export function kvDeleteRaw(key: string): Promise<void> {
 function readLegacyLocalStorage(key: string): unknown {
   try {
     const raw = localStorage.getItem(LEGACY_KEYS[key]);
-    return raw ? JSON.parse(raw) : undefined;
+    if (!raw) return undefined;
+    try { return JSON.parse(raw); } catch {
+      // Keep a marker for unreadable habits so mount saves cannot replace stored data.
+      return key === KEYS.HABITS ? null : undefined;
+    }
   } catch {
     return undefined;
   }
@@ -326,10 +330,27 @@ export function saveStandaloneNotes(notes: StandaloneNote[]): void {
 
 export function loadHabits(): HabitData {
   const value = cache.get(KEYS.HABITS);
-  return isHabitData(value) ? value : EMPTY_HABITS;
+  if (isHabitData(value)) return value;
+  if (!cache.has(KEYS.HABITS)) return EMPTY_HABITS;
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const habits = keepValid(Array.isArray(raw.habits) ? raw.habits : [], isHabit, 'habit');
+  const days = (Array.isArray(raw.days) ? raw.days : []).map((day: unknown) => {
+    if (!day || typeof day !== 'object' || !('ticks' in day) || !day.ticks || typeof day.ticks !== 'object' || Array.isArray(day.ticks)) return day;
+    const entries = Object.entries(day.ticks);
+    const valid = entries.filter(([, tick]) => isHabitTick(tick));
+    if (valid.length === entries.length) return day;
+    console.error(`Ignored ${entries.length - valid.length} damaged habit tick entries.`);
+    return { ...day, ticks: Object.fromEntries(valid) };
+  });
+  const recovered = { habits, days: keepValid(days, isHabitDay, 'habit day') };
+  console.error('Recovered damaged habit storage; keeping the stored value until habits are edited.');
+  uneditedRecoveredHabits.add(recovered);
+  cache.set(KEYS.HABITS, recovered);
+  return recovered;
 }
 
 export function saveHabits(data: HabitData): void {
+  if (uneditedRecoveredHabits.has(data)) return;
   writeValue(KEYS.HABITS, data);
 }
 

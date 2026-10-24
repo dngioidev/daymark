@@ -1,15 +1,32 @@
-import type { Habit, HabitData, HabitDayItem } from '../types/daymark';
+import type { Habit, HabitData, HabitDay, HabitDayItem } from '../types/daymark';
 import { getPreviousDate } from './lifecycleEngine';
 
 export const EMPTY_HABITS: HabitData = { habits: [], days: [] };
+/** Recovered load snapshots stay read-only until an explicit edit produces a new object. */
+export const uneditedRecoveredHabits = new WeakSet<HabitData>();
 export const DEFAULT_WARN_AFTER_DAYS = 3;
+
+const dayIndexes = new WeakMap<HabitData, Map<string, HabitDay>>();
+
+function dayIndex(data: HabitData): Map<string, HabitDay> {
+  let index = dayIndexes.get(data);
+  if (!index) {
+    index = new Map();
+    for (const day of data.days) {
+      const date = day.date;
+      if (!index.has(date)) index.set(date, day);
+    }
+    dayIndexes.set(data, index);
+  }
+  return index;
+}
 
 function existsOn(habit: Habit, date: string): boolean {
   return habit.addedOn <= date && (!habit.removedOn || date < habit.removedOn);
 }
 
 export function isDoneOn(data: HabitData, habitId: string, date: string): boolean {
-  return data.days.find((day) => day.date === date)?.ticks[habitId]?.done === true;
+  return dayIndex(data).get(date)?.ticks[habitId]?.done === true;
 }
 
 /** An unticked today leaves yesterday's streak intact. Ignore pre-lifetime sync ticks. */
@@ -106,7 +123,7 @@ export function setWarnAfter(data: HabitData, id: string, days: number, at: stri
 }
 
 export function activeHabits(data: HabitData, _today: string): Habit[] {
-  return data.habits.filter((habit) => !habit.removedOn).sort((a, b) => a.order - b.order);
+  return data.habits.filter((habit) => !habit.removedOn).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id) || a.addedOn.localeCompare(b.addedOn));
 }
 
 export function moveHabit(data: HabitData, id: string, delta: -1 | 1, at: string): HabitData {
@@ -114,12 +131,14 @@ export function moveHabit(data: HabitData, id: string, delta: -1 | 1, at: string
   const index = active.findIndex((habit) => habit.id === id);
   const neighbour = active[index + delta];
   if (index < 0 || !neighbour) return data;
-  const habit = active[index];
+  const orders = new Map(active.map((habit, i) => [habit.id, i]));
+  orders.set(id, index + delta);
+  orders.set(neighbour.id, index);
   return {
     ...data,
     habits: data.habits.map((item) => {
-      if (item.id === id) return { ...item, order: neighbour.order, updatedAt: at };
-      if (item.id === neighbour.id) return { ...item, order: habit.order, updatedAt: at };
+      const order = orders.get(item.id);
+      if (order !== undefined && (order !== item.order || item.id === id || item.id === neighbour.id)) return { ...item, order, updatedAt: at };
       return item;
     }),
   };

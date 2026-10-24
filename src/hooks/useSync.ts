@@ -6,6 +6,7 @@ import { loadSyncState, markOnboarded, saveSyncState, wipeLocalVault } from '../
 import { getInstallId } from '../utils/deviceName';
 import { getHostMode } from '../utils/hostMode';
 import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
+import { uneditedRecoveredHabits } from '../utils/habits';
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -130,6 +131,9 @@ export function useSync(
           const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, habitsUnsupported.current);
           if (blocked.current || closing.current) return;
           habitsUnsupported.current = outcome.habitsUnsupported === true;
+          if (habitsUnsupported.current && stateRef.current?.habitsSynced) {
+            await persistState({ ...stateRef.current, habitsSynced: false });
+          }
           if (startedAt !== epoch.current) {
             rerun.current = true;
             continue;
@@ -212,7 +216,8 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !habitsUnsupported.current), stateRef.current, !habitsUnsupported.current).length : 0;
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !habitsUnsupported.current), stateRef.current,
+    !habitsUnsupported.current && !uneditedRecoveredHabits.has(vaultRef.current.habits)).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';
