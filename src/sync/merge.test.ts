@@ -31,11 +31,11 @@ describe('habit merges', () => {
     expect(mergeEntity('habitday:2026-10-24', null, habitDay({ a: early }), habitDay({ a: { ...late, done: false } })).value)
       .toEqual(habitDay({ a: { ...late, done: false } }));
   });
-  it('ties take theirs and null never deletes a day', () => {
+  it('ties take theirs and whole-day deletions apply against an unchanged base', () => {
     const ours = habitDay({ a: early });
     const theirs = habitDay({ a: { ...early, done: false } });
     expect(mergeEntity('habitday:2026-10-24', null, ours, theirs).value).toEqual(theirs);
-    expect(mergeEntity('habitday:2026-10-24', ours, ours, null).value).toEqual(ours);
+    expect(mergeEntity('habitday:2026-10-24', ours, ours, null).value).toBeNull();
     expect(mergeEntity('habitday:2026-10-24', ours, null, null).value).toBeNull();
   });
   it('removal beats rename', () => {
@@ -61,6 +61,34 @@ describe('habit merges', () => {
     expect(isValidEntityKey('habits')).toBe(true);
     expect(isValidEntityKey('habitday:2026-10-24')).toBe(true);
     expect(isValidEntityKey('habitday:2026-1-24')).toBe(false);
+  });
+  it('habit list deletion applies when other side unchanged', () => {
+    const base = { habits: [habit('a')] };
+    const unchanged = structuredClone(base);
+    expect(mergeEntity('habits', base, unchanged, null).value).toBeNull();
+    expect(mergeEntity('habits', base, null, unchanged).value).toBeNull();
+    expect(mergeEntity('habits', null, unchanged, null).value).toEqual(unchanged);
+    expect(mergeEntity('habits', null, null, unchanged).value).toEqual(unchanged);
+  });
+  it('habit list deletion loses to concurrent edit', () => {
+    const base = { habits: [habit('a')] };
+    const edited = { habits: [habit('a', { name: 'Edited habit' })] };
+    expect(mergeEntity('habits', base, edited, null).value).toEqual(edited);
+    expect(mergeEntity('habits', base, null, edited).value).toEqual(edited);
+  });
+  it('habit day deletion applies when other side unchanged', () => {
+    const base = habitDay({ a: early });
+    const unchanged = structuredClone(base);
+    expect(mergeEntity('habitday:2026-10-24', base, unchanged, null).value).toBeNull();
+    expect(mergeEntity('habitday:2026-10-24', base, null, unchanged).value).toBeNull();
+    expect(mergeEntity('habitday:2026-10-24', null, unchanged, null).value).toEqual(unchanged);
+    expect(mergeEntity('habitday:2026-10-24', null, null, unchanged).value).toEqual(unchanged);
+  });
+  it('habit day deletion loses to a newer tick', () => {
+    const base = habitDay({ a: early });
+    const edited = habitDay({ a: late });
+    expect(mergeEntity('habitday:2026-10-24', base, edited, null).value).toEqual(edited);
+    expect(mergeEntity('habitday:2026-10-24', base, null, edited).value).toEqual(edited);
   });
 });
 

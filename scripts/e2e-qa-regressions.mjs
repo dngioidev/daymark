@@ -39,7 +39,7 @@ const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ na
 
 browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
-async function fresh({ docs = [], notes = [], mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
+async function fresh({ docs = [], notes = [], habits, mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
   const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
   const page = await context.newPage();
   const errors = [];
@@ -48,7 +48,7 @@ async function fresh({ docs = [], notes = [], mobile = false, origin = base, col
   const session = await signIn(context, origin, 'qa-password-123');
   await resetServerVault(context, origin, session.accessToken);
   // Empty seeded arrays count as an existing vault. A fresh-install test must seed nothing.
-  if (!pristine) await seedVault(page, origin, { docs, notes });
+  if (!pristine) await seedVault(page, origin, { docs, notes, habits });
   await page.goto(origin, { waitUntil: 'networkidle' });
   return { context, page, errors };
 }
@@ -805,7 +805,7 @@ await run('D5', async () => {
 });
 const longDay = (date) => new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const cellFor = (page, date) => page.getByRole('button', { name: new RegExp('^' + longDay(date) + ':') });
-const calendarDay = async (page, date) => {
+const calendarDay = async (page, date, { openDay = true } = {}) => {
   await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
   const months = Array.from({ length: 12 }, (_, month) => new Date(2000, month, 1).toLocaleDateString('en-US', { month: 'long' }));
   const heading = page.getByRole('heading', { name: new RegExp(`^(${months.join('|')}) \\d{4}$`) });
@@ -822,7 +822,7 @@ const calendarDay = async (page, date) => {
     await page.getByRole('heading', { name: `${months[next % 12]} ${Math.floor(next / 12)}`, exact: true }).waitFor();
   }
   await cellFor(page, date).click();
-  await page.getByRole('button', { name: 'Open this day', exact: true }).click();
+  if (openDay) await page.getByRole('button', { name: 'Open this day', exact: true }).click();
 };
 await run('D6', async () => {
   const { page } = await fresh();
@@ -878,6 +878,150 @@ await run('D8', async () => {
   const search = await page.getByPlaceholder('Search notes', { exact: true }).boundingBox();
   const add = await page.getByRole('button', { name: 'New note', exact: true }).first().boundingBox();
   check('D8b', !!search && !!add && add.y >= search.y + search.height && add.x < search.x + search.width, 'New note sits under the Notes search box', JSON.stringify({ search, add }));
+});
+
+// Cycle 7: daily habits and readable Calendar week rows.
+const habit = (id, name = 'Read a chapter') => ({ id, name, order: 0, warnAfterDays: 3, addedOn: Y5, updatedAt: `${Y5}T08:00:00Z` });
+const tickDay = (date, id) => ({ date, ticks: { [id]: { done: true, at: `${date}T08:00:00Z` } } });
+const habitsBar = (page) => page.getByRole('region', { name: 'Daily habits', exact: true });
+const disclosure = (page) => habitsBar(page).locator('button[aria-expanded]');
+const openHabits = async (page) => {
+  await disclosure(page).waitFor();
+  if (await disclosure(page).getAttribute('aria-expanded') === 'false') await disclosure(page).click();
+};
+const goToday = async (page) => {
+  await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+  await habitsBar(page).waitFor();
+};
+// Choose via month view first so yesterday/tomorrow also work across week/month boundaries.
+const selectHabitDay = async (page, date) => {
+  await calendarDay(page, date, { openDay: false });
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.locator(`button[data-date="${date}"]`).click();
+};
+
+await run('H1', async () => {
+  for (const mobile of [false, true]) {
+    const { page, context } = await fresh({ mobile });
+    check(`H1-${mobile ? '390' : '1440'}`, await disclosure(page).getAttribute('aria-expanded') === 'false'
+      && (await disclosure(page).innerText()).includes('Add a daily habit'), 'habits closed by default with Add a daily habit');
+    await context.close();
+  }
+});
+
+await run('H2', async () => {
+  const { page } = await fresh();
+  await openHabits(page); // Empty disclosure opens the editor.
+  const editor = page.getByRole('dialog', { name: 'Daily habits', exact: true });
+  await editor.getByRole('button', { name: 'Done', exact: true }).click();
+  await habitsBar(page).getByRole('button', { name: 'Edit', exact: true }).click();
+  for (const name of ['Read a chapter', 'Take a walk']) {
+    await editor.getByPlaceholder('Habit name', { exact: true }).fill(name);
+    await editor.getByRole('button', { name: 'Add', exact: true }).click();
+    await editor.getByLabel(`Name for ${name}`, { exact: true }).waitFor();
+  }
+  await editor.getByRole('button', { name: 'Done', exact: true }).click();
+  await habitsBar(page).getByRole('checkbox', { name: 'Read a chapter', exact: true }).check();
+  await persisted(page, 'habits', (data, date) => data?.habits.length === 2
+    && data.days.find((d) => d.date === date)?.ticks[data.habits.find((h) => h.name === 'Read a chapter')?.id]?.done === true, TODAY);
+  await page.reload({ waitUntil: 'networkidle' });
+  await openHabits(page);
+  check('H2', await habitsBar(page).getByRole('checkbox', { name: 'Read a chapter', exact: true }).isChecked()
+    && !await habitsBar(page).getByRole('checkbox', { name: 'Take a walk', exact: true }).isChecked()
+    && (await disclosure(page).innerText()).includes('1 of 2'), 'adding two habits and ticking one persists through reload in kv habits and shows 1 of 2');
+});
+
+await run('H3', async () => {
+  const { page } = await fresh({ habits: { habits: [habit('h3')], days: [] } });
+  check('H3a', await disclosure(page).getAttribute('aria-expanded') === 'false'
+    && (await disclosure(page).innerText()).includes('1 missed 5 days'), 'closed bar warns about a habit added Y5 and never ticked');
+  await openHabits(page);
+  await habitsBar(page).getByRole('checkbox', { name: 'Read a chapter', exact: true }).check();
+  await persisted(page, 'habits', (data, date) => data?.days.find((d) => d.date === date)?.ticks.h3?.done === true, TODAY);
+  await disclosure(page).click();
+  check('H3b', !(await disclosure(page).innerText()).includes('missed')
+    && (await disclosure(page).innerText()).includes('1 of 1'), 'ticking today clears the closed warning chip');
+});
+
+await run('H4', async () => {
+  const { page } = await fresh({ habits: { habits: [habit('h4')], days: [tickDay(TODAY, 'h4')] } });
+  await openHabits(page);
+  const row = habitsBar(page).locator('li').filter({ has: page.getByRole('checkbox', { name: 'Read a chapter', exact: true }) });
+  check('H4a', (await row.innerText()).includes('🔥 1'), 'Today starts with a one-day streak');
+  await selectHabitDay(page, Y1);
+  await page.getByRole('checkbox', { name: 'Read a chapter', exact: true }).check();
+  await persisted(page, 'habits', (data, date) => data?.days.find((d) => d.date === date)?.ticks.h4?.done === true, Y1);
+  await goToday(page);
+  await openHabits(page);
+  check('H4b', (await row.innerText()).includes('🔥 2'), 'Calendar yesterday backfill increases Today streak to two');
+});
+
+await run('H5', async () => {
+  const items = Array.from({ length: 9 }, (_, i) => task(`h5-${i}`, 'not-started', TODAY, { title: `Week row task ${i + 1}`, order: i }));
+  for (const mobile of [false, true]) {
+    const { page, context } = await fresh({ mobile, docs: [doc(TODAY, items)] });
+    await selectHabitDay(page, TODAY);
+    const row = page.locator(`button[data-date="${TODAY}"]`);
+    const visible = await Promise.all(items.map((item) => row.getByText(item.title, { exact: true }).isVisible()));
+    check(`H5-${mobile ? '390' : '1440'}-titles`, visible.every(Boolean) && !/\+\d+ more/.test(await row.innerText()), 'week row displays all nine titles without +N more');
+    const layout = await row.evaluate((el) => ({ row: el.getBoundingClientRect().width, card: el.closest('.dm-card').getBoundingClientRect().width }));
+    if (mobile) {
+      const first = await row.getByText(items[0].title, { exact: true }).boundingBox();
+      const second = await row.getByText(items[1].title, { exact: true }).boundingBox();
+      check('H5-phone-column', !!first && !!second && Math.abs(first.x - second.x) < 1 && second.y > first.y, '390px task titles form a single column', JSON.stringify({ first, second }));
+    } else check('H5-desktop-width', layout.row >= layout.card * 0.9, '1440px week row occupies at least 90% of Calendar card', JSON.stringify(layout));
+    await context.close();
+  }
+});
+
+await run('H6', async () => {
+  const { page } = await fresh({ habits: { habits: [habit('h6')], days: [tickDay(TODAY, 'h6')] } });
+  check('H6a', (await disclosure(page).innerText()).includes('1 of 1'), 'today starts ticked');
+  await settingsOpen(page);
+  await page.getByRole('tab', { name: 'Advanced', exact: true }).click();
+  await page.getByLabel('Date override', { exact: true }).fill(day(1));
+  await page.getByLabel('Date override', { exact: true }).press('Enter');
+  await persisted(page, 'settings', (s, date) => s.simulatedToday === date, day(1));
+  await settingsClose(page);
+  await settle(page);
+  check('H6b', (await disclosure(page).innerText()).includes('0 of 1'), 'resolved tomorrow starts with zero ticks');
+  await selectHabitDay(page, TODAY);
+  check('H6c', await page.getByRole('checkbox', { name: 'Read a chapter', exact: true }).isChecked(), 'Calendar keeps yesterday tick after date override');
+});
+
+await run('H7', async () => {
+  const title = 'H7 drag into a week row';
+  const { page } = await fresh({ docs: [doc(TODAY, [task('h7', 'not-started', TODAY, { title })])] });
+  await selectHabitDay(page, TODAY);
+  const source = page.locator('li[draggable="true"]').filter({ hasText: title });
+  // Native DataTransfer dispatch preserves Calendar's real drag payload and drop handlers.
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent('dragstart', { dataTransfer: transfer });
+  if (!await page.locator(`button[data-date="${day(1)}"]`).count()) await page.getByRole('button', { name: 'Next week', exact: true }).click();
+  const target = page.locator(`button[data-date="${day(1)}"]`);
+  await target.dispatchEvent('dragover', { dataTransfer: transfer });
+  await target.dispatchEvent('drop', { dataTransfer: transfer });
+  await transfer.dispose();
+  await persisted(page, 'daily_docs', (ds, dates) => {
+    const tasks = (date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items) ?? [];
+    return tasks(dates.target).filter((t) => t.id === 'h7').length === 1 && !tasks(dates.source).some((t) => t.id === 'h7');
+  }, { source: TODAY, target: day(1) });
+  check('H7', await target.getByText(title, { exact: true }).isVisible(), 'desktop drag moves task once from Today onto future week row');
+});
+
+await run('H8', async () => {
+  const { page } = await fresh({ habits: { habits: [habit('h8')], days: [tickDay(Y1, 'h8')] } });
+  await openHabits(page);
+  await habitsBar(page).getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Daily habits', exact: true });
+  await editor.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Remove "Read a chapter"?', exact: true }).getByRole('button', { name: 'Remove', exact: true }).click();
+  await editor.getByRole('button', { name: 'Done', exact: true }).click();
+  await persisted(page, 'habits', (data, dates) => data?.habits.find((h) => h.id === 'h8')?.removedOn === dates.today
+    && data.days.find((d) => d.date === dates.yesterday)?.ticks.h8?.done === true, { today: TODAY, yesterday: Y1 });
+  check('H8a', await habitsBar(page).getByRole('checkbox', { name: 'Read a chapter', exact: true }).count() === 0, 'confirmed removal hides habit from Today');
+  await selectHabitDay(page, Y1);
+  check('H8b', await page.getByRole('checkbox', { name: 'Read a chapter', exact: true }).isChecked(), 'Calendar yesterday retains removed habit and its tick');
 });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

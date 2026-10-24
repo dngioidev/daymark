@@ -1,0 +1,20 @@
+// Dates are supplied by the suite so every seed shares its resolved test day.
+export function cycle7Fixture(today) {
+  const offset = (n) => {
+    const d = new Date(`${today}T12:00:00`);
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const names = ['Read a chapter', 'Walk outside', 'Drink water', 'Stretch for ten minutes', 'Write in journal'];
+  const habits = names.map((name, order) => ({ id: `c7-h${order}`, name, order, warnAfterDays: 3, addedOn: offset(-7), updatedAt: `${offset(-7)}T08:00:00Z` }));
+  const days = [-4, -3, -2, -1, 0].map((n) => ({ date: offset(n), ticks: Object.fromEntries(
+    habits.filter((h, i) => i < 4 && (n < 0 || i < 2)).map((h) => [h.id, { done: true, at: `${offset(n)}T08:00:00Z` }]),
+  ) }));
+  const titles = ['Review the weekly plan', 'Prepare the release notes', 'Sketch the garden layout', 'Book the bicycle service', 'Send the project update', 'Test the offline backup', 'Plan weekend meals', 'Organise the reading list', 'Review the household budget'];
+  const document = (date, taskTitles, done = false) => ({ date, type: 'daily', updatedAt: `${date}T08:00:00Z`, headings: [
+    { name: 'Work', notesContent: '', items: taskTitles.map((title, order) => ({ id: `c7-${date}-${order}`, title, order, heading: 'Work',
+      status: done ? 'done' : 'not-started', createdDate: date, originalNoteDate: date, historyLog: [], ...(done ? { completedDate: date } : {}) })) },
+    { name: 'Ideas', notesContent: '', items: [] },
+  ] });
+  return { docs: [document(offset(-1), ['Finish the design review', 'Take the recycling out'], true), document(today, titles), document(offset(1), ['Prepare tomorrow’s agenda'])], habits: { habits, days } };
+}

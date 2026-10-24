@@ -202,12 +202,15 @@ export function mergeSettings(
   return { value: theirs, conflicts: ['Settings were changed on two devices; kept the latest change'] };
 }
 
-/** Habit records are retained even when one side no longer includes them. */
+/** Missing individual habits are retained; whole-entity deletions use three-way equality. */
 export function mergeHabitList(
   base: { habits: Habit[] } | null,
   ours: { habits: Habit[] } | null,
   theirs: { habits: Habit[] } | null
 ): MergeResult<{ habits: Habit[] }> {
+  if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
+    return { value: null, conflicts: [] };
+  }
   if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
   const b = new Map(base?.habits.map((h) => [h.id, h]));
   const o = new Map(ours.habits.map((h) => [h.id, h]));
@@ -232,7 +235,10 @@ export function mergeHabitList(
 }
 
 /** Tick records form a last-write-wins map; an untick is a record, never a deletion. */
-export function mergeHabitDay(_base: HabitDay | null, ours: HabitDay | null, theirs: HabitDay | null): MergeResult<HabitDay> {
+export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, theirs: HabitDay | null): MergeResult<HabitDay> {
+  if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
+    return { value: null, conflicts: [] };
+  }
   if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
   const ticks = { ...ours.ticks };
   for (const [id, tick] of Object.entries(theirs.ticks)) {

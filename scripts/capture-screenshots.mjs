@@ -15,7 +15,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright-core';
-import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
+import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
+import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
 
 const args = process.argv.slice(2);
 const cycle = args.find((a) => !a.startsWith('--'));
@@ -36,6 +37,7 @@ const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 } },
   wide: { viewport: { width: 1920, height: 1080 } },
   android: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   laptop: { viewport: { width: 1024, height: 768 } },
 };
 
@@ -85,7 +87,30 @@ const phoneHeader = async (page) => {
   await page.getByRole('button', { name: 'Header colour #1e3a5f', exact: true }).click();
   await closeSettings(page);
 };
+const weekRowsShot = then(click('button', /^calendar$/i), click('button', /^week$/i), async (page) => {
+  await page.locator('button[data-date][aria-pressed="true"]').scrollIntoViewIfNeeded();
+});
 const SHOTS = [
+  { name: 'week-rows', viewport: 'desktop', cycles: ['cycle-7'], prepare: weekRowsShot },
+  { name: 'week-rows-phone', viewport: 'phone', cycles: ['cycle-7'], prepare: weekRowsShot },
+  { name: 'habits-closed', viewport: 'desktop', cycles: ['cycle-7'], prepare: loadSample },
+  { name: 'habits-open', viewport: 'desktop', cycles: ['cycle-7'], prepare: then((page) => page.locator('section[aria-label="Daily habits"] button[aria-expanded]').click()) },
+  { name: 'habit-editor', viewport: 'desktop', cycles: ['cycle-7'], prepare: then(
+    (page) => page.locator('section[aria-label="Daily habits"] button[aria-expanded]').click(),
+    (page) => page.getByRole('region', { name: 'Daily habits', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click(),
+  ) },
+  { name: 'habit-warning', viewport: 'desktop', cycles: ['cycle-7'], prepare: then(async (page) => {
+    await page.getByRole('region', { name: 'Daily habits', exact: true }).getByText(/1 missed 7 days/).waitFor();
+  }) },
+  { name: 'calendar-day-habits', viewport: 'desktop', cycles: ['cycle-7'], prepare: then(click('button', /^calendar$/i), async (page) => {
+    // Pick the seeded yesterday document even if it falls in the previous month.
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const cell = page.locator(`button[data-date="${date}"]`);
+    if (!await cell.count()) await page.getByRole('button', { name: 'Previous month', exact: true }).click();
+    await cell.click();
+    await page.getByRole('checkbox', { name: 'Read a chapter', exact: true }).waitFor();
+  }) },
   { name: 'appearance', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(click('button', /^settings$/i)) },
   { name: 'photo-today-light', viewport: 'desktop', cycles: ['cycle-6'], prepare: then(photoToday) },
   { name: 'photo-today-dark', viewport: 'desktop', dark: true, cycles: ['cycle-6'], prepare: then(photoToday) },
@@ -180,7 +205,13 @@ try {
       if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
     }
     const page = await ctx.newPage();
-    if (!externalUrl && !shot.signedOut) await seedSample(page, baseUrl);
+    if (!externalUrl && !shot.signedOut) {
+      if (cycle === 'cycle-7') {
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        await seedVault(page, baseUrl, cycle7Fixture(today));
+      } else await seedSample(page, baseUrl);
+    }
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     if (!shot.signedOut) await chooseTheme(page, !!shot.dark);
     if (shot.prepare) await shot.prepare(page);

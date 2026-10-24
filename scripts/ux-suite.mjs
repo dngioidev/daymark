@@ -13,7 +13,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
-import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
+import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
+import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
 
 const require = createRequire(import.meta.url);
 // A step that fails mid-test can leave a waitForEvent promise behind; don't let it kill the run
@@ -43,6 +44,7 @@ const stopServer = () => (process.platform === 'win32' ? spawnSync('taskkill', [
 const ENVS = {
   D320: { viewport: { width: 320, height: 700 } },
   P360: { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  P390: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   P412: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   T768: { viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   D1024: { viewport: { width: 1024, height: 768 } },
@@ -70,6 +72,11 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
   await resetServerVault(ctx, origin, session.accessToken);
   const page = await ctx.newPage();
   if (start === 'sample') await seedSample(page, origin);
+  if (start === 'cycle-7') {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await seedVault(page, origin, cycle7Fixture(today));
+  }
   const dialogs = [];
   page.dialogPolicy = 'dismiss';
   page.promptAnswer = '';
@@ -343,11 +350,36 @@ const openMenuItem = async (page, title, item) => {
 const noIso = (text) => !/\b20\d\d-\d\d-\d\d\b/.test(text);
 
 async function functional() {
+  for (const env of ['P390', 'D1440', 'D1920']) {
+    for (const scheme of ['light', 'dark']) {
+      await tc(`LAY-habits-${env}-${scheme}`, 'Habits bar fits closed and open with usable touch targets', env, async () => {
+        const { page } = await open(env, { scheme, start: 'cycle-7' });
+        const bar = page.getByRole('region', { name: 'Daily habits', exact: true });
+        const toggle = bar.locator('button[aria-expanded]');
+        expect(await toggle.getAttribute('aria-expanded') === 'false', 'habits must start closed');
+        for (const expanded of [false, true]) {
+          if (expanded) await toggle.click();
+          const layout = await bar.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return { x: box.x, right: box.right, width: box.width, overflow: el.scrollWidth - el.clientWidth,
+              pageOverflow: document.documentElement.scrollWidth - innerWidth,
+              targets: [...el.querySelectorAll('button, li label')].filter((target) => target.getBoundingClientRect().height > 0)
+                .map((target) => ({ height: target.getBoundingClientRect().height, width: target.getBoundingClientRect().width })) };
+          });
+          expect(layout.x >= 0 && layout.right <= ENVS[env].viewport.width && layout.overflow <= 1 && layout.pageOverflow <= 1, JSON.stringify(layout));
+          expect(layout.width >= (env === 'P390' ? 330 : env === 'D1440' ? 900 : 1300), `bar collapsed to ${layout.width}px`);
+          const minimumTarget = env === 'P390' ? 44 : 36;
+          expect(layout.targets.every((target) => target.height >= minimumTarget && target.width >= minimumTarget), `small habits target: ${JSON.stringify(layout.targets)}`);
+        }
+        expect(await bar.getByRole('checkbox').count() === 5, 'open bar must show all five labelled habits');
+      });
+    }
+  }
   for (const [env, minimum] of [['D1440', 900], ['D1920', 1300], ['P412', 0]]) {
     await tc(`LAY-${env}`, 'Today uses available width without horizontal overflow', env, async () => {
       const { page } = await open(env);
       if (minimum) {
-        const card = page.locator('main section.dm-card').first();
+        const card = page.locator('main section.dm-card:not([aria-label="Daily habits"])').first();
         await card.waitFor();
         const box = await card.boundingBox();
         expect(box?.width >= minimum, `Today list card at ${ENVS[env].viewport.width}px is ${box?.width}px; expected at least ${minimum}px`);
@@ -925,6 +957,22 @@ async function functional() {
   });
 
   // ---- HI
+  await tc('HI-05', 'Week view shows seven full-width date rows at phone and desktop sizes', 'P390+D1440', async () => {
+    for (const env of ['P390', 'D1440']) {
+      const { page, ctx } = await open(env, { start: 'cycle-7' });
+      await btn(page, /^calendar$/i).first().click();
+      await btn(page, /^week$/i).click();
+      const rows = page.locator('button[data-date][aria-pressed]');
+      expect(await rows.count() === 7, 'week must contain seven date rows');
+      const geometry = await rows.evaluateAll((els) => els.map((el) => {
+        const box = el.getBoundingClientRect(), card = el.closest('.dm-card').getBoundingClientRect();
+        return { x: box.x, y: box.y, bottom: box.bottom, width: box.width, cardWidth: card.width };
+      }));
+      expect(geometry.every((r, i) => r.width >= r.cardWidth * 0.9 && (!i || r.y >= geometry[i - 1].bottom)), JSON.stringify(geometry));
+      expect(!/\+\d+ more/.test(await rows.allTextContents().then((texts) => texts.join(' '))), 'week rows truncate task list');
+      await ctx.close();
+    }
+  });
   await tc('HI-01', 'Calendar opens on the latest day', 'P412+D1440', async () => {
     for (const env of ['P412', 'D1440']) {
       const { ctx, page } = await open(env);

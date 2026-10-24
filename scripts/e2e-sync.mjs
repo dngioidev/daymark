@@ -142,6 +142,54 @@ try {
   });
   check(await moved.jsonValue(), 'phone receives Dark appearance and exactly one moved task on tomorrow with source removal preserved');
 
+  // Cycle 7: independent same-day offline ticks must merge, not replace the day.
+  const bar = (page) => page.getByRole('region', { name: 'Daily habits', exact: true });
+  const expandHabits = async (page) => {
+    const toggle = bar(page).locator('button[aria-expanded]');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+  };
+  await expandHabits(laptop); // The empty state opens the editor.
+  const editor = laptop.getByRole('dialog', { name: 'Daily habits', exact: true });
+  for (const name of ['Habit X', 'Habit Y']) {
+    await editor.getByPlaceholder('Habit name', { exact: true }).fill(name);
+    await editor.getByRole('button', { name: 'Add', exact: true }).click();
+    await editor.getByLabel(`Name for ${name}`, { exact: true }).waitFor();
+  }
+  await editor.getByRole('button', { name: 'Done', exact: true }).click();
+  await syncNow(laptop);
+  await syncNow(phone);
+  await bar(phone).locator('button[aria-expanded]').filter({ hasText: '0 of 2' }).waitFor();
+  await expandHabits(phone);
+  await bar(phone).getByRole('checkbox', { name: 'Habit Y', exact: true }).waitFor();
+  await laptopCtx.setOffline(true);
+  await phoneCtx.setOffline(true);
+  await bar(laptop).getByRole('checkbox', { name: 'Habit X', exact: true }).check();
+  await bar(phone).getByRole('checkbox', { name: 'Habit Y', exact: true }).check();
+  // Freeze the pre-sync divergence and wait for each tick to reach local storage.
+  for (const [page, name, other] of [[laptop, 'Habit X', 'Habit Y'], [phone, 'Habit Y', 'Habit X']]) {
+    await page.waitForFunction(async (name) => {
+      const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+      try {
+        const data = await new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get('habits'); r.onsuccess = () => resolve(r.result); });
+        const habit = data?.habits.find((h) => h.name === name);
+        return habit && data.days.find((d) => d.date === habit.addedOn)?.ticks[habit.id]?.done === true;
+      } finally { db.close(); }
+    }, name);
+    check(!await bar(page).getByRole('checkbox', { name: other, exact: true }).isChecked(), `${name} device has only its own tick before reconnect`);
+  }
+  await laptopCtx.setOffline(false);
+  await syncNow(laptop);
+  await phoneCtx.setOffline(false);
+  await syncNow(phone);
+  await syncNow(laptop);
+  for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
+    await page.waitForFunction(() => ['Habit X', 'Habit Y'].every((name) =>
+      document.querySelector(`section[aria-label="Daily habits"] input[aria-label="${name}"]`)?.checked));
+    check(await bar(page).getByRole('checkbox', { name: 'Habit X', exact: true }).isChecked()
+      && await bar(page).getByRole('checkbox', { name: 'Habit Y', exact: true }).isChecked()
+      && (await bar(page).locator('button[aria-expanded]').innerText()).includes('2 of 2'), `${label} merges both same-day habit ticks`);
+  }
+
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });
