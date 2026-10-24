@@ -87,9 +87,18 @@ const phoneHeader = async (page) => {
   await page.getByRole('button', { name: 'Header colour #1e3a5f', exact: true }).click();
   await closeSettings(page);
 };
-const weekRowsShot = then(click('button', /^calendar$/i), click('button', /^week$/i), async (page) => {
+const weekRowsShot = async (page, today) => {
+  await loadSample(page);
+  await click('button', /^calendar$/i)(page);
+  // Calendar initially selects the most recent past document. Select Today
+  // before switching to Week, especially on Sundays and month boundaries.
+  const todayCell = page.locator(`button[data-date="${today}"]`);
+  // The initially selected yesterday can be in the preceding month's grid.
+  if (!await todayCell.count()) await page.getByRole('button', { name: 'Next month', exact: true }).click();
+  await todayCell.click();
+  await click('button', /^week$/i)(page);
   await page.locator('button[data-date][aria-pressed="true"]').scrollIntoViewIfNeeded();
-});
+};
 const SHOTS = [
   { name: 'week-rows', viewport: 'desktop', cycles: ['cycle-7'], prepare: weekRowsShot },
   { name: 'week-rows-phone', viewport: 'phone', cycles: ['cycle-7'], prepare: weekRowsShot },
@@ -205,16 +214,16 @@ try {
       if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
     }
     const page = await ctx.newPage();
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
       if (cycle === 'cycle-7') {
-        const d = new Date();
-        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         await seedVault(page, baseUrl, cycle7Fixture(today));
       } else await seedSample(page, baseUrl);
     }
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     if (!shot.signedOut) await chooseTheme(page, !!shot.dark);
-    if (shot.prepare) await shot.prepare(page);
+    if (shot.prepare) await shot.prepare(page, today);
     const file = path.join(outDir, `${shot.name}.png`);
     await page.screenshot({ path: file });
     console.log('captured', path.relative('.', file));

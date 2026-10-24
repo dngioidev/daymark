@@ -61,13 +61,16 @@ services:
 ## Features
 
 - **Your own look:** choose Light or Dark, header and text colours, text size, and up to five background photos with dim and blur. Photos stay on this device; appearance settings sync.
-- **Calendar:** plan future days, switch between month and week, and open any day to write. Drag a task onto today or a future day on desktop.
+- **Calendar:** plan future days, switch between month and week, and open any day to write. Week view shows seven full-width day rows with every task, two task columns on desktop and one on phones. Drag a task onto today or a future day on desktop.
+- **Daily habits:** open the Habits bar above Today’s tasks to tick your daily list, see streaks and missed-day warnings, or edit names, order and warning days. Correct past ticks in Calendar. Habits stay separate from task totals and daily Markdown; backups include them.
 - **Roomier Today:** full-width lists and Markdown, collapsible sections, a seven-day progress strip and the next planned day. Move a task to tomorrow or another date, with Undo.
 - **Notes:** a full-height editor, focus mode, word count and Blank, Meeting, Daily review and Decision record templates.
 - **Search:** find tasks across days and notes, then open the result directly.
 - **Settings:** a steady-sized window with changes saved as you make them.
-- **Android widgets:** give each widget its own colours, font, size, corners and visible details, or match the app.
+- **Android widgets:** give each widget its own colours, font, size, corners and visible details, or match the app. Add **Daymark Habits** from the home-screen widget list to tick today’s habits; changes reach the notebook when the app next opens or resumes.
 - **Daily Markdown, offline access, backups and optional sync** keep your notes portable. Deleted tasks no longer come back the next morning.
+
+Habits sync only between devices on **1.4.0 or later**. Older apps do not see habits and cannot change them. Update the sync server together with the apps. See the [cycle 7 release notes](./docs/releases/cycle-7/README.md) for screenshots and details.
 
 ## Keyboard shortcuts
 
@@ -80,6 +83,8 @@ services:
 | g c | Go to Calendar |
 | g n | Go to Notes |
 | Ctrl/⌘ . | Toggle Notes focus mode |
+| Enter / Space on the Habits bar | Open or close habits |
+| Space on a habit checkbox | Tick or untick that habit |
 
 Search, help and navigation shortcuts pause while you type in a field. New task and Notes focus mode also work while typing.
 
@@ -90,6 +95,7 @@ npm install
 npm run dev            # Express + Vite on http://localhost:3000 (dev password: daymark-dev)
 npm run lint           # TypeScript
 npm test               # unit + in-process server tests
+npm run test:helpers   # screenshot and server-session helper tests
 npm run build          # production bundle
 npm run test:e2e       # PWA on an emulated Android phone, incl. offline
 npm run test:sync      # two devices syncing through a fresh server

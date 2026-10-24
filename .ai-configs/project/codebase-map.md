@@ -46,7 +46,7 @@ daymark/
 | `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, checklist counts, pinned-first sorting. |
 | `src/components/TodayView.tsx` | UI | Full-width daily notebook with visual, split and Markdown modes, collapsible sections and progress/planned-day sidebar. |
 | `src/components/StandaloneNotesView.tsx` | UI | Full-height notes list and editor, folders, templates, word count and focus mode. |
-| `src/components/CalendarView.tsx` | UI | Calendar: month/week grids, future planning, day notes, open any day and desktop drag to move. |
+| `src/components/CalendarView.tsx` | UI | Calendar: month grid and week rows, future planning, day notes and habits, open any day and desktop drag to move. |
 | `src/components/TaskItemCard.tsx` | UI | Compact task row: checkbox, title (opens details), status menu, age, "…" menu (Mark done on…, Rename, Delete). Details live in `TaskHistoryDrawer.tsx` (the task details sheet). |
 | `src/components/MarkdownPreview.tsx` | UI | Markdown renderer supporting GFM checklists, callouts, and wikilinks. |
 | `server.ts`, `server/app.ts` | Backend | Express API (auth, devices, sync, stats, log) built by `createApp(config, store)`; tested in-process by `server/app.test.ts`. |
@@ -85,7 +85,24 @@ daymark/
 | `mobile/android/app/src/main/java/app/daymark/notes/WidgetConfigActivity.kt` | Native | Place/configure widget and queue its editor request in the app. |
 | `scripts/e2e-qa-regressions.mjs`, `scripts/ux-suite.mjs`, `scripts/e2e-sync.mjs`, `scripts/capture-screenshots.mjs` | Tooling | Cycle-6 D1–D8 regressions, layout/theme checks, two-device move/appearance and release captures. |
 
-### Cycle 6 test files
+## Cycle 7 Modules
+
+| File / Directory | Layer | Purpose |
+| :--- | :--- | :--- |
+| `src/utils/habits.ts` | Logic | Habit lifetime, editing, ticks, streaks, missed days and summaries. |
+| `src/utils/habitsOpen.ts` | Storage | Device-only Habits disclosure state in IndexedDB with localStorage fallback. |
+| `src/utils/habitWidgetSnapshot.ts` | Native bridge | Compact habit snapshot and replay-safe dated widget actions. |
+| `src/components/habits/HabitsBar.tsx` | UI | Daily disclosure, progress, warning chip and checklist entry point. |
+| `src/components/habits/HabitChecklist.tsx` | UI | Labelled habit checkboxes, streaks and missed-day warnings. |
+| `src/components/habits/HabitEditor.tsx` | UI | Add, rename, reorder, remove and warning-day controls in a shared dialog. |
+| `src/components/WeekRows.tsx` | UI | Seven full-width day rows, all task titles, habit dots and selection/drop targets. |
+| `mobile/android/app/src/main/java/app/daymark/notes/HabitWidgetModel.kt` | Native | Habit snapshot parsing, dated queued actions and midnight streak/warning calculations. |
+| `mobile/android/app/src/main/java/app/daymark/notes/DaymarkHabitsGlanceWidget.kt` | Native | Separate Daymark Habits widget with checklist, progress and per-widget styles. |
+| `mobile/android/app/src/main/java/app/daymark/notes/WidgetDateChangeReceiver.kt` | Native | Refresh widgets after date/time/timezone changes. |
+| `scripts/helpers/cycle-7-fixture.mjs` | Tooling | Relative-date tasks and habits shared by release captures and UX checks. |
+| `scripts/helpers/cycle-7-fixture.test.mjs`, `scripts/helpers/server-session.test.mjs`, `scripts/helpers/index.js` | Testing | Fixture weekday/year-boundary regressions and server seeding/reset tests; directory entry point for `npm run test:helpers`. |
+
+## Cycle 6 test files
 
 New test files accompany these modules and the integration boundaries:
 

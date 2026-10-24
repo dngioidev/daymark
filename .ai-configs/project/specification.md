@@ -91,3 +91,32 @@ tags: [dev, sprint]
 - Undo restores the source and removes the moved target copy while preserving unrelated edits.
 - Moving to a future date does not carry that task into intervening days. Once the target date arrives, normal unfinished-task rollover applies on later mornings.
 - Merely opening an empty future day does not save a daily document; adding content does.
+
+## 5. Daily Habits
+
+### Model and lifetime
+
+- Canonical types are in `src/types/daymark.ts`: `Habit` has `id`, `name`, `order`, `warnAfterDays`, `addedOn`, optional `removedOn` and `updatedAt`. `HabitData` contains `habits` and date-sorted `days`; each `HabitDay` has `date` and `ticks: Record<string, HabitTick>`. A tick stores `{ done, at }`, retaining explicit unticks for sync.
+- Names are trimmed, 1–80 characters; duplicates are allowed. New habits use the app’s resolved today as `addedOn`. Warning days default to **3**, minimum **1**, maximum **365**.
+- Lifetime is `addedOn <= date < removedOn` (or no removal). Past ticks remain visible by habit name after removal, including a tick outside the lifetime received through sync/import. New ticking is allowed only within the lifetime and through today. Re-adding a name creates a new id; renaming preserves the existing id and history.
+- Removing sets `removedOn` and `updatedAt`, keeping the definition and past ticks. It hides the habit from today onward; removal wins over a concurrent definition edit.
+- Habits live separately in the vault’s `habits` data, persisted under IndexedDB `kv` key `habits`. JSON backups and the full snapshot inside ZIP backups include them. Import restores/merges them, and vault wipe removes them. They never enter `DailyDocument`, daily Markdown, rollover, aging, task search, task counts, the progress sidebar or “Last 7 days”.
+
+### Daily behavior and Calendar
+
+- Today comes from `App.tsx` via `resolveToday`, including the developer date override. Every day starts unticked. The Habits bar is closed by default and remembers open/closed state per device.
+- Streak counts consecutive ticked days back from today; if today is unticked, it starts at yesterday instead. Missed days count consecutive unticked days before today, no earlier than `addedOn` (the added day counts). Warn at the threshold unless today is ticked. Past-day corrections recompute both.
+- Calendar week is Sunday-first, with seven full-width rows and every task shown. Task titles use two columns on desktop and one on narrow screens. Past/today rows show habit dots and counts; future rows show no habit dots. Selected-day details allow habit ticking for past/today only. Month cells are unchanged.
+
+### Sync compatibility and deletion
+
+- `habits` carries `{ habits: Habit[] }`; `habitday:<date>` carries `{ date, ticks }`, with the value date required to match the key. Requests advertise `features: ['habits']`. The server filters habit entities from responses to clients without that feature, so older apps neither see nor change habits through normal sync.
+- Definitions merge per habit; ticks merge per habit/day by latest `at`, preserving independent changes and explicit `done: false` records. Definition conflicts keep removal when either side removed the habit, otherwise the incoming definition wins (the current merge does not compare `updatedAt`).
+- Sync entity deletion uses `null` tombstones. Normal habit removal uses `removedOn`, not deletion of the `habits` entity or its day records. In three-way merges, an entity deletion beats an unchanged base copy; a concurrent edited value survives the deletion.
+- Habits sync only between devices on **1.4.0 or later**. Older apps are unaffected and cannot see or change habits. The server must be updated together with the clients; unsupported older servers cannot sync habit entities.
+
+### Android widget snapshot and actions
+
+- The separate launcher widget is **Daymark Habits**. `buildHabitWidgetSnapshot` receives resolved today and sends a compact snapshot of up to 30 active habits: `date`, `updatedAt`, and each habit’s id, name, `doneToday`, `streakBefore`, `lastDoneBefore`, `addedOn`, and `warnAfterDays`. This summary lets Kotlin recalculate streaks/warnings after midnight without full tick history.
+- Widget checkboxes queue explicit habit actions with habit id, date, desired done value and timestamp. Changes show immediately in the widget and apply when the app opens/resumes; older or equal timestamps cannot overwrite a newer tick. Actions retain the day they were made on and are replay-safe.
+- A stale snapshot does not reuse yesterday’s ticks as today’s. Date/time/timezone broadcasts refresh the widgets. Tapping the header opens Today with Habits expanded; an empty widget invites adding habits in the app. Widget style is per instance, with a Show streaks option and task-only controls hidden.

@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "validate:ai": "node .ai-configs/scripts/validate-configs.mjs",
     "test": "vitest run",
+    "test:helpers": "node --test scripts/helpers/",
     "test:watch": "vitest",
     "test:e2e": "node scripts/e2e-android-pwa.mjs --no-shots",
     "android:sync": "vite build && cap sync android",

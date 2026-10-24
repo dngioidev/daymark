@@ -16,5 +16,19 @@ export function cycle7Fixture(today) {
       status: done ? 'done' : 'not-started', createdDate: date, originalNoteDate: date, historyLog: [], ...(done ? { completedDate: date } : {}) })) },
     { name: 'Ideas', notesContent: '', items: [] },
   ] });
-  return { docs: [document(offset(-1), ['Finish the design review', 'Take the recycling out'], true), document(today, titles), document(offset(1), ['Prepare tomorrow’s agenda'])], habits: { habits, days } };
+  const weekday = new Date(`${today}T12:00:00`).getDay();
+  const docs = [];
+  // Fill the containing Sunday–Saturday week, plus yesterday and two future
+  // days when those fall outside it. Today always keeps the busy nine-task row.
+  for (let n = Math.min(-weekday, -1); n <= Math.max(6 - weekday, 2); n++) {
+    const doc = document(offset(n), n === 0 ? titles : n < 0
+      ? ['Finish the design review', 'Take the recycling out']
+      : ['Prepare tomorrow’s agenda', 'Make time for a walk'], n < 0);
+    if (n < 0) {
+      doc.headings[0].items[1].status = 'not-started';
+      delete doc.headings[0].items[1].completedDate;
+    }
+    docs.push(doc);
+  }
+  return { docs, habits: { habits, days } };
 }
