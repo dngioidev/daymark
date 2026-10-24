@@ -46,10 +46,8 @@ object WidgetStore {
         actions
     }
 
-    private fun readHabitActions(context: Context): List<HabitAction> = try {
-        val arr = JSONArray(prefs(context).getString(KEY_HABIT_ACTIONS, "[]"))
-        (0 until arr.length()).map { HabitAction.parse(arr.getJSONObject(it)) }
-    } catch (_: Exception) { emptyList() }
+    private fun readHabitActions(context: Context): List<HabitAction> =
+        HabitWidgetModel.parseActions(prefs(context).getString(KEY_HABIT_ACTIONS, null))
 
     fun requestHabits(context: Context) = synchronized(lock) {
         prefs(context).edit().putBoolean(KEY_HABITS_OPEN, true).apply()

@@ -2,6 +2,7 @@ package app.daymark.notes
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Mirrors HabitWidgetSnapshot in src/types/daymark.ts. History ends before snapshot.date. */
@@ -35,6 +36,16 @@ data class HabitWidgetLayout(val rows: List<HabitRow>, val hidden: Int)
 
 /** Pure date replay: an absent day is unticked, and today's miss cannot break yesterday's streak. */
 object HabitWidgetModel {
+    /** A damaged entry must not discard valid ticks elsewhere in the persisted queue. */
+    fun parseActions(json: String?): List<HabitAction> {
+        val arr = try { JSONArray(json ?: "[]") } catch (_: Exception) { return emptyList() }
+        return (0 until arr.length()).mapNotNull { index ->
+            try { HabitAction.parse(arr.getJSONObject(index)) } catch (_: Exception) { null }
+        }
+    }
+
+    fun streakLabel(streak: Int): String = if (streak == 0) "–" else "🔥$streak"
+
     // Global cycle constraint: habit checkbox targets must remain at least 44dp even in compact mode.
     fun rowHeightDp(style: WidgetStyle): Int = maxOf(44, style.rowHeightDp)
 
@@ -59,7 +70,7 @@ object HabitWidgetModel {
             val firstMiss = maxOf(lastDone?.plusDays(1) ?: addedOn, addedOn)
             val missed = ChronoUnit.DAYS.between(firstMiss, effectiveToday).coerceAtLeast(0)
             HabitRow(habit.id, habit.name, done, streakBefore + if (done) 1 else 0,
-                missed, missed >= habit.warnAfterDays)
+                missed, !done && missed >= habit.warnAfterDays)
         }
         return HabitWidgetView(rows, rows.count { it.done }, rows.size)
     }

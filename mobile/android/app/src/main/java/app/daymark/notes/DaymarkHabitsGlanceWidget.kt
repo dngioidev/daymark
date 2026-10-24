@@ -63,6 +63,8 @@ private class HabitPaint(val style: WidgetStyle, colors: ResolvedWidgetColors) {
     val text = color(colors.text)
     val muted = color(colors.muted)
     val accent = color(colors.accent)
+    // Resolve against the opaque checkbox accent, independently of widget background opacity.
+    val checkmark = color(WidgetStyle(background = colors.accent).resolve(null).text)
     // A warning must remain readable against both light and dark widget backgrounds.
     private val automaticText = WidgetStyle(background = colors.bg).resolve(null).text
     val warning = if (automaticText == "#ffffff" || automaticText == "#f5f5f4") Color(0xFFF87171) else Color(0xFFB91C1C)
@@ -153,7 +155,7 @@ private fun HabitContentRow(row: HabitRow, paint: HabitPaint) {
         ) {
             Box(modifier = GlanceModifier.size(22.dp).background(if (row.done) paint.accent else paint.muted).cornerRadius(5.dp),
                 contentAlignment = Alignment.Center) {
-                if (row.done) Text(text = "✓", style = paint.type(paint.background, 13, FontWeight.Bold))
+                if (row.done) Text(text = "✓", style = paint.type(paint.checkmark, 13, FontWeight.Bold))
             }
         }
         Spacer(modifier = GlanceModifier.width(8.dp))
@@ -163,7 +165,7 @@ private fun HabitContentRow(row: HabitRow, paint: HabitPaint) {
         if (row.warning) {
             Text(text = "⚠ ${row.missedDays}d", style = paint.type(paint.warning, 12, FontWeight.Bold))
         } else if (paint.style.show.streaks) {
-            Text(text = "🔥${row.streak}", style = paint.type(paint.muted, 12))
+            Text(text = HabitWidgetModel.streakLabel(row.streak), style = paint.type(paint.muted, 12))
         }
     }
 }

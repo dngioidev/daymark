@@ -1,6 +1,7 @@
 package app.daymark.notes
 
 import java.time.LocalDate
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -12,6 +13,34 @@ class HabitWidgetModelTest {
     private fun snapshot(row: HabitSnapshotRow = habit()) = HabitSnapshot(date.toString(), listOf(row))
     private fun action(day: String = date.toString(), done: Boolean = true) =
         HabitAction("water", day, done, "2026-10-20T12:00:00Z")
+
+    @Test fun `ticking today suppresses warning`() {
+        val row = HabitWidgetModel.view(snapshot(habit(added = "2026-10-17")), listOf(action()), date).rows.single()
+        assertEquals(false, row.warning)
+        assertEquals(1, row.streak)
+    }
+    @Test fun `malformed queue entries preserve valid actions in order`() {
+        val first = action()
+        val last = action(done = false)
+        val queue = JSONArray().put(first.toJson()).put(JSONObject().put("habitId", "broken"))
+            .put(JSONObject.NULL).put("broken").put(42).put(last.toJson())
+        val parsed = HabitWidgetModel.parseActions(queue.toString())
+        assertEquals(listOf(first, last), parsed)
+        assertEquals(false, HabitWidgetModel.view(snapshot(), parsed, date).rows.single().done)
+        // The same read/append/write operation used by WidgetStore must retain earlier valid ticks.
+        val appended = parsed + action("2026-10-21")
+        assertEquals(appended, HabitWidgetModel.parseActions(JSONArray(appended.map { it.toJson() }).toString()))
+    }
+    @Test fun `missing or invalid queue JSON is empty`() {
+        assertEquals(emptyList<HabitAction>(), HabitWidgetModel.parseActions(null))
+        assertEquals(emptyList<HabitAction>(), HabitWidgetModel.parseActions("broken"))
+        assertEquals(emptyList<HabitAction>(), HabitWidgetModel.parseActions("{}"))
+    }
+    @Test fun `zero streak uses dash and positive streak uses fire`() {
+        assertEquals("–", HabitWidgetModel.streakLabel(0))
+        assertEquals("🔥1", HabitWidgetModel.streakLabel(1))
+        assertEquals("🔥12", HabitWidgetModel.streakLabel(12))
+    }
 
     @Test fun `same day snapshot applies queued tick`() {
         val view = HabitWidgetModel.view(snapshot(), listOf(action()), date)
