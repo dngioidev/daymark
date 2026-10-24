@@ -7,7 +7,7 @@ export type WidgetAppColors = { headerBg: string; headerText: string; accent: st
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
   mode: 'custom', background: '#1c1917', opacity: 100, text: 'auto', accent: '#f59e0b',
   font: 'sans', size: 'm', corners: 'round', density: 'comfy',
-  show: { done: false, age: true, quickAdd: true, sections: false },
+  show: { done: false, age: true, quickAdd: true, sections: false, streaks: true },
 };
 
 export function parseWidgetStyle(raw: unknown): WidgetStyle {
@@ -24,7 +24,7 @@ export function parseWidgetStyle(raw: unknown): WidgetStyle {
     text: r.text === 'auto' ? 'auto' : color(r.text, 'auto'), accent: color(r.accent, '#f59e0b'),
     font: choice(r.font, ['sans', 'serif', 'mono'], 'sans'), size: choice(r.size, ['s', 'm', 'l', 'xl'], 'm'),
     corners: choice(r.corners, ['square', 'round', 'extra'], 'round'), density: choice(r.density, ['compact', 'comfy'], 'comfy'),
-    show: { done: flag('done'), age: flag('age'), quickAdd: flag('quickAdd'), sections: flag('sections') },
+    show: { done: flag('done'), age: flag('age'), quickAdd: flag('quickAdd'), sections: flag('sections'), streaks: flag('streaks') },
   };
 }
 

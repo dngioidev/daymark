@@ -215,5 +215,20 @@ export interface WidgetStyle {
   size: 's' | 'm' | 'l' | 'xl';
   corners: 'square' | 'round' | 'extra';
   density: 'compact' | 'comfy';
-  show: { done: boolean; age: boolean; quickAdd: boolean; sections: boolean };
+  show: { done: boolean; age: boolean; quickAdd: boolean; sections: boolean; streaks: boolean };
+}
+
+/** Compact habit history sent to the native home-screen widget. */
+export interface HabitWidgetSnapshot {
+  date: string;
+  updatedAt: string;
+  habits: {
+    id: string;
+    name: string;
+    doneToday: boolean;
+    streakBefore: number;
+    lastDoneBefore: string | null;
+    addedOn: string;
+    warnAfterDays: number;
+  }[];
 }

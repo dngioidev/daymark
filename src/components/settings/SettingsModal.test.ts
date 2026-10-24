@@ -37,3 +37,18 @@ it('shows Widget before Advanced inside the Android app', () => {
   expect(html.indexOf('settings-tab-widget')).toBeLessThan(html.indexOf('settings-tab-advanced'));
   native.mockReturnValue(false);
 });
+
+it('offers separate task and habit widget pinning from Storage', () => {
+  native.mockReturnValue(true);
+  vi.stubGlobal('document', { body: {} });
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
+  const noop = () => {};
+  const html = renderToStaticMarkup(React.createElement(SettingsModal, {
+    isOpen: true, onClose: noop, settings: DEFAULT_SETTINGS, onChangeSettings: noop,
+    onExportZip: noop, onExportJson: noop, onImportJson: noop, onImportZip: noop, onResetVault: noop, syncPanel: null,
+    initialTab: 'storage',
+  }));
+  expect(html).toContain('Add tasks widget');
+  expect(html).toContain('Add habits widget');
+  native.mockReturnValue(false);
+});

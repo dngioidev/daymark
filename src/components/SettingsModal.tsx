@@ -4,7 +4,7 @@ import { AppSettings, LifecycleAction, StatusDefinition, SettingsTab } from '../
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
 import { formatDateTime } from '../utils/dateFormat';
-import { isNativeApp, requestPinWidget } from '../native/daymarkBridge';
+import { isNativeApp, pinHabitsWidget, requestPinWidget } from '../native/daymarkBridge';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { alertDialog, confirmDialog, showToast } from './ui/feedback';
 
@@ -280,20 +280,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {isNativeApp() && (
               <div className={card}>
                 <h3 className="font-semibold text-base">Home-screen widget</h3>
-                <p className={`${hint} mt-1`}>See today's tasks on your home screen, tick them off and add new ones without opening Daymark.</p>
-                <button
+                <p className={`${hint} mt-1`}>See today's tasks and habits on your home screen and tick them off without opening Daymark.</p>
+                <div className="flex flex-wrap gap-2">{(['tasks', 'habits'] as const).map((kind) => <button
+                  key={kind}
                   type="button"
                   onClick={async () => {
-                    if (!(await requestPinWidget()))
+                    if (!(await (kind === 'habits' ? pinHabitsWidget() : requestPinWidget())))
                       await alertDialog(
                         'Add the widget from your home screen',
-                        'Your launcher cannot add widgets automatically. Long-press the home screen, choose Widgets, and pick Daymark Today.'
+                        `Your launcher cannot add widgets automatically. Long-press the home screen, choose Widgets, and pick Daymark ${kind === 'habits' ? 'Habits' : 'Today'}.`
                       );
                   }}
                   className={`${buttonClass.secondary} mt-3 w-full sm:w-auto`}
                 >
-                  <LayoutGrid className="w-4 h-4" /> Add widget
-                </button>
+                  <LayoutGrid className="w-4 h-4" /> Add {kind} widget
+                </button>)}</div>
               </div>
             )}
           </>

@@ -1,13 +1,15 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { WidgetSnapshot } from '../utils/widgetSnapshot';
-import type { WidgetStyle } from '../types/daymark';
+import type { HabitWidgetSnapshot, WidgetStyle } from '../types/daymark';
 import { DEFAULT_WIDGET_STYLE, parseWidgetStyle, WidgetAppColors } from '../utils/widgetStyle';
 
 /** An action the user performed on the Android home-screen widget while the app was closed. */
-export type WidgetAction = { type: 'toggle'; taskId: string } | { type: 'capture' } | { type: 'configure'; widgetId: number };
+export type WidgetAction = { type: 'toggle'; taskId: string } | { type: 'capture' } | { type: 'configure'; widgetId: number }
+  | { type: 'habit'; habitId: string; date: string; done: boolean; at: string }
+  | { type: 'habits' };
 
 export interface WidgetList {
-  widgets: { id: number; style: WidgetStyle }[];
+  widgets: { id: number; kind: 'tasks' | 'habits'; style: WidgetStyle }[];
   defaultStyle: WidgetStyle;
 }
 
@@ -17,6 +19,8 @@ interface DaymarkBridgePlugin {
   setAppColors(options: WidgetAppColors & { dark: boolean }): Promise<void>;
   setSystemBars(options: { color: string; lightIcons: boolean }): Promise<void>;
   setSnapshot(snapshot: WidgetSnapshot): Promise<void>;
+  setHabitSnapshot(snapshot: HabitWidgetSnapshot): Promise<void>;
+  pinHabitsWidget(): Promise<{ requested: boolean }>;
   consumeActions(): Promise<{ actions: WidgetAction[] }>;
   pinWidget(): Promise<{ requested: boolean }>;
 }
@@ -27,7 +31,7 @@ const Bridge = registerPlugin<DaymarkBridgePlugin>('DaymarkBridge');
 export async function listWidgets(): Promise<WidgetList> {
   if (!isNativeApp()) return { widgets: [], defaultStyle: parseWidgetStyle(DEFAULT_WIDGET_STYLE) };
   const list = await Bridge.listWidgets();
-  return { widgets: list.widgets.map((widget) => ({ id: widget.id, style: parseWidgetStyle(widget.style) })), defaultStyle: parseWidgetStyle(list.defaultStyle) };
+  return { widgets: list.widgets.map((widget) => ({ id: widget.id, kind: widget.kind === 'habits' ? 'habits' : 'tasks', style: parseWidgetStyle(widget.style) })), defaultStyle: parseWidgetStyle(list.defaultStyle) };
 }
 
 export async function setWidgetStyle(options: { id: number | 'default'; style: WidgetStyle }): Promise<void> {
@@ -83,5 +87,24 @@ export async function consumeWidgetActions(): Promise<WidgetAction[]> {
   } catch (err) {
     console.error('Could not read widget actions', err);
     return [];
+  }
+}
+
+export async function setHabitSnapshot(snapshot: HabitWidgetSnapshot): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await Bridge.setHabitSnapshot(snapshot);
+  } catch (err) {
+    console.error('Could not update the habits widget', err);
+  }
+}
+
+export async function pinHabitsWidget(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    return (await Bridge.pinHabitsWidget()).requested;
+  } catch (err) {
+    console.error('Could not request the habits widget', err);
+    return false;
   }
 }

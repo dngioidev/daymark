@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { WidgetStyle } from '../../types/daymark';
-import { listWidgets, setWidgetStyle, WidgetList } from '../../native/daymarkBridge';
+import { listWidgets, pinHabitsWidget, requestPinWidget, setWidgetStyle, WidgetList } from '../../native/daymarkBridge';
 import { DEFAULT_WIDGET_STYLE, parseWidgetStyle, resolveWidgetColors, WidgetAppColors } from '../../utils/widgetStyle';
 import { contrastRatio } from '../../utils/color';
 import { buttonClass } from '../ui/Dialog';
+import { alertDialog } from '../ui/feedback';
 import { ColorField } from './ColorField';
 import { PreviewInput } from './PreviewInput';
 import { WidgetPreview } from './WidgetPreview';
@@ -62,6 +63,12 @@ export function WidgetTab({ initialWidgetId, app }: { initialWidgetId?: number; 
   const colors = resolveWidgetColors(draft, app);
   const automatic = resolveWidgetColors({ ...draft, text: 'auto' }, app).text;
   const custom = draft.mode === 'custom';
+  const selectedWidget = list?.widgets.find((widget) => widget.id === selected);
+  const kind = selectedWidget?.kind ?? 'tasks';
+  const widgetLabel = (widget: WidgetList['widgets'][number], index: number) => `${widget.kind === 'habits' ? 'Habits' : 'Tasks'} widget ${index + 1}`;
+  const showOptions: readonly (readonly [keyof WidgetStyle['show'], string])[] = kind === 'habits'
+    ? [['streaks', 'Show streaks']]
+    : [['done', 'Done tasks'], ['age', 'Age badges'], ['quickAdd', 'Quick add'], ['sections', 'Section names']];
   const textContrast = contrastRatio(colors.text, colors.bg);
   const accentContrast = contrastRatio(colors.accent, colors.bg);
   const choices = <K extends 'mode' | 'font' | 'size' | 'corners' | 'density'>(key: K, label: string, options: readonly (readonly [WidgetStyle[K], string])[]) =>
@@ -80,12 +87,18 @@ export function WidgetTab({ initialWidgetId, app }: { initialWidgetId?: number; 
         <h3 className="font-semibold">On your home screen</h3>
         {list.widgets.length === 0 && <p>No widgets yet. Add Daymark from your home screen.</p>}
         {list.widgets.map((widget, index) => <div className="flex items-center justify-between gap-2" key={widget.id}>
-          <span>Widget {index + 1}</span><button type="button" aria-label={`Edit Widget ${index + 1}`} aria-pressed={selected === widget.id} className={buttonClass.secondary} onClick={() => select(widget.id, list)}>Edit</button>
+          <span>{widgetLabel(widget, index)}</span><button type="button" aria-label={`Edit ${widgetLabel(widget, index)}`} aria-pressed={selected === widget.id} className={buttonClass.secondary} onClick={() => select(widget.id, list)}>Edit</button>
         </div>)}
       </section>
-      <h3 className="font-semibold">{selected === 'default' ? 'Default for new widgets' : `Widget ${list.widgets.findIndex((w) => w.id === selected) + 1}`}</h3>
+      <div className="flex flex-wrap gap-2">
+        {(['tasks', 'habits'] as const).map((type) => <button type="button" key={type} className={buttonClass.secondary} onClick={async () => {
+          if (!(await (type === 'habits' ? pinHabitsWidget() : requestPinWidget())))
+            await alertDialog('Add the widget from your home screen', `Long-press the home screen, choose Widgets, and pick Daymark ${type === 'habits' ? 'Habits' : 'Today'}.`);
+        }}>Add {type} widget</button>)}
+      </div>
+      <h3 className="font-semibold">{selectedWidget ? widgetLabel(selectedWidget, list.widgets.findIndex((w) => w.id === selected)) : 'Default for new widgets'}</h3>
       <div className="flex flex-col xl:flex-row gap-5 items-start">
-        <div className="w-full xl:w-64 xl:sticky xl:top-0 shrink-0"><WidgetPreview style={draft} app={app} /><p className="mt-2 text-xs text-stone-600 dark:text-stone-400">Preview. Your launcher controls the final size.</p></div>
+        <div className="w-full xl:w-64 xl:sticky xl:top-0 shrink-0"><WidgetPreview style={draft} app={app} kind={kind} /><p className="mt-2 text-xs text-stone-600 dark:text-stone-400">Preview. Your launcher controls the final size.</p></div>
         <div className="min-w-0 space-y-4 flex-1">
           {choices('mode', 'Style', [['match-app', 'Match app'], ['custom', 'Custom']])}
           <fieldset disabled={!custom} className="space-y-4 disabled:opacity-50">
@@ -100,7 +113,7 @@ export function WidgetTab({ initialWidgetId, app }: { initialWidgetId?: number; 
           {choices('size', 'Size', [['s', 'S'], ['m', 'M'], ['l', 'L'], ['xl', 'XL']])}
           {choices('corners', 'Corners', [['square', 'Square'], ['round', 'Round'], ['extra', 'Extra round']])}
           {choices('density', 'Density', [['compact', 'Compact'], ['comfy', 'Comfy']])}
-          <fieldset><legend className="font-semibold">Show</legend>{([['done', 'Done tasks'], ['age', 'Age badges'], ['quickAdd', 'Quick add'], ['sections', 'Section names']] as const).map(([key, label]) => <label className="flex items-center gap-2 min-h-11" key={key}><input type="checkbox" checked={draft.show[key]} onChange={(e) => patch({ show: { ...draft.show, [key]: e.target.checked } })} />{label}</label>)}</fieldset>
+          <fieldset><legend className="font-semibold">Show</legend>{showOptions.map(([key, label]) => <label className="flex items-center gap-2 min-h-11" key={key}><input type="checkbox" checked={draft.show[key]} onChange={(e) => patch({ show: { ...draft.show, [key]: e.target.checked } })} />{label}</label>)}</fieldset>
           <button type="button" className={buttonClass.secondary} onClick={() => commit(selected === 'default' ? parseWidgetStyle(DEFAULT_WIDGET_STYLE) : list.defaultStyle)}>Reset to default</button>
           <p role="status" className="text-sm">{status}</p>
         </div>

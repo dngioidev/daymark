@@ -3,16 +3,20 @@ import { DEFAULT_WIDGET_STYLE, parseWidgetStyle, resolveWidgetColors } from './w
 import { contrastRatio } from './color';
 
 describe('widget styles', () => {
+  it('parseWidgetStyle defaults streaks true and preserves false', () => {
+    expect(parseWidgetStyle({}).show.streaks).toBe(true);
+    expect(parseWidgetStyle({ show: { streaks: false } }).show.streaks).toBe(false);
+  });
   it('fills an empty or missing style with the legacy defaults', () => {
     expect(parseWidgetStyle({})).toEqual(DEFAULT_WIDGET_STYLE);
     expect(parseWidgetStyle(null)).toEqual(DEFAULT_WIDGET_STYLE);
-    expect(parseWidgetStyle({}).show).toEqual({ done: false, age: true, quickAdd: true, sections: false });
+    expect(parseWidgetStyle({}).show).toEqual({ done: false, age: true, quickAdd: true, sections: false, streaks: true });
   });
   it('falls back from unknown choices and invalid colours', () => {
     expect(parseWidgetStyle({ font: 'comic', size: 'huge', background: 'red' })).toMatchObject({ font: 'sans', size: 'm', background: '#1c1917' });
   });
   it('fills nested flags independently and keeps false', () => {
-    expect(parseWidgetStyle({ show: { age: false } }).show).toEqual({ done: false, age: false, quickAdd: true, sections: false });
+    expect(parseWidgetStyle({ show: { age: false } }).show).toEqual({ done: false, age: false, quickAdd: true, sections: false, streaks: true });
   });
   it('clamps opacity and rejects non-numeric values', () => {
     expect(parseWidgetStyle({ opacity: -1 }).opacity).toBe(0);

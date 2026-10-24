@@ -41,3 +41,14 @@ it('makes Compact tighter and done rows opt-in', () => {
   expect(html).toContain('Send the invoice');
   expect(html).toContain('2 left · 1 done');
 });
+
+it('previews habits with optional streaks and without task controls', () => {
+  const html = renderToStaticMarkup(React.createElement(WidgetPreview, { style: parseWidgetStyle({}), app: null, kind: 'habits' }));
+  expect(html).toContain('Habits');
+  expect(html).toContain('Drink water');
+  expect(html).toContain('3 days');
+  expect(html).not.toContain('New task');
+  expect(html).not.toContain('Plan the week');
+  const hidden = renderToStaticMarkup(React.createElement(WidgetPreview, { style: parseWidgetStyle({ show: { streaks: false } }), app: null, kind: 'habits' }));
+  expect(hidden).not.toContain('3 days');
+});

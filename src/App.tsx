@@ -107,7 +107,7 @@ export default function App() {
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
   const [habits, setHabits] = useState<HabitData>(loadHabits);
-  const [habitsOpenSignal] = useState(0);
+  const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
@@ -500,7 +500,12 @@ export default function App() {
     setWidgetEditorId(widgetId);
     setSettingsTab('widget');
     setIsSettingsOpen(true);
-  }, appearance);
+  }, appearance, habits, setHabits, () => {
+    setActiveDesktopTab('today');
+    setActiveMobileTab('today');
+    setCurrentDate(today);
+    setHabitsOpenSignal((signal) => signal + 1);
+  });
 
   // Backups: closing the Android share sheet without choosing a target is not an error
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
