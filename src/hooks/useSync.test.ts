@@ -215,6 +215,30 @@ it('remembers unsupported habits for the session and leaves habit bases untouche
   expect(saveSyncState).toHaveBeenLastCalledWith(expect.objectContaining({ bases: expect.objectContaining(bases) }));
 });
 
+it('remembers unsupported habits when a vault replacement discards the round', async () => {
+  let release!: () => void;
+  const original = fetchFn.getMockImplementation()!;
+  const bodies: { changes: { key: string; value: unknown }[] }[] = [];
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    const body = JSON.parse(String(init?.body));
+    bodies.push(body);
+    if (body.changes.some((c: { key: string }) => c.key.startsWith('habit'))) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    if (bodies.length === 2) await new Promise<void>((resolve) => { release = resolve; });
+    return Response.json({ rev: bodies.length, entities: body.changes.map((c: { key: string; value: unknown }) => ({ ...c, rev: bodies.length })), conflicts: [] });
+  });
+  const sync = render();
+  const pending = sync.syncNow();
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+  sync.rebaseAfterReplace();
+  release();
+  await pending;
+  expect(bodies).toHaveLength(3);
+  expect(bodies[2].changes.every((c) => !c.key.startsWith('habit'))).toBe(true);
+  expect(render().error).toBeNull();
+  expect(render().pendingChanges()).toBe(0);
+});
+
 it('applies incoming habit-only changes to the vault', async () => {
   const onChange = vi.fn();
   const habits = { habits: [], days: [{ date: '2026-10-24', ticks: { a: { done: true, at: '2026-10-24T08:00:00Z' } } }] };

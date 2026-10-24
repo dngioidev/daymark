@@ -129,11 +129,11 @@ export function useSync(
           const current = stateRef.current!;
           const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, habitsUnsupported.current);
           if (blocked.current || closing.current) return;
+          habitsUnsupported.current = outcome.habitsUnsupported === true;
           if (startedAt !== epoch.current) {
             rerun.current = true;
             continue;
           }
-          habitsUnsupported.current = outcome.habitsUnsupported === true;
           if (outcome.serverValues.size > 0) {
             const before = vaultRef.current;
             const next = applySyncOutcome(before, outcome);

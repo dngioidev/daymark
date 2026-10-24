@@ -146,7 +146,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
     res = await send();
   } catch (err) {
     if (habitsUnsupported || !(err instanceof SyncHttpError) || err.status !== 400 ||
-      !(err.message.startsWith('Invalid entity key') || err.message.startsWith('Invalid value for habit'))) throw err;
+      !err.message.startsWith('Invalid entity key')) throw err;
     habitsUnsupported = true;
     changes = changes.filter((c) => !isHabitEntityKey(c.key));
     for (const key of snapshot.keys()) if (isHabitEntityKey(key)) snapshot.delete(key);

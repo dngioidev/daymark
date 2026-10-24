@@ -24,7 +24,7 @@ it('toEntities/fromEntities round-trip habits', () => {
 });
 
 describe('older server fallback', () => {
-  it.each(['Invalid entity key in sync request.', 'Invalid value for habits.'])('retries without habit keys on %s', async (error) => {
+  it.each(['Invalid entity key in sync request.'])('retries without habit keys on %s', async (error) => {
     const calls: SyncRequest[] = [];
     const bases = { habits: canonicalJson({ habits: [] }), 'habitday:2026-10-22': canonicalJson({ date: '2026-10-22', ticks: {} }) };
     const outcome = await syncOnce(async (_url, init) => {
@@ -41,6 +41,19 @@ describe('older server fallback', () => {
     expect(outcome.state.bases.habits).toBe(bases.habits);
     expect(outcome.state.bases['habitday:2026-10-22']).toBe(bases['habitday:2026-10-22']);
     expect(applySyncOutcome(vault, outcome).habits).toEqual(habits);
+  });
+  it('surfaces Invalid value for habitday errors without retry or habitsUnsupported', async () => {
+    let calls = 0;
+    const error = 'Invalid value for habitday:2026-10-24.';
+    const pending = syncOnce(async (_url, init) => {
+      calls++;
+      const body = JSON.parse(String(init?.body)) as SyncRequest;
+      if (body.changes.some((c) => c.key.startsWith('habit'))) return Response.json({ error }, { status: 400 });
+      return Response.json({ rev: 1, entities: [], conflicts: [] });
+    }, vault, state, 'access');
+    await expect(pending).rejects.toMatchObject({ status: 400, message: error });
+    await expect(pending).rejects.not.toHaveProperty('habitsUnsupported');
+    expect(calls).toBe(1);
   });
   it('does not retry unrelated errors or retry more than once', async () => {
     let calls = 0;
