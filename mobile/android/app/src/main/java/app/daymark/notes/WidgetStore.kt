@@ -1,6 +1,7 @@
 package app.daymark.notes
 
 import android.content.Context
+import java.time.LocalDate
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -14,9 +15,51 @@ object WidgetStore {
     private const val KEY_SNAPSHOT = "snapshot"
     private const val KEY_ACTIONS = "actions"
     private const val KEY_CAPTURE = "capture_requested"
+    private const val KEY_HABIT_SNAPSHOT = "habit_snapshot"
+    private const val KEY_HABIT_ACTIONS = "habit_actions"
+    private const val KEY_HABITS_OPEN = "habits_requested"
     private val lock = Any()
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun saveHabitSnapshot(context: Context, json: String) {
+        HabitSnapshot.parse(json)
+        synchronized(lock) { prefs(context).edit().putString(KEY_HABIT_SNAPSHOT, json).apply() }
+    }
+
+    fun loadHabitView(context: Context, today: LocalDate): HabitWidgetView = synchronized(lock) {
+        try {
+            val raw = prefs(context).getString(KEY_HABIT_SNAPSHOT, null)
+                ?: return@synchronized HabitWidgetView(emptyList(), 0, 0)
+            HabitWidgetModel.view(HabitSnapshot.parse(raw), readHabitActions(context), today)
+        } catch (_: Exception) { HabitWidgetView(emptyList(), 0, 0) }
+    }
+
+    fun queueHabitAction(context: Context, action: HabitAction) = synchronized(lock) {
+        val actions = readHabitActions(context) + action
+        prefs(context).edit().putString(KEY_HABIT_ACTIONS, JSONArray(actions.map { it.toJson() }).toString()).apply()
+    }
+
+    fun consumeHabitActions(context: Context): List<HabitAction> = synchronized(lock) {
+        val actions = readHabitActions(context)
+        prefs(context).edit().remove(KEY_HABIT_ACTIONS).apply()
+        actions
+    }
+
+    private fun readHabitActions(context: Context): List<HabitAction> = try {
+        val arr = JSONArray(prefs(context).getString(KEY_HABIT_ACTIONS, "[]"))
+        (0 until arr.length()).map { HabitAction.parse(arr.getJSONObject(it)) }
+    } catch (_: Exception) { emptyList() }
+
+    fun requestHabits(context: Context) = synchronized(lock) {
+        prefs(context).edit().putBoolean(KEY_HABITS_OPEN, true).apply()
+    }
+
+    fun consumeHabitsRequest(context: Context): Boolean = synchronized(lock) {
+        val requested = prefs(context).getBoolean(KEY_HABITS_OPEN, false)
+        prefs(context).edit().remove(KEY_HABITS_OPEN).apply()
+        requested
+    }
 
     /** Stores the snapshot JSON as sent by the web app. Invalid JSON is rejected. */
     fun saveSnapshot(context: Context, json: String) {

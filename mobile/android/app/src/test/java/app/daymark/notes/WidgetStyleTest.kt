@@ -4,6 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WidgetStyleTest {
+    @Test fun `streaks defaults true`() {
+        assertEquals(true, WidgetStyle.parse("{}").show.streaks)
+        assertEquals(true, WidgetStyle.parse("""{"show":{"streaks":"false"}}""").show.streaks)
+        val style = WidgetStyle.parse("""{"show":{"streaks":false}}""")
+        assertEquals(false, style.show.streaks)
+        assertEquals(style, WidgetStyle.parse(style.toJson()))
+    }
     @Test fun missingFieldsUseLegacyDefaults() {
         assertEquals(WidgetStyle(), WidgetStyle.parse("{}"))
         assertEquals(WidgetStyle(), WidgetStyle.parse(null))

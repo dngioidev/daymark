@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     /** Intent extra set by the home-screen widget's + button. */
     public static final String EXTRA_ACTION = "daymark_action";
     public static final String ACTION_CAPTURE = "capture";
+    public static final String ACTION_HABITS = "habits";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -27,6 +28,9 @@ public class MainActivity extends BridgeActivity {
     private void handleWidgetIntent(Intent intent) {
         if (intent != null && ACTION_CAPTURE.equals(intent.getStringExtra(EXTRA_ACTION))) {
             WidgetStore.INSTANCE.requestCapture(this);
+            intent.removeExtra(EXTRA_ACTION);
+        } else if (intent != null && ACTION_HABITS.equals(intent.getStringExtra(EXTRA_ACTION))) {
+            WidgetStore.INSTANCE.requestHabits(this);
             intent.removeExtra(EXTRA_ACTION);
         }
     }

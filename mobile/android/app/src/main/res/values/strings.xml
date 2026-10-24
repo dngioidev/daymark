@@ -5,5 +5,7 @@
     <string name="package_name">app.daymark.notes</string>
     <string name="custom_url_scheme">app.daymark.notes</string>
     <string name="widget_name">Daymark Today</string>
+    <string name="habits_widget_name">Daymark Habits</string>
+    <string name="habits_widget_description">Daily habits with streaks and missed-day warnings. Tick habits from your home screen.</string>
     <string name="widget_description">Tasks for today with carry-forward aging. Tick tasks off from your home screen.</string>
 </resources>

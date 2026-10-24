@@ -3,7 +3,7 @@ package app.daymark.notes
 import org.json.JSONObject
 import kotlin.math.pow
 
-data class WidgetShow(val done: Boolean = false, val age: Boolean = true, val quickAdd: Boolean = true, val sections: Boolean = false)
+data class WidgetShow(val done: Boolean = false, val age: Boolean = true, val quickAdd: Boolean = true, val sections: Boolean = false, val streaks: Boolean = true)
 data class AppColors(val headerBg: String, val headerText: String, val accent: String, val dark: Boolean)
 data class ResolvedWidgetColors(val bg: String, val bgAlpha: Float, val text: String, val muted: String, val accent: String)
 
@@ -23,7 +23,7 @@ data class WidgetStyle(
     fun toJson(): String = JSONObject().put("mode", mode).put("background", background).put("opacity", opacity)
         .put("text", text).put("accent", accent).put("font", font).put("size", size).put("corners", corners)
         .put("density", density).put("show", JSONObject().put("done", show.done).put("age", show.age)
-            .put("quickAdd", show.quickAdd).put("sections", show.sections)).toString()
+            .put("quickAdd", show.quickAdd).put("sections", show.sections).put("streaks", show.streaks)).toString()
 
     fun resolve(app: AppColors?): ResolvedWidgetColors {
         val match = if (mode == "match-app") app else null
@@ -49,7 +49,7 @@ data class WidgetStyle(
                 if (obj.opt("text") == "auto") "auto" else color("text", "auto"), color("accent", "#f59e0b"),
                 choice("font", listOf("sans", "serif", "mono"), "sans"), choice("size", listOf("s", "m", "l", "xl"), "m"),
                 choice("corners", listOf("square", "round", "extra"), "round"), choice("density", listOf("compact", "comfy"), "comfy"),
-                WidgetShow(flag("done", false), flag("age", true), flag("quickAdd", true), flag("sections", false)))
+                WidgetShow(flag("done", false), flag("age", true), flag("quickAdd", true), flag("sections", false), flag("streaks", true)))
         }
         private fun luminance(hex: String): Double {
             val c = listOf(1, 3, 5).map { hex.substring(it, it + 2).toInt(16) / 255.0 }

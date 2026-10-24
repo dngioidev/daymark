@@ -68,6 +68,26 @@ class DaymarkBridgePlugin : Plugin() {
         call.resolve()
     }
 
+    @PluginMethod
+    fun setHabitSnapshot(call: PluginCall) {
+        try {
+            WidgetStore.saveHabitSnapshot(context, call.data.toString())
+        } catch (e: Exception) {
+            call.reject("Invalid habit widget snapshot", e)
+            return
+        }
+        CoroutineScope(Dispatchers.Default).launch { DaymarkHabitsGlanceWidget().refreshAll(context) }
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun pinHabitsWidget(call: PluginCall) {
+        val manager = AppWidgetManager.getInstance(context)
+        val requested = manager.isRequestPinAppWidgetSupported &&
+            manager.requestPinAppWidget(ComponentName(context, DaymarkHabitsWidgetReceiver::class.java), null, null)
+        call.resolve(JSObject().put("requested", requested))
+    }
+
     /** Shows Android's "add widget to home screen" confirmation (API 26+, launcher permitting). */
     @PluginMethod
     fun pinWidget(call: PluginCall) {
@@ -84,6 +104,10 @@ class DaymarkBridgePlugin : Plugin() {
         for (taskId in WidgetStore.consumeActions(context)) {
             actions.put(JSObject().put("type", "toggle").put("taskId", taskId))
         }
+        for (action in WidgetStore.consumeHabitActions(context)) {
+            actions.put(JSObject(action.toJson().toString()).put("type", "habit"))
+        }
+        if (WidgetStore.consumeHabitsRequest(context)) actions.put(JSObject().put("type", "habits"))
         if (WidgetStore.consumeCaptureRequest(context)) actions.put(JSObject().put("type", "capture"))
         WidgetStore.consumeConfigureRequest(context)?.let {
             actions.put(JSObject().put("type", "configure").put("widgetId", it))
@@ -91,14 +115,24 @@ class DaymarkBridgePlugin : Plugin() {
         call.resolve(JSObject().put("actions", actions))
     }
 
-    private fun widgetIds(): IntArray = AppWidgetManager.getInstance(context)
-        .getAppWidgetIds(ComponentName(context, DaymarkWidgetReceiver::class.java))
+    private fun installedWidgets(): Map<Int, String> {
+        val manager = AppWidgetManager.getInstance(context)
+        return manager.getAppWidgetIds(ComponentName(context, DaymarkWidgetReceiver::class.java)).associateWith { "tasks" } +
+            manager.getAppWidgetIds(ComponentName(context, DaymarkHabitsWidgetReceiver::class.java)).associateWith { "habits" }
+    }
+
+    private fun widgetIds(): Set<Int> = installedWidgets().keys
+
+    private suspend fun refreshWidgets() {
+        DaymarkGlanceWidget().refreshAll(context)
+        DaymarkHabitsGlanceWidget().refreshAll(context)
+    }
 
     @PluginMethod
     fun listWidgets(call: PluginCall) {
         val widgets = JSArray()
-        for (id in widgetIds().sorted()) {
-            widgets.put(JSObject().put("id", id).put("style", JSObject(WidgetStore.style(context, id).toJson())))
+        for ((id, kind) in installedWidgets().toSortedMap()) {
+            widgets.put(JSObject().put("id", id).put("kind", kind).put("style", JSObject(WidgetStore.style(context, id).toJson())))
         }
         call.resolve(JSObject().put("widgets", widgets).put("defaultStyle", JSObject(WidgetStore.defaultStyle(context).toJson())))
     }
@@ -117,7 +151,7 @@ class DaymarkBridgePlugin : Plugin() {
         if (key == "default") for (widgetId in widgetIds()) WidgetStore.style(context, widgetId)
         WidgetStore.setStyle(context, key, WidgetStyle.parse(raw.toString()))
         CoroutineScope(Dispatchers.Default).launch {
-            try { DaymarkGlanceWidget().refreshAll(context); call.resolve() }
+            try { refreshWidgets(); call.resolve() }
             catch (e: Exception) { call.reject("Could not refresh widgets", e) }
         }
     }
@@ -136,7 +170,7 @@ class DaymarkBridgePlugin : Plugin() {
         }
         WidgetStore.setAppColors(context, colors)
         CoroutineScope(Dispatchers.Default).launch {
-            try { DaymarkGlanceWidget().refreshAll(context); call.resolve() }
+            try { refreshWidgets(); call.resolve() }
             catch (e: Exception) { call.reject("Could not refresh widgets", e) }
         }
     }
