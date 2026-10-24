@@ -2,6 +2,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { CalendarView } from './CalendarView';
+import { WeekRows } from './WeekRows';
+import { weekCells } from '../utils/calendarGrid';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import type { DailyDocument, HabitData } from '../types/daymark';
 import { formatLongDate } from '../utils/dateFormat';
@@ -103,4 +105,33 @@ it('past day detail shows habit checkboxes', () => {
   expect(html).toContain('checked=""');
   expect(html).not.toContain('disabled=""');
   expect(html).toContain('Nothing was recorded on');
+});
+
+function busyWeekRow() {
+  const cells = weekCells('2026-10-21', [], '2026-10-21');
+  cells[0] = { ...cells[0], items: [{ title: 'Read the complete project proposal', done: false }], total: 1 };
+  const html = renderToStaticMarkup(React.createElement(WeekRows, {
+    cells, today: '2026-10-21', selectedDate: '2026-10-21', habits, onSelectDate: vi.fn(), dropProps: () => ({}),
+  }));
+  return html.match(/<button\b[^>]*data-date="2026-10-18"[^>]*>[\s\S]*?<\/button>/)![0];
+}
+
+it('stacks a connected phone header above the full-width week task list', () => {
+  const row = busyWeekRow();
+  expect(row).toContain('flex w-full items-center gap-3 md:contents');
+  expect(row).toContain('flex w-full min-h-11 flex-col');
+  expect(row).toContain('block w-full min-w-0 columns-1 md:columns-2');
+  expect(row).not.toContain('row-span');
+  expect(row).toContain('md:grid-cols-[9rem_minmax(0,1fr)_8rem]');
+  expect(row.indexOf('Habits:')).toBeLessThan(row.indexOf('Read the complete project proposal'));
+});
+
+it('exposes week task titles without a row aria-label override and shows the weekday once', () => {
+  const row = busyWeekRow();
+  expect(row.slice(0, row.indexOf('>'))).not.toContain('aria-label');
+  expect(row).toContain('Read the complete project proposal');
+  expect(row).toContain('0/1');
+  const text = row.replace(/<[^>]*>/g, ' ');
+  expect(text.match(/\bSun\b/g)).toHaveLength(1);
+  expect(text).toContain('Oct 18');
 });

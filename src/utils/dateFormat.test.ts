@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAge, formatDay, formatLongDate, formatShortDate } from './dateFormat';
+import { formatAge, formatDay, formatDayParts, formatLongDate, formatShortDate } from './dateFormat';
 
 describe('dateFormat', () => {
   const today = '2026-10-20';
@@ -20,6 +20,15 @@ describe('dateFormat', () => {
     expect(formatLongDate('2026-10-20', 'en-US')).toBe('Tuesday, October 20, 2026');
     expect(formatAge(1)).toBe('1 day old');
     expect(formatAge(6)).toBe('6 days old');
+  });
+
+  it('splits day labels from month and day without repeating weekdays', () => {
+    expect(formatDayParts('2026-10-18', today, 'en-US')).toEqual({ label: 'Sun', date: 'Oct 18' });
+    expect(formatDayParts('2026-10-18', today, 'en-GB')).toEqual({ label: 'Sun', date: '18 Oct' });
+    expect(formatDayParts('2026-10-20', today, 'en-US')).toEqual({ label: 'Today', date: 'Oct 20' });
+    expect(formatDayParts('2026-10-19', today, 'en-US')).toEqual({ label: 'Yesterday', date: 'Oct 19' });
+    expect(formatDayParts('2026-10-21', today, 'en-US')).toEqual({ label: 'Tomorrow', date: 'Oct 21' });
+    expect(formatDayParts('2025-12-31', today, 'en-US')).toEqual({ label: 'Wed', date: 'Dec 31 2025' });
   });
 
   it('is stable across a daylight-saving change', () => {

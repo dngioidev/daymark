@@ -20,6 +20,19 @@ export function formatDay(date: string, today: string, locale?: string): string 
   return formatShortDate(date, today, locale);
 }
 
+/** Separate relative/weekday label and month/day for compact calendar headers. */
+export function formatDayParts(date: string, today: string, locale?: string): { label: string; date: string } {
+  const d = parse(date);
+  return {
+    label: Math.abs(dayDiff(date, today)) <= 1
+      ? formatDay(date, today, locale)
+      : d.toLocaleDateString(locale, { weekday: 'short' }),
+    date: d.toLocaleDateString(locale, {
+      month: 'short', day: 'numeric', ...(date.slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }),
+    }).replace(/,/g, ''),
+  };
+}
+
 /** "Fri 16 Oct", with the year when it is not the current one. */
 export function formatShortDate(date: string, today?: string, locale?: string): string {
   const d = parse(date);
