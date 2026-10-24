@@ -74,6 +74,40 @@ export interface CalendarCell {
   titles: string[];
 }
 
+export interface Habit {
+  id: string;
+  name: string;
+  order: number;
+  warnAfterDays: number;
+  addedOn: string;
+  removedOn?: string;
+  updatedAt: string;
+}
+
+export interface HabitTick {
+  done: boolean;
+  at: string; // ISO timestamp of the change
+}
+
+export interface HabitDay {
+  date: string;
+  ticks: Record<string, HabitTick>;
+}
+
+export interface HabitData {
+  habits: Habit[];
+  days: HabitDay[]; // Sorted by date; only days with at least one tick record
+}
+
+export interface HabitDayItem {
+  habit: Habit;
+  done: boolean;
+  canTick: boolean;
+  streak: number;
+  missedDays: number;
+  warning: boolean;
+}
+
 export interface StandaloneNote {
   id: string;
   title: string;
