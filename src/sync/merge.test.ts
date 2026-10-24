@@ -1,15 +1,68 @@
 import { describe, expect, it } from 'vitest';
-import { DailyDocument, StandaloneNote, TaskItem } from '../types/daymark';
+import { DailyDocument, Habit, HabitDay, StandaloneNote, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import {
   CONFLICT_SEPARATOR,
   canonicalJson,
   isValidEntityKey,
   mergeDailyDocument,
+  mergeEntity,
   mergeSettings,
   mergeStandaloneNote,
   toSyncedSettings,
 } from './merge';
+
+const habit = (id: string, extra: Partial<Habit> = {}): Habit => ({
+  id, name: id, order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z', ...extra,
+});
+const habitDay = (ticks: HabitDay['ticks']): HabitDay => ({ date: '2026-10-24', ticks });
+describe('habit merges', () => {
+  const early = { done: true, at: '2026-10-24T08:00:00Z' };
+  const late = { done: true, at: '2026-10-24T09:00:00Z' };
+  it('two devices tick different habits on same day keep both', () => {
+    expect(mergeEntity('habitday:2026-10-24', null, habitDay({ a: early }), habitDay({ b: late })).value)
+      .toEqual(habitDay({ a: early, b: late }));
+  });
+  it('same habit later at wins', () => {
+    expect(mergeEntity('habitday:2026-10-24', null, habitDay({ a: late }), habitDay({ a: early })).value)
+      .toEqual(habitDay({ a: late }));
+  });
+  it('untick later beats tick', () => {
+    expect(mergeEntity('habitday:2026-10-24', null, habitDay({ a: early }), habitDay({ a: { ...late, done: false } })).value)
+      .toEqual(habitDay({ a: { ...late, done: false } }));
+  });
+  it('ties take theirs and null never deletes a day', () => {
+    const ours = habitDay({ a: early });
+    const theirs = habitDay({ a: { ...early, done: false } });
+    expect(mergeEntity('habitday:2026-10-24', null, ours, theirs).value).toEqual(theirs);
+    expect(mergeEntity('habitday:2026-10-24', ours, ours, null).value).toEqual(ours);
+    expect(mergeEntity('habitday:2026-10-24', ours, null, null).value).toBeNull();
+  });
+  it('removal beats rename', () => {
+    const base = { habits: [habit('a')] };
+    const removed = { habits: [habit('a', { removedOn: '2026-10-24' })] };
+    const renamed = { habits: [habit('a', { name: 'renamed' })] };
+    expect(mergeEntity('habits', base, removed, renamed).value).toEqual(removed);
+    expect(mergeEntity('habits', base, renamed, removed).value).toEqual(removed);
+  });
+  it('habit added on each device keeps both', () => {
+    const result = mergeEntity('habits', null, { habits: [habit('a')] }, { habits: [habit('b')] });
+    expect(result.value).toEqual({ habits: expect.arrayContaining([habit('a'), habit('b')]) });
+    expect((result.value as { habits: Habit[] }).habits).toHaveLength(2);
+  });
+  it('takes one-sided edits and keeps habits missing on either side', () => {
+    const base = { habits: [habit('a'), habit('b')] };
+    const ours = { habits: [habit('a', { name: 'renamed' })] };
+    expect(mergeEntity('habits', base, ours, base).value).toEqual({ habits: [habit('a', { name: 'renamed' }), habit('b')] });
+    expect(mergeEntity('habits', base, null, ours).value).toEqual(ours);
+    expect(mergeEntity('habits', base, null, null).value).toBeNull();
+  });
+  it('validates habit entity keys', () => {
+    expect(isValidEntityKey('habits')).toBe(true);
+    expect(isValidEntityKey('habitday:2026-10-24')).toBe(true);
+    expect(isValidEntityKey('habitday:2026-1-24')).toBe(false);
+  });
+});
 
 const task = (id: string, status = 'in-progress', heading = 'Work'): TaskItem => ({
   id,

@@ -99,7 +99,7 @@ it.each(['external', 'sync'] as const)('preserves the latest local appearance fo
   const { appearance: _appearance, ...legacy } = DEFAULT_SETTINGS;
   const incoming = { ...legacy, defaultHeadings: [], timeZone: 'Asia/Saigon' };
   if (path === 'external') incomingSettings.external('settings', incoming);
-  else incomingSettings.sync({ docs: [], notes: [], settings: incoming });
+  else incomingSettings.sync({ docs: [], notes: [], settings: incoming, habits: { habits: [], days: [] } });
   expect(props(SettingsModal).settings).toMatchObject({
     appearance: local.appearance, timeZone: 'Asia/Saigon', defaultHeadings: ['Work', 'Meetings', 'Ideas', 'Attention'],
   });

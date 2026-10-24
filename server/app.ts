@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
-import { isDailyDocument, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
-import { isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
+import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
+import { isHabitEntityKey, isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
 import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
@@ -225,6 +225,10 @@ export function createApp(config: ServerConfig, store: FileStore) {
 
   /** Shape check for a sync value against its entity key. */
   const validValue = (key: string, value: unknown): boolean => {
+    if (key === 'habits') return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+      isHabitData({ habits: (value as Record<string, unknown>).habits, days: [] });
+    if (key.startsWith('habitday:')) return isHabitData({ habits: [], days: [value] }) &&
+      (value as { date: string }).date === key.slice(9);
     if (key.startsWith('doc:')) return isDailyDocument(value) && value.date === key.slice(4);
     if (key.startsWith('note:')) return isStandaloneNote(value) && value.id === key.slice(5);
     return isSyncedSettings(value);
@@ -269,6 +273,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)
+        .filter(([key]) => (Array.isArray(body.features) && body.features.includes('habits')) || !isHabitEntityKey(key))
         .filter(([key, e]) => e.rev > sinceRev || touched.has(key))
         // Keep damaged legacy entries available for repair, but never send them to another device.
         .filter(([key, e]) => e.value === null || validValue(key, e.value))

@@ -1,7 +1,7 @@
 /** Wire format of the self-hosted sync API, shared by server.ts and the client. */
 
 export interface SyncChange {
-  key: string; // doc:<date> | note:<id> | settings
+  key: string; // doc:<date> | note:<id> | settings | habits | habitday:<date>
   /** The client's last synced version (null if the client never synced this entity). */
   base: unknown | null;
   /** The client's current version (null = deleted on the client). */
@@ -9,6 +9,7 @@ export interface SyncChange {
 }
 
 export interface SyncRequest {
+  features?: string[];
   sinceRev: number;
   changes: SyncChange[];
 }

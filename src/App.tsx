@@ -598,12 +598,13 @@ export default function App() {
   };
 
   // Self-hosted sync: merges this vault with the server in the background
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings }), [dailyDocs, notes, settings]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits }), [dailyDocs, notes, settings, habits]);
   const sync = useSync(
     vaultForSync,
     (next) => {
       setDailyDocs(next.docs);
       setNotes(next.notes);
+      setHabits(next.habits);
       setSettings((local) => mergeIncomingSettings(local, next.settings));
     },
     (conflicts) =>

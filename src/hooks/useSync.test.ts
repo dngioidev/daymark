@@ -30,7 +30,7 @@ vi.mock('../utils/vaultStore', () => ({
 
 const state = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'Browser',
   lastRev: 0, bases: {}, lastSyncAt: null };
-const vault: VaultData = { docs: [], notes: [], settings: DEFAULT_SETTINGS };
+const vault: VaultData = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] } };
 let fetchFn: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
 let replace: ReturnType<typeof vi.fn>;
 function render(next = vault) {
@@ -52,7 +52,8 @@ beforeEach(() => {
   fetchFn = vi.fn(async (url: string) => {
     if (url.endsWith('/refresh')) return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
     if (url.endsWith('/logout')) return Response.json({ ok: true });
-    return Response.json({ rev: 1, entities: [{ key: 'settings', value: toSyncedSettings(DEFAULT_SETTINGS), rev: 1 }], conflicts: [] });
+    return Response.json({ rev: 1, entities: [{ key: 'settings', value: toSyncedSettings(DEFAULT_SETTINGS), rev: 1 },
+      { key: 'habits', value: { habits: [] }, rev: 1 }], conflicts: [] });
   });
   vi.stubGlobal('fetch', fetchFn);
 });
@@ -102,7 +103,7 @@ it('syncs before logout and wipes before redirecting', async () => {
 });
 
 it('requires confirmation after a failed sync even with no pending changes, then force wipes', async () => {
-  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { settings: canonicalJson(toSyncedSettings(DEFAULT_SETTINGS)) } });
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { settings: canonicalJson(toSyncedSettings(DEFAULT_SETTINGS)), habits: canonicalJson({ habits: [] }) } });
   fetchFn.mockImplementation(async (url: string) => {
     if (url.endsWith('/sync')) throw new Error('offline');
     return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
@@ -121,7 +122,7 @@ it('requires confirmation when sync leaves unsent changes', async () => {
     ? { accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } }
     : { rev: 1, entities: [], conflicts: [] }));
   expect(await render().signOut()).toBe('needs-confirm');
-  expect(render().pendingChanges()).toBe(1);
+  expect(render().pendingChanges()).toBe(2);
   expect(fetchFn.mock.calls.some(([url]) => url.endsWith('/sync'))).toBe(true);
   expect(wipeLocalVault).not.toHaveBeenCalled();
 });
@@ -190,4 +191,38 @@ it('local web ignores old sync credentials and never syncs', async () => {
   expect(sync.pendingChanges()).toBe(0);
   await sync.syncNow();
   expect(fetchFn).not.toHaveBeenCalled();
+});
+
+it('remembers unsupported habits for the session and leaves habit bases untouched', async () => {
+  const bases = { habits: canonicalJson({ habits: [] }), 'habitday:2026-10-23': canonicalJson({ date: '2026-10-23', ticks: {} }) };
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases });
+  const original = fetchFn.getMockImplementation()!;
+  const bodies: { changes: { key: string; value: unknown }[] }[] = [];
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    const body = JSON.parse(String(init?.body));
+    bodies.push(body);
+    if (body.changes.some((c: { key: string }) => c.key.startsWith('habit'))) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    return Response.json({ rev: 1, entities: body.changes.map((c: { key: string; value: unknown }) => ({ ...c, rev: 1 })), conflicts: [] });
+  });
+  const changed = { ...vault, habits: { habits: [], days: [{ date: '2026-10-24', ticks: { a: { done: true, at: '2026-10-24T08:00:00Z' } } }] } };
+  await render(changed).syncNow();
+  await render(changed).syncNow();
+  expect(bodies).toHaveLength(3);
+  expect(bodies.slice(1).every((b) => b.changes.every((c) => !c.key.startsWith('habit')))).toBe(true);
+  expect(render(changed).error).toBeNull();
+  expect(render(changed).pendingChanges()).toBe(0);
+  expect(saveSyncState).toHaveBeenLastCalledWith(expect.objectContaining({ bases: expect.objectContaining(bases) }));
+});
+
+it('applies incoming habit-only changes to the vault', async () => {
+  const onChange = vi.fn();
+  const habits = { habits: [], days: [{ date: '2026-10-24', ticks: { a: { done: true, at: '2026-10-24T08:00:00Z' } } }] };
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => url.endsWith('/sync')
+    ? Response.json({ rev: 1, entities: [{ key: 'habitday:2026-10-24', value: habits.days[0], rev: 1 }], conflicts: [] })
+    : original(url, init));
+  hooks.index = 0;
+  await useSync(vault, onChange, vi.fn(), 'web').syncNow();
+  expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ habits }));
 });

@@ -1,5 +1,5 @@
-import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
-import { canonicalJson, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
+import { AppSettings, DailyDocument, HabitData, HabitDay, StandaloneNote } from '../types/daymark';
+import { canonicalJson, isHabitEntityKey, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
 import { SyncChange, SyncRequest, SyncResponse } from './protocol';
 
 /**
@@ -11,6 +11,7 @@ export interface VaultData {
   docs: DailyDocument[];
   notes: StandaloneNote[];
   settings: AppSettings;
+  habits: HabitData;
 }
 
 /** Per-device sync bookkeeping, stored next to the vault (never synced). */
@@ -29,39 +30,48 @@ export interface SyncState {
 
 export type EntityMap = Map<string, unknown>;
 
-export function toEntities(vault: VaultData): EntityMap {
+export function toEntities(vault: VaultData, includeHabits = true): EntityMap {
   const map: EntityMap = new Map();
   for (const doc of vault.docs) map.set(`doc:${doc.date}`, doc);
   for (const note of vault.notes) map.set(`note:${note.id}`, note);
   map.set('settings', toSyncedSettings(vault.settings));
+  if (includeHabits) {
+    map.set('habits', { habits: vault.habits.habits });
+    for (const day of vault.habits.days) map.set(`habitday:${day.date}`, day);
+  }
   return map;
 }
 
 export function fromEntities(map: EntityMap, localSettings: AppSettings): VaultData {
   const docs: DailyDocument[] = [];
   const notes: StandaloneNote[] = [];
+  const habits: HabitData = { habits: [], days: [] };
   let settings = localSettings;
   for (const [key, value] of map) {
     if (value === null || value === undefined) continue;
     if (key.startsWith('doc:')) docs.push(value as DailyDocument);
     else if (key.startsWith('note:')) notes.push(value as StandaloneNote);
+    else if (key === 'habits') habits.habits = (value as Pick<HabitData, 'habits'>).habits;
+    else if (key.startsWith('habitday:')) habits.days.push(value as HabitDay);
     else if (key === 'settings') {
       // Keep this device's own sync config and date override
       settings = { ...(value as SyncedSettings), syncConfig: localSettings.syncConfig, simulatedToday: localSettings.simulatedToday };
     }
   }
   docs.sort((a, b) => a.date.localeCompare(b.date));
-  return { docs, notes, settings };
+  habits.days.sort((a, b) => a.date.localeCompare(b.date));
+  return { docs, notes, settings, habits };
 }
 
 const parseBase = (state: SyncState, key: string): unknown | null =>
   key in state.bases ? JSON.parse(state.bases[key]) : null;
 
 /** Entities that differ from what was last agreed with the server (new, edited or deleted). */
-export function collectChanges(local: EntityMap, state: SyncState): SyncChange[] {
+export function collectChanges(local: EntityMap, state: SyncState, includeHabits = true): SyncChange[] {
   const changes: SyncChange[] = [];
   const keys = new Set([...local.keys(), ...Object.keys(state.bases)]);
   for (const key of keys) {
+    if (!includeHabits && isHabitEntityKey(key)) continue;
     const value = local.has(key) ? local.get(key)! : null;
     const base = parseBase(state, key);
     if (!sameValue(value, base)) changes.push({ key, base, value });
@@ -112,6 +122,7 @@ async function request<T>(fetchFn: FetchLike, url: string, init: RequestInit, to
 }
 
 export interface SyncOutcome {
+  habitsUnsupported?: boolean;
   /** Server value for every entity it returned (null = deleted). */
   serverValues: Map<string, unknown | null>;
   /** Snapshot of local entities sent in this round (to reconcile edits made meanwhile). */
@@ -123,14 +134,29 @@ export interface SyncOutcome {
 }
 
 /** One round trip: push local changes, receive merged results and other devices' changes. */
-export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string): Promise<SyncOutcome> {
-  const snapshot = toEntities(local);
-  const changes = collectChanges(snapshot, state);
-  const body: SyncRequest = { sinceRev: state.lastRev, changes };
-  const res = await request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
+export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string, habitsUnsupported = false): Promise<SyncOutcome> {
+  const snapshot = toEntities(local, !habitsUnsupported);
+  let changes = collectChanges(snapshot, state, !habitsUnsupported);
+  const send = () => {
+    const body: SyncRequest = { sinceRev: state.lastRev, changes, features: ['habits'] };
+    return request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
+  };
+  let res: SyncResponse;
+  try {
+    res = await send();
+  } catch (err) {
+    if (habitsUnsupported || !(err instanceof SyncHttpError) || err.status !== 400 ||
+      !(err.message.startsWith('Invalid entity key') || err.message.startsWith('Invalid value for habit'))) throw err;
+    habitsUnsupported = true;
+    changes = changes.filter((c) => !isHabitEntityKey(c.key));
+    for (const key of snapshot.keys()) if (isHabitEntityKey(key)) snapshot.delete(key);
+    res = await send();
+  }
 
   const serverValues = new Map<string, unknown | null>();
-  for (const e of res.entities) serverValues.set(e.key, e.value);
+  for (const e of res.entities) {
+    if (!habitsUnsupported || !isHabitEntityKey(e.key)) serverValues.set(e.key, e.value);
+  }
   // A pushed key the server never stored (e.g. deleting something it never had) is simply absent
   for (const c of changes) if (!serverValues.has(c.key)) serverValues.set(c.key, null);
 
@@ -140,6 +166,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
     else bases[key] = canonicalJson(value);
   }
   return {
+    habitsUnsupported,
     serverValues,
     snapshot,
     state: { ...state, bases, lastRev: res.rev, lastSyncAt: new Date().toISOString() },

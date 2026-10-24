@@ -58,6 +58,7 @@ export function useSync(
   const closing = useRef(false);
   const wiped = useRef<Promise<void> | null>(null);
   const epoch = useRef(0); // stale in-flight results are dropped after replacing the vault
+  const habitsUnsupported = useRef(false); // capability fallback belongs to this session, never persisted
 
   const persistState = (next: SyncState | null) => {
     stateRef.current = next;
@@ -126,17 +127,18 @@ export function useSync(
           const accessToken = await tokenManager().getAccessToken();
           if (blocked.current || closing.current) return;
           const current = stateRef.current!;
-          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken);
+          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, habitsUnsupported.current);
           if (blocked.current || closing.current) return;
           if (startedAt !== epoch.current) {
             rerun.current = true;
             continue;
           }
+          habitsUnsupported.current = outcome.habitsUnsupported === true;
           if (outcome.serverValues.size > 0) {
             const before = vaultRef.current;
             const next = applySyncOutcome(before, outcome);
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
-              canonicalJson(next.settings) !== canonicalJson(before.settings)) {
+              canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits)) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
             }
@@ -173,7 +175,7 @@ export function useSync(
     if (!state) return;
     const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [vault.docs, vault.notes, vault.settings, state?.deviceId, run]);
+  }, [vault.docs, vault.notes, vault.settings, vault.habits, state?.deviceId, run]);
 
   useEffect(() => {
     if (mode !== 'server' && !state?.deviceId) return;
@@ -196,6 +198,7 @@ export function useSync(
     try {
       const session = await signIn(fetch, serverUrl, 'body', { username, password, deviceName, platform, installId: getInstallId() });
       manager.current = null;
+      habitsUnsupported.current = false;
       blocked.current = false;
       closing.current = false;
       await persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
@@ -209,7 +212,7 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current), stateRef.current).length : 0;
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !habitsUnsupported.current), stateRef.current, !habitsUnsupported.current).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';

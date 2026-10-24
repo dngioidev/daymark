@@ -83,7 +83,47 @@ const note = (id: string, content: string): StandaloneNote => ({
   createdAt: '2026-10-20T00:00:00Z',
   updatedAt: '2026-10-20T00:00:00Z',
 });
-const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS });
+const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] } });
+
+describe('habit sync', () => {
+  const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
+  const ticks = { date: '2026-10-24', ticks: { water: { done: true, at: '2026-10-24T08:00:00Z' } } };
+  it('old client never sees or deletes habits', async () => {
+    const client = await connect('New client');
+    const pushed = await post('/api/sync', { sinceRev: 0, features: ['habits'], changes: [
+      { key: 'habits', base: null, value: list }, { key: 'habitday:2026-10-24', base: null, value: ticks },
+    ] }, client.accessToken);
+    expect(pushed.status).toBe(200);
+    const old = await connect('Old client');
+    const pulled = await (await post('/api/sync', { sinceRev: 0, changes: [] }, old.accessToken)).json();
+    expect(pulled.entities).toEqual([]);
+    const changed = await post('/api/sync', { sinceRev: pulled.rev, changes: [{ key: 'doc:2026-10-20', base: null, value: day([]) }] }, old.accessToken);
+    expect(changed.status).toBe(200);
+    expect((await changed.json()).entities.map((e: { key: string }) => e.key)).toEqual(['doc:2026-10-20']);
+    const fresh = await (await post('/api/sync', { sinceRev: 0, features: ['habits'], changes: [] }, client.accessToken)).json();
+    expect(fresh.entities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'habits', value: list }), expect.objectContaining({ key: 'habitday:2026-10-24', value: ticks }),
+    ]));
+    const legacyGet = await fetch(base + '/api/sync?since=0', { headers: { Authorization: `Bearer ${old.accessToken}` } });
+    expect((await legacyGet.json()).entities.map((e: { key: string }) => e.key)).toEqual(['doc:2026-10-20']);
+  });
+  it('habitday value with mismatched date is rejected 400', async () => {
+    const client = await connect('Phone');
+    const res = await post('/api/sync', { features: ['habits'], changes: [{ key: 'habitday:2026-10-23', base: null, value: ticks }] }, client.accessToken);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Invalid value for habitday:2026-10-23.');
+  });
+  it.each([
+    ['habits', { habits: [{ ...list.habits[0], warnAfterDays: 0 }] }],
+    ['habits', { habits: [{ ...list.habits[0], addedOn: 'yesterday' }] }],
+    ['habitday:2026-10-24', { ...ticks, ticks: { water: { done: 'yes', at: 'now' } } }],
+  ])('rejects malformed %s values', async (key, value) => {
+    const client = await connect('Phone');
+    const res = await post('/api/sync', { features: ['habits'], changes: [{ key, base: null, value }] }, client.accessToken);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(`Invalid value for ${key}.`);
+  });
+});
 
 /** Simulates one device: its vault plus sync state. */
 async function sync(device: { vault: VaultData; state: SyncState }) {

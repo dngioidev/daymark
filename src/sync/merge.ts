@@ -1,4 +1,4 @@
-import { AppSettings, DailyDocument, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
+import { AppSettings, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -202,10 +202,57 @@ export function mergeSettings(
   return { value: theirs, conflicts: ['Settings were changed on two devices; kept the latest change'] };
 }
 
-/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`. */
+/** Habit records are retained even when one side no longer includes them. */
+export function mergeHabitList(
+  base: { habits: Habit[] } | null,
+  ours: { habits: Habit[] } | null,
+  theirs: { habits: Habit[] } | null
+): MergeResult<{ habits: Habit[] }> {
+  if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
+  const b = new Map(base?.habits.map((h) => [h.id, h]));
+  const o = new Map(ours.habits.map((h) => [h.id, h]));
+  const t = new Map(theirs.habits.map((h) => [h.id, h]));
+  const habits: Habit[] = [];
+  const conflicts: string[] = [];
+  for (const id of new Set([...o.keys(), ...t.keys()])) {
+    const mine = o.get(id);
+    const incoming = t.get(id);
+    if (!mine || !incoming) {
+      habits.push((mine ?? incoming)!);
+      continue;
+    }
+    const result = pick3(b.get(id), mine, incoming);
+    if (result.kind === 'value') habits.push(result.value!);
+    else {
+      habits.push(mine.removedOn ? mine : incoming);
+      conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept ${mine.removedOn || incoming.removedOn ? 'the removal' : 'the latest change'}`);
+    }
+  }
+  return { value: { habits }, conflicts };
+}
+
+/** Tick records form a last-write-wins map; an untick is a record, never a deletion. */
+export function mergeHabitDay(_base: HabitDay | null, ours: HabitDay | null, theirs: HabitDay | null): MergeResult<HabitDay> {
+  if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
+  const ticks = { ...ours.ticks };
+  for (const [id, tick] of Object.entries(theirs.ticks)) {
+    if (!Object.hasOwn(ticks, id) || tick.at >= ticks[id].at) ticks[id] = tick;
+  }
+  return { value: { date: theirs.date, ticks }, conflicts: [] };
+}
+
+export const isHabitEntityKey = (key: string): boolean => key === 'habits' || key.startsWith('habitday:');
+
+/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`. */
 export type EntityKey = string;
 
 export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown): MergeResult<unknown> {
+  if (key === 'habits') {
+    return mergeHabitList(base as { habits: Habit[] } | null, ours as { habits: Habit[] } | null, theirs as { habits: Habit[] } | null);
+  }
+  if (key.startsWith('habitday:')) {
+    return mergeHabitDay(base as HabitDay | null, ours as HabitDay | null, theirs as HabitDay | null);
+  }
   if (key.startsWith('doc:')) {
     return mergeDailyDocument(base as DailyDocument | null, ours as DailyDocument | null, theirs as DailyDocument | null);
   }
@@ -219,5 +266,5 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 }
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
-  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings');
+  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
 }
