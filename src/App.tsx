@@ -6,6 +6,7 @@ import { DEFAULT_APPEARANCE } from './utils/defaultData';
 import {
   DailyDocument,
   StandaloneNote,
+  HabitData,
   AppSettings,
   ViewTab,
   TaskItem,
@@ -19,6 +20,8 @@ import {
   saveDailyDocuments,
   loadStandaloneNotes,
   saveStandaloneNotes,
+  loadHabits,
+  saveHabits,
   exportVaultAsZip,
   exportVaultAsJson,
   resetVaultToSeedData,
@@ -29,8 +32,8 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importVaultFromZip } from './utils/vaultArchive';
-import { vaultProblem } from './utils/vaultValidation';
+import { importVaultFromZip, mergeRestoredHabits } from './utils/vaultArchive';
+import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
@@ -102,6 +105,7 @@ export default function App() {
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
+  const [habits, setHabits] = useState<HabitData>(loadHabits);
 
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
@@ -265,6 +269,10 @@ export default function App() {
   }, [notes]);
 
   useEffect(() => {
+    saveHabits(habits);
+  }, [habits]);
+
+  useEffect(() => {
     saveSettings(settings);
   }, [settings]);
 
@@ -275,6 +283,7 @@ export default function App() {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
+        else if (key === 'habits') setHabits(loadHabits());
         else setSettings((local) => mergeIncomingSettings(local, value as AppSettings));
       }),
     [],
@@ -494,7 +503,7 @@ export default function App() {
   // Backups: closing the Android share sheet without choosing a target is not an error
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
-      if (await exporter(dailyDocs, notes, settings)) {
+      if (await exporter(dailyDocs, notes, settings, habits)) {
         setLastBackupAt(getLastBackupDate());
         showToast(done);
       }
@@ -539,6 +548,7 @@ export default function App() {
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
+    setHabits((current) => mergeRestoredHabits(current, isHabitData(parsed.habits) ? parsed.habits : undefined));
     if (parsed.settings) setSettings(nextSettings);
     sync.rebaseAfterReplace();
     markOnboarded();
@@ -553,6 +563,7 @@ export default function App() {
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
       setNotes(snapshot.notes);
+      setHabits((current) => mergeRestoredHabits(current, snapshot.habits));
       if (snapshot.settings) setSettings(nextSettings);
       sync.rebaseAfterReplace();
       markOnboarded();
@@ -570,6 +581,7 @@ export default function App() {
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
     setNotes(res.notes);
+    setHabits(res.habits);
     setCurrentDate(resolveToday(res.settings.simulatedToday, realToday));
     sync.rebaseAfterReplace();
     showToast('Sample vault loaded.');

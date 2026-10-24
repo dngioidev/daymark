@@ -1,8 +1,9 @@
-import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
+import { AppSettings, DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
+import { EMPTY_HABITS } from './habits';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
-import { isDailyDocument, isStandaloneNote, isSyncedSettings } from './vaultValidation';
+import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
 import { decideInitialAppearance } from './appearance';
@@ -26,6 +27,7 @@ const KEYS = {
   SETTINGS: 'settings',
   DAILY_DOCS: 'daily_docs',
   NOTES: 'notes',
+  HABITS: 'habits',
   SYNC_STATE: 'sync_state',
   ONBOARDED: 'onboarded',
 } as const;
@@ -35,6 +37,7 @@ const LEGACY_KEYS: Record<string, string> = {
   [KEYS.SETTINGS]: 'daymark_settings_v1',
   [KEYS.DAILY_DOCS]: 'daymark_daily_docs_v1',
   [KEYS.NOTES]: 'daymark_notes_v1',
+  [KEYS.HABITS]: 'daymark_habits_v1',
   [KEYS.SYNC_STATE]: 'daymark_sync_state_v1',
 };
 
@@ -190,18 +193,19 @@ export async function initVaultStore(): Promise<void> {
   }
 }
 
-export type SharedKey = 'daily_docs' | 'notes' | 'settings';
+export type SharedKey = 'daily_docs' | 'notes' | 'settings' | 'habits';
 type ExternalListener = (key: SharedKey, value: unknown) => void;
 const externalListeners = new Set<ExternalListener>();
 const CHANNEL_NAME = 'daymark-vault';
 const channel: BroadcastChannel | null = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME);
 
-/** Accepts only well-formed messages for the three shared keys; anything else is ignored. */
+/** Accepts only well-formed messages for the shared keys; anything else is ignored. */
 export function parseVaultMessage(data: unknown): { key: SharedKey; value: unknown } | null {
   if (!data || typeof data !== 'object') return null;
   const { key, value } = data as { key?: unknown; value?: unknown };
   if ((key === 'daily_docs' || key === 'notes') && Array.isArray(value)) return { key, value };
   if (key === 'settings' && isSyncedSettings(value)) return { key, value };
+  if (key === 'habits' && isHabitData(value)) return { key, value };
   return null;
 }
 
@@ -223,7 +227,7 @@ if (channel) {
   };
 }
 
-/** Called when another tab or window changes the daily docs, notes or settings. */
+/** Called when another tab or window changes the daily docs, notes, habits or settings. */
 export function subscribeExternalChanges(listener: ExternalListener): () => void {
   externalListeners.add(listener);
   return () => externalListeners.delete(listener);
@@ -237,7 +241,7 @@ function writeValue(key: string, value: unknown): Promise<void> {
   if (value === previous && key !== KEYS.SYNC_STATE) return writeChain;
   if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return writeChain;
   cache.set(key, value);
-  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES) {
+  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES || key === KEYS.HABITS) {
     try {
       channel?.postMessage({ key, value });
     } catch {
@@ -320,6 +324,15 @@ export function saveStandaloneNotes(notes: StandaloneNote[]): void {
   writeValue(KEYS.NOTES, notes);
 }
 
+export function loadHabits(): HabitData {
+  const value = cache.get(KEYS.HABITS);
+  return isHabitData(value) ? value : EMPTY_HABITS;
+}
+
+export function saveHabits(data: HabitData): void {
+  writeValue(KEYS.HABITS, data);
+}
+
 /** Per-device sync bookkeeping (server, token, last agreed versions); never synced itself. */
 export function loadSyncState(): SyncState | null {
   return (cache.get(KEYS.SYNC_STATE) as SyncState | undefined) ?? null;
@@ -377,15 +390,18 @@ export function resetVaultToSeedData(): {
   settings: AppSettings;
   docs: DailyDocument[];
   notes: StandaloneNote[];
+  habits: HabitData;
 } {
   saveSettings(DEFAULT_SETTINGS);
   saveDailyDocuments(SEED_DAILY_DOCUMENTS);
   saveStandaloneNotes(SEED_STANDALONE_NOTES);
+  saveHabits(EMPTY_HABITS);
   markOnboarded();
   return {
     settings: DEFAULT_SETTINGS,
     docs: SEED_DAILY_DOCUMENTS,
     notes: SEED_STANDALONE_NOTES,
+    habits: EMPTY_HABITS,
   };
 }
 
@@ -453,9 +469,10 @@ function recordBackup(saved: boolean): boolean {
 export async function exportVaultAsZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
-  settings: AppSettings
+  settings: AppSettings,
+  habits: HabitData
 ): Promise<boolean> {
-  const bytes = await buildVaultZip(docs, notes, settings);
+  const bytes = await buildVaultZip(docs, notes, settings, habits);
   return recordBackup(await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`));
 }
 
@@ -465,7 +482,8 @@ export async function exportVaultAsZip(
 export async function exportVaultAsJson(
   docs: DailyDocument[],
   notes: StandaloneNote[],
-  settings: AppSettings
+  settings: AppSettings,
+  habits: HabitData
 ): Promise<boolean> {
   const bundle = {
     daymark_backup_version: '1.0',
@@ -473,6 +491,7 @@ export async function exportVaultAsJson(
     settings,
     daily_documents: docs,
     standalone_notes: notes,
+    habits,
   };
   return recordBackup(
     await downloadBlob(

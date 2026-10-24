@@ -1,7 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { buildVaultZip, importVaultFromZip } from './vaultArchive';
+import { buildVaultZip, importVaultFromZip, mergeRestoredHabits } from './vaultArchive';
+import type { HabitData } from '../types/daymark';
+
+const habits: HabitData = {
+  habits: [{ id: 'read', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' }],
+  days: [{ date: '2026-10-24', ticks: { read: { done: true, at: '2026-10-24T10:00:00Z' } } }],
+};
+
+it('zip export/import round-trips habits', async () => {
+  const bytes = await buildVaultZip([], [], DEFAULT_SETTINGS, habits);
+  expect((await importVaultFromZip(bytes)).habits).toEqual(habits);
+});
+
+it('import without habits keeps current habits', async () => {
+  const restored = await importVaultFromZip(await buildVaultZip([], [], DEFAULT_SETTINGS));
+  expect(mergeRestoredHabits(habits, restored.habits)).toBe(habits);
+});
+
+it('import with habits replaces current habits, including an empty list', () => {
+  const empty = { habits: [], days: [] };
+  expect(mergeRestoredHabits(habits, empty)).toBe(empty);
+});
+
+it('ignores damaged backup habits so existing habits survive restore', async () => {
+  const zip = new JSZip();
+  zip.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], habits: { habits: 'bad', days: [] } }));
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.habits).toBeUndefined();
+  expect(mergeRestoredHabits(habits, restored.habits)).toBe(habits);
+});
 
 describe('vault ZIP export/import', () => {
   it('round-trips a Daymark export exactly', async () => {

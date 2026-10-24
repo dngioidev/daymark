@@ -1,9 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { isDailyDocument, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
+import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
 
 const day = (date: string): DailyDocument => ({ date, type: 'daily', headings: [], updatedAt: `${date}T00:00:00.000Z` });
+
+const habit = { id: 'h1', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' };
+const habitDay = { date: '2026-10-24', ticks: { h1: { done: false, at: '2026-10-24T10:00:00Z' } } };
+
+describe('isHabitData', () => {
+  it('accepts empty data, tombstones and explicit unticks', () => {
+    expect(isHabitData({ habits: [], days: [] })).toBe(true);
+    expect(isHabitData({ habits: [{ ...habit, removedOn: '2026-10-25' }], days: [habitDay] })).toBe(true);
+  });
+
+  it.each([null, [], {}, { habits: [], days: {} }, { habits: [null], days: [] },
+    ...[{ id: 1 }, { name: null }, { order: '0' }, { order: NaN }, { warnAfterDays: 0 },
+      { warnAfterDays: 366 }, { warnAfterDays: 1.5 }, { updatedAt: null }].map((change) => ({ habits: [{ ...habit, ...change }], days: [] })),
+    ...[null, { ...habitDay, ticks: [] }, { ...habitDay, ticks: { h1: { done: 'yes', at: 'now' } } },
+      { ...habitDay, ticks: { h1: { done: true, at: null } } }].map((value) => ({ habits: [habit], days: [value] })),
+  ].map((value) => [value]))('rejects damaged data: %j', (value) => expect(isHabitData(value)).toBe(false));
+
+  it.each(['addedOn', 'removedOn'] as const)('rejects malformed %s dates (R4)', (field) => {
+    for (const value of ['yesterday', '', '2026-1-24', 20261024, null]) {
+      expect(isHabitData({ habits: [{ ...habit, [field]: value }], days: [] })).toBe(false);
+    }
+  });
+
+  it('rejects malformed day dates (R4)', () => {
+    expect(isHabitData({ habits: [habit], days: [{ ...habitDay, date: 'yesterday' }] })).toBe(false);
+  });
+});
 
 describe('vault validation', () => {
   it('accepts the sample vault', () => expect(vaultProblem(SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES)).toBeNull());

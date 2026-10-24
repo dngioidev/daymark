@@ -1,13 +1,19 @@
 // JSZip is loaded on demand: it is only needed when exporting or importing
 const loadJSZip = async () => (await import('jszip')).default;
-import { AppSettings, DailyDocument, StandaloneNote } from '../types/daymark';
+import { AppSettings, DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
-import { vaultProblem } from './vaultValidation';
+import { isHabitData, vaultProblem } from './vaultValidation';
 
 export interface VaultSnapshot {
   docs: DailyDocument[];
   notes: StandaloneNote[];
   settings?: AppSettings;
+  habits?: HabitData;
+}
+
+/** Older backups have no habits; restoring those must preserve the current data. */
+export function mergeRestoredHabits(current: HabitData, restored?: HabitData): HabitData {
+  return restored ?? current;
 }
 
 const MONTH_NAMES = [
@@ -31,7 +37,8 @@ const SNAPSHOT_PATH = 'Daymark/.daymark/vault.json';
 export async function buildVaultZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
-  settings: AppSettings
+  settings: AppSettings,
+  habits?: HabitData
 ): Promise<Uint8Array> {
   const JSZip = await loadJSZip();
   const zip = new JSZip();
@@ -74,7 +81,7 @@ export async function buildVaultZip(
   );
   meta.file(
     'vault.json',
-    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes })
+    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits })
   );
 
   return zip.generateAsync({ type: 'uint8array' });
@@ -106,6 +113,7 @@ export async function importVaultFromZip(
         docs: parsed.daily_documents,
         notes: parsed.standalone_notes,
         settings: looksLikeSettings(parsed.settings) ? parsed.settings : undefined,
+        habits: isHabitData(parsed.habits) ? parsed.habits : undefined,
       };
     }
   }

@@ -2,8 +2,150 @@ import { describe, expect, it, vi } from 'vitest';
 import { isStandaloneNote } from './vaultValidation';
 import { DEFAULT_SETTINGS, SEED_STANDALONE_NOTES } from './defaultData';
 import { initVaultStore, keepValid, parseVaultMessage, saveSyncState } from './vaultStore';
+import type { HabitData } from '../types/daymark';
+import { EMPTY_HABITS } from './habits';
 
 vi.mock('../native/daymarkBridge', () => ({ isNativeApp: () => false }));
+
+const habits: HabitData = {
+  habits: [{ id: 'read', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' }],
+  days: [{ date: '2026-10-24', ticks: { read: { done: true, at: '2026-10-24T10:00:00Z' } } }],
+};
+
+async function habitStoreTest(run: (env: {
+  store: typeof import('./vaultStore'); values: Map<string, string>;
+  raw: Map<string, unknown>; messages: unknown[];
+  peers: { onmessage?: (event: { data: unknown }) => void }[];
+}) => Promise<void>, indexed = false, legacy?: string) {
+  vi.resetModules();
+  const values = new Map<string, string>(legacy === undefined ? [] : [['daymark_habits_v1', legacy]]);
+  const raw = new Map<string, unknown>();
+  const messages: unknown[] = [];
+  const peers: { onmessage?: (event: { data: unknown }) => void }[] = [];
+  vi.stubGlobal('BroadcastChannel', class {
+    onmessage?: (event: { data: unknown }) => void;
+    constructor() { peers.push(this); }
+    postMessage(data: unknown) {
+      messages.push(data);
+      for (const peer of peers) if (peer !== this) peer.onmessage?.({ data });
+    }
+  });
+  vi.stubGlobal('localStorage', {
+    get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  });
+  const database = {
+    close: () => {},
+    transaction: (_store: string, mode: string) => ({
+      objectStore: () => ({
+        openCursor: () => {
+          const entries = [...raw.entries()];
+          let index = 0;
+          const request: { result: unknown; onsuccess: () => void } = { result: null, onsuccess: () => {} };
+          const advance = () => queueMicrotask(() => {
+            const entry = entries[index++];
+            request.result = entry ? { key: entry[0], value: entry[1], continue: advance } : null;
+            request.onsuccess();
+          });
+          advance();
+          return request;
+        },
+        put: (value: unknown, key: string) => raw.set(key, value),
+      }),
+      set oncomplete(fn: () => void) { if (mode === 'readwrite') queueMicrotask(fn); },
+    }),
+  };
+  vi.stubGlobal('indexedDB', indexed ? {
+    open: () => {
+      const req = { result: database, onsuccess: () => {} };
+      queueMicrotask(() => req.onsuccess());
+      return req;
+    },
+    deleteDatabase: () => {
+      raw.clear();
+      const req = { onsuccess: () => {} };
+      queueMicrotask(() => req.onsuccess());
+      return req;
+    },
+  } : undefined);
+  vi.stubGlobal('navigator', {});
+  vi.stubGlobal('caches', { keys: async () => [] });
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const store = await import('./vaultStore');
+    await store.initVaultStore();
+    await run({ store, values, raw, messages, peers });
+  } finally { vi.unstubAllGlobals(); errors.mockRestore(); }
+}
+
+describe('habit storage', () => {
+  it.each([undefined, '{bad json', JSON.stringify({ habits: [], days: 'bad' })])('loadHabits returns EMPTY_HABITS when absent or damaged: %s', async (legacy) => {
+    await habitStoreTest(async ({ store }) => expect(store.loadHabits()).toEqual(EMPTY_HABITS), false, legacy);
+  });
+
+  it.each([false, true])('saveHabits round-trips and broadcasts (IndexedDB: %s)', async (indexed) => {
+    await habitStoreTest(async ({ store, raw, values, messages }) => {
+      store.saveHabits(habits);
+      expect(store.loadHabits()).toBe(habits);
+      expect(messages).toContainEqual({ key: 'habits', value: habits });
+      await vi.waitFor(() => expect(indexed ? raw.get('habits') : JSON.parse(values.get('daymark_habits_v1')!)).toEqual(habits));
+      vi.resetModules();
+      const reloaded = await import('./vaultStore');
+      await reloaded.initVaultStore();
+      expect(reloaded.loadHabits()).toEqual(habits);
+    }, indexed);
+  });
+
+  it('parseVaultMessage accepts valid habits and rejects junk', () => {
+    expect(parseVaultMessage({ key: 'habits', value: habits })).toEqual({ key: 'habits', value: habits });
+    for (const value of [null, [], {}, { ...habits, days: [{ date: 'bad', ticks: {} }] }]) {
+      expect(parseVaultMessage({ key: 'habits', value })).toBeNull();
+    }
+  });
+
+  it('refreshes habits from a peer and avoids rebroadcasting them', async () => {
+    await habitStoreTest(async ({ store, peers, messages }) => {
+      const received: string[] = [];
+      const unsubscribe = store.subscribeExternalChanges((key) => received.push(key));
+      peers[0].onmessage?.({ data: { key: 'habits', value: habits } });
+      expect(store.loadHabits()).toBe(habits);
+      expect(received).toEqual(['habits']);
+      store.saveHabits(store.loadHabits());
+      expect(messages).toEqual([]);
+      unsubscribe();
+    });
+  });
+
+  it('resets habits to EMPTY_HABITS with the seed vault', async () => {
+    await habitStoreTest(async ({ store }) => {
+      store.saveHabits(habits);
+      expect(store.resetVaultToSeedData().habits).toEqual(EMPTY_HABITS);
+      expect(store.loadHabits()).toEqual(EMPTY_HABITS);
+    });
+  });
+
+  it.each([false, true])('wipe removes habits from memory and persistence (IndexedDB: %s)', async (indexed) => {
+    await habitStoreTest(async ({ store, raw, values }) => {
+      store.saveHabits(habits);
+      await store.wipeLocalVault();
+      expect(raw.has('habits')).toBe(false);
+      expect(values.has('daymark_habits_v1')).toBe(false);
+      expect(store.loadHabits()).toEqual(EMPTY_HABITS);
+    }, indexed);
+  });
+
+  it('JSON export contains habits', async () => {
+    await habitStoreTest(async ({ store }) => {
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, habits);
+      expect(JSON.parse(await exported!.text()).habits).toEqual(habits);
+    });
+  });
+});
 
 describe('keepValid (load-time filter)', () => {
   it('returns the same array when nothing is dropped', () => {

@@ -1,9 +1,24 @@
-import type { DailyDocument, StandaloneNote } from '../types/daymark';
+import type { DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === 'string';
+const isDate = (v: unknown): v is string => isString(v) && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+export function isHabitData(v: unknown): v is HabitData {
+  if (!isObject(v) || !Array.isArray(v.habits) || !Array.isArray(v.days)) return false;
+  return v.habits.every((habit) =>
+    isObject(habit) && isString(habit.id) && isString(habit.name) && isDate(habit.addedOn) &&
+    (habit.removedOn === undefined || isDate(habit.removedOn)) &&
+    typeof habit.order === 'number' && Number.isFinite(habit.order) &&
+    typeof habit.warnAfterDays === 'number' && Number.isInteger(habit.warnAfterDays) &&
+    habit.warnAfterDays >= 1 && habit.warnAfterDays <= 365 && isString(habit.updatedAt)
+  ) && v.days.every((day) =>
+    isObject(day) && isDate(day.date) && isObject(day.ticks) &&
+    Object.values(day.ticks).every((tick) => isObject(tick) && typeof tick.done === 'boolean' && isString(tick.at))
+  );
+}
 
 function isTaskLike(v: unknown): boolean {
   return isObject(v) && isString(v.id) && isString(v.title) && isString(v.status) && isString(v.createdDate);
