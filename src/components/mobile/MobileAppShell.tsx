@@ -12,6 +12,7 @@ import type { SettingsTab } from '../SettingsModal';
 import { SYNC_LABELS } from '../Navbar';
 
 interface MobileAppShellProps {
+  habitsSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
   notes: StandaloneNote[];
@@ -46,6 +47,7 @@ const SYNC_KEY: Record<SyncStatus, keyof typeof SYNC_LABELS> = { off: 'off', idl
 
 /** The phone app: header, one screen at a time, and a bottom bar with the central + button. */
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
+  habitsSlot,
   currentDocument,
   dailyDocs,
   notes,
@@ -158,6 +160,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         <main className={`flex-1 text-stone-900 dark:text-stone-100 ${activeTab === 'notes' ? 'min-h-0 flex overflow-hidden p-2.5' : 'overflow-y-auto pb-24 p-3'}`}>
           {activeTab === 'today' && (
             <TodayView
+              habitsSlot={habitsSlot}
               compact
               currentDocument={currentDocument}
               allDocs={dailyDocs}

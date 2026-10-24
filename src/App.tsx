@@ -50,6 +50,7 @@ import {
 } from './utils/lifecycleEngine';
 import { Navbar } from './components/Navbar';
 import { TodayView } from './components/TodayView';
+import { HabitsBar } from './components/habits/HabitsBar';
 import { CalendarView } from './components/CalendarView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 // Developer-only screen (large embedded code samples): loaded on demand
@@ -106,6 +107,7 @@ export default function App() {
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
   const [habits, setHabits] = useState<HabitData>(loadHabits);
+  const [habitsOpenSignal] = useState(0);
 
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
@@ -682,6 +684,7 @@ export default function App() {
           <main className={`dm-backdrop-surface flex-1 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
             {activeDesktopTab === 'today' && (
               <TodayView
+                habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} />}
                 currentDocument={currentDoc}
                 allDocs={dailyDocs}
                 simulatedToday={today}
@@ -738,6 +741,7 @@ export default function App() {
 
       {appMode === 'mobile-app' && (
         <MobileAppShell
+          habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}
           notes={notes}

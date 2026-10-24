@@ -27,6 +27,7 @@ import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
 
 interface TodayViewProps {
+  habitsSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   allDocs: DailyDocument[];
   simulatedToday: string;
@@ -79,6 +80,7 @@ function wrapSelection(el: HTMLTextAreaElement | null, value: string, before: st
 }
 
 export const TodayView: React.FC<TodayViewProps> = ({
+  habitsSlot,
   compact = false,
   currentDocument,
   allDocs,
@@ -876,6 +878,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   return (
     <div className={compact ? 'w-full space-y-3' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4'}>
       <div>{header}</div>
+      {habitsSlot}
       {editorMode !== 'raw' && attentionBar && <div>{attentionBar}</div>}
 
       {editorMode === 'visual' &&
