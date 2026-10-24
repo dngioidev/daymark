@@ -45,13 +45,6 @@ Read the whole week without squeezing tasks into narrow columns, and keep a dail
 | Missed-day warning | ![Habit warning](./images/habit-warning.png) |
 | Calendar day habits | ![Past-day habit checklist](./images/calendar-day-habits.png) |
 
-## How it was verified
-
-- Unit and server tests: 607 passed, 1 skipped.
-- Screenshot and server-session helper tests: 11 passed, including every weekday and a year boundary.
-- Type checking and documentation/configuration validation: pass.
-- Production builds, browser checks, Android builds and refreshed week screenshots still need release verification.
-
 ## Known limits
 
 - The habits widget is Android-only and needs the app to open or resume before its queued changes sync to other devices.

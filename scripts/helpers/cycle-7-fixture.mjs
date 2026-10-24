@@ -11,6 +11,14 @@ export function cycle7Fixture(today) {
     habits.filter((h, i) => i < 4 && (n < 0 || i < 2)).map((h) => [h.id, { done: true, at: `${offset(n)}T08:00:00Z` }]),
   ) }));
   const titles = ['Review the weekly plan', 'Prepare the release notes', 'Sketch the garden layout', 'Book the bicycle service', 'Send the project update', 'Test the offline backup', 'Plan weekend meals', 'Organise the reading list', 'Review the household budget'];
+  const futureTitles = [
+    ['Prepare tomorrow’s agenda', 'Make time for a walk'],
+    ['Review the kitchen renovation quote', 'Pick up the library books'],
+    ['Draft the team meeting notes', 'Order seeds for the garden'],
+    ['Check the travel itinerary', 'Call the electrician'],
+    ['Compare home insurance renewals', 'Choose a recipe for dinner'],
+    ['Back up the family photos', 'Visit the farmers market'],
+  ];
   const document = (date, taskTitles, done = false) => ({ date, type: 'daily', updatedAt: `${date}T08:00:00Z`, headings: [
     { name: 'Work', notesContent: '', items: taskTitles.map((title, order) => ({ id: `c7-${date}-${order}`, title, order, heading: 'Work',
       status: done ? 'done' : 'not-started', createdDate: date, originalNoteDate: date, historyLog: [], ...(done ? { completedDate: date } : {}) })) },
@@ -23,7 +31,13 @@ export function cycle7Fixture(today) {
   for (let n = Math.min(-weekday, -1); n <= Math.max(6 - weekday, 2); n++) {
     const doc = document(offset(n), n === 0 ? titles : n < 0
       ? ['Finish the design review', 'Take the recycling out']
-      : ['Prepare tomorrow’s agenda', 'Make time for a walk'], n < 0);
+      : futureTitles[n - 1], n < 0);
+    if (n === 0) {
+      for (const item of doc.headings[0].items.slice(0, 3)) {
+        item.status = 'done';
+        item.completedDate = today;
+      }
+    }
     if (n < 0) {
       doc.headings[0].items[1].status = 'not-started';
       delete doc.headings[0].items[1].completedDate;

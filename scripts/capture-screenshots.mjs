@@ -41,7 +41,7 @@ const VIEWPORTS = {
   laptop: { viewport: { width: 1024, height: 768 } },
 };
 
-// { name, viewport, signedOut?, prepare?(page) } - extend per cycle.
+// { name, viewport, signedOut?, prepare?(page), selector? } - extend per cycle.
 // Context setup seeds the sample vault before opening the server app.
 const loadSample = async (page) => {
   await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
@@ -108,8 +108,11 @@ const SHOTS = [
     (page) => page.locator('section[aria-label="Daily habits"] button[aria-expanded]').click(),
     (page) => page.getByRole('region', { name: 'Daily habits', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click(),
   ) },
-  { name: 'habit-warning', viewport: 'desktop', cycles: ['cycle-7'], prepare: then(async (page) => {
-    await page.getByRole('region', { name: 'Daily habits', exact: true }).getByText(/1 missed 7 days/).waitFor();
+  { name: 'habit-warning', viewport: 'desktop', cycles: ['cycle-7'], selector: 'section[aria-label="Daily habits"]', prepare: then(async (page) => {
+    const habits = page.getByRole('region', { name: 'Daily habits', exact: true });
+    await habits.getByText(/1 missed 7 days/).waitFor();
+    await habits.locator('button[aria-expanded]').click();
+    await habits.getByText('⚠ 7 days', { exact: true }).waitFor();
   }) },
   { name: 'calendar-day-habits', viewport: 'desktop', cycles: ['cycle-7'], prepare: then(click('button', /^calendar$/i), async (page) => {
     // Pick the seeded yesterday document even if it falls in the previous month.
@@ -225,7 +228,8 @@ try {
     if (!shot.signedOut) await chooseTheme(page, !!shot.dark);
     if (shot.prepare) await shot.prepare(page, today);
     const file = path.join(outDir, `${shot.name}.png`);
-    await page.screenshot({ path: file });
+    const target = shot.selector ? page.locator(shot.selector) : page;
+    await target.screenshot({ path: file });
     console.log('captured', path.relative('.', file));
     await ctx.close();
   }

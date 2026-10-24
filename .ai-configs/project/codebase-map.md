@@ -100,7 +100,7 @@ daymark/
 | `mobile/android/app/src/main/java/app/daymark/notes/DaymarkHabitsGlanceWidget.kt` | Native | Separate Daymark Habits widget with checklist, progress and per-widget styles. |
 | `mobile/android/app/src/main/java/app/daymark/notes/WidgetDateChangeReceiver.kt` | Native | Refresh widgets after date/time/timezone changes. |
 | `scripts/helpers/cycle-7-fixture.mjs` | Tooling | Relative-date tasks and habits shared by release captures and UX checks. |
-| `scripts/helpers/cycle-7-fixture.test.mjs`, `scripts/helpers/server-session.test.mjs`, `scripts/helpers/index.js` | Testing | Fixture weekday/year-boundary regressions and server seeding/reset tests; directory entry point for `npm run test:helpers`. |
+| `scripts/helpers/cycle-7-fixture.test.mjs`, `scripts/helpers/server-session.test.mjs` | Testing | Fixture weekday/year-boundary regressions and server seeding/reset tests; both run once via explicit file arguments in `npm run test:helpers`. |
 
 ## Cycle 6 test files
 
