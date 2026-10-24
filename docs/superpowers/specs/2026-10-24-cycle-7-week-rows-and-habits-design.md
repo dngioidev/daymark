@@ -39,7 +39,7 @@ Success: the user sets up their habits once, then every day opens Daymark (or lo
 
 Decided with the user (mockup C; options A "chips" and B "sideways-scrolling columns" were rejected):
 
-- Calendar › Week shows the seven days as **full-width rows stacked Monday → Sunday** (same week start as the current week view).
+- Calendar › Week shows the seven days as **full-width rows stacked top to bottom**, in the current week view's order (Sunday first, matching the month grid).
 - Each row: on the left the day name and date (e.g. "Wed / Today", "Thu / Oct 22"), plus the task count (done/total) where there are tasks; in the middle **the day's tasks as a list in two columns** (done ones struck through with a tick, open ones with an empty circle); on the right that day's **habit dots** (one dot per habit that existed that day, filled when ticked) and a count such as "3/5".
 - **Every task is shown.** No line clamp, no "+N more" cap; a busy day simply makes its row taller (user's explicit choice). Long titles wrap within their column.
 - Today's row is highlighted (accent ring/tint, as today's cell is now). The selected day is visibly marked as now.
