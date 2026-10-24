@@ -3,8 +3,19 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { CalendarView } from './CalendarView';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import type { DailyDocument } from '../types/daymark';
+import type { DailyDocument, HabitData } from '../types/daymark';
 import { formatLongDate } from '../utils/dateFormat';
+
+const habits: HabitData = {
+  habits: [{ id: 'water', name: 'Drink water', order: 0, warnAfterDays: 3, addedOn: '2026-10-18', updatedAt: '2026-10-18T00:00:00Z' }],
+  days: [{ date: '2026-10-20', ticks: { water: { done: true, at: '2026-10-20T12:00:00Z' } } }],
+};
+
+const calendarProps = {
+  dailyDocuments: [], selectedDate: '2026-10-20', simulatedToday: '2026-10-21',
+  statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(), onMoveTask: vi.fn(),
+  habits, onHabitsChange: vi.fn(),
+};
 
 // DOMPurify needs a browser DOM; this test checks the surrounding Calendar rendering.
 vi.mock('dompurify', () => ({ default: { sanitize: (html: string) => html } }));
@@ -21,6 +32,7 @@ it('renders enabled future cells, counts, notes, Planned and the existing panels
     dailyDocuments: [doc], selectedDate: doc.date, simulatedToday: '2026-10-21',
     statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(),
     onMarkDoneOnDay: vi.fn(), onOpenDay: vi.fn(), onMoveTask: vi.fn(),
+    habits: { habits: [], days: [] }, onHabitsChange: vi.fn(),
   }));
   expect(html).toContain('>Calendar</h1>');
   expect(html).toContain('max-w-[1800px]');
@@ -45,8 +57,50 @@ it.each([false, true])('preserves empty past-day wording with a stored document:
     dailyDocuments: stored ? [{ date, type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: [], notesContent: '  ' }] }] : [],
     selectedDate: date, simulatedToday: '2026-10-21', compact: true,
     statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(), onMoveTask: vi.fn(),
+    habits: { habits: [], days: [] }, onHabitsChange: vi.fn(),
   }));
   expect(html).toContain(`aria-label="${formatLongDate(date)}: nothing recorded"`);
   expect(html).toContain('Nothing was recorded on');
   expect(html).not.toContain('notes only');
+});
+
+it('week view renders rows with all tasks', () => {
+  const doc: DailyDocument = {
+    date: '2026-10-19', type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: Array.from({ length: 9 }, (_, i) => ({
+      id: `busy-${i}`, title: `Busy task ${i + 1}`, status: i === 0 ? 'done' : 'in-progress',
+      createdDate: '2026-10-19', originalNoteDate: '2026-10-19', heading: 'Work', order: i, historyLog: [],
+    })) }],
+  };
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { ...calendarProps, dailyDocuments: [doc], initialView: 'week' }));
+  for (let i = 1; i <= 9; i++) expect(html).toContain(`Busy task ${i}`);
+  expect(html.match(/data-date="/g)).toHaveLength(7);
+  expect(html).toContain('columns-1 md:columns-2');
+  expect(html).toContain('line-through');
+  expect(html).toContain('Nothing planned');
+  expect(html).not.toContain('grid-cols-7');
+  expect(html).not.toContain('line-clamp');
+  expect(html).not.toMatch(/\+\d+ more/);
+});
+
+it('future row has no habit dots', () => {
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { ...calendarProps, initialView: 'week', selectedDate: '2026-10-24' }));
+  const rows = html.split(/(?=<(?:button|div)[^>]*data-date=")/).slice(1);
+  expect(rows).toHaveLength(7);
+  expect(rows[2]).toContain('bg-emerald-600');
+  expect(rows[3]).toContain('bg-stone-300 dark:bg-stone-600');
+  for (const row of rows.slice(4)) {
+    expect(row).not.toContain('bg-emerald-600');
+    expect(row).not.toContain('bg-stone-300 dark:bg-stone-600');
+  }
+  expect(html).not.toContain('type="checkbox"');
+});
+
+it('past day detail shows habit checkboxes', () => {
+  const html = renderToStaticMarkup(React.createElement(CalendarView, calendarProps));
+  expect(html).toContain('>Habits</h3>');
+  expect(html).toContain('aria-label="Drink water"');
+  expect(html).toContain('type="checkbox"');
+  expect(html).toContain('checked=""');
+  expect(html).not.toContain('disabled=""');
+  expect(html).toContain('Nothing was recorded on');
 });

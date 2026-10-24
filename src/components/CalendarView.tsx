@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Check, ChevronLeft, ChevronRight, Circle, ExternalLink, MoreHorizontal, RotateCcw } from 'lucide-react';
-import { DailyDocument, StatusDefinition, TaskItem } from '../types/daymark';
+import { DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
@@ -8,8 +8,14 @@ import { getMoveTaskDateError } from '../utils/taskActions';
 import { MarkdownPreview } from './MarkdownPreview';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { Menu } from './ui/Menu';
+import { WeekRows } from './WeekRows';
+import { HabitChecklist } from './habits/HabitChecklist';
+import { habitsForDay, setTick } from '../utils/habits';
 
 interface CalendarViewProps {
+  habits: HabitData;
+  onHabitsChange: (next: HabitData) => void;
+  initialView?: 'month' | 'week';
   dailyDocuments: DailyDocument[];
   selectedDate: string;
   simulatedToday: string;
@@ -33,6 +39,9 @@ const countTasks = (doc?: DailyDocument) => {
 };
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  habits,
+  onHabitsChange,
+  initialView = 'month',
   dailyDocuments,
   selectedDate,
   simulatedToday,
@@ -46,7 +55,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   const [year, setYear] = useState(() => Number(selectedDate.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(selectedDate.slice(5, 7)) - 1);
-  const [view, setView] = useState<'month' | 'week'>('month');
+  const [view, setView] = useState<'month' | 'week'>(initialView);
   const [weekAnchor, setWeekAnchor] = useState(selectedDate);
   const [moveTask, setMoveTask] = useState<TaskItem | null>(null);
   const [moveDate, setMoveDate] = useState('');
@@ -74,6 +83,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const docMap = useMemo(() => new Map(dailyDocuments.map((d) => [d.date, d])), [dailyDocuments]);
   const selectedDoc = docMap.get(selectedDate);
+  const selectedHabits = selectedDate <= simulatedToday ? habitsForDay(habits, selectedDate, simulatedToday) : [];
   const selectedHasContent = selectedDoc?.headings.some((section) => section.items.length > 0 || !!section.notesContent?.trim());
   const todayDoc = docMap.get(simulatedToday);
   const openToday = new Set(todayDoc?.headings.flatMap((h) => h.items).filter((t) => t.status !== 'done').map((t) => t.id) ?? []);
@@ -124,6 +134,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } catch { /* Ignore external or malformed drops. */ }
   };
 
+  const dropProps = (date: string): React.HTMLAttributes<HTMLElement> => ({
+    onDragOver: (event) => {
+      if (canDrag && date >= simulatedToday && date !== selectedDate && event.dataTransfer.types.includes(DRAG_TYPE)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      }
+    },
+    onDrop: (event) => dropTask(event, date),
+  });
+
   return (
     <div className={compact ? 'space-y-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4 text-sm'}>
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -156,13 +176,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
               ))}
             </div>
+            {view === 'week' ? (
+              <WeekRows cells={cells} selectedDate={selectedDate} today={simulatedToday} habits={habits}
+                onSelectDate={onSelectDate} dropProps={dropProps} />
+            ) : <>
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1" aria-hidden="true">
               {WEEKDAYS.map((d) => (
                 <span key={d}>{d}</span>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {cells.map(({ date, done, total, hasNotes, titles, inMonth, isToday }) => {
+              {cells.map(({ date, done, total, hasNotes, inMonth, isToday }) => {
                 const doc = docMap.get(date);
                 const isSelected = date === selectedDate;
                 const ratio = total ? done / total : 0;
@@ -181,16 +205,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     type="button"
                     data-date={date}
                     onClick={() => onSelectDate(date)}
-                    onDragOver={(event) => {
-                      if (canDrag && date >= simulatedToday && date !== selectedDate && event.dataTransfer.types.includes(DRAG_TYPE)) {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = 'move';
-                      }
-                    }}
-                    onDrop={(event) => dropTask(event, date)}
+                    {...dropProps(date)}
                     aria-pressed={isSelected}
                     aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : ': nothing recorded'}`}
-                    className={`${view === 'week' ? 'min-h-36 justify-start py-2' : 'min-h-20 justify-center'} min-w-0 px-1 rounded-lg flex flex-col items-center gap-1 text-sm tabular-nums ${
+                    className={`min-h-20 justify-center min-w-0 px-1 rounded-lg flex flex-col items-center gap-1 text-sm tabular-nums ${
                       isSelected
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-bold'
                         : isToday
@@ -206,10 +224,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {total > 0 && <span className="text-xs">{done}/{total}</span>}
                     {hasNotes && <span role="img" aria-label="has notes" className="w-1.5 h-1.5 rounded-full bg-current" />}
                     <span className={`w-4 h-1 rounded-full ${marker || 'bg-transparent'}`} />
-                    {view === 'week' && <>
-                      {titles.slice(0, 6).map((title, index) => <span key={index} className="w-full text-left text-xs break-words line-clamp-2">{title}</span>)}
-                      {titles.length > 6 && <span className="text-xs">{`+${titles.length - 6} more`}</span>}
-                    </>}
                   </button>
                 );
               })}
@@ -225,6 +239,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <span className="w-3 h-1 rounded-full bg-stone-400" /> none done
               </span>
             </div>
+            </>}
           </div>
 
           {!compact && recentDays.length > 0 && (
@@ -274,6 +289,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             )}
           </div>
+
+          {selectedHabits.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="font-semibold text-stone-800 dark:text-stone-200">Habits</h3>
+              <HabitChecklist items={selectedHabits} showStreaks={false}
+                onToggle={(id, done) => onHabitsChange(setTick(habits, id, selectedDate, done, simulatedToday, new Date().toISOString()))} />
+            </section>
+          )}
 
           {selectedDoc && selectedHasContent ? (
             selectedDoc.headings

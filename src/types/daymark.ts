@@ -72,6 +72,7 @@ export interface CalendarCell {
   total: number;
   hasNotes: boolean;
   titles: string[];
+  items: { title: string; done: boolean }[];
 }
 
 export interface Habit {

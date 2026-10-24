@@ -38,12 +38,22 @@ describe('monthCells', () => {
     const cells = monthCells(2028, 1, [], '2028-02-01');
     expect(cells).toHaveLength(35);
     expect(cells[0].date).toBe('2028-01-30');
-    expect(cells.at(-1)).toEqual({ date: '2028-03-04', inMonth: false, isToday: false, isFuture: true, done: 0, total: 0, hasNotes: false, titles: [] });
+    expect(cells.at(-1)).toEqual({ date: '2028-03-04', inMonth: false, isToday: false, isFuture: true, done: 0, total: 0, hasNotes: false, titles: [], items: [] });
     expect(cells.some((c) => c.date === '2028-02-29')).toBe(true);
   });
 });
 
 describe('weekCells', () => {
+  it('weekCells items carry every task with done flag', () => {
+    const doc: DailyDocument = { ...docs[0], headings: [{ name: 'Work', items: Array.from({ length: 9 }, (_, i) => ({
+      ...docs[0].headings[0].items[0], id: `busy-${i}`, title: `Busy task ${i + 1}`, status: i === 0 ? 'done' : 'in-progress',
+    })) }] };
+    const cell = weekCells('2026-10-16', [doc], '2026-10-21').find((cell) => cell.date === doc.date)!;
+    expect(cell.items).toHaveLength(9);
+    expect(cell.items[0]).toEqual({ title: 'Busy task 1', done: true });
+    expect(cell.items[8]).toEqual({ title: 'Busy task 9', done: false });
+  });
+
   it('returns the Sunday-first week containing the anchor', () => {
     expect(weekCells('2026-10-21', docs, '2026-10-21').map((c) => c.date)).toEqual([
       '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24',

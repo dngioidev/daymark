@@ -704,6 +704,8 @@ export default function App() {
 
             {activeDesktopTab === 'calendar' && (
               <CalendarView
+                habits={habits}
+                onHabitsChange={setHabits}
                 dailyDocuments={dailyDocs}
                 selectedDate={calendarSelectedDate}
                 simulatedToday={today}
@@ -741,6 +743,8 @@ export default function App() {
 
       {appMode === 'mobile-app' && (
         <MobileAppShell
+          habits={habits}
+          onHabitsChange={setHabits}
           habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}

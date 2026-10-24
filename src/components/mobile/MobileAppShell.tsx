@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, CalendarDays, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
-import { AppSettings, DailyDocument, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
+import { AppSettings, DailyDocument, HabitData, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
@@ -12,6 +12,8 @@ import type { SettingsTab } from '../SettingsModal';
 import { SYNC_LABELS } from '../Navbar';
 
 interface MobileAppShellProps {
+  habits: HabitData;
+  onHabitsChange: (next: HabitData) => void;
   habitsSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
@@ -47,6 +49,8 @@ const SYNC_KEY: Record<SyncStatus, keyof typeof SYNC_LABELS> = { off: 'off', idl
 
 /** The phone app: header, one screen at a time, and a bottom bar with the central + button. */
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
+  habits,
+  onHabitsChange,
   habitsSlot,
   currentDocument,
   dailyDocs,
@@ -181,6 +185,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
           {activeTab === 'calendar' && (
             <CalendarView
+              habits={habits}
+              onHabitsChange={onHabitsChange}
               compact
               dailyDocuments={dailyDocs}
               selectedDate={calendarDate}

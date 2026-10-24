@@ -13,6 +13,7 @@ function cellsBetween(start: string, end: string, month: string, docs: DailyDocu
       total: tasks.length,
       hasNotes: doc?.headings.some((heading) => !!heading.notesContent?.trim()) ?? false,
       titles: tasks.map((task) => task.title),
+      items: tasks.map((task) => ({ title: task.title, done: task.status === 'done' })),
     });
   }
   return cells;
