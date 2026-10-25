@@ -15,7 +15,7 @@ function MermaidView({ node, updateAttributes, editor }: NodeViewProps) {
 export const Mermaid = Node.create({
   name: 'mermaid', group: 'block', atom: true,
   addAttributes: () => ({ source: { default: '' }, editing: { default: false, rendered: false } }),
-  parseHTML: () => [{ tag: 'pre[data-mermaid]', getAttrs: element => ({ source: element.textContent ?? '' }) }],
+  parseHTML: () => [{ tag: 'pre[data-mermaid]', priority: 100, getAttrs: element => ({ source: element.textContent ?? '' }) }],
   renderHTML: ({ node }) => ['pre', { 'data-mermaid': '' }, ['code', { class: 'language-mermaid' }, node.attrs.source]],
   addNodeView: () => ReactNodeViewRenderer(MermaidView),
   markdownTokenName: 'code',

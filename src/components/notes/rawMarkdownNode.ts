@@ -10,7 +10,7 @@ export const RawMarkdown = Node.create({
   group: 'block',
   atom: true,
   addAttributes: () => ({ source: { default: '' } }),
-  parseHTML: () => [{ tag: 'pre[data-raw-markdown]', getAttrs: (element) => ({ source: element.textContent ?? '' }) }],
+  parseHTML: () => [{ tag: 'pre[data-raw-markdown]', priority: 100, getAttrs: (element) => ({ source: element.textContent ?? '' }) }],
   renderHTML: ({ node }) => ['pre', { 'data-raw-markdown': '', class: 'whitespace-pre-wrap break-words rounded-lg bg-stone-100 p-3 font-mono text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-200', 'aria-label': 'Raw Markdown' }, ['code', {}, node.attrs.source]],
   parseMarkdown: (token) => ({ type: 'rawMarkdown', attrs: { source: token.text ?? '' } }),
   renderMarkdown: (node) => node.attrs?.source ?? '',

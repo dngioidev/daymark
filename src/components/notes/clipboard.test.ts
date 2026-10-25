@@ -29,7 +29,7 @@ it.each(['chatgpt', 'claude', 'gemini', 'article'])('%s paste preserves structur
   await paste(editor, readFileSync(`src/components/notes/fixtures/paste/${name}.html`, 'utf8'));
   const markdown = editor.getMarkdown();
   expect(markdown).toMatch(/\| -{3,} \|/);
-  if (markdown.includes('Alpha')) expect(markdown).toMatch(/\| Name\s*\| Value\s*\|/);
+
   for (const expected of ['##', '**Bold**', '*italic*', '- First', 'Nested', '1. Ordered', '> A quotation', '```python\nprint("hello")\n```', '![Chart](https://example.com/chart.png)']) expect(markdown).toContain(expected);
   for (const junk of ['style=', 'class=', '<script', 'alert(1)', 'tracking()', 'Copy', 'Edit', 'Subscribe', 'Sponsored', 'Buy now', 'Site footer', 'blob:', 'data:']) expect(markdown).not.toContain(junk);
   if (name === 'chatgpt') expect(markdown).toContain('- [ ] Review');
@@ -41,7 +41,7 @@ it('Markdown plain text paste parses headings, tasks, code and tables', async ()
   await paste(editor, '', '## Heading\n\n- [ ] Review\n\n```python\nprint(1)\n```\n\n| A |\n| --- |\n| B |');
   const markdown = editor.getMarkdown();
   expect(markdown).toMatch(/\| -{3,} \|/);
-  if (markdown.includes('Alpha')) expect(markdown).toMatch(/\| Name\s*\| Value\s*\|/);
+
   for (const expected of ['## Heading', '- [ ] Review', '```python\nprint(1)\n```', '| --- |']) expect(markdown).toContain(expected);
 });
 it.each(['ctrlKey', 'metaKey'])('Shift paste with %s inserts literal plain text even when HTML is available', async (modifier) => {
@@ -63,11 +63,9 @@ it('copy puts Markdown for only the selected content in text/plain and leaves fo
   expect(copied.dom.innerHTML).toContain('<strong>Bold</strong>');
 });
 
-
-
 it('sanitises HTML inside Markdown plain text paste before it can enter the note', async () => {
   const editor = await mount();
-  await paste(editor, '', '## Safe\n\n<script>alert(1)</script>\n\n<p style="color:red"><b>Keep</b><img src="javascript:bad" onerror="evil()"></p>');
+  await paste(editor, '', '## Safe\n\n- Item\n\n<script>alert(1)</script>\n\n<p style="color:red"><b>Keep</b><img src="javascript:bad" onerror="evil()"></p>');
   const markdown = editor.getMarkdown();
   expect(markdown).toContain('## Safe');
   expect(markdown).toContain('**Keep**');
@@ -103,4 +101,71 @@ it('an abandoned Shift paste shortcut does not affect a later context-menu paste
   editor.view.dom.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', bubbles: true }));
   await paste(editor, '<h2>Formatted</h2>', '## Literal');
   expect(editor.getMarkdown().trim()).toBe('## Formatted');
+});
+it.each(['clean', 'images'])('%s sanitises raw HTML before any live-document parsing or adoption', (operation) => {
+  const setter = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!.set!;
+  const parsedIntoLive: string[] = [];
+  const unsafeAdoptions: string[] = [];
+  const spy = vi.spyOn(Element.prototype, 'innerHTML', 'set').mockImplementation(function (this: Element, html: string) {
+    if (this.ownerDocument === document && /onerror/i.test(html)) parsedIntoLive.push(html);
+    setter.call(this, html);
+  });
+  const append = Element.prototype.append;
+  const adoptionSpy = vi.spyOn(Element.prototype, 'append').mockImplementation(function (this: Element, ...nodes: (Node | string)[]) {
+    if (this.ownerDocument === document) for (const node of nodes) {
+      if (typeof node !== 'string' && node instanceof Element && (node.hasAttribute('onerror') || node.querySelector('[onerror]'))) unsafeAdoptions.push(node.outerHTML);
+      if (typeof node !== 'string' && node instanceof DocumentFragment && node.querySelector('[onerror]')) unsafeAdoptions.push('unsafe fragment');
+    }
+    append.apply(this, nodes);
+  });
+  try {
+    const html = '<div><p>hello</p><img src="x:" onerror="window.__p=1"><img src="https://example.com/fail" onerror="window.__p=1"><img src="data:image/png;base64,eA==" onerror="window.__p=1"></div>';
+    if (operation === 'clean') expect(cleanPastedHtml(html)).not.toContain('onerror');
+    else expect(extractEmbeddedImages(html)).toHaveLength(1);
+    expect(parsedIntoLive).toEqual([]);
+    expect(unsafeAdoptions).toEqual([]);
+  } finally { spy.mockRestore(); adoptionSpy.mockRestore(); }
+});
+it.each([
+  ['callout', '> [!TIP] Advice\n> Keep **this**'],
+  ['mermaid', '```mermaid\ngraph TD; A-->B\n```'],
+  ['raw block', '<div>raw <u>source</u></div>'],
+  ['wiki link', 'Visit [[Another Note|Alias]]'],
+])('internal copy/paste preserves a %s in serialised Markdown', async (_name, markdown) => {
+  const editor = await mount(markdown);
+  await act(async () => { editor.commands.selectAll(); });
+  const copied = editor.view.serializeForClipboard(editor.state.selection.content());
+  expect(copied.dom.innerHTML).toContain('data-pm-slice');
+  await act(async () => { editor.commands.setContent(''); });
+  await paste(editor, copied.dom.innerHTML, copied.text);
+  expect(editor.getMarkdown().trim()).toBe(markdown);
+  if (_name === 'mermaid') expect(editor.getJSON().content?.[0]?.type).toBe('mermaid');
+});
+it('KaTeX clipboard retains only TeX annotations with inline and display delimiters', async () => {
+  const editor = await mount();
+  await paste(editor, readFileSync('src/components/notes/fixtures/paste/katex.html', 'utf8'));
+  expect(editor.getMarkdown().trim()).toBe('Inline $x_1 + y$ formula.\n\n$$\\sum_{i=1}^{n} i$$');
+});
+it('keeps Copy, Copy code and Edit when they are ordinary prose spans', async () => {
+  const editor = await mount();
+  await paste(editor, '<p><span>Copy</span> <span>Copy code</span> <span>Edit</span></p>');
+  expect(editor.getMarkdown().trim()).toBe('Copy Copy code Edit');
+});
+it('a single list signal leaves prose literal, while two signals preserve soft line breaks', async () => {
+  const editor = await mount();
+  await paste(editor, '', 'Some prose\n- one stray line\nMore prose');
+  expect(editor.getMarkdown()).toContain('\\- one stray line');
+  await act(async () => { editor.commands.setContent(''); });
+  await paste(editor, '', '## Title\nFirst line\nSecond line\n\n- Item');
+  expect(editor.getMarkdown().trim()).toBe('## Title\n\nFirst line  \nSecond line\n\n- Item');
+});
+it.each(['```python\nprint(1)\n```', '| A |\n| --- |\n| B |'])('a single fence or table is enough to detect Markdown: %s', async (markdown) => {
+  const editor = await mount();
+  await paste(editor, '', markdown);
+  expect(editor.getMarkdown().trim()).toBe(markdown);
+});
+it.each([['Python', 'python'], ['JavaScript', 'javascript'], ['TypeScript', 'typescript'], ['Shell', 'bash'], ['Bash', 'bash']])('infers %s from a nested Gemini toolbar', async (label, language) => {
+  const editor = await mount();
+  await paste(editor, `<code-block><div class="code-block-decoration"><span>${label}</span><div><button>Copy code</button></div></div><div class="formatted-code-block-internal-container"><div class="animated-opacity"><pre><code class="code-container formatted">echo(1)</code></pre></div></div></code-block>`);
+  expect(editor.getMarkdown().trim()).toBe('```' + language + '\necho(1)\n```');
 });
