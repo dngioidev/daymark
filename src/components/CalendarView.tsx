@@ -4,7 +4,7 @@ import { DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/d
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
-import { getMoveTaskDateError, isDoneLater } from '../utils/taskActions';
+import { getMoveTaskDateError, isClosedCopy, isDoneLater } from '../utils/taskActions';
 import { MarkdownPreview } from './MarkdownPreview';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { Menu } from './ui/Menu';
@@ -34,7 +34,7 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DRAG_TYPE = 'application/x-daymark-task';
 
 const countTasks = (doc?: DailyDocument) => {
-  const tasks = (doc?.headings.flatMap((h) => h.items) ?? []).filter((t) => !isDoneLater(t));
+  const tasks = (doc?.headings.flatMap((h) => h.items) ?? []).filter((t) => !isClosedCopy(t));
   return { total: tasks.length, done: tasks.filter((t) => t.status === 'done').length };
 };
 
@@ -83,8 +83,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const docMap = useMemo(() => new Map(dailyDocuments.map((d) => [d.date, d])), [dailyDocuments]);
   const selectedDoc = docMap.get(selectedDate);
+  const selectedSections = (selectedDoc?.headings ?? []).map((section) => ({
+    ...section, items: section.items.filter((task) => !task.movedToBacklogDate),
+  }));
   const selectedHabits = selectedDate <= simulatedToday ? habitsForDay(habits, selectedDate, simulatedToday) : [];
-  const selectedHasContent = selectedDoc?.headings.some((section) => section.items.length > 0 || !!section.notesContent?.trim());
+  const selectedHasContent = selectedSections.some((section) => section.items.length > 0 || !!section.notesContent?.trim());
   const todayDoc = docMap.get(simulatedToday);
   const openToday = new Set(todayDoc?.headings.flatMap((h) => h.items).filter((t) => t.status !== 'done').map((t) => t.id) ?? []);
 
@@ -299,7 +302,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           )}
 
           {selectedDoc && selectedHasContent ? (
-            selectedDoc.headings
+            selectedSections
               .filter((s) => s.items.length > 0 || s.notesContent?.trim())
               .map((section) => (
                 <section key={section.name} className="space-y-2">

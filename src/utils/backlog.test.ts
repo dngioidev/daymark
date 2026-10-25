@@ -40,6 +40,22 @@ describe('backlog', () => {
     expect(reorderBacklogItem(data, 'b', 'down', later)).toEqual(data);
     expect(reordered.items.find((i) => i.id === 'a')?.updatedAt).toBe(later);
   });
+  it('appends category edits after the destination group maximum without changing other items', () => {
+    const data = { items: [item('a', { category: 'Home' }), item('b', { category: 'Work', order: 1 }), item('c', { category: ' work ', order: 4 })] };
+    const edited = editBacklogItem(data, 'a', { category: 'WORK' }, later);
+    expect(edited.items[0]).toMatchObject({ category: 'WORK', order: 5, updatedAt: later });
+    expect(edited.items.slice(1)).toEqual(data.items.slice(1));
+    expect(editBacklogItem(edited, 'a', { category: ' work ' }, now).items[0].order).toBe(5);
+    const unlabelled = { items: [...data.items, item('d', { order: 3 })] };
+    expect(editBacklogItem(unlabelled, 'a', { category: undefined }, later).items[0].order).toBe(4);
+  });
+  it('revives a picked item after the destination group maximum instead of reusing its occupied order', () => {
+    const data = { items: [item('a', { category: 'Work', order: 1, pickedOn: '2026-10-25' }), item('b', { category: 'Work', order: 1 }), item('c', { category: ' work ', order: 4 })] };
+    const moved = moveTaskToBacklog([day('2026-10-25', [task()])], data, 'a', '2026-10-25', later)!;
+    expect(moved.data.items[0]).toMatchObject({ id: 'a', category: 'Work', order: 5, updatedAt: later });
+    expect(moved.data.items[0].pickedOn).toBeUndefined();
+    expect(moved.data.items.slice(1)).toEqual(data.items.slice(1));
+  });
   it.each(['Work', 'Personal'])('picks into reused or new section %s with fresh age and all content', (category) => {
     const historyLog: TaskItem['historyLog'] = [{ id: 'h', timestamp: now, date: '2026-10-23', action: 'created', details: 'Created' }];
     const source = item('a', { category: ` ${category.toUpperCase()} `, status: 'blocked', description: 'Details', checklist: [{ id: 'c', text: 'Check', done: true }], tags: ['tag'], historyLog });
@@ -70,6 +86,9 @@ describe('backlog', () => {
     for (const extra of [{ pickedOn: '2026-10-26' }, { deletedAt: now }]) expect(pickBacklogItem([], { items: [item('a', extra)] }, 'a', '2026-10-26', [], now)).toBeNull();
     expect(pickBacklogItem([], EMPTY_BACKLOG, 'missing', '2026-10-26', [], now)).toBeNull();
     expect(pickBacklogItem([day('2026-10-23', [task()])], { items: [item()] }, 'a', '2026-10-26', [], now)).toBeNull();
+  });
+  it('rejects a non-closed done copy on another day', () => {
+    expect(pickBacklogItem([day('2026-10-23', [task({ status: 'done' })])], { items: [item()] }, 'a', '2026-10-28', ['Work'], now)).toBeNull();
   });
   it.each([{ status: 'done', doneLaterDate: '2026-10-25' }, { status: 'done', movedToBacklogDate: '2026-10-25' }])('allows closed history elsewhere but rejects a closed destination copy: %j', (extra) => {
     const docs = [day('2026-10-23', [task(extra)])];

@@ -5,6 +5,28 @@ import { TodayView } from './TodayView';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import type { DailyDocument } from '../types/daymark';
 
+it('excludes backlog-closed copies from the done count and Finished list', () => {
+  const currentDocument: DailyDocument = {
+    date: '2026-10-21', type: 'daily', updatedAt: '',
+    headings: [{ name: 'Work', items: [{
+      id: 'backlog-closed', title: 'Moved away', status: 'done', movedToBacklogDate: '2026-10-23',
+      createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 1, historyLog: [],
+    }] }],
+  };
+  const html = renderToStaticMarkup(React.createElement(TodayView, {
+    currentDocument, allDocs: [currentDocument], simulatedToday: currentDocument.date,
+    statuses: DEFAULT_SETTINGS.statuses, agingThresholds: DEFAULT_SETTINGS.agingThresholds,
+    defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
+    onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(),
+    onOpenHistoricalModal: vi.fn(), onOpenHistoryDrawer: vi.fn(),
+    onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(),
+  }));
+  const aside = html.match(/<aside\b[^>]*aria-label="Day at a glance"[\s\S]*?<\/aside>/)![0];
+  expect(aside).toMatch(/<dd\b[^>]*>0<\/dd>\s*<dt\b[^>]*>Done<\/dt>/);
+  expect(aside).not.toContain('Moved away');
+  expect(aside).toContain("Nothing yet. Tick a task when it&#x27;s done.");
+});
+
 it('renders the full-width list, accessible section toggle and fuller desktop sidebar', () => {
   const currentDocument: DailyDocument = {
     date: '2026-10-21', type: 'daily', updatedAt: '',

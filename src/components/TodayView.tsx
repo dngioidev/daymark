@@ -16,7 +16,7 @@ import {
 import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
-import { applyMarkdownEdit, isDoneLater, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
+import { applyMarkdownEdit, isClosedCopy, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
 import { formatDay, formatLongDate, formatShortDate } from '../utils/dateFormat';
 import { loadCollapsed, saveCollapsed } from '../utils/collapsedSections';
 import { nextPlannedDay, weekTrend } from '../utils/dayStats';
@@ -779,7 +779,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   );
 
   // Desktop side panel: the day in numbers, and what was finished
-  const doneToday = allTasks.filter((t) => t.status === 'done' && !isDoneLater(t));
+  const doneToday = allTasks.filter((t) => t.status === 'done' && !isClosedCopy(t));
   const trend = useMemo(() => weekTrend(allDocs, simulatedToday), [allDocs, simulatedToday]);
   const planned = useMemo(() => nextPlannedDay(allDocs, simulatedToday), [allDocs, simulatedToday]);
   const glance = (

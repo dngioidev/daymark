@@ -22,6 +22,26 @@ const calendarProps = {
 // DOMPurify needs a browser DOM; this test checks the surrounding Calendar rendering.
 vi.mock('dompurify', () => ({ default: { sanitize: (html: string) => html } }));
 
+it('excludes backlog-closed copies from day counts and detail list while retaining notes and Done-later history', () => {
+  const task = { id: 'closed', title: 'Moved away', status: 'done', createdDate: '2026-10-18', originalNoteDate: '2026-10-18', heading: 'Work', order: 1, historyLog: [] };
+  const doc: DailyDocument = {
+    date: '2026-10-20', type: 'daily', updatedAt: '',
+    headings: [{ name: 'Work', notesContent: 'Keep day notes', items: [
+      { ...task, movedToBacklogDate: '2026-10-21' },
+      { ...task, id: 'later', title: 'Finished elsewhere', doneLaterDate: '2026-10-21' },
+      { ...task, id: 'done', title: 'Actually finished' },
+    ] }],
+  };
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { ...calendarProps, dailyDocuments: [doc] }));
+  expect(html).toContain('>1/1</span>');
+  expect(html).not.toContain('2/2');
+  expect(html).not.toContain('Moved away');
+  expect(html).toContain('Actually finished');
+  expect(html).toContain('Finished elsewhere');
+  expect(html).toContain('done later');
+  expect(html).toContain('Keep day notes');
+});
+
 it('renders enabled future cells, counts, notes, Planned and the existing panels', () => {
   const doc: DailyDocument = {
     date: '2026-10-25', type: 'daily', updatedAt: '',

@@ -25,7 +25,11 @@ export function addBacklogItem(data: BacklogData, input: { title: string; descri
 }
 
 export function editBacklogItem(data: BacklogData, id: string, patch: Partial<Pick<BacklogItem, 'title' | 'description' | 'category'>>, nowIso: string): BacklogData {
-  return { items: data.items.map((item) => item.id === id && isVisible(item) ? { ...item, ...patch, updatedAt: nowIso } : item) };
+  return { items: data.items.map((item) => {
+    if (item.id !== id || !isVisible(item)) return item;
+    const categoryChanged = Object.hasOwn(patch, 'category') && categoryKey(patch.category) !== categoryKey(item.category);
+    return { ...item, ...patch, order: categoryChanged ? nextOrder(data, patch.category) : item.order, updatedAt: nowIso };
+  }) };
 }
 
 export function removeBacklogItem(data: BacklogData, id: string, nowIso: string): BacklogData {
@@ -98,7 +102,7 @@ export function moveTaskToBacklog(docs: DailyDocument[], data: BacklogData, task
     id: taskId, title: task.title, description: task.description, category, status: task.status,
     checklist: task.checklist, tags: task.tags,
     historyLog: [...(task.historyLog ?? []), history(taskId, fromDate, nowIso, 'Moved to backlog')],
-    order: previous && categoryKey(previous.category) === categoryKey(category) ? previous.order : nextOrder(data, category),
+    order: nextOrder(data, category),
     createdAt: previous?.createdAt ?? nowIso, updatedAt: nowIso,
   };
   const withoutSource = docs.map((d) => d.date === fromDate ? { ...removed.doc, updatedAt: nowIso } : d);
