@@ -1105,6 +1105,35 @@ await run('E5', async () => {
   check('E5', true, 'Calendar Reopen on the finished day reopens the earlier closed copies');
 });
 
+await run('E6', async () => {
+  const many = Array.from({ length: 12 }, (_, i) => task(`e6-${i}`, 'not-started', TODAY, { title: `E6 task ${i}`, order: i }));
+  for (const mobile of [true, false]) {
+    const { context, page } = await fresh({ mobile, docs: [doc(TODAY, many)] });
+    const id = mobile ? 'E6-phone' : 'E6-desktop';
+    const trigger = page.getByRole('button', { name: 'More actions for "E6 task 11"', exact: true });
+    await trigger.scrollIntoViewIfNeeded();
+    // Put the desktop trigger at the window bottom so a downward popover would clip.
+    if (!mobile) await trigger.evaluate((button) => button.scrollIntoView({ block: 'end' }));
+    await trigger.click();
+    const menu = page.getByRole('menu');
+    await menu.getByRole('menuitem').first().waitFor();
+    const bounds = await menu.boundingBox();
+    const viewport = page.viewportSize();
+    const tabTop = mobile ? await page.getByRole('navigation', { name: 'Main', exact: true }).evaluate((nav) => nav.getBoundingClientRect().top) : viewport.height;
+    check(`${id}-bounds`, bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width && bounds.y + bounds.height <= tabTop,
+      mobile ? 'last task sheet fits within 390×844 and above the tab bar' : 'bottom task popover fits within 1440×900', JSON.stringify({ bounds, tabTop }));
+    const covered = await menu.getByRole('menuitem').evaluateAll((items) => items.filter((item) => {
+      const box = item.getBoundingClientRect();
+      return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('[role="menu"]') !== item.closest('[role="menu"]');
+    }).map((item) => item.textContent));
+    check(`${id}-hit`, covered.length === 0, 'every menuitem centre hit-tests to the menu', JSON.stringify(covered));
+    await page.keyboard.press('Escape');
+    await menu.waitFor({ state: 'detached' });
+    check(`${id}-focus`, await trigger.evaluate((button) => document.activeElement === button), 'Escape closes the menu and returns focus to its trigger');
+    await context.close();
+  }
+});
+
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;

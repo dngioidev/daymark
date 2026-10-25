@@ -428,6 +428,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         )}
         <Menu
+          sheetTitle="Day actions"
           align="right"
           items={[
             ...(compact

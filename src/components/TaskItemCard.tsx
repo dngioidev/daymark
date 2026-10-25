@@ -189,6 +189,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           {doneLater ? (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-md border font-medium whitespace-nowrap ${statusDef.color}`}>{statusDef.label}</span>
           ) : <Menu
+            sheetTitle={task.title}
             heading="Status"
             items={pickableStatuses(statuses, task.status).map((s) => ({
               label: s.label,
@@ -247,6 +248,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
       </div>
 
       <Menu
+        sheetTitle={task.title}
         align="right"
         items={[
           ...(isCarried

@@ -343,7 +343,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 <CalendarCheck className="w-4 h-4" /> Done this day
                               </button>
                             )}
-                            <Menu align="right" items={[{ label: 'Move to date…', onSelect: () => {
+                            <Menu sheetTitle={task.title} align="right" items={[{ label: 'Move to date…', onSelect: () => {
                               moveTrigger.current?.focus();
                               setMoveTask(task);
                               setMoveDate(selectedDate === simulatedToday ? getNextDate(simulatedToday) : simulatedToday);

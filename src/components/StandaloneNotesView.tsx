@@ -233,6 +233,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               <FilePlus className="w-4 h-4" /> New note
             </button>
             <Menu
+              sheetTitle="Note templates"
               align="right"
               items={NOTE_TEMPLATES.map((template) => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
               trigger={(props) => (
@@ -364,6 +365,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                 <Pin className={`w-4 h-4 ${activeNote.pinned ? 'fill-current' : ''}`} />
               </button>
               <Menu
+                sheetTitle={activeNote.title}
                 align="right"
                 items={[{ label: 'Delete note', icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => deleteNote(activeNote) }]}
                 trigger={(props) => (
