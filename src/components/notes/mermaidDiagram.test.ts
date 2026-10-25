@@ -17,13 +17,17 @@ it('mermaid render error shows message and source in preview', async () => {
   expect(container.textContent).toContain('broken graph');
   await act(async () => root.unmount());
 });
-it('sanitises rendered Mermaid SVG in preview', async () => {
-  render.mockResolvedValue({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><text>Safe diagram</text><a href="javascript:alert(1)">bad</a></svg>' });
+it('preserves Mermaid HTML labels and theme styles while sanitising scripts and event handlers in preview', async () => {
+  render.mockResolvedValue({ svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><style>.label { color: white; }</style><foreignObject><div><span>Label</span></div></foreignObject><script>alert(1)</script><text dominant-baseline="middle">Safe diagram</text><a href="javascript:alert(1)">bad</a></svg>' });
   const container = document.createElement('div'); document.body.append(container);
   const root = createRoot(container);
   await act(async () => { root.render(React.createElement(MarkdownPreview, { content: '```mermaid\ngraph TD; A-->B\n```' })); });
   await vi.waitFor(() => expect(container.querySelector('svg text')?.textContent).toBe('Safe diagram'));
+  expect(container.querySelector('foreignObject div span')?.textContent).toBe('Label');
+  expect(container.querySelector('svg style')?.textContent).toBe('.label { color: white; }');
+  expect(container.querySelector('svg text')?.getAttribute('dominant-baseline')).toBe('middle');
   expect(container.querySelector('script')).toBeNull();
+  expect(container.querySelector('[onload]')).toBeNull();
   expect(container.querySelector('svg a')?.getAttribute('href')).toBeNull();
   await act(async () => root.unmount());
 });

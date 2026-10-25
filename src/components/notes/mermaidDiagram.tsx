@@ -24,7 +24,13 @@ export async function renderMermaid(source: string): Promise<string> {
       // This leaves stored source untouched and keeps one strict initialization.
       const themedSource = `${source}\n%%{init: ${JSON.stringify({ theme })}}%%`;
       const { svg } = await mermaid.render(`daymark-mermaid-${++sequence}`, themedSource, container);
-      return DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+      // Match Mermaid's strict-mode sanitizer so HTML labels and SVG theme
+      // styles survive while scripts and event handlers are still removed.
+      return DOMPurify.sanitize(svg, {
+        ADD_TAGS: ['foreignobject'],
+        ADD_ATTR: ['dominant-baseline'],
+        HTML_INTEGRATION_POINTS: { foreignobject: true },
+      });
     } finally { container.remove(); }
   });
   queue = result;
