@@ -1,4 +1,8 @@
 import StarterKit from '@tiptap/starter-kit';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
+import { Callout } from './calloutNode';
+import { Mermaid } from './mermaidNode';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table';
@@ -75,7 +79,17 @@ const NoteMarkdown = Markdown.extend({
 });
 
 export const editorExtensions = [
-  NoteStarterKit.configure({ underline: false, link: { openOnClick: false }, heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+  NoteStarterKit.configure({ codeBlock: false, underline: false, link: { openOnClick: false }, heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+  CodeBlockLowlight.extend({
+    renderHTML({ node, HTMLAttributes }) {
+      return ['pre', { ...HTMLAttributes, 'data-language': node.attrs.language || 'Plain text', 'aria-label': `${node.attrs.language || 'Plain text'} code` }, ['code', node.attrs.language ? { class: `language-${node.attrs.language}` } : {}, 0]];
+    },
+    parseMarkdown(token, helpers) {
+      if (token.lang === 'mermaid') return { type: 'mermaid', attrs: { source: token.text ?? '' } };
+      return this.parent?.(token, helpers) ?? [];
+    },
+  }).configure({ lowlight: createLowlight(common), defaultLanguage: null }),
+  Callout, Mermaid,
   TaskList,
   TaskItem.configure({ nested: true }),
   Table.configure({ resizable: false, renderWrapper: true }), TableRow, TableHeader, TableCell,

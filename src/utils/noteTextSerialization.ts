@@ -4,6 +4,18 @@ import { Marked } from 'marked';
 
 const lexer = new Marked();
 
+/** Compare parsed and live callouts despite schema-added null attributes and
+ * attribute ordering. Mermaid's editing flag is transient view state. */
+export function calloutSnapshot(type: string, title: string, content: JSONContent[] = []): string {
+  return JSON.stringify({ type, title, content }, (key, value) => {
+    if (key === 'editing') return undefined;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry != null).sort(([a], [b]) => a.localeCompare(b)));
+    }
+    return value;
+  });
+}
+
 function escapeLiteral(text: string, linePrefix: string, suffix: string, inLink: boolean): string {
   // Ask the Markdown lexer which spans would acquire formatting. Ordinary
   // intraword underscores, operators, wiki brackets and < comparisons stay text.
@@ -45,6 +57,10 @@ export function preserveNoteText(manager: MarkdownManager): MarkdownManager {
       return `${leading}${prefix}${index}\uE001${trailing}`;
     }).join('\n');
     const visit = (node: JSONContent, inCode = false, inTable = false): JSONContent => {
+      // Preserve untouched callouts byte-for-byte even when another block changes.
+      if (node.type === 'callout' && node.attrs?.original != null && node.attrs.snapshot === calloutSnapshot(node.attrs.type, node.attrs.title, node.content)) {
+        return { type: 'rawMarkdown', attrs: { source: node.attrs.original } };
+      }
       const code = inCode || node.type === 'codeBlock' || !!node.marks?.some((mark) => mark.type === 'code');
       const table = inTable || node.type === 'tableCell' || node.type === 'tableHeader';
       if (node.type === 'text' && !code && node.text?.trim()) {

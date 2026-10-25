@@ -52,6 +52,7 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
       {actions.slice(0, 3).map(([label, Icon, run, active]) => <button key={label} type="button" aria-label={label} title={label} aria-pressed={active} className={button} onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon className="w-4 h-4" /></button>)}
       <Menu sheetTitle="Heading" items={([1, 2, 3] as const).map((level) => ({ label: `Heading ${level}`, active: editor.isActive('heading', { level }), onSelect: () => { editor.chain().focus().toggleHeading({ level }).run(); } }))} trigger={(props) => <button type="button" {...props} aria-label="Heading" title="Heading" className={button}><Heading className="w-4 h-4" /></button>} />
       {actions.slice(3).map(([label, Icon, run, active]) => <button key={label} type="button" aria-label={label} title={label} aria-pressed={active} className={button} onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon className="w-4 h-4" /></button>)}
+      {editor.isActive('codeBlock') && <Menu sheetTitle="Code language" items={['', 'ts', 'js', 'json', 'bash', 'python', 'css', 'html', 'sql', 'markdown', 'yaml'].map(language => ({ label: language || 'Plain text', active: (editor.getAttributes('codeBlock').language || '') === language, onSelect: () => { editor.chain().focus().updateAttributes('codeBlock', { language: language || null }).run(); } }))} trigger={props => <button type="button" {...props} className={button} aria-label="Code language">{editor.getAttributes('codeBlock').language || 'Plain text'}</button>} />}
       <Menu sheetTitle="Table" items={editor.isActive('table') ? [
         { label: 'Add row', onSelect: () => { editor.chain().focus().addRowAfter().run(); } },
         { label: 'Remove row', onSelect: () => { editor.chain().focus().deleteRow().run(); } },
@@ -64,7 +65,7 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
         { label: 'Choose file', onSelect: () => pictureInput.current?.click() },
         { label: 'From link', onSelect: () => { setPictureAlt(''); setPictureLink(''); } },
       ]} trigger={(props) => <button type="button" {...props} className={button} aria-label="Picture" title="Insert picture"><Image className="w-4 h-4" /></button>} />
-      <button type="button" className={button} aria-label="Diagram" disabled title="Insert diagram"><Network className="w-4 h-4" /></button>
+      <button type="button" className={button} aria-label="Diagram" title="Insert diagram" onClick={() => editor.chain().focus().insertContent({ type: 'mermaid', attrs: { source: 'graph TD\n  A[Start] --> B[Finish]', editing: true } }).run()}><Network className="w-4 h-4" /></button>
     </div>
     {link !== null && <form className="flex gap-2 p-2" onSubmit={(event) => {
       event.preventDefault();

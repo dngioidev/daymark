@@ -28,3 +28,19 @@
 .dm-note-prose hr { border-color: var(--color-stone-400); margin-block: 1.5em; }
 .dm-note-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--color-stone-500); float: left; height: 0; pointer-events: none; }
 .dark .dm-note-prose p.is-editor-empty:first-child::before { color: var(--color-stone-400); }
+
+/* Labels remain outside the code text so copy/serialization keep only source. */
+.dm-note-prose pre[data-language]::before { content: attr(data-language); display: block; margin-bottom: 0.5em; font: 600 0.75rem/1.5 sans-serif; color: var(--color-stone-600); }
+.dark .dm-note-prose pre[data-language]::before { color: var(--color-stone-300); }
+.dm-note-prose .hljs-keyword, .dm-note-prose .hljs-selector-tag { color: #6b21a8; font-weight: 600; }
+.dm-note-prose .hljs-string, .dm-note-prose .hljs-attr { color: #166534; }
+.dm-note-prose .hljs-number, .dm-note-prose .hljs-literal, .dm-note-prose .hljs-title { color: #9a3412; }
+.dm-note-prose .hljs-comment { color: var(--color-stone-600); font-style: italic; }
+.dark .dm-note-prose .hljs-keyword, .dark .dm-note-prose .hljs-selector-tag { color: #d8b4fe; }
+.dark .dm-note-prose .hljs-string, .dark .dm-note-prose .hljs-attr { color: #86efac; }
+.dark .dm-note-prose .hljs-number, .dark .dm-note-prose .hljs-literal, .dark .dm-note-prose .hljs-title { color: #fdba74; }
+.dark .dm-note-prose .hljs-comment { color: var(--color-stone-300); }
+/* Reuse preview border/background colours with readable editor text. */
+.dm-note-prose .daymark-callout { color: var(--color-stone-900); }
+.dark .dm-note-prose .daymark-callout { color: var(--color-stone-100); }
+.dm-note-prose .daymark-callout-content > * + * { margin-top: 0.8em; }

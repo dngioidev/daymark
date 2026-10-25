@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MermaidDiagram } from './notes/mermaidDiagram';
 import { renderMarkdownHtml } from '../utils/markdownHtml';
 import {
   Check,
@@ -62,6 +64,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   onToggleTaskItem,
 }) => {
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [diagrams, setDiagrams] = useState<{ target: HTMLElement; source: string }[]>([]);
 
   // 1. Parse frontmatter and body
   const { attributes: frontmatter, body: cleanBody } = useMemo(() => {
@@ -73,6 +77,18 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     () => renderMarkdownHtml(cleanBody, !!onToggleTaskItem),
     [cleanBody, onToggleTaskItem]
   );
+  useEffect(() => {
+    const diagrams = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>('pre > code.language-mermaid') ?? []).map(code => {
+      const target = document.createElement('div');
+      const source = (code.textContent ?? '').replace(/\n$/, '');
+      const original = code.parentElement!;
+      original.replaceWith(target);
+      return { target, source, original };
+    });
+    setDiagrams(diagrams);
+    // Restore the sanitised fence for React StrictMode's effect replay.
+    return () => { diagrams.forEach(({ target, original }) => target.replaceWith(original)); };
+  }, [processedHtml]);
 
   // Handle interactive clicks inside the rendered container
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -138,6 +154,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       {/* Rendered Markdown Body */}
       {processedHtml ? (
         <div
+          ref={bodyRef}
           onClick={handleContainerClick}
           dangerouslySetInnerHTML={{ __html: processedHtml }}
           className="daymark-markdown-body text-sm sm:text-base text-stone-800 dark:text-stone-200 leading-relaxed font-sans"
@@ -147,6 +164,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
           No content to preview. Write Markdown above or switch to Edit mode.
         </div>
       )}
+      {diagrams.map(({ target, source }, index) => createPortal(<MermaidDiagram source={source} />, target, String(index)))}
     </div>
   );
 };
