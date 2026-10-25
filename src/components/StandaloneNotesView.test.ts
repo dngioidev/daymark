@@ -233,3 +233,8 @@ it('pins controls around a bounded editor and shows a Markdown word count', () =
   expect(html).not.toContain('min-h-[60dvh]');
   expect(html).not.toContain('100dvh-3.5rem');
 });
+it('forwards the app editor ref to the active rich editor for cleanup', () => {
+  const shared = { current: null };
+  const editor = find(render(false, { richEditorHandleRef: shared }), element => element.props.noteId === note.id)!;
+  expect(editor.props.ref).toBe(shared);
+});

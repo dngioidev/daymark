@@ -6,6 +6,7 @@ import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
 import { CalendarView } from '../CalendarView';
 import { StandaloneNotesView } from '../StandaloneNotesView';
+import type { RichNoteEditorHandle } from '../notes/RichNoteEditor';
 import { SyncStatus } from '../../hooks/useSync';
 import { getMostRecentPastDate } from '../../utils/lifecycleEngine';
 import type { SettingsTab } from '../SettingsModal';
@@ -29,6 +30,7 @@ interface MobileAppShellProps {
   openNoteId?: string;
   onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
+  richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
@@ -66,6 +68,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   openNoteId,
   onOpenNoteConsumed,
   focusToggleSignal,
+  richEditorHandleRef,
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
   onQuickHistoricalDone,
@@ -207,7 +210,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} />}
+          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} />}
         </main>
 
         <nav

@@ -53,6 +53,7 @@ import { TodayView } from './components/TodayView';
 import { HabitsBar } from './components/habits/HabitsBar';
 import { CalendarView } from './components/CalendarView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
+import type { RichNoteEditorHandle } from './components/notes/RichNoteEditor';
 // Developer-only screen (large embedded code samples): loaded on demand
 const MobileCodeHub = React.lazy(() => import('./components/MobileCodeHub').then((m) => ({ default: m.MobileCodeHub })));
 import { MobileAppShell } from './components/mobile/MobileAppShell';
@@ -66,7 +67,7 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { HistoricalCompletionModal } from './components/HistoricalCompletionModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { SettingsModal, SettingsTab } from './components/SettingsModal';
-import { FeedbackHost, alertDialog, confirmDialog, showToast } from './components/ui/feedback';
+import { FeedbackHost, alertDialog, confirmDialog, dismissToast, showToast } from './components/ui/feedback';
 import { mergeIncomingSettings, normalizeSettings } from './utils/defaultData';
 import { inlineDay } from './components/TaskItemCard';
 import { formatDay } from './utils/dateFormat';
@@ -108,6 +109,7 @@ export default function App() {
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
   const notesRef = React.useRef(notes);
   notesRef.current = notes;
+  const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [habits, setHabits] = useState<HabitData>(loadHabits);
   const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
@@ -522,9 +524,10 @@ export default function App() {
   // Backups: closing the Android share sheet without choosing a target is not an error
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
-      if (await exporter(dailyDocs, notes, settings, habits)) {
+      let missingPictures = 0;
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; })) {
         setLastBackupAt(getLastBackupDate());
-        showToast(done);
+        showToast(missingPictures ? `${done} ${missingPictures} pictures were not included (not on this device yet)` : done);
       }
     } catch (err) {
       if (isShareCancel(err)) return;
@@ -564,8 +567,9 @@ export default function App() {
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
     if (!(await confirmReplaceVault())) return;
+    let skippedPictures = 0;
     try {
-      await importBackupAssets(parsed.assets);
+      skippedPictures = await importBackupAssets(parsed.assets);
     } catch (error) {
       return alertDialog("This file can't be restored", error instanceof Error ? error.message : 'Could not restore backup pictures.');
     }
@@ -576,7 +580,7 @@ export default function App() {
     if (parsed.settings) setSettings(nextSettings);
     sync.rebaseAfterReplace();
     markOnboarded();
-    showToast('Backup restored.');
+    showToast(`Backup restored.${skippedPictures ? ` ${skippedPictures} pictures skipped because picture storage is unavailable on this device.` : ''}`);
   };
 
   // Handler: Import vault ZIP (Daymark export or a folder of Markdown files)
@@ -592,7 +596,7 @@ export default function App() {
       sync.rebaseAfterReplace();
       markOnboarded();
       showToast(
-        `Restored ${snapshot.docs.length} ${snapshot.docs.length === 1 ? 'day' : 'days'} and ${snapshot.notes.length} ${snapshot.notes.length === 1 ? 'note' : 'notes'}.`
+        `Restored ${snapshot.docs.length} ${snapshot.docs.length === 1 ? 'day' : 'days'} and ${snapshot.notes.length} ${snapshot.notes.length === 1 ? 'note' : 'notes'}.${snapshot.skippedPictures ? ` ${snapshot.skippedPictures} pictures skipped because picture storage is unavailable on this device.` : ''}`
       );
     } catch (err) {
       await alertDialog("This file can't be restored", err instanceof Error ? err.message : 'Could not read this ZIP file.');
@@ -744,7 +748,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -783,6 +787,7 @@ export default function App() {
           openNoteId={openNoteId}
           onOpenNoteConsumed={() => setOpenNoteId(undefined)}
           focusToggleSignal={focusToggleSignal}
+          richEditorHandleRef={richEditorHandleRef}
           onOpenHistoricalModal={setHistoricalModalTask}
           onOpenHistoryDrawer={openDetails}
           onQuickHistoricalDone={handleQuickHistoricalDone}
@@ -864,7 +869,10 @@ export default function App() {
         onImportJson={handleImportJson}
         onImportZip={handleImportZip}
         onResetVault={handleResetVault}
-        onRemoveUnusedPictures={() => removeUnusedPictures(() => notesRef.current, sync.account ? { sync: sync.syncNow, authFetch: sync.authFetch } : undefined)}
+        onRemoveUnusedPictures={() => removeUnusedPictures(() => notesRef.current, sync.account ? { sync: sync.syncNow, authFetch: sync.authFetch } : undefined, () => {
+          richEditorHandleRef.current?.clearHistory();
+          dismissToast();
+        })}
         syncPanel={<ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} compact />}
       />
 

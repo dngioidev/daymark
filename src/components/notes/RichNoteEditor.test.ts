@@ -141,3 +141,45 @@ it('positions the phone toolbar above the visual viewport and hides it with the 
   expect(disconnect).toHaveBeenCalled();
   expect(document.querySelector('[role="toolbar"]')).toBeNull();
 });
+it('clearHistory prevents picture resurrection through Undo and Redo while preserving the document', async () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const ref = React.createRef<import('./RichNoteEditor').RichNoteEditorHandle>();
+  const onChange = vi.fn();
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'cleanup', markdown: 'Keep me', onChange, onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new', ref,
+  })));
+  const editor = core(host);
+  await act(async () => { editor.commands.insertContent(' picture reference'); });
+  expect(editor.can().undo()).toBe(true);
+  await act(async () => { editor.commands.undo(); });
+  const before = editor.getMarkdown();
+  onChange.mockClear();
+  await act(async () => ref.current!.clearHistory());
+  expect(editor.can().undo()).toBe(false);
+  expect(editor.can().redo()).toBe(false);
+  expect(editor.getMarkdown()).toBe(before);
+  expect(onChange).not.toHaveBeenCalled();
+  await act(async () => { editor.commands.insertContent(' new edit'); editor.commands.undo(); });
+  expect(editor.getMarkdown()).toBe(before);
+  await act(async () => root.unmount());
+});
+it('cleanup history cannot Undo the deletion of a picture reference', async () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const ref = React.createRef<import('./RichNoteEditor').RichNoteEditorHandle>();
+  const source = `daymark-asset:${'a'.repeat(64)}.png`;
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'deleted-picture', markdown: `Keep me\n\n![photo](${source})`, onChange: vi.fn(), onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new', ref,
+  })));
+  const editor = core(host);
+  let imagePosition = -1;
+  editor.state.doc.descendants((node, position) => { if (node.type.name === 'image') imagePosition = position; });
+  expect(imagePosition).toBeGreaterThan(0);
+  await act(async () => editor.commands.deleteRange({ from: imagePosition, to: imagePosition + 1 }));
+  expect(editor.getMarkdown()).not.toContain(source);
+  expect(editor.can().undo()).toBe(true);
+  await act(async () => { ref.current!.clearHistory(); editor.commands.undo(); editor.commands.redo(); });
+  expect(editor.getMarkdown()).not.toContain(source);
+  await act(async () => root.unmount());
+});

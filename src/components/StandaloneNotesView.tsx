@@ -32,12 +32,13 @@ interface StandaloneNotesViewProps {
   openNoteId?: string;
   onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
+  richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
 }
 
 type ViewMode = 'rich' | 'markdown';
 
 /** Notes: searchable list (pinned first) and a rich editor backed by Markdown. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0 }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, richEditorHandleRef }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +51,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [now, setNow] = useState(Date.now());
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const richEditorRef = useRef<RichNoteEditorHandle>(null);
+  const localRichEditorRef = useRef<RichNoteEditorHandle>(null);
+  const richEditorRef = richEditorHandleRef ?? localRichEditorRef;
   const focusTitle = useRef(false);
   // Wiki creation and link insertion save in the same React batch. Keep the
   // newly created note when the editor immediately saves the source note.

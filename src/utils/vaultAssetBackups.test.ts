@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
-const { kv } = vi.hoisted(() => ({ kv: new Map<string, unknown>() }));
+const { kv, available } = vi.hoisted(() => ({ kv: new Map<string, unknown>(), available: { value: true } }));
 vi.mock('./vaultStore', () => ({
-  isPhotoStorageAvailable: () => true,
+  isPhotoStorageAvailable: () => available.value,
   kvGetRaw: async (key: string) => kv.get(key),
   kvPutRaw: async (key: string, value: unknown) => { kv.set(key, value); },
   kvDeleteRaw: async (key: string) => { kv.delete(key); },
@@ -10,12 +10,13 @@ vi.mock('./vaultStore', () => ({
 }));
 import { buildVaultZip, importVaultFromZip, exportBackupAssets, importBackupAssets, removeUnusedPictures } from './vaultArchive';
 import { hasAsset, pendingUploads, putAsset } from './noteAssets';
-import { DEFAULT_SETTINGS, SEED_STANDALONE_NOTES } from './defaultData';
+import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
+import type { HabitData } from '../types/daymark';
 const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 const meta = { id, mime: 'image/png' as const, bytes: 3, width: 10, height: 20, createdAt: '2026-10-25T00:00:00Z' };
 const content = `![picture](daymark-asset:${id}.png)`;
 const note = { ...SEED_STANDALONE_NOTES[0], title: 'Picture', folder: 'A', content };
-beforeEach(() => kv.clear());
+beforeEach(() => { kv.clear(); available.value = true; });
 const seed = () => putAsset(new Blob(['abc'], { type: meta.mime }), meta);
 
 it('zip export rewrites refs and includes files at the correct nested depth', async () => {
@@ -65,8 +66,14 @@ it('old JSON backups without pictures remain restorable', async () => {
   await importBackupAssets(undefined);
   expect(kv.size).toBe(0);
 });
-it('export reports a missing referenced picture rather than silently losing it', async () => {
-  await expect(buildVaultZip([], [note], DEFAULT_SETTINGS)).rejects.toThrow(/missing|unavailable/i);
+it('export skips missing pictures, preserves unresolved refs and reports their count', async () => {
+  const missing = vi.fn();
+  const zip = await JSZip.loadAsync(await buildVaultZip([], [note], DEFAULT_SETTINGS, undefined, missing));
+  expect(await zip.file('Daymark/Notes/A/Picture.md')!.async('string')).toBe(content);
+  expect(missing).toHaveBeenCalledWith(1);
+  const jsonMissing = vi.fn();
+  expect(await exportBackupAssets([note], jsonMissing)).toEqual([]);
+  expect(jsonMissing).toHaveBeenCalledWith(1);
 });
 it('remove unused keeps referenced, including notes received by the required sync', async () => {
   const kept = await seed();
@@ -131,4 +138,68 @@ it('Markdown-only restore leaves online image URLs untouched', async () => {
   zip.file(`Daymark/Notes/_assets/${id}.png`, 'abc');
   const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
   expect(restored.notes[0].content).toBe(online);
+});
+it('ZIP and JSON restore keep notes and skip pictures when browser picture storage is unavailable', async () => {
+  await seed();
+  const bytes = await buildVaultZip([], [note], DEFAULT_SETTINGS);
+  const assets = await exportBackupAssets([note]);
+  kv.clear(); available.value = false;
+  const restored = await importVaultFromZip(bytes);
+  expect(restored.notes).toEqual([note]);
+  expect(restored.skippedPictures).toBe(1);
+  expect(await importBackupAssets(assets)).toBe(1);
+  expect(kv.size).toBe(0);
+});
+it('folder paths and picture link depth use the same normalized safe segments', async () => {
+  await seed();
+  const zip = await JSZip.loadAsync(await buildVaultZip([], [{ ...note, folder: 'A/./B/../C' }], DEFAULT_SETTINGS));
+  expect(await zip.file('Daymark/Notes/A/B/_/C/Picture.md')!.async('string')).toBe(`![picture](../../../../_assets/${id}.png)`);
+  expect(Object.keys(zip.files).some(path => path.includes('/../') || path.includes('/./'))).toBe(false);
+});
+it('Markdown-only Windows ZIP normalizes asset keys before resolving picture links', async () => {
+  const zip = new JSZip();
+  zip.file('Daymark\\Notes\\A\\Picture.md', `![picture](../_assets/${id}.png)`);
+  zip.file(`Daymark\\Notes\\_assets\\${id}.png`, 'abc');
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.notes[0].content).toBe(content);
+  expect(await hasAsset(id)).toBe(true);
+});
+it('cleanup removes unreferenced orphan blobs and protects referenced orphan blobs', async () => {
+  kv.set(`noteAsset:${id}`, new Blob(['abc'], { type: 'image/png' }));
+  expect(await removeUnusedPictures(() => [note])).toBe(0);
+  expect(await removeUnusedPictures(() => [])).toBe(1);
+  expect(await hasAsset(id)).toBe(false);
+});
+it('cleanup invalidates Undo only after successful sync and before deleting pictures', async () => {
+  await seed();
+  let synced = false;
+  const invalidate = vi.fn(() => {
+    expect(synced).toBe(true);
+    expect(kv.has(`noteAsset:${id}`)).toBe(true);
+  });
+  await removeUnusedPictures(() => [], { sync: async () => { synced = true; }, authFetch: async () => new Response(null, { status: 204 }) }, invalidate);
+  expect(invalidate).toHaveBeenCalledOnce();
+});
+it('ZIP pictures round-trip without browser base64 conversion APIs', async () => {
+  await seed();
+  const encode = vi.spyOn(globalThis, 'btoa').mockImplementation(() => { throw new Error('base64 encoding unavailable'); });
+  const decode = vi.spyOn(globalThis, 'atob').mockImplementation(() => { throw new Error('base64 decoding unavailable'); });
+  try {
+    const bytes = await buildVaultZip([], [note], DEFAULT_SETTINGS);
+    kv.clear();
+    expect((await importVaultFromZip(bytes)).notes).toEqual([note]);
+    expect(await hasAsset(id)).toBe(true);
+  } finally { encode.mockRestore(); decode.mockRestore(); }
+});
+it('unavailable picture storage skips ZIP picture extraction while preserving notes, days and habits', async () => {
+  const zip = new JSZip();
+  const habits: HabitData = { habits: [{ id: 'read', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-25', updatedAt: '2026-10-25T00:00:00Z' }], days: [] };
+  zip.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [SEED_DAILY_DOCUMENTS[0]], standalone_notes: [note], habits, assets: [meta] }));
+  // Picture extraction is unnecessary on a device that cannot store pictures.
+  available.value = false;
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.docs).toEqual([SEED_DAILY_DOCUMENTS[0]]);
+  expect(restored.notes).toEqual([note]);
+  expect(restored.habits).toEqual(habits);
+  expect(restored.skippedPictures).toBe(1);
 });

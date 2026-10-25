@@ -3,22 +3,31 @@ const loadJSZip = async () => (await import('jszip')).default;
 import { AppSettings, DailyDocument, HabitData, NoteAssetMeta, StandaloneNote } from '../types/daymark';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
 import { isHabitData, vaultProblem } from './vaultValidation';
-import { assetRef, deleteAsset, listAssets, MAX_ASSET_BYTES, parseAssetRefs, storeAsset } from './noteAssets';
-import { kvGetRaw } from './vaultStore';
+import { assetRef, deleteAsset, invalidateAssetInventory, listAssets, MAX_ASSET_BYTES, parseAssetRefs, storeAsset } from './noteAssets';
+import { isPhotoStorageAvailable, kvGetRaw } from './vaultStore';
 
 interface BackupAsset { meta: NoteAssetMeta; data: string }
+interface BinaryBackupAsset { meta: NoteAssetMeta; data: Uint8Array<ArrayBuffer> }
 
-/** Only pictures referenced by the exported notes belong in a backup. */
-export async function exportBackupAssets(notes: readonly { content: string }[]): Promise<BackupAsset[]> {
+async function collectBackupAssets(notes: readonly { content: string }[], onMissing?: (count: number) => void): Promise<BinaryBackupAsset[]> {
   const ids = new Set(notes.flatMap(note => parseAssetRefs(note.content)));
-  if (!ids.size) return [];
-  const metas = new Map((await listAssets()).map(meta => [meta.id, meta]));
-  const assets: BackupAsset[] = [];
+  const metas = new Map((ids.size ? await listAssets() : []).map(meta => [meta.id, meta]));
+  const assets: BinaryBackupAsset[] = [];
+  let missing = 0;
   for (const id of ids) {
     const meta = metas.get(id);
     const blob = await kvGetRaw(`noteAsset:${id}`);
-    if (!meta || !(blob instanceof Blob)) throw new Error('A referenced picture is unavailable. Sync pictures before backing up.');
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (!meta || !(blob instanceof Blob)) { missing++; continue; }
+    assets.push({ meta, data: new Uint8Array(await blob.arrayBuffer()) });
+  }
+  onMissing?.(missing);
+  return assets;
+}
+
+/** Only pictures referenced by the exported notes belong in a backup. */
+export async function exportBackupAssets(notes: readonly { content: string }[], onMissing?: (count: number) => void): Promise<BackupAsset[]> {
+  const assets: BackupAsset[] = [];
+  for (const { meta, data: bytes } of await collectBackupAssets(notes, onMissing)) {
     let binary = '';
     for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
     assets.push({ meta, data: btoa(binary) });
@@ -36,29 +45,45 @@ function isAssetMeta(value: unknown): value is NoteAssetMeta {
 }
 
 /** Validate the entire batch before persisting; restored pictures must upload to peers. */
-export async function importBackupAssets(value: unknown): Promise<void> {
-  if (value === undefined) return; // older backups
+export async function importBackupAssets(value: unknown): Promise<number> {
+  if (value === undefined) return 0; // older backups
   if (!Array.isArray(value)) throw new Error('Damaged backup pictures.');
-  const checked: { meta: NoteAssetMeta; blob: Blob }[] = [];
+  if (!isPhotoStorageAvailable()) return value.length;
+  const assets: BinaryBackupAsset[] = [];
   for (const entry of value) {
     if (!entry || !isAssetMeta(entry.meta) || typeof entry.data !== 'string' || entry.data.length > Math.ceil(MAX_ASSET_BYTES / 3) * 4)
       throw new Error('Damaged backup picture metadata.');
-    const { meta } = entry;
-    const bytes = Uint8Array.from(atob(entry.data), char => char.charCodeAt(0));
+    const binary = atob(entry.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    assets.push({ meta: entry.meta, data: bytes });
+  }
+  return importBinaryAssets(assets);
+}
+
+async function importBinaryAssets(assets: BinaryBackupAsset[]): Promise<number> {
+  if (!isPhotoStorageAvailable()) return assets.length;
+  const checked: { meta: NoteAssetMeta; blob: Blob }[] = [];
+  for (const { meta, data: bytes } of assets) {
+    if (!isAssetMeta(meta)) throw new Error('Damaged backup picture metadata.');
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     const id = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
     if (id !== meta.id || bytes.length !== meta.bytes) throw new Error('Backup picture failed its integrity check.');
     checked.push({ meta, blob: new Blob([bytes], { type: meta.mime }) });
   }
   for (const { meta, blob } of checked) await storeAsset(blob, meta, true, meta.id);
+  return 0;
 }
 
 /** Explicit cleanup only. Read notes after sync, and delete remotely before local bytes. */
 export async function removeUnusedPictures(
   getNotes: () => readonly { content: string }[],
   server?: { sync: () => Promise<void>; authFetch: (path: string, init?: RequestInit) => Promise<Response> },
+  beforeRemove?: () => void,
 ): Promise<number> {
   if (server) await server.sync();
+  beforeRemove?.();
+  if (server) invalidateAssetInventory(server.authFetch);
   let count = 0;
   for (const meta of await listAssets()) {
     // Re-read because notes can change while earlier deletions are in flight.
@@ -78,6 +103,7 @@ export interface VaultSnapshot {
   notes: StandaloneNote[];
   settings?: AppSettings;
   habits?: HabitData;
+  skippedPictures?: number;
 }
 
 /** Older backups have no habits; restoring those must preserve the current data. */
@@ -107,9 +133,10 @@ export async function buildVaultZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings,
-  habits?: HabitData
+  habits?: HabitData,
+  onMissingPictures?: (count: number) => void,
 ): Promise<Uint8Array> {
-  const assets = await exportBackupAssets(notes);
+  const assets = await collectBackupAssets(notes, onMissingPictures);
   const JSZip = await loadJSZip();
   const zip = new JSZip();
   const root = zip.folder('Daymark')!;
@@ -123,10 +150,11 @@ export async function buildVaultZip(
 
   const notesFolder = root.folder('Notes')!;
   const assetFiles = new Map(assets.map(({ meta }) => [meta.id, assetRef(meta.id, meta.mime).split(':')[1]]));
-  for (const { meta, data } of assets) notesFolder.file(`_assets/${assetFiles.get(meta.id)}`, data, { base64: true });
+  for (const { meta, data } of assets) notesFolder.file(`_assets/${assetFiles.get(meta.id)}`, data);
   const usedPaths = new Set<string>();
   for (const note of notes) {
-    const folderName = note.folder || 'General';
+    const folderName = (note.folder || 'General').replace(/\\/g, '/').split('/')
+      .filter(segment => segment && segment !== '.').map(segment => segment === '..' ? '_' : segment.replace(/[?%*:|"<>]/g, '-')).join('/') || 'General';
     const safeTitle = note.title.replace(/[/\\?%*:|"<>]/g, '-').trim() || `note-${note.id}`;
     let fileName = `${safeTitle}.md`;
     // Two notes with the same title in one folder must not overwrite each other
@@ -134,7 +162,7 @@ export async function buildVaultZip(
     usedPaths.add(`${folderName}/${fileName}`);
     const depth = folderName.split('/').filter(Boolean).length;
     const markdown = note.content.replace(/daymark-asset:([a-f0-9]{64})\.(?:webp|jpeg|jpg|png)\b/g,
-      (_ref, id: string) => `${'../'.repeat(depth)}_assets/${assetFiles.get(id)}`);
+      (ref, id: string) => assetFiles.has(id) ? `${'../'.repeat(depth)}_assets/${assetFiles.get(id)}` : ref);
     notesFolder.folder(folderName)!.file(fileName, markdown);
   }
 
@@ -184,42 +212,49 @@ export async function importVaultFromZip(
     if (Array.isArray(parsed.daily_documents) && Array.isArray(parsed.standalone_notes)) {
       const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
       if (problem) throw new Error(problem);
+      let skippedPictures = 0;
       if (parsed.assets !== undefined) {
-        if (!Array.isArray(parsed.assets) || !parsed.assets.every(isAssetMeta)) throw new Error('Damaged backup picture metadata.');
-        const assets: BackupAsset[] = [];
-        const rootPath = snapshotName.slice(0, -'.daymark/vault.json'.length);
-        for (const meta of parsed.assets as NoteAssetMeta[]) {
-          const file = zip.file(`${rootPath}Notes/_assets/${assetRef(meta.id, meta.mime).split(':')[1]}`);
-          if (!file) throw new Error('A backup picture is missing.');
-          assets.push({ meta, data: await file.async('base64') });
+        if (!Array.isArray(parsed.assets)) throw new Error('Damaged backup picture metadata.');
+        if (!isPhotoStorageAvailable()) skippedPictures = parsed.assets.length;
+        else {
+          if (!parsed.assets.every(isAssetMeta)) throw new Error('Damaged backup picture metadata.');
+          const assets: BinaryBackupAsset[] = [];
+          const rootPath = snapshotName.slice(0, -'.daymark/vault.json'.length);
+          for (const meta of parsed.assets as NoteAssetMeta[]) {
+            const file = zip.file(`${rootPath}Notes/_assets/${assetRef(meta.id, meta.mime).split(':')[1]}`);
+            if (!file) throw new Error('A backup picture is missing.');
+            assets.push({ meta, data: new Uint8Array(await file.async('uint8array')) });
+          }
+          skippedPictures = await importBinaryAssets(assets);
         }
-        await importBackupAssets(assets);
       }
       return {
         docs: parsed.daily_documents,
         notes: parsed.standalone_notes,
         settings: looksLikeSettings(parsed.settings) ? parsed.settings : undefined,
         habits: isHabitData(parsed.habits) ? parsed.habits : undefined,
+        skippedPictures,
       };
     }
   }
 
   const docs: DailyDocument[] = [];
   const notes: StandaloneNote[] = [];
-  const assets: BackupAsset[] = [];
+  const assets: BinaryBackupAsset[] = [];
   const assetPaths = new Map<string, string>();
   const now = new Date().toISOString();
   let noteCounter = 0;
 
   // A readable Markdown vault remains restorable even without the private snapshot.
   for (const name of names) {
-    const match = name.match(/(?:^|\/)Notes\/_assets\/([a-f0-9]{64})\.(webp|jpeg|jpg|png)$/);
+    const normalized = name.replace(/\\/g, '/');
+    const match = normalized.match(/(?:^|\/)Notes\/_assets\/([a-f0-9]{64})\.(webp|jpeg|jpg|png)$/);
     if (!match) continue;
-    const bytes = await zip.files[name].async('uint8array');
+    const bytes = isPhotoStorageAvailable() ? new Uint8Array(await zip.files[name].async('uint8array')) : new Uint8Array();
     const mime = match[2] === 'webp' ? 'image/webp' : match[2] === 'png' ? 'image/png' : 'image/jpeg';
     const meta: NoteAssetMeta = { id: match[1], mime, bytes: bytes.length, width: 0, height: 0, createdAt: now };
-    assets.push({ meta, data: await zip.files[name].async('base64') });
-    assetPaths.set(name, assetRef(meta.id, mime));
+    assets.push({ meta, data: bytes });
+    assetPaths.set(normalized, assetRef(meta.id, mime));
   }
 
   for (const name of names) {
@@ -270,7 +305,7 @@ export async function importVaultFromZip(
   }
   const problem = vaultProblem(docs, notes);
   if (problem) throw new Error(problem);
-  await importBackupAssets(assets);
+  const skippedPictures = await importBinaryAssets(assets);
   docs.sort((a, b) => a.date.localeCompare(b.date));
-  return { docs, notes, settings };
+  return { docs, notes, settings, skippedPictures };
 }

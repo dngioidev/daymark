@@ -518,9 +518,10 @@ export async function exportVaultAsZip(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings,
-  habits: HabitData
+  habits: HabitData,
+  onMissingPictures?: (count: number) => void,
 ): Promise<boolean> {
-  const bytes = await buildVaultZip(docs, notes, settings, habits);
+  const bytes = await buildVaultZip(docs, notes, settings, habits, onMissingPictures);
   return recordBackup(await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`));
 }
 
@@ -531,12 +532,13 @@ export async function exportVaultAsJson(
   docs: DailyDocument[],
   notes: StandaloneNote[],
   settings: AppSettings,
-  habits: HabitData
+  habits: HabitData,
+  onMissingPictures?: (count: number) => void,
 ): Promise<boolean> {
   const bundle = {
     daymark_backup_version: '1.0',
     exported_at: new Date().toISOString(),
-    assets: await exportBackupAssets(notes),
+    assets: await exportBackupAssets(notes, onMissingPictures),
     settings,
     daily_documents: docs,
     standalone_notes: notes,

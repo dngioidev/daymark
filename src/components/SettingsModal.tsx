@@ -112,8 +112,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (!(await confirmDialog({
         title: 'Remove unused pictures?',
         message: isSynced
-          ? 'Daymark will sync first, then remove pictures that no note uses from this device and your server.'
-          : 'Remove pictures that no note uses from this device.',
+          ? "Daymark will sync first, then remove pictures that no note uses from this device and your server. Removed pictures can't be brought back with Undo."
+          : "Remove pictures that no note uses from this device. Removed pictures can't be brought back with Undo.",
         confirmLabel: 'Remove unused pictures', danger: true,
       }))) return;
       setPictureError(null);

@@ -1,0 +1,69 @@
+import React from 'react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { DEFAULT_SETTINGS } from './utils/defaultData';
+const { toast, dismiss, exporter, refs } = vi.hoisted(() => ({ toast: vi.fn(), dismiss: vi.fn(),
+  exporter: vi.fn(async (_docs: unknown, _notes: unknown, _settings: unknown, _habits: unknown, onMissing?: (count: number) => void) => { onMissing?.(2); return true; }),
+  refs: [] as { current: unknown }[],
+}));
+vi.mock('react', async (original) => {
+  const actual = await original<typeof React>();
+  const hooks = {
+    useState: (initial: unknown) => [typeof initial === 'function' ? initial() : initial, vi.fn()],
+    useEffect: () => {}, useMemo: (fn: () => unknown) => fn(),
+    useRef: (current: unknown) => { const ref = { current }; refs.push(ref); return ref; },
+  };
+  return { ...actual, ...hooks, default: { ...actual, ...hooks } };
+});
+vi.mock('./utils/vaultStore', async (original) => ({
+  ...await original<typeof import('./utils/vaultStore')>(),
+  loadDailyDocuments: () => [], loadSettings: () => DEFAULT_SETTINGS, loadStandaloneNotes: () => [],
+  needsOnboarding: () => false, exportVaultAsZip: exporter, exportVaultAsJson: exporter,
+}));
+vi.mock('./hooks/useAppearance', async () => {
+  const { resolveAppearance } = await import('./utils/appearance');
+  const { DEFAULT_APPEARANCE } = await import('./utils/defaultData');
+  return { useAppearance: () => resolveAppearance(DEFAULT_APPEARANCE, null) };
+});
+vi.mock('./hooks/useBackgroundPhoto', () => ({ useBackgroundPhoto: () => ({ url: null, meta: null, photos: [] }) }));
+vi.mock('./hooks/useRealToday', () => ({ useRealToday: () => '2026-10-25' }));
+vi.mock('./hooks/useWidgetSync', () => ({ useWidgetSync: () => {} }));
+vi.mock('./native/backButton', () => ({ useBackHandler: () => {} }));
+vi.mock('./hooks/useSync', () => ({ useSync: () => ({
+  status: 'off', account: null, lastSyncAt: null, error: null, mode: 'local-web',
+  connect: vi.fn(), disconnect: vi.fn(), signOut: vi.fn(), pendingChanges: () => 0,
+  authFetch: vi.fn(), syncNow: vi.fn(), rebaseAfterReplace: vi.fn(),
+}) }));
+vi.mock('./components/ui/feedback', async (original) => ({ ...await original<typeof import('./components/ui/feedback')>(), showToast: toast, dismissToast: dismiss }));
+import App from './App';
+import { SettingsModal } from './components/SettingsModal';
+function elements(node: React.ReactNode): React.ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(elements);
+  if (!React.isValidElement<Record<string, unknown>>(node)) return [];
+  return [node, ...elements(node.props.children as React.ReactNode)];
+}
+function settings() {
+  refs.length = 0;
+  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  return elements(App()).find(element => element.type === SettingsModal)!.props as unknown as React.ComponentProps<typeof SettingsModal>;
+}
+afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it.each(['onExportZip', 'onExportJson'] as const)('backup toast reports missing local pictures for %s', async action => {
+  await settings()[action]();
+  expect(toast).toHaveBeenCalledWith(expect.stringContaining('2 pictures were not included (not on this device yet)'));
+});
+it('cleanup clears the open editor history and dismisses the pending Undo toast', async () => {
+  const props = settings();
+  // The shared editor ref starts null and is populated by the mounted Notes editor.
+  const clearHistory = vi.fn();
+  const editorRef = refs.find(ref => ref.current === null && 'current' in ref)!;
+  editorRef.current = { clearHistory, focus: vi.fn() };
+  await props.onRemoveUnusedPictures!();
+  expect(clearHistory).toHaveBeenCalledOnce();
+  expect(dismiss).toHaveBeenCalledOnce();
+});
+it('JSON restore without picture storage restores the vault and toasts the skipped pictures', async () => {
+  await settings().onImportJson(JSON.stringify({ daily_documents: [], standalone_notes: [], assets: [{ meta: {}, data: 'YWJj' }] }));
+  expect(toast).toHaveBeenCalledWith(expect.stringMatching(/restored.*1.*picture.*skipped/i));
+});

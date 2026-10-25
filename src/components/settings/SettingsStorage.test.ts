@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -41,4 +41,11 @@ it('confirmed picture cleanup toasts the count and refreshes local usage', async
   await act(async () => button.click());
   expect(toast).toHaveBeenCalledWith('Removed 1 unused picture.');
   expect(document.body.textContent).toContain('Pictures: 1 · 0.5 MB');
+});
+it('cleanup confirmation warns that Undo cannot bring pictures back', async () => {
+  await mount();
+  confirm.mockResolvedValue(false);
+  const button = [...document.querySelectorAll('button')].find(button => button.textContent === 'Remove unused pictures')!;
+  await act(async () => button.click());
+  expect(confirm.mock.calls[0][0].message).toMatch(/can't be brought back with Undo/);
 });

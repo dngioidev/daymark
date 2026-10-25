@@ -141,3 +141,51 @@ it('stores hash-verified downloads with zero dimensions when bitmap decoding fai
     expect(await listAssets()).toEqual([expect.objectContaining({ id, width: 0, height: 0 })]);
   } finally { vi.unstubAllGlobals(); }
 });
+it('device B re-uploads a locally referenced picture missing from the server inventory', async () => {
+  await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+  await markUploaded(id);
+  const requests: string[] = [];
+  const fetcher = async (path: string, init?: RequestInit) => {
+    requests.push(`${init?.method ?? 'GET'} ${path}`);
+    if (path === '/api/assets') return Response.json([]);
+    expect(JSON.parse(init!.body as string)).toEqual({ mime: 'image/png', data: 'YWJj' });
+    return Response.json({ ok: true });
+  };
+  await syncNoteAssets([{ content: assetRef(id, 'image/png') }], fetcher);
+  expect(requests).toEqual(['GET /api/assets', `PUT /api/assets/${id}`]);
+  expect(await pendingUploads()).toEqual([]);
+  await syncNoteAssets([{ content: assetRef(id, 'image/png') }], fetcher);
+  expect(requests).toHaveLength(2);
+});
+it('periodic inventory refresh heals a picture removed by cleanup on another device', async () => {
+  await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+  await markUploaded(id);
+  let present = true;
+  let uploaded = false;
+  const now = vi.spyOn(Date, 'now'); now.mockReturnValue(1000);
+  const fetcher = async (path: string, init?: RequestInit) => {
+    if (path === '/api/assets') return Response.json(present ? [{ ...meta, id, bytes: 3 }] : []);
+    if (init?.method === 'PUT') uploaded = true;
+    return Response.json({ ok: true });
+  };
+  try {
+    await syncNoteAssets([{ content: assetRef(id, 'image/png') }], fetcher);
+    present = false;
+    now.mockReturnValue(62_000);
+    await syncNoteAssets([{ content: assetRef(id, 'image/png') }], fetcher);
+    expect(uploaded).toBe(true);
+  } finally { now.mockRestore(); }
+});
+it('a referenced download 404 queues bytes that arrived locally during the request', async () => {
+  const fetcher = async () => {
+    await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+    await markUploaded(id);
+    return new Response(null, { status: 404 });
+  };
+  await syncNoteAssets([{ content: assetRef(id, 'image/png') }], fetcher);
+  expect(await pendingUploads()).toEqual([id]);
+});
+it('listAssets counts orphan blobs without metadata', async () => {
+  kv.set(`noteAsset:${id}`, new Blob(['abc'], { type: 'image/png' }));
+  expect(await listAssets()).toEqual([expect.objectContaining({ id, bytes: 3, mime: 'image/png' })]);
+});

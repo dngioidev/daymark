@@ -57,7 +57,28 @@ export async function getAssetUrl(id: string): Promise<string | null> {
 export async function listAssets(): Promise<NoteAssetMeta[]> {
   const keys = await kvKeysRaw('noteAssetMeta:');
   const metas = await Promise.all(keys.map(key => kvGetRaw(key)));
-  return metas.filter((meta): meta is NoteAssetMeta => !!meta && typeof meta === 'object' && 'id' in meta && validId(String(meta.id)));
+  const result = metas.filter((meta): meta is NoteAssetMeta => !!meta && typeof meta === 'object' && 'id' in meta && validId(String(meta.id)));
+  const known = new Set(result.map(meta => meta.id));
+  // An interrupted write can leave bytes without metadata. Include them in usage/cleanup.
+  for (const key of await kvKeysRaw('noteAsset:')) {
+    const id = key.slice('noteAsset:'.length);
+    if (!validId(id) || known.has(id)) continue;
+    const blob = await kvGetRaw(key);
+    if (!(blob instanceof Blob)) continue;
+    const mime = blob.type === 'image/jpeg' || blob.type === 'image/webp' ? blob.type : 'image/png';
+    result.push({ id, mime, bytes: blob.size, width: 0, height: 0, createdAt: new Date(0).toISOString() });
+  }
+  return result;
+}
+function queueUpload(id: string): Promise<void> {
+  return mutate(async () => {
+    if (await hasAsset(id)) await kvPutRaw('noteAssetPending', [...new Set([...await pendingUploads(), id])]);
+  });
+}
+// The API has no push deletion notice. Recheck once per minute to discover cleanup elsewhere.
+const inventoryCheckedAt = new WeakMap<(path: string, init?: RequestInit) => Promise<Response>, number>();
+export function invalidateAssetInventory(authFetch: (path: string, init?: RequestInit) => Promise<Response>): void {
+  inventoryCheckedAt.delete(authFetch);
 }
 export function markUploaded(id: string): Promise<void> {
   return mutate(async () => { await kvPutRaw('noteAssetPending', (await pendingUploads()).filter(item => item !== id)); });
@@ -89,10 +110,33 @@ export async function syncNoteAssets(
   if (!isPhotoStorageAvailable()) return;
   const arrived: string[] = [];
   try {
+    const ids = [...new Set(notes.flatMap(note => parseAssetRefs(note.content)))];
+    const checkedAt = inventoryCheckedAt.get(authFetch);
+    if (ids.length && (checkedAt === undefined || Date.now() - checkedAt >= 60_000)) {
+      try {
+        const local = (await listAssets()).filter(meta => ids.includes(meta.id) && meta.bytes > 0);
+        if (local.length && active()) {
+          const response = await authFetch('/api/assets');
+          if (!active()) return;
+          if (response.ok) {
+            const inventory: unknown = await response.json();
+            if (Array.isArray(inventory)) {
+              const remote = new Set(inventory.flatMap(entry => {
+                const id = typeof entry === 'string' ? entry : entry?.id;
+                return typeof id === 'string' && validId(id) ? [id] : [];
+              }));
+              for (const meta of local) if (!remote.has(meta.id) && active()) await queueUpload(meta.id);
+              inventoryCheckedAt.set(authFetch, Date.now());
+            }
+          }
+        }
+      } catch { /* Inventory failures must not block pending uploads or downloads. */ }
+    }
+    const metas = new Map((await listAssets()).map(meta => [meta.id, meta]));
     for (const id of await pendingUploads()) {
       if (!active()) return;
       const blob = await kvGetRaw(`noteAsset:${id}`);
-      const meta = await kvGetRaw(`noteAssetMeta:${id}`) as NoteAssetMeta | undefined;
+      const meta = metas.get(id);
       if (!(blob instanceof Blob) || !meta) continue;
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let binary = '';
@@ -111,7 +155,6 @@ export async function syncNoteAssets(
       }
       await markUploaded(id);
     }
-    const ids = [...new Set(notes.flatMap(note => parseAssetRefs(note.content)))];
     let index = 0;
     const worker = async () => {
       while (active() && index < ids.length) {
@@ -120,7 +163,12 @@ export async function syncNoteAssets(
           if (await hasAsset(id)) continue;
           if (!active()) return;
           const response = await authFetch(`/api/assets/${id}`);
-          if (response.status === 404) continue; // a different device may not have uploaded it yet
+          if (response.status === 404) {
+            // A concurrent local restore/paste may have supplied bytes during the request.
+            if (active()) await queueUpload(id);
+            invalidateAssetInventory(authFetch);
+            continue;
+          }
           if (!response.ok) continue;
           const blob = await response.blob();
           const mime = blob.type.split(';')[0];

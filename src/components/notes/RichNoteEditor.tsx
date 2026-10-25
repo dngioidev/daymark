@@ -7,6 +7,7 @@ import { WikiLink } from './wikiLink';
 import { EditorToolbar } from './EditorToolbar';
 import { insertPictureFiles } from './pictureNode';
 import type { Editor } from '@tiptap/core';
+import { history } from '@tiptap/pm/history';
 import './richNoteEditor.css';
 
 export interface RichNoteEditorProps {
@@ -20,7 +21,7 @@ export interface RichNoteEditorProps {
   ref?: React.Ref<RichNoteEditorHandle>;
 }
 
-export interface RichNoteEditorHandle { focus(): void }
+export interface RichNoteEditorHandle { focus(): void; clearHistory(): void }
 
 export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, notes, onCreateNote, onToggleMarkdown, ref }: RichNoteEditorProps) {
   const latestOnChange = useRef(onChange);
@@ -63,7 +64,17 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   activeEditor.current = editor;
   // Subscribe to selection and transactions so toolbar state follows shortcuts.
   useEditorState({ editor, selector: ({ transactionNumber }) => transactionNumber });
-  useImperativeHandle(ref, () => ({ focus: () => { editor?.commands.focus(); } }), [editor]);
+  useImperativeHandle(ref, () => ({
+    focus: () => { editor?.commands.focus(); },
+    clearHistory: () => {
+      if (!editor || editor.isDestroyed) return;
+      // Reinitialize only the shared history plugin; keep document, selection and other plugins.
+      const key = history().spec.key;
+      const plugins = editor.state.plugins;
+      editor.view.updateState(editor.state.reconfigure({ plugins: plugins.filter(plugin => plugin.spec.key !== key) }).reconfigure({ plugins }));
+      editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false));
+    },
+  }), [editor]);
   useEffect(() => {
     if (!editor || markdown === original.current) return;
     original.current = markdown;
