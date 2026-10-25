@@ -2,7 +2,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table';
-import Image from '@tiptap/extension-image';
+import { Picture } from './pictureNode';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown, type MarkdownExtensionOptions } from '@tiptap/markdown';
 import { Marked } from 'marked';
@@ -79,7 +79,7 @@ export const editorExtensions = [
   TaskList,
   TaskItem.configure({ nested: true }),
   Table.configure({ resizable: false, renderWrapper: true }), TableRow, TableHeader, TableCell,
-  Image.configure({ inline: true }),
+  Picture,
   Placeholder.configure({ placeholder: 'Write…' }),
   RawMarkdown, RawHtml, RawInline,
   WikiTextLinks,
