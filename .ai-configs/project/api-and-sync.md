@@ -10,7 +10,7 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | :--- | :--- | :--- |
 | `PORT` | `3000` | HTTP port |
 | `DAYMARK_TRUST_PROXY` | `loopback` | Express `trust proxy` range/list; behind a reverse proxy in Docker set e.g. `uniquelocal` and bind the published port to `127.0.0.1` (example below). Controls HTTPS detection and per-client rate-limit IPs. |
-| `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json` |
+| `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json`, picture bytes and metadata in `assets/` |
 | `DAYMARK_USER` | `admin` | Account name |
 | `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json` and restart with a password; account recreation revokes all devices and clears refresh hashes, preserving the vault. |
 | `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API; does not enable cross-origin browser sign-in or credentialed CORS |
@@ -45,6 +45,20 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 | GET | `/api/sync/log` | Last 100 audit entries |
 | POST | `/api/sync` | Push changes and pull everything newer (below) |
 | GET | `/api/sync?since=<rev>` | Pull only |
+| GET | `/api/assets` | List saved picture metadata |
+| GET | `/api/assets/:id` | Download picture bytes with their image Content-Type |
+| PUT | `/api/assets/:id` | Upload `{ mime, data }`, where `data` is base64 picture bytes |
+| DELETE | `/api/assets/:id` | Explicitly remove picture bytes and metadata |
+
+### Picture assets
+
+- Every `/api/assets` route requires `Authorization: Bearer <accessToken>` and a valid device session, just like the other protected data routes. A refresh cookie alone is insufficient. Responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
+- `:id` is the lowercase, 64-character SHA-256 hex digest of the decoded picture bytes, without a file extension. PUT verifies the digest and requires nonempty, canonical base64. Allowed MIME types are `image/webp`, `image/jpeg` and `image/png`.
+- The decoded upload cap is **1.5 MB** (`1.5 * 1024 * 1024` = 1,572,864 bytes). Oversize uploads return 413; invalid ids, MIME types, base64 or digest mismatches return 400. Missing downloads return 404.
+- GET list returns an array of `NoteAssetMeta` objects: `{ id, mime, width, height, bytes, createdAt }`. Server uploads record width/height as 0; clients can determine dimensions after downloading. Missing or damaged metadata entries are skipped so other pictures can still be listed.
+- PUT and DELETE return `{ ok: true }`. Repeated PUTs of the same bytes preserve the original metadata; deleting an absent valid id succeeds. Files live under `DATA_DIR/assets/` as `<id>` bytes and `<id>.json` metadata. Include this directory in server backups.
+- Picture bytes **never go through `/api/sync`**. Standalone notes sync their Markdown references as text; after successful note sync, `syncNoteAssets` uploads pending pictures and downloads missing referenced pictures separately. Downloads are hash-verified locally. Network failures leave pending work or placeholders for a later round rather than failing note-text sync.
+- Update the server first. Devices on **1.6.0 or later** sync pictures; older apps keep syncing notes text and show picture links as text. There is no picture entity or picture feature flag in the JSON sync protocol, and no automatic picture deletion.
 
 ## 4. Sync protocol
 - Entities: `doc:<YYYY-MM-DD>` (daily note), `note:<id>` (standalone note), `settings` (synced settings, excluding the device-local `syncConfig` and `simulatedToday`).
@@ -78,4 +92,4 @@ Self-hosted server: `server.ts` (entry) + `server/` (config, auth, file store, A
 
 - Docker: `DAYMARK_PASSWORD='…' docker compose up -d` (see `Dockerfile`, `docker-compose.yml`); data in `./data`; health check on `/api/health`; runs as the `node` user.
 - Bare Node: `npm ci && npm run build && DAYMARK_PASSWORD='…' npm start`.
-- Backup: copy `DATA_DIR` (plain JSON files) while the server is stopped, or export a vault ZIP from any device.
+- Backup: copy all of `DATA_DIR` (JSON files and the picture `assets/` directory) while the server is stopped, or export a vault ZIP from any device.

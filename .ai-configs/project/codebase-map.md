@@ -123,3 +123,20 @@ New test files accompany these modules and the integration boundaries:
 | `.github/workflows/pages.yml` | CI | Publish the site on every published release and when `site/` changes on main (public repo only). |
 | `src/utils/taskActions.ts` (`closeEarlierCopies`, `reopenEarlierCopies`, `followDoneChanges`, `isDoneLater`) | Logic | Finishing a carried task closes its open copies on earlier days as "done later"; unticking reopens them. |
 | `LICENSE.md` | Legal | PolyForm Noncommercial License 1.0.0. |
+
+## Cycle 9 Modules
+
+| File / Directory | Layer | Purpose |
+| :--- | :--- | :--- |
+| `src/components/ui/Menu.tsx`, `src/utils/menuPlacement.ts` | UI / Logic | Portal menus: bottom sheets below 768 px, desktop flip/shift/scroll placement, keyboard focus and dismissal. |
+| `src/utils/noteAssets.ts`, `src/utils/notePicture.ts` | Storage / Logic | SHA-256 picture storage and references, compression, authenticated asset transfers and missing-picture recovery. |
+| `server/assets.ts`, `server/app.ts` | Server | Protected `/api/assets` list/download/upload/delete routes, hash and size validation, file persistence separate from `/api/sync`. |
+| `src/components/StandaloneNotesView.tsx` | UI | Lazy rich editor entry point, Markdown toggle, note state, focus mode and templates. |
+| `src/components/notes/RichNoteEditor.tsx`, `src/components/notes/editorExtensions.ts` | Editor | TipTap setup and extensions, Markdown fidelity and editor lifecycle. |
+| `src/components/notes/EditorToolbar.tsx`, `src/components/notes/richNoteEditor.css` | UI | Formatting, table and picture controls and editor styling. |
+| `src/components/notes/rawMarkdownNode.ts`, `src/components/notes/calloutNode.ts`, `src/components/notes/pictureNode.tsx` | Editor | Verbatim raw blocks, callouts and saved-picture rendering with missing-picture placeholders. |
+| `src/components/notes/clipboard.ts`, `src/components/notes/fixtures/paste/` | Editor / Fixtures | Sanitised styled paste, Markdown/plain-text paste and HTML plus Markdown copy; AI chat and article fixtures. |
+| `src/components/notes/wikiLink.ts`, `src/components/notes/WikiSuggest.tsx` | Editor / UI | `[[link]]` autocomplete, keyboard selection and create-note option. |
+| `src/utils/noteMarkdown.ts`, `src/utils/noteTextSerialization.ts` | Logic | Markdown/editor conversion, raw-block preservation and Markdown text serialisation. |
+| `src/components/notes/mermaidNode.tsx`, `src/components/notes/mermaidDiagram.tsx` | Editor / UI | Editable Mermaid code, lazy strict-mode diagram rendering and error fallback. |
+| `src/utils/vaultArchive.ts`, `src/utils/vaultStore.ts`, `src/components/SettingsModal.tsx` | Storage / UI | Picture backup/restore, ZIP relative links, storage usage and explicit unused-picture cleanup. |

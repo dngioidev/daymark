@@ -1,6 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
 import { fillTemplate, releaseValues, REPO_URL } from './site.mjs';
+
+test('published site serves the rich Notes screenshot and resolves every local image', () => {
+  const root = new URL('../../site/', import.meta.url);
+  const html = fillTemplate(readFileSync(new URL('index.html', root), 'utf8'), releaseValues(null, '1.6.0'));
+  const images = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map(match => match[1]);
+  assert.ok(images.includes('screens/notes-rich.png'), 'rich Notes screenshot is visible in the gallery');
+  for (const src of images) assert.ok(existsSync(new URL(src, root)), `missing site image: ${src}`);
+  assert.deepEqual(readFileSync(new URL('screens/notes-rich.png', root)),
+    readFileSync(new URL('../../docs/releases/cycle-9/images/notes-rich.png', import.meta.url)));
+});
 
 test('release values come from the latest release and its APK asset', () => {
   const v = releaseValues({

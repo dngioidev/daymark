@@ -9,6 +9,17 @@ Concise, high-density specification of data models, lifecycle algorithms, and Ma
 - **Temporal Integrity**: Daily notes are historical logs. Completed tasks remain on the day completed; incomplete tasks carry forward.
 - **Pure Idempotency**: Rollover operations never duplicate tasks.
 
+### Rich standalone Notes and pictures
+
+- The rich editor is used only by `StandaloneNotesView`; Today's section notes are unchanged. `StandaloneNote.content: string` remains Markdown. TipTap, syntax highlighting and Mermaid load dynamically from Notes.
+- **Fidelity:** an unedited note remains byte-identical to its original Markdown. Unsupported syntax, frontmatter and raw HTML are preserved verbatim in raw-Markdown blocks. After a real edit, supported blocks may normalise their Markdown formatting, while content and untouched raw blocks are preserved. The Markdown button provides direct source editing.
+- Supported rich content includes headings, inline marks and links, lists and checkboxes, quotes, callouts, code blocks, tables, pictures, Mermaid diagrams and `[[links]]` with note autocomplete. Pasted/converted HTML is sanitised with DOMPurify before parsing; Mermaid uses `securityLevel: 'strict'`.
+- Saved pictures use the Markdown image destination `daymark-asset:<sha256>.<ext>`, where `<sha256>` is the lowercase, 64-character SHA-256 digest of the encoded bytes. Generated extensions are `webp`, `jpg` or `png`; readers also accept `jpeg`.
+- Picture encoding limits the longest side to **1600 px**, uses quality **0.8**, and prefers WebP with JPEG fallback when WebP encoding is unavailable. The target is **400 KB** or less (`400 * 1024` bytes); an oversize result is retried at quality 0.65. This target is not a hard guarantee. GIFs become still images. Storage and upload reject empty pictures and pictures over **1.5 MB** (`1.5 * 1024 * 1024` bytes). Allowed stored MIME types are `image/webp`, `image/jpeg` and `image/png`.
+- Online `https://` images remain links, are not downloaded into saved assets, and can stop displaying when their links expire. Pictures added offline stay local and upload later; a missing picture shows a placeholder until it arrives. No automatic picture cleanup occurs; unused-picture removal is an explicit Settings action checked against all synced notes when connected.
+- Pictures use authenticated `GET /api/assets` and `GET`/`PUT`/`DELETE /api/assets/:id`, separately from note-text sync. Picture bytes never go through `/api/sync`; see [API and sync](./api-and-sync.md#picture-assets) for payloads, authentication and validation.
+- ZIP backups place saved pictures in `Notes/_assets/<sha256>.<ext>` and rewrite note references to relative links (`_assets/...` at the Notes root, `../_assets/...` for a note one folder deep). The full snapshot retains original Markdown references; imports restore picture bytes and Daymark references. JSON backups include pictures as well.
+
 ---
 
 ## 2. Core Schemas (`src/types/daymark.ts`)
