@@ -4,7 +4,7 @@
 
 Each day is a plain Markdown note. Unfinished tasks move to today automatically, keeping their history; tasks that keep getting carried get amber and red aging alerts. Notes stay on your device, work offline, export as an Obsidian-compatible vault, and can optionally sync between your phone and computers through a server you run yourself.
 
-Version **1.0.0**. Release notes per cycle: [`docs/releases/`](./docs/releases/).
+Website and Android download: **https://dngioidev.github.io/daymark/** · [Latest release](https://github.com/dngioidev/daymark/releases/latest) · Release notes per cycle: [`docs/releases/`](./docs/releases/).
 
 ---
 
@@ -95,7 +95,8 @@ npm install
 npm run dev            # Express + Vite on http://localhost:3000 (dev password: daymark-dev)
 npm run lint           # TypeScript
 npm test               # unit + in-process server tests
-npm run test:helpers   # screenshot and server-session helper tests
+npm run test:helpers   # screenshot, server-session and site helper tests
+npm run build:site     # GitHub Pages site into _site/ (published by the Pages workflow on each release)
 npm run build          # production bundle
 npm run test:e2e       # PWA on an emulated Android phone, incl. offline
 npm run test:sync      # two devices syncing through a fresh server

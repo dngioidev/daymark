@@ -31,7 +31,8 @@ Always read and adhere to the shared rules before modifying code:
 ```bash
 npm run lint         # TypeScript check (tsc --noEmit)
 npm test             # Unit tests (vitest)
-npm run test:helpers # Screenshot and server-session helper tests (node:test)
+npm run test:helpers # Screenshot, server-session and site helper tests (node:test)
+npm run build:site   # GitHub Pages site -> _site/ (latest release version and APK link); deployed by .github/workflows/pages.yml
 npm run build        # Production bundle (vite build)
 npm run dev          # Express + Vite on port 3000
 npm run test:e2e      # Android PWA e2e (needs a prior build and local Chrome/Edge)

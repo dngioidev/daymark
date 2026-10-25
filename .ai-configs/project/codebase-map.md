@@ -113,3 +113,13 @@ New test files accompany these modules and the integration boundaries:
 - Hooks: `src/hooks/previewAppearance.test.ts`, `src/hooks/useAppearance.test.ts`, `src/hooks/useBackgroundPhoto.test.ts`, `src/hooks/useWidgetSync.test.ts`.
 - Native bridge: `src/native/daymarkBridge.test.ts`; Kotlin model: `mobile/android/app/src/test/java/app/daymark/notes/WidgetStyleTest.kt`.
 - Utilities (all in `src/utils/`): `appearance.test.ts`, `appearanceSafety.test.ts`, `calendarGrid.test.ts`, `collapsedSections.test.ts`, `color.test.ts`, `dayStats.test.ts`, `noteTemplates.test.ts`, `photoEncoder.test.ts`, `photoStore.test.ts`, `photoVault.test.ts`, `search.test.ts`, `shortcuts.test.ts`, `themePrepaint.test.ts`, `vaultAppearance.test.ts`, `widgetStyle.test.ts`.
+
+## Cycle 8 Modules
+
+| File | Layer | Purpose |
+| :--- | :--- | :--- |
+| `site/` | Website | Static GitHub Pages site (intro, features, screenshots, download, license) with `{{VERSION}}`-style placeholders. |
+| `scripts/build-site.mjs`, `scripts/helpers/site.mjs` | Tooling | Build `_site/` and fill the latest release's version, date and APK link from the GitHub API. |
+| `.github/workflows/pages.yml` | CI | Publish the site on every published release and when `site/` changes on main (public repo only). |
+| `src/utils/taskActions.ts` (`closeEarlierCopies`, `reopenEarlierCopies`, `followDoneChanges`, `isDoneLater`) | Logic | Finishing a carried task closes its open copies on earlier days as "done later"; unticking reopens them. |
+| `LICENSE.md` | Legal | PolyForm Noncommercial License 1.0.0. |

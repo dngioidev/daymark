@@ -1,0 +1,43 @@
+name: Pages
+# Rebuilds the GitHub Pages site on every published release (new version, date and APK link)
+# and whenever the site changes on main.
+on:
+  release:
+    types: [published, edited]
+  push:
+    branches: [main]
+    paths: ['site/**', 'scripts/build-site.mjs', 'scripts/helpers/site.mjs', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    # The private mirror shares this history; only the public repo publishes the site
+    if: github.repository == 'dngioidev/daymark'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/helpers/site.test.mjs
+      - run: node scripts/build-site.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
