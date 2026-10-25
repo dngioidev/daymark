@@ -29,6 +29,7 @@ jobs:
       - run: node scripts/build-site.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
