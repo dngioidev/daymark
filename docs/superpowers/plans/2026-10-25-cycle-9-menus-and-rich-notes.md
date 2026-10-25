@@ -4,7 +4,7 @@
 
 **Goal:** Every popup menu fits on screen (bottom sheet on phones, flipping popover on desktop), and the Notes tab gets a Notion-style rich editor over Markdown with tables, pictures (shrunk and synced), Mermaid diagrams, styled paste/copy and `[[link]]` autocomplete.
 
-**Architecture:** `Menu` renders through a portal: below 768 px as a bottom sheet, otherwise as a popover positioned by a pure placement function. The Notes editor is TipTap 3 with `@tiptap/markdown`, custom nodes (callout, Mermaid, raw Markdown, wiki link) and a lazy-loaded bundle; the note's `content` stays Markdown and is only re-serialised after a real edit. Pictures are content-addressed (`sha256` id), stored device-side in IndexedDB outside the in-memory cache, uploaded/downloaded through new authenticated `/api/assets/:id` endpoints (never through `/api/sync`), and referenced in Markdown as `![alt](daymark-asset:<id>.<ext>)`.
+**Architecture:** `Menu` renders through a portal: below 768 px as a bottom sheet, otherwise as a popover positioned by a pure placement function. The Notes editor is TipTap 3 with `@tiptap/markdown`, custom nodes (callout, Mermaid, raw Markdown, wiki link) and a lazy-loaded bundle; the note's `content` stays Markdown and is only re-serialised after a real edit. Pictures are content-addressed (`sha256` id), stored device-side in IndexedDB outside the in-memory cache, uploaded/downloaded through new authenticated `/api/assets/:id` endpoints (never through `/api/sync`), and referenced in Markdown as `![alt] (daymark-asset:<id>.<ext>)`.
 
 **Tech Stack:** React 19, TypeScript, Vite, Tailwind v4, Vitest; TipTap 3.32 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/markdown`, `@tiptap/extension-table`, `-task-list`, `-image`, `-code-block-lowlight`, `@tiptap/suggestion`), `lowlight` 3, `mermaid` 12; Express sync server; Playwright browser suites; Capacitor Android.
 
@@ -88,7 +88,7 @@
 
 **Interfaces:**
 - Image node view resolves `daymark-asset:` src via `getAssetUrl(id)`; while missing shows a placeholder "Picture not synced yet" (and retries when `noteAssets` emits an `assets-changed` event); `https:` src renders directly with `loading="lazy"` and `referrerpolicy="no-referrer"`; other schemes are dropped by the sanitiser.
-- Inputs: paste of image files / clipboard images (`handlePaste` with `clipboardData.files`), drag-and-drop files, toolbar "Picture" → file picker (`accept="image/*"`) or "From link" prompt dialog (`Dialog`, not `prompt()`). Each saved picture: `encodeNotePicture` → `putAsset` → insert `![alt](daymark-asset:<id>.<ext>)` with alt = file name without extension.
+- Inputs: paste of image files / clipboard images (`handlePaste` with `clipboardData.files`), drag-and-drop files, toolbar "Picture" → file picker (`accept="image/*"`) or "From link" prompt dialog (`Dialog`, not `prompt()`). Each saved picture: `encodeNotePicture` → `putAsset` → insert `![alt] (daymark-asset:<id>.<ext>)` with alt = file name without extension.
 
 - [ ] Tests: `pasted image becomes an asset reference` (mock clipboard file → markdown contains `daymark-asset:`), `https image stays a link`, `missing asset shows placeholder`. Implement; lint/test; commit `feat: paste, drop and link pictures in notes`.
 
