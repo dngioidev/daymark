@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HabitData } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
+import { uneditedRecoveredHabits } from '../utils/habits';
 import { canonicalJson } from './merge';
 import { SyncRequest } from './protocol';
 import { applySyncOutcome, fromEntities, syncOnce, SyncState, toEntities, VaultData } from './syncClient';
@@ -75,6 +76,45 @@ it('keeps local ticks made while sync was in flight', async () => {
   expect(applySyncOutcome(changed, outcome).habits.days[1].ticks).toEqual({
     water: { done: true, at: '2026-10-24T10:00:00Z' }, reading: { done: true, at: '2026-10-24T09:00:00Z' },
   });
+});
+
+it('preserves recovered local-only habits and ticks when a different day is edited during backfill', async () => {
+  const localHabit = { ...habits.habits[0], id: 'reading', name: 'Reading' };
+  const localTick = { done: true, at: '2026-10-23T09:00:00Z' };
+  const recovered: VaultData = { ...vault, habits: {
+    habits: [...habits.habits, localHabit],
+    days: [{ ...habits.days[0], ticks: { ...habits.days[0].ticks, reading: localTick } }, habits.days[1]],
+  } };
+  uneditedRecoveredHabits.add(recovered.habits);
+  let respond!: (response: Response) => void;
+  const requests: SyncRequest[] = [];
+  const pending = syncOnce(async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Promise<Response>(resolve => { respond = resolve; });
+  }, recovered, state, 'access');
+  const editedTick = { done: true, at: '2026-10-24T10:00:00Z' };
+  const edited: VaultData = { ...recovered, habits: { ...recovered.habits,
+    days: [recovered.habits.days[0], { ...habits.days[1], ticks: { water: editedTick } }],
+  } };
+  respond(Response.json({ rev: 3, conflicts: [], entities: [
+    { key: 'habits', rev: 1, value: { habits: habits.habits } },
+    ...habits.days.map((day, index) => ({ key: `habitday:${day.date}`, rev: index + 2, value: day })),
+  ] }));
+  const outcome = await pending;
+  const merged = applySyncOutcome(edited, outcome);
+  expect(merged.habits.habits).toContainEqual(localHabit);
+  expect(merged.habits.days[0].ticks.reading).toEqual(localTick);
+  expect(merged.habits.days[1].ticks.water).toEqual(editedTick);
+  expect(requests[0].changes.some(change => change.key.startsWith('habit'))).toBe(false);
+  await syncOnce(async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return Response.json({ rev: 4, entities: [], conflicts: [] });
+  }, merged, outcome.state, 'access');
+  expect(requests[1].changes).toEqual(expect.arrayContaining([
+    expect.objectContaining({ key: 'habits', value: { habits: expect.arrayContaining([localHabit]) } }),
+    expect.objectContaining({ key: 'habitday:2026-10-23', value: expect.objectContaining({ ticks: expect.objectContaining({ reading: localTick }) }) }),
+    expect.objectContaining({ key: 'habitday:2026-10-24', value: expect.objectContaining({ ticks: { water: editedTick } }) }),
+  ]));
 });
 
 it('backfills habits once and clears the marker after fallback', async () => {

@@ -126,6 +126,8 @@ async function request<T>(fetchFn: FetchLike, url: string, init: RequestInit, to
 
 export interface SyncOutcome {
   habitsUnsupported?: boolean;
+  /** Whether the sent habit snapshot came from damaged-storage recovery. */
+  habitsRecovered: boolean;
   /** Server value for every entity it returned (null = deleted). */
   serverValues: Map<string, unknown | null>;
   /** Snapshot of local entities sent in this round (to reconcile edits made meanwhile). */
@@ -138,8 +140,9 @@ export interface SyncOutcome {
 
 /** One round trip: push local changes, receive merged results and other devices' changes. */
 export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string, habitsUnsupported = false): Promise<SyncOutcome> {
+  const habitsRecovered = uneditedRecoveredHabits.has(local.habits);
   const snapshot = toEntities(local, !habitsUnsupported);
-  let changes = collectChanges(snapshot, state, !habitsUnsupported && !uneditedRecoveredHabits.has(local.habits));
+  let changes = collectChanges(snapshot, state, !habitsUnsupported && !habitsRecovered);
   const send = () => {
     const body: SyncRequest = { sinceRev: !habitsUnsupported && !state.habitsSynced ? 0 : state.lastRev, changes, features: ['habits'] };
     return request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
@@ -170,6 +173,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
   }
   return {
     habitsUnsupported,
+    habitsRecovered,
     serverValues,
     snapshot,
     state: { ...state, bases, lastRev: res.rev, habitsSynced: !habitsUnsupported, lastSyncAt: new Date().toISOString() },
@@ -191,7 +195,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
   for (const [key, serverValue] of outcome.serverValues) {
     const sent = outcome.snapshot.has(key) ? outcome.snapshot.get(key)! : null;
     const mine = now.has(key) ? now.get(key)! : null;
-    const recoveredHabit = recovering && isHabitEntityKey(key);
+    const recoveredHabit = (recovering || outcome.habitsRecovered) && isHabitEntityKey(key);
     if (recoveredHabit) receivedHabits = true;
     if (!recoveredHabit && sameValue(mine, sent)) {
       if (serverValue === null) now.delete(key);
@@ -199,6 +203,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
     } else {
       // Recovery has no trustworthy habit base. Retain local survivors as additions
       // while restoring the server's history, including ticks on partially damaged days.
+      // This can resurrect data deleted by another device; accepted without a trustworthy base.
       const merged = mergeEntity(key, recoveredHabit ? null : sent, serverValue, mine);
       if (merged.value === null) now.delete(key);
       else now.set(key, merged.value);
