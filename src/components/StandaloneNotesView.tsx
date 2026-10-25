@@ -1,17 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import {
   ArrowLeft,
-  Bold,
-  CheckSquare,
-  Code,
-  Columns,
   ChevronDown,
-  Edit2,
-  Eye,
   FilePlus,
   FolderPlus,
-  Heading2,
-  Italic,
   ListChecks,
   Maximize2,
   MoreHorizontal,
@@ -20,7 +12,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import { StandaloneNote } from '../types/daymark';
-import { MarkdownPreview } from './MarkdownPreview';
 import { Menu } from './ui/Menu';
 import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
@@ -28,6 +19,8 @@ import { useBackHandler } from '../native/backButton';
 import { formatNoteDate, noteChecklist, notePreview, sortNotes } from '../utils/notes';
 import { NOTE_TEMPLATES, wordCount } from '../utils/noteTemplates';
 import { formatLocalDate } from '../utils/clock';
+
+const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
 
 interface StandaloneNotesViewProps {
   notes: StandaloneNote[];
@@ -39,15 +32,15 @@ interface StandaloneNotesViewProps {
   focusToggleSignal?: number;
 }
 
-type ViewMode = 'edit' | 'split' | 'preview';
+type ViewMode = 'rich' | 'markdown';
 
-/** Notes: searchable list (pinned first) and a Markdown editor with preview. */
+/** Notes: searchable list (pinned first) and a rich editor backed by Markdown. */
 export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0 }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>(compact ? 'preview' : 'split');
+  const [viewMode, setViewMode] = useState<ViewMode>('rich');
   const [newFolderInput, setNewFolderInput] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [pane, setPane] = useState<'list' | 'editor'>('list');
@@ -130,7 +123,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content, tags: [], createdAt: now, updatedAt: now, pinned: false };
     onUpdateNotes([note, ...notes]);
     setSelectedNoteId(note.id);
-    setViewMode(compact ? 'edit' : 'split');
+    setViewMode('rich');
     setPane('editor');
     focusTitle.current = true;
     return note;
@@ -175,28 +168,6 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       setSelectedFolder('all');
       setPane('editor');
     } else createNote(activeNote?.folder || 'General', noteTitle);
-  };
-
-  // Wraps the selection (or a placeholder) and keeps it selected
-  const format = (before: string, after = '', placeholder = 'text') => {
-    if (!activeNote) return;
-    const el = editorRef.current;
-    const start = el?.selectionStart ?? activeNote.content.length;
-    const end = el?.selectionEnd ?? activeNote.content.length;
-    const selected = activeNote.content.slice(start, end) || placeholder;
-    updateActive({ content: activeNote.content.slice(0, start) + before + selected + after + activeNote.content.slice(end) });
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(start + before.length, start + before.length + selected.length);
-    });
-  };
-
-  const toggleCheckbox = (index: number, checked: boolean) => {
-    if (!activeNote) return;
-    let count = 0;
-    updateActive({
-      content: activeNote.content.replace(/([-*]\s*\[)([ xX])(\])/g, (m, p, _c, s) => (count++ === index ? `${p}${checked ? 'x' : ' '}${s}` : m)),
-    });
   };
 
   const iconBtn =
@@ -348,8 +319,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    setViewMode((m) => (m === 'preview' ? 'edit' : m));
-                    requestAnimationFrame(() => editorRef.current?.focus());
+                    requestAnimationFrame(() => {
+                      if (viewMode === 'markdown') editorRef.current?.focus();
+                      else document.querySelector<HTMLElement>('[aria-label="Note rich text"]')?.focus();
+                    });
                   }
                 }}
                 className="flex-1 min-w-0 px-2 min-h-11 text-lg font-bold bg-transparent rounded-lg border border-transparent hover:border-stone-200 focus:border-stone-300 dark:hover:border-stone-700 focus:outline-hidden text-stone-900 dark:text-stone-50"
@@ -397,63 +370,18 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                 </select>
               </label>
               <div className="flex items-center gap-0.5 p-0.5 bg-stone-100 dark:bg-stone-800 rounded-lg ml-auto" role="group" aria-label="View">
-                <button type="button" aria-pressed={viewMode === 'edit'} onClick={() => setViewMode('edit')} className={seg(viewMode === 'edit')}>
-                  <Edit2 className="w-4 h-4" /> Edit
-                </button>
-                {!compact && (
-                  <button type="button" aria-pressed={viewMode === 'split'} onClick={() => setViewMode('split')} className={`${seg(viewMode === 'split')} hidden md:inline-flex`}>
-                    <Columns className="w-4 h-4" /> Split
-                  </button>
-                )}
-                <button type="button" aria-pressed={viewMode === 'preview'} onClick={() => setViewMode('preview')} className={seg(viewMode === 'preview')}>
-                  <Eye className="w-4 h-4" /> Read
+                <button type="button" aria-pressed={viewMode === 'markdown'} onClick={() => setViewMode((mode) => mode === 'rich' ? 'markdown' : 'rich')} className={seg(viewMode === 'markdown')}>
+                  Markdown
                 </button>
               </div>
             </div>
 
-            {viewMode !== 'preview' && (
-              <div className="flex items-center gap-0.5 overflow-x-auto" role="toolbar" aria-label="Formatting">
-                {(
-                  [
-                    ['Heading', <Heading2 className="w-4 h-4" />, '## ', '', 'Heading'],
-                    ['Bold', <Bold className="w-4 h-4" />, '**', '**', 'bold text'],
-                    ['Italic', <Italic className="w-4 h-4" />, '*', '*', 'italic text'],
-                    ['Checklist item', <CheckSquare className="w-4 h-4" />, '- [ ] ', '', 'to do'],
-                    ['Code', <Code className="w-4 h-4" />, '`', '`', 'code'],
-                  ] as const
-                ).map(([label, icon, before, after, ph]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    aria-label={label}
-                    title={label}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => format(before, after, ph)}
-                    className={iconBtn}
-                  >
-                    {icon}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  aria-label="Link to another note"
-                  title="Link to another note"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => format('[[', ']]', 'Note title')}
-                  className={`${iconBtn} w-auto sm:w-auto px-2 text-sm font-semibold`}
-                >
-                  [[ ]]
-                </button>
-              </div>
-            )}
           </div>
 
-          <div className={`flex-1 min-h-0 overflow-hidden ${viewMode === 'split' ? 'grid grid-cols-1 md:grid-cols-2 grid-rows-[minmax(0,1fr)] divide-x divide-stone-200 dark:divide-stone-800' : 'flex flex-col'}`}>
-            {viewMode !== 'preview' && (
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {viewMode === 'markdown' ? (
               <>
-                <label htmlFor="note-editor-textarea" className="sr-only">
-                  Note text (Markdown)
-                </label>
+                <label htmlFor="note-editor-textarea" className="sr-only">Note text (Markdown)</label>
                 <textarea
                   id="note-editor-textarea"
                   ref={editorRef}
@@ -463,17 +391,18 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   placeholder="Start writing… Markdown works: # heading, - [ ] checklist, **bold**"
                 />
               </>
-            )}
-            {viewMode !== 'edit' && (
-              <div className={`p-4 sm:p-6 min-h-0 overflow-y-auto flex-1 ${viewMode === 'split' ? 'hidden md:block' : ''}`} tabIndex={0} role="region" aria-label="Note preview">
-                <div className={viewMode === 'preview' ? 'w-full max-w-[75ch] mx-auto' : ''}>
-                  {activeNote.content.trim() ? (
-                    <MarkdownPreview content={activeNote.content} onInternalLinkClick={openLinkedNote} onToggleTaskItem={toggleCheckbox} />
-                  ) : (
-                    <p className="text-stone-600 dark:text-stone-400">This note is empty. Tap Edit to write.</p>
-                  )}
-                </div>
-              </div>
+            ) : (
+              <Suspense fallback={<div className="h-full p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>}>
+                <RichNoteEditor
+                  key={activeNote.id}
+                  noteId={activeNote.id}
+                  markdown={activeNote.content}
+                  onChange={(content) => updateActive({ content })}
+                  onOpenLink={openLinkedNote}
+                  notes={notes}
+                  onCreateNote={(title) => createNote(activeNote.folder, title).id}
+                />
+              </Suspense>
             )}
           </div>
           <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">

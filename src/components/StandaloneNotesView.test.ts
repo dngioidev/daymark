@@ -59,7 +59,7 @@ it('provides a focus toggle and restores the list with the same button', () => {
   focus!.props.onClick();
   tree = render();
   expect(find(tree, (el) => el.props.id === 'notes-search')).toBeUndefined();
-  expect(find(tree, (el) => el.props.id === 'note-editor-textarea')).toBeDefined();
+  expect(find(tree, (el) => el.props.noteId === note.id && el.props.markdown === note.content)).toBeDefined();
   find(tree, (el) => el.props['aria-label'] === 'Focus mode')!.props.onClick();
   expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
 });
@@ -162,15 +162,27 @@ it('switches a conflicting folder and clears a nonmatching search for templates'
   expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.props.children === 'Meetings' && el.props['aria-pressed'] === true)).toBeDefined();
 });
 
-it('keeps compact editing bounded and caps Read mode line length', () => {
+it('keeps compact rich editing bounded with a Markdown toggle', () => {
   const tree = render(true);
   const listNote = find(tree, (el) => el.type === 'button' && el.props['aria-current'] === undefined && typeof el.props.onClick === 'function' && find(el.props.children as React.ReactNode, (child) => child.type === 'span' && child.props.children === 'Existing') !== undefined);
   expect(listNote).toBeDefined();
   listNote!.props.onClick();
   const html = renderToStaticMarkup(render(true));
-  expect(html).toContain('max-w-[75ch] mx-auto');
+  expect(html).toContain('flex-1 min-h-0 flex flex-col overflow-hidden');
+  expect(html).toContain('Markdown');
   expect(html).not.toContain('min-h-[60dvh]');
   expect(html).not.toContain('aria-label="Focus mode"');
+});
+
+it('toggles to the existing Markdown textarea and back without changing the note', () => {
+  const toggle = () => find(render(), (el) => el.type === 'button' && el.props.children === 'Markdown')!.props.onClick();
+  toggle();
+  const textarea = find(render(), (el) => el.props.id === 'note-editor-textarea');
+  expect(textarea?.props.value).toBe(note.content);
+  expect(update).not.toHaveBeenCalled();
+  toggle();
+  expect(find(render(), (el) => el.props.noteId === note.id && el.props.markdown === note.content)).toBeDefined();
+  expect(update).not.toHaveBeenCalled();
 });
 
 it('pins controls around a bounded editor and shows a Markdown word count', () => {

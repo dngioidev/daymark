@@ -1,0 +1,27 @@
+.dm-note-prose { line-height: 1.7; overflow-wrap: anywhere; }
+.dm-note-prose > * + * { margin-top: 0.8em; }
+.dm-note-prose h1, .dm-note-prose h2, .dm-note-prose h3,
+.dm-note-prose h4, .dm-note-prose h5, .dm-note-prose h6 { font-weight: 700; line-height: 1.3; margin-top: 1.2em; }
+.dm-note-prose h1 { font-size: 1.8em; }
+.dm-note-prose h2 { font-size: 1.5em; }
+.dm-note-prose h3 { font-size: 1.25em; }
+.dm-note-prose ul { list-style: disc; padding-left: 1.5em; }
+.dm-note-prose ol { list-style: decimal; padding-left: 1.5em; }
+.dm-note-prose ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.dm-note-prose li[data-type="taskItem"] { display: flex; gap: 0.6em; }
+.dm-note-prose li[data-type="taskItem"] > label { flex-shrink: 0; padding: 0.3em; }
+.dm-note-prose li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
+.dm-note-prose blockquote { border-left: 3px solid var(--color-stone-400); padding-left: 1em; }
+.dm-note-prose pre { white-space: pre-wrap; background: var(--color-stone-100); color: var(--color-stone-900); padding: 1em; border-radius: 0.5em; }
+.dark .dm-note-prose pre { background: var(--color-stone-800); color: var(--color-stone-100); }
+.dm-note-prose code { font-family: monospace; font-size: 0.9em; }
+.dm-note-prose a { text-decoration: underline; cursor: pointer; }
+.dm-note-prose table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.dm-note-prose th, .dm-note-prose td { border: 1px solid var(--color-stone-400); padding: 0.5em; position: relative; vertical-align: top; }
+.dm-note-prose th { background: var(--color-stone-100); color: var(--color-stone-900); font-weight: 600; }
+.dark .dm-note-prose th { background: var(--color-stone-800); color: var(--color-stone-100); }
+.dm-note-prose .selectedCell { box-shadow: inset 0 0 0 2px var(--color-stone-500); }
+.dm-note-prose img { max-width: 100%; height: auto; }
+.dm-note-prose hr { border-color: var(--color-stone-400); margin-block: 1.5em; }
+.dm-note-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--color-stone-500); float: left; height: 0; pointer-events: none; }
+.dark .dm-note-prose p.is-editor-empty:first-child::before { color: var(--color-stone-400); }
