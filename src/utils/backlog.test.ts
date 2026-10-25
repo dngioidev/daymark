@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { BacklogData, BacklogItem, DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
 import { performDailyRollover } from './lifecycleEngine';
-import { isClosedCopy } from './taskActions';
-import { addBacklogItem, editBacklogItem, EMPTY_BACKLOG, moveTaskToBacklog, pickBacklogItem, reconcileBacklog, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, sectionForCategory, visibleBacklog } from './backlog';
+import { isDailyDocument } from './vaultValidation';
+import { isClosedCopy, moveTaskToDate, toggleTaskDoneInDocument } from './taskActions';
+import { addBacklogItem, editBacklogItem, EMPTY_BACKLOG, moveTaskToBacklog, pickBacklogItem, reconcileBacklog, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, sectionForCategory, visibleBacklog } from './backlog';
 
 const now = '2026-10-26T08:00:00.000Z';
 const later = '2026-10-26T09:00:00.000Z';
@@ -147,5 +148,88 @@ describe('backlog', () => {
     expect(reconcileBacklog(data, docs, later).items[0]).toMatchObject({ pickedOn: '2026-10-24', updatedAt: later });
     expect(reconcileBacklog(data, [closed, day('2026-10-23', [task({ status: 'archived' })])], later)).toEqual(data);
     expect(reconcileBacklog({ items: [item('a', { deletedAt: now })] }, docs, later).items[0].pickedOn).toBeUndefined();
+  });
+});
+
+describe('backlog vault reconciliation', () => {
+  const pick = (date: string) => pickBacklogItem([], { items: [item('a', { status: 'in-progress' })] }, 'a', date, ['Work'], now)!;
+  const ids = (docs: DailyDocument[]) => docs.map(doc => ({ date: doc.date, ids: doc.headings.flatMap(h => h.items.map(t => t.id)), removed: doc.removedTaskIds ?? [] }));
+
+  it('preserves carried copies and permits subsequent, idempotent rollover', () => {
+    const picked = pick('2026-10-26');
+    const rolled = performDailyRollover('2026-10-27', picked.docs, DEFAULT_SETTINGS.statuses);
+    expect(rolled.carriedCount).toBe(1);
+    expect(rolled.updatedDocs[1].headings[0].items[0].carriedFromDate).toBe('2026-10-26');
+    const next = reconcileBacklogVault(picked.data, rolled.updatedDocs);
+    expect(next.docs).toEqual(rolled.updatedDocs);
+    expect(ids(next.docs)).toEqual([
+      { date: '2026-10-26', ids: ['a'], removed: [] },
+      { date: '2026-10-27', ids: ['a'], removed: [] },
+    ]);
+    const again = performDailyRollover('2026-10-28', next.docs, DEFAULT_SETTINGS.statuses);
+    expect(again.carriedCount).toBe(1);
+    const reconciled = reconcileBacklogVault(next.backlog, again.updatedDocs);
+    expect(reconciled.docs).toEqual(again.updatedDocs);
+    expect(performDailyRollover('2026-10-28', reconciled.docs, DEFAULT_SETTINGS.statuses).carriedCount).toBe(0);
+  });
+
+  it('preserves a Move to date copy, including alongside another independent pick', () => {
+    const picked = pick('2026-10-26');
+    const moved = moveTaskToDate(picked.docs, 'a', '2026-10-26', '2026-10-28', ['Work'], later)!;
+    expect(moved[1].headings[0].items[0].originalNoteDate).toBe('2026-10-26');
+    expect(reconcileBacklogVault(picked.data, moved).docs).toEqual(moved);
+    const other = pick('2026-10-27');
+    const combined = [...moved, ...other.docs];
+    expect(reconcileBacklogVault(other.data, combined).docs).toEqual(combined);
+  });
+
+  it('preserves a task moved away and back to its original pick day', () => {
+    const picked = pick('2026-10-27');
+    const moved = moveTaskToDate(picked.docs, 'a', '2026-10-27', '2026-10-28', ['Work'], later)!;
+    const returned = moveTaskToDate(moved, 'a', '2026-10-28', '2026-10-27', ['Work'], later)!;
+    const other = pick('2026-10-26');
+    const docs = [...other.docs, ...returned];
+    expect(reconcileBacklogVault(other.data, docs).docs).toEqual(docs);
+  });
+
+  it.each(['done', 'archived'])('never removes a %s copy alongside an independent pick', status => {
+    const first = pick('2026-10-26');
+    const second = pick('2026-10-27');
+    const done = toggleTaskDoneInDocument(second.docs[0], 'a', '2026-10-27')!.doc;
+    expect(reconcileBacklogVault(second.data, [done]).docs).toEqual([done]);
+    const protectedDoc = status === 'done' ? done : { ...done, headings: done.headings.map(h => ({ ...h, items: h.items.map(t => ({ ...t, status })) })) };
+    const docs = [...first.docs, protectedDoc];
+    expect(reconcileBacklogVault(first.data, docs).docs).toEqual(docs);
+  });
+
+  it('keeps the earliest independent pick and tombstones only the later pick, irrespective of pickedOn or input order', () => {
+    const first = pick('2026-10-26'), second = pick('2026-10-27');
+    const docs = [...second.docs, ...first.docs];
+    const result = reconcileBacklogVault(second.data, docs);
+    expect(ids(result.docs)).toEqual([
+      { date: '2026-10-27', ids: [], removed: ['a'] },
+      { date: '2026-10-26', ids: ['a'], removed: [] },
+    ]);
+    expect(result.docs[0].updatedAt).toBe(second.docs[0].updatedAt);
+    expect(result.backlog).toEqual(second.data);
+    expect(reconcileBacklogVault(result.backlog, result.docs)).toEqual(result);
+  });
+
+  it.each(['missing history', 'absent history', 'wrong history date', 'wrong origin'])('preserves copies without independent-pick provenance: %s', reason => {
+    const first = pick('2026-10-26'), second = pick('2026-10-27');
+    const doc = second.docs[0];
+    const protectedDoc: unknown = { ...doc, headings: doc.headings.map(h => ({ ...h, items: h.items.map(t => ({ ...t,
+      ...(reason === 'wrong origin' ? { originalNoteDate: '2026-10-25' } : {}),
+      historyLog: reason === 'absent history' ? undefined : reason === 'missing history' ? [] : t.historyLog.map(entry => ({ ...entry, date: reason === 'wrong history date' ? '2026-10-25' : entry.date })),
+    })) })) };
+    if (!isDailyDocument(protectedDoc)) throw new Error('Legacy fixture must pass daily document validation');
+    const docs = [...first.docs, protectedDoc];
+    expect(reconcileBacklogVault(first.data, docs).docs).toEqual(docs);
+  });
+
+  it('marks a visible item with the destination document timestamp deterministically', () => {
+    const picked = pick('2026-10-26');
+    const data = { items: [item('a', { updatedAt: later })] };
+    expect(reconcileBacklogVault(data, picked.docs).backlog.items[0]).toMatchObject({ pickedOn: '2026-10-26', updatedAt: now });
   });
 });

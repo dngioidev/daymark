@@ -45,9 +45,22 @@ async function waitForServer(ms = 30000) {
   throw new Error('server did not start');
 }
 const killServer = (server) =>
-  new Promise((resolve) => {
+  new Promise((resolve, reject) => {
     if (server.exitCode !== null || server.signalCode !== null) return resolve();
-    server.once('exit', resolve);
+    let forceTimeout;
+    const finished = () => {
+      clearTimeout(timeout);
+      clearTimeout(forceTimeout);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      server.kill('SIGKILL');
+      forceTimeout = setTimeout(() => {
+        server.removeListener('exit', finished);
+        reject(new Error('Sync e2e server did not exit after SIGKILL'));
+      }, 5000);
+    }, 5000);
+    server.once('exit', finished);
     server.kill();
   });
 
@@ -267,7 +280,12 @@ try {
     'phone receives the Home idea and the task moved out of Today');
   // Block sync on both devices so both picks start from the same agreed snapshot.
   for (const page of [laptop, phone]) await page.route('**/api/sync', route => route.abort());
-  for (const [page, date, at] of [[laptop, '2026-10-28', '2026-10-26T11:00:00Z'], [phone, '2026-10-29', '2026-10-26T11:00:01Z']]) {
+  const pickDates = await laptop.evaluate(() => [2, 3].map(offset => {
+    const date = new Date(); date.setDate(date.getDate() + offset);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }));
+  const pickedAt = Date.now();
+  for (const [page, date, at] of [[laptop, pickDates[0], new Date(pickedAt).toISOString()], [phone, pickDates[1], new Date(pickedAt + 1000).toISOString()]]) {
     const local = await readVault(page);
     const picked = pickBacklogItem(local.docs, local.backlog, 'e2e-backlog-home', date, ['Work'], at);
     if (!picked) throw new Error('concurrent pick fixture did not start from a visible item');

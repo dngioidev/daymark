@@ -115,34 +115,41 @@ export function moveTaskToBacklog(docs: DailyDocument[], data: BacklogData, task
   return { docs: closed, data: { items: previous ? data.items.map((i) => i.id === taskId ? item : i) : [...data.items, item] } };
 }
 
-export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIso: string): BacklogData {
-  const earliest = new Map<string, string>();
+export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIso?: string): BacklogData {
+  const earliest = new Map<string, DailyDocument>();
   for (const doc of docs) for (const heading of doc.headings) for (const task of heading.items) {
     if (task.status === 'done' || task.status === 'archived' || isClosedCopy(task)) continue;
-    if (!earliest.has(task.id) || doc.date < earliest.get(task.id)!) earliest.set(task.id, doc.date);
+    if (!earliest.has(task.id) || doc.date < earliest.get(task.id)!.date) earliest.set(task.id, doc);
   }
-  return { items: data.items.map((item) => isVisible(item) && earliest.has(item.id) ? { ...item, pickedOn: earliest.get(item.id)!, updatedAt: nowIso } : item) };
+  return { items: data.items.map((item) => {
+    const destination = earliest.get(item.id);
+    return isVisible(item) && destination ? { ...item, pickedOn: destination.date, updatedAt: nowIso ?? (destination.updatedAt || item.updatedAt) } : item;
+  }) };
 }
 
 /** Resolve concurrent picks across independent daily entities, retaining closed history. */
-export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[], nowIso: string): { backlog: BacklogData; docs: DailyDocument[] } {
-  const backlog = reconcileBacklog(data, docs, nowIso);
-  const destinations = new Map(backlog.items.filter(item => item.pickedOn).map(item => [item.id, item.pickedOn!]));
-  const copies = new Map<string, Set<string>>();
+export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[]): { backlog: BacklogData; docs: DailyDocument[] } {
+  const backlog = reconcileBacklog(data, docs);
+  const pickedIds = new Set(backlog.items.filter(item => item.pickedOn).map(item => item.id));
+  const independentPick = (task: TaskItem, date: string): boolean => {
+    if (!pickedIds.has(task.id) || task.carriedFromDate || task.originalNoteDate !== date ||
+      task.status === 'done' || task.status === 'archived' || isClosedCopy(task) || !Array.isArray(task.historyLog)) return false;
+    // Moving away and back retains the original dates and pick entry. Only a pick
+    // with no subsequent move is still an independent pick copy.
+    const lastMove = [...task.historyLog].reverse().find(entry => entry.action === 'moved');
+    return lastMove?.details === 'Picked from backlog' && lastMove.date === date;
+  };
+  const earliestPicks = new Map<string, string>();
   for (const doc of docs) for (const heading of doc.headings) for (const task of heading.items) {
-    if (!destinations.has(task.id) || isClosedCopy(task)) continue;
-    if (!copies.has(task.id)) copies.set(task.id, new Set());
-    copies.get(task.id)!.add(doc.date);
+    if (!independentPick(task, doc.date)) continue;
+    if (!earliestPicks.has(task.id) || doc.date < earliestPicks.get(task.id)!) earliestPicks.set(task.id, doc.date);
   }
   return { backlog, docs: docs.map(doc => {
     let next = doc;
-    for (const [id, dates] of copies) {
-      // A later explicit move may leave only one copy outside the original picked date.
-      if (dates.size < 2 || !dates.has(destinations.get(id)!) || doc.date === destinations.get(id)!) continue;
-      const task = next.headings.flatMap(h => h.items).find(t => t.id === id);
-      if (!task || isClosedCopy(task)) continue;
-      const removed = removeTaskFromDocument(next, id);
-      if (removed) next = { ...removed.doc, updatedAt: nowIso };
+    for (const task of doc.headings.flatMap(h => h.items)) {
+      if (!independentPick(task, doc.date) || doc.date === earliestPicks.get(task.id)) continue;
+      const removed = removeTaskFromDocument(next, task.id);
+      if (removed) next = { ...removed.doc, updatedAt: doc.updatedAt };
     }
     return next;
   }) };

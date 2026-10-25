@@ -240,7 +240,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
   }
   const next = fromEntities(now, current.settings);
   if (recovering && !receivedHabits) uneditedRecoveredHabits.add(next.habits);
-  const reconciled = reconcileBacklogVault(next.backlog, next.docs, new Date().toISOString());
+  const reconciled = reconcileBacklogVault(next.backlog, next.docs);
   next.backlog = reconciled.backlog;
   next.docs = reconciled.docs;
   if (recoveringBacklog && !receivedBacklog) uneditedRecoveredBacklog.add(next.backlog);

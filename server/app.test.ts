@@ -790,20 +790,52 @@ describe('backlog sync', () => {
     const second = await syncOnce(fetch, { ...vault([]), backlog: { items: [{ ...item, id: 'other' }] } }, b, b.accessToken);
     expect(applySyncOutcome(vault([]), second).backlog.items.map(i => i.id).sort()).toEqual(['idea', 'other']);
   });
-});
-it('two devices picking one backlog item into different days converge without duplicates', async () => {
-  const { pickBacklogItem } = await import('../src/utils/backlog');
-  const a = await connect('A'), b = await connect('B');
-  const backlog = { items: [{ id: 'pick', title: 'Pick once', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' }] };
-  const original = { ...vault([]), backlog };
-  const first = await syncOnce(fetch, original, a, a.accessToken);
-  const second = await syncOnce(fetch, vault([]), b, b.accessToken);
-  const pa = pickBacklogItem([], backlog, 'pick', '2026-10-27', ['Work'], '2026-10-26T09:00:00Z')!;
-  const pb = pickBacklogItem([], backlog, 'pick', '2026-10-28', ['Work'], '2026-10-26T09:00:01Z')!;
-  await syncOnce(fetch, { ...original, docs: pa.docs, backlog: pa.data }, first.state, a.accessToken);
-  const merged = await syncOnce(fetch, { ...original, docs: pb.docs, backlog: pb.data }, second.state, b.accessToken);
-  const local = applySyncOutcome({ ...original, docs: pb.docs, backlog: pb.data }, merged);
-  expect(local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
-  const fresh = await syncOnce(fetch, vault([]), a, a.accessToken);
-  expect(applySyncOutcome(vault([]), fresh).docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+  it('two devices picking one backlog item into different days converge without duplicates', async () => {
+    const { pickBacklogItem } = await import('../src/utils/backlog');
+    const a = await connect('A'), b = await connect('B');
+    const backlog = { items: [{ id: 'pick', title: 'Pick once', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' }] };
+    const original = { ...vault([]), backlog };
+    const first = await syncOnce(fetch, original, a, a.accessToken);
+    const second = await syncOnce(fetch, vault([]), b, b.accessToken);
+    const pa = pickBacklogItem([], backlog, 'pick', '2026-10-27', ['Work'], '2026-10-26T09:00:00Z')!;
+    const pb = pickBacklogItem([], backlog, 'pick', '2026-10-28', ['Work'], '2026-10-26T09:00:01Z')!;
+    await syncOnce(fetch, { ...original, docs: pa.docs, backlog: pa.data }, first.state, a.accessToken);
+    const merged = await syncOnce(fetch, { ...original, docs: pb.docs, backlog: pb.data }, second.state, b.accessToken);
+    const local = applySyncOutcome({ ...original, docs: pb.docs, backlog: pb.data }, merged);
+    expect(local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+    const fresh = await syncOnce(fetch, vault([]), a, a.accessToken);
+    expect(applySyncOutcome(vault([]), fresh).docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+  });
+
+  it.each([
+    { features: undefined, key: 'doc:2026-10-27', edit: true },
+    { features: ['habits'], key: 'doc:2026-10-27', edit: true },
+    { features: ['backlog'], key: 'settings' },
+    { features: ['backlog'], key: null },
+    { features: ['backlog'], key: 'doc:2026-10-27' },
+  ])('skips document reconciliation for features=$features, changed key=$key', async ({ features, key, ...options }) => {
+    const { pickBacklogItem } = await import('../src/utils/backlog');
+    const client = await connect('A');
+    const data = { items: [{ ...item, status: 'in-progress' }] };
+    const early = pickBacklogItem([], data, 'idea', '2026-10-26', ['Work'], '2026-10-26T09:00:00Z')!;
+    const late = pickBacklogItem([], data, 'idea', '2026-10-27', ['Work'], '2026-10-26T09:01:00Z')!;
+    const values = { backlog: early.data, 'doc:2026-10-26': early.docs[0], 'doc:2026-10-27': late.docs[0] };
+    fileStore.vault.rev = 3;
+    for (const [entityKey, value] of Object.entries(values)) fileStore.vault.entities[entityKey] = {
+      value, rev: 3, updatedBy: client.deviceId, updatedAt: '2026-10-26T09:01:00Z',
+    };
+    const before = JSON.parse(JSON.stringify(fileStore.vault.entities));
+    const baseValue = key === 'settings' ? DEFAULT_SETTINGS : late.docs[0];
+    const value = 'edit' in options && options.edit ? { ...late.docs[0], updatedAt: '2026-10-26T10:00:00Z' } : baseValue;
+    const response = await post('/api/sync', { sinceRev: 3, features,
+      changes: key ? [{ key, base: baseValue, value }] : [],
+    }, client.accessToken);
+    expect(response.status).toBe(200);
+    for (const entityKey of Object.keys(values)) {
+      if (entityKey === key && 'edit' in options && options.edit) expect(fileStore.vault.entities[entityKey].value).toEqual(value);
+      else expect(fileStore.vault.entities[entityKey]).toEqual(before[entityKey]);
+    }
+    expect((await response.json()).entities.filter((e: { key: string }) => e.key.startsWith('doc:') && e.key !== key)).toEqual([]);
+  });
+
 });

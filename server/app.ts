@@ -261,6 +261,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
 
       const conflicts: string[] = [];
       const touched = new Set<string>();
+      let changedBacklogOrDoc = false;
       const now = new Date().toISOString();
       const write = (key: string, value: unknown | null) => {
         store.vault.rev += 1;
@@ -273,7 +274,10 @@ export function createApp(config: ServerConfig, store: FileStore) {
         const current = stored !== null && !validValue(change.key, stored) ? null : stored;
         const merged = mergeEntity(change.key, change.base ?? null, current, change.value ?? null);
         conflicts.push(...merged.conflicts);
-        if (!sameValue(merged.value, current)) write(change.key, merged.value);
+        if (!sameValue(merged.value, current)) {
+          write(change.key, merged.value);
+          if (isBacklogEntityKey(change.key) || change.key.startsWith('doc:')) changedBacklogOrDoc = true;
+        }
         for (const extra of merged.extraNotes ?? []) {
           write(`note:${extra.id}`, extra);
           touched.add(`note:${extra.id}`);
@@ -282,9 +286,9 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       const backlog = store.vault.entities.backlog?.value;
-      if (isBacklogData(backlog)) {
-        const docs = Object.entries(store.vault.entities).filter(([key, e]) => key.startsWith('doc:') && isDailyDocument(e.value)).map(([, e]) => e.value as DailyDocument);
-        const reconciled = reconcileBacklogVault(backlog, docs, now);
+      if (Array.isArray(body.features) && body.features.includes('backlog') && changedBacklogOrDoc && isBacklogData(backlog)) {
+        const docs = Object.entries(store.vault.entities).filter(([key, e]) => key.startsWith('doc:') && validValue(key, e.value)).map(([, e]) => e.value as DailyDocument);
+        const reconciled = reconcileBacklogVault(backlog, docs);
         if (!sameValue(backlog, reconciled.backlog)) write('backlog', reconciled.backlog);
         for (const doc of reconciled.docs) {
           const key = `doc:${doc.date}`;
