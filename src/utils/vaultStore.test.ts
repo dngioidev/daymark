@@ -40,6 +40,23 @@ async function habitStoreTest(run: (env: {
     close: () => {},
     transaction: (_store: string, mode: string) => ({
       objectStore: () => ({
+        get: (key: string) => {
+          const request = { result: raw.get(key), onsuccess: () => {} };
+          queueMicrotask(() => request.onsuccess());
+          return request;
+        },
+        openKeyCursor: () => {
+          const keys = [...raw.keys()];
+          let index = 0;
+          const request: { result: unknown; onsuccess: () => void } = { result: null, onsuccess: () => {} };
+          const advance = () => queueMicrotask(() => {
+            const key = keys[index++];
+            request.result = key ? { key, continue: advance } : null;
+            request.onsuccess();
+          });
+          advance();
+          return request;
+        },
         openCursor: () => {
           const entries = [...raw.entries()];
           let index = 0;
@@ -211,6 +228,36 @@ describe('habit storage', () => {
       await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, habits);
       expect(JSON.parse(await exported!.text()).habits).toEqual(habits);
     });
+  });
+
+  it('JSON download contains referenced pictures as metadata and base64 alongside habits', async () => {
+    await habitStoreTest(async ({ store, raw }) => {
+      const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+      const meta = { id, mime: 'image/png', bytes: 3, width: 10, height: 20, createdAt: '2026-10-25T00:00:00Z' };
+      raw.set(`noteAsset:${id}`, new Blob(['abc'], { type: 'image/png' }));
+      raw.set(`noteAssetMeta:${id}`, meta);
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      const notes = [{ ...SEED_STANDALONE_NOTES[0], content: `![](daymark-asset:${id}.png)` }];
+      await store.exportVaultAsJson([], notes, DEFAULT_SETTINGS, habits);
+      const backup = JSON.parse(await exported!.text());
+      expect(backup.assets).toEqual([{ meta, data: 'YWJj' }]);
+      expect(backup.standalone_notes).toEqual(notes);
+      expect(backup.habits).toEqual(habits);
+    }, true);
+  });
+
+  it('vault wipe removes picture bytes, metadata and the pending upload queue', async () => {
+    await habitStoreTest(async ({ store, raw }) => {
+      await store.kvPutRaw('noteAsset:test', new Blob(['picture']));
+      await store.kvPutRaw('noteAssetMeta:test', { id: 'test' });
+      await store.kvPutRaw('noteAssetPending', ['test']);
+      expect(raw.size).toBeGreaterThanOrEqual(3);
+      await store.wipeLocalVault();
+      expect([...raw.keys()].filter(key => key.startsWith('noteAsset'))).toEqual([]);
+      expect(await store.kvGetRaw('noteAssetPending')).toBeUndefined();
+    }, true);
   });
 });
 

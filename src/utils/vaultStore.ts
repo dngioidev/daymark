@@ -1,7 +1,7 @@
 import { AppSettings, DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
 import { EMPTY_HABITS, uneditedRecoveredHabits } from './habits';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { buildVaultZip } from './vaultArchive';
+import { buildVaultZip, exportBackupAssets } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
 import { isDailyDocument, isHabit, isHabitData, isHabitDay, isHabitTick, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
@@ -536,6 +536,7 @@ export async function exportVaultAsJson(
   const bundle = {
     daymark_backup_version: '1.0',
     exported_at: new Date().toISOString(),
+    assets: await exportBackupAssets(notes),
     settings,
     daily_documents: docs,
     standalone_notes: notes,

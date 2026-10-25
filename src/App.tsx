@@ -32,7 +32,7 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importVaultFromZip, mergeRestoredHabits } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
@@ -106,6 +106,8 @@ export default function App() {
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
+  const notesRef = React.useRef(notes);
+  notesRef.current = notes;
   const [habits, setHabits] = useState<HabitData>(loadHabits);
   const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
@@ -562,6 +564,11 @@ export default function App() {
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
     if (!(await confirmReplaceVault())) return;
+    try {
+      await importBackupAssets(parsed.assets);
+    } catch (error) {
+      return alertDialog("This file can't be restored", error instanceof Error ? error.message : 'Could not restore backup pictures.');
+    }
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
@@ -575,8 +582,8 @@ export default function App() {
   // Handler: Import vault ZIP (Daymark export or a folder of Markdown files)
   const handleImportZip = async (file: File) => {
     try {
-      const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
       if (!(await confirmReplaceVault())) return;
+      const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
       setNotes(snapshot.notes);
@@ -620,6 +627,7 @@ export default function App() {
     vaultForSync,
     (next) => {
       setDailyDocs(next.docs);
+      notesRef.current = next.notes;
       setNotes(next.notes);
       setHabits(next.habits);
       setSettings((local) => mergeIncomingSettings(local, next.settings));
@@ -856,6 +864,7 @@ export default function App() {
         onImportJson={handleImportJson}
         onImportZip={handleImportZip}
         onResetVault={handleResetVault}
+        onRemoveUnusedPictures={() => removeUnusedPictures(() => notesRef.current, sync.account ? { sync: sync.syncNow, authFetch: sync.authFetch } : undefined)}
         syncPanel={<ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} compact />}
       />
 

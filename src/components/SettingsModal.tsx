@@ -4,6 +4,7 @@ import { AppSettings, LifecycleAction, StatusDefinition, SettingsTab } from '../
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
 import { formatDateTime } from '../utils/dateFormat';
+import { listAssets } from '../utils/noteAssets';
 import { isNativeApp, pinHabitsWidget, requestPinWidget } from '../native/daymarkBridge';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { alertDialog, confirmDialog, showToast } from './ui/feedback';
@@ -26,6 +27,7 @@ interface SettingsModalProps {
   onImportJson: (jsonStr: string) => void;
   onImportZip: (file: File) => void;
   onResetVault: () => void;
+  onRemoveUnusedPictures?: () => Promise<number>;
   /** Rendered in the Sync tab (connection to the self-hosted server). */
   syncPanel: React.ReactNode;
   initialTab?: SettingsTab;
@@ -77,6 +79,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportJson,
   onImportZip,
   onResetVault,
+  onRemoveUnusedPictures,
   syncPanel,
   initialTab = 'appearance',
   isSynced = false,
@@ -88,6 +91,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const visibleTabs = SETTINGS_TABS.filter((tab) => tab.id !== 'widget' || isNativeApp());
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [pictureUsage, setPictureUsage] = useState<{ count: number; bytes: number } | null>(null);
+  const [removingPictures, setRemovingPictures] = useState(false);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+  const refreshPictures = async () => {
+    const assets = await listAssets();
+    setPictureUsage({ count: assets.length, bytes: assets.reduce((sum, asset) => sum + asset.bytes, 0) });
+  };
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'storage') return;
+    const refresh = () => { void refreshPictures().catch(() => setPictureError('Could not read picture storage.')); };
+    refresh();
+    window.addEventListener('daymark-assets-changed', refresh);
+    return () => window.removeEventListener('daymark-assets-changed', refresh);
+  }, [isOpen, activeTab]);
+  const removePictures = async () => {
+    if (!onRemoveUnusedPictures || removingPictures) return;
+    setRemovingPictures(true);
+    try {
+      if (!(await confirmDialog({
+        title: 'Remove unused pictures?',
+        message: isSynced
+          ? 'Daymark will sync first, then remove pictures that no note uses from this device and your server.'
+          : 'Remove pictures that no note uses from this device.',
+        confirmLabel: 'Remove unused pictures', danger: true,
+      }))) return;
+      setPictureError(null);
+      const count = await onRemoveUnusedPictures();
+      showToast(`Removed ${count} unused ${count === 1 ? 'picture' : 'pictures'}.`);
+    } catch (error) {
+      setPictureError(error instanceof Error ? error.message : 'Could not remove unused pictures.');
+    } finally {
+      await refreshPictures().catch(() => setPictureError('Could not read picture storage.'));
+      setRemovingPictures(false);
+    }
+  };
   const { draft, setDraft, error, setError, saved, commit } = useInstantSettings(settings, onChangeSettings, isOpen);
   const [newStatusLabel, setNewStatusLabel] = useState('');
   const [newStatusAction, setNewStatusAction] = useState<LifecycleAction>('carry-forward');
@@ -250,6 +288,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {activeTab === 'storage' && (
           <>
+            <div className={card}>
+              <h3 className="font-semibold text-base">{pictureUsage ? `Pictures: ${pictureUsage.count} · ${(pictureUsage.bytes / 1_000_000).toFixed(1)} MB` : 'Pictures: loading…'}</h3>
+              <p className={`${hint} mt-1`}>Picture storage on this device. Pictures are only removed when you choose.</p>
+              <button type="button" onClick={removePictures} disabled={removingPictures || !onRemoveUnusedPictures} className={`${buttonClass.secondary} mt-3 min-h-11 w-full sm:w-auto`}>
+                {removingPictures ? 'Checking pictures…' : 'Remove unused pictures'}
+              </button>
+              {pictureError && <p role="alert" className={`${hint} mt-2`}>{pictureError}</p>}
+            </div>
             <div className={card}>
               <h3 className="font-semibold text-base">Back up</h3>
               <p className={`${hint} mt-1`}>

@@ -1,7 +1,7 @@
 import type { NoteAssetMeta } from '../types/daymark';
 import { isPhotoStorageAvailable, kvDeleteRaw, kvGetRaw, kvKeysRaw, kvPutRaw } from './vaultStore';
 
-const MAX_ASSET_BYTES = 1.5 * 1024 * 1024;
+export const MAX_ASSET_BYTES = 1.5 * 1024 * 1024;
 const validId = (id: string) => /^[a-f0-9]{64}$/.test(id);
 const urls = new Map<string, string>();
 let mutations: Promise<unknown> = Promise.resolve();
@@ -22,7 +22,7 @@ export async function pendingUploads(): Promise<string[]> {
 export function putAsset(blob: Blob, meta: Omit<NoteAssetMeta, 'id' | 'bytes'>): Promise<string> {
   return storeAsset(blob, meta, true);
 }
-function storeAsset(blob: Blob, meta: Omit<NoteAssetMeta, 'id' | 'bytes'>, pending: boolean, expectedId?: string): Promise<string> {
+export function storeAsset(blob: Blob, meta: Omit<NoteAssetMeta, 'id' | 'bytes'>, pending: boolean, expectedId?: string): Promise<string> {
   return mutate(async () => {
     if (!isPhotoStorageAvailable()) throw new Error('Pictures need browser storage, which is unavailable here.');
     if (blob.size === 0) throw new Error('This picture is empty. Choose another picture.');
