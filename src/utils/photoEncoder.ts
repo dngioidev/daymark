@@ -7,7 +7,7 @@ export function fitWithin(w: number, h: number, max: number): { width: number; h
   return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
 }
 
-export async function encodeImage(file: Blob, maxEdge: number, quality = QUALITY, mime = 'image/webp'): Promise<{ blob: Blob; width: number; height: number; luminance?: number }> {
+export async function encodeImage(file: Blob, maxEdge: number, quality = QUALITY): Promise<{ blob: Blob; width: number; height: number; luminance?: number }> {
   const image = await createImageBitmap(file);
   try {
     const { width, height } = fitWithin(image.width, image.height, maxEdge);
@@ -30,7 +30,7 @@ export async function encodeImage(file: Blob, maxEdge: number, quality = QUALITY
       ? canvas.convertToBlob({ type, quality })
       : new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode this photo.')), type, quality));
     let blob: Blob;
-    try { blob = await encode(mime); }
+    try { blob = await encode('image/webp'); }
     catch { blob = await encode('image/jpeg'); }
     if (blob.type !== 'image/webp' && blob.type !== 'image/jpeg') blob = await encode('image/jpeg');
     if (blob.type !== 'image/webp' && blob.type !== 'image/jpeg') throw new Error('This browser cannot encode photos.');

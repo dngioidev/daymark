@@ -82,3 +82,62 @@ it('does not save a picture that arrives after the sync session is cancelled', a
   }, () => active);
   expect(await hasAsset(id)).toBe(false);
 });
+
+it.each([0, 1.5 * 1024 * 1024 + 1])('rejects invalid picture size %s before storing anything', async bytes => {
+  await expect(putAsset(new Blob([new Uint8Array(bytes)], { type: 'image/png' }), meta)).rejects.toThrow(/empty|1\.5 MiB/);
+  expect(kv.size).toBe(0);
+});
+it.each([400, 403, 413, 415, 422])('drops permanent upload failure %s and uploads later ids', async status => {
+  const first = await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+  const second = await putAsset(new Blob(['def'], { type: 'image/png' }), meta);
+  const sent: string[] = [];
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    await syncNoteAssets([], async path => {
+      sent.push(path.split('/').pop()!);
+      return new Response(null, { status: sent.length === 1 ? status : 200 });
+    });
+    expect(sent).toEqual([first, second]);
+    expect(await pendingUploads()).toEqual([]);
+    expect(await hasAsset(first)).toBe(true); // dropping pending never deletes local pictures
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining(first));
+  } finally { warning.mockRestore(); }
+});
+it.each([401, 404, 408, 429, 500, 503])('retains upload failure %s and retries next round', async status => {
+  const first = await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+  const second = await putAsset(new Blob(['def'], { type: 'image/png' }), meta);
+  const sent: string[] = [];
+  await syncNoteAssets([], async path => { sent.push(path); return new Response(null, { status }); });
+  expect(sent).toHaveLength(1);
+  expect(await pendingUploads()).toEqual([first, second]);
+  await syncNoteAssets([], async () => new Response(null, { status: 200 }));
+  expect(await pendingUploads()).toEqual([]);
+});
+it.each(['network', 'http', 'integrity'])('a failing download (%s) does not stop other workers or later ids', async failure => {
+  const bodies = ['first', 'second', 'third', 'fourth', 'fifth'];
+  const ids = await Promise.all(bodies.map(async body => {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
+    return Buffer.from(bytes).toString('hex');
+  }));
+  const visited: string[] = [];
+  await syncNoteAssets([{ content: ids.map(id => assetRef(id, 'image/png')).join('\n') }], async path => {
+    const id = path.split('/').pop()!;
+    visited.push(id);
+    if (ids.indexOf(id) < 3) {
+      if (failure === 'network') throw new Error('offline for this request');
+      if (failure === 'http') return new Response(null, { status: 500 });
+      return new Response(new Blob(['corrupt'], { type: 'image/png' }));
+    }
+    return new Response(new Blob([bodies[ids.indexOf(id)]], { type: 'image/png' }));
+  });
+  expect(visited).toEqual(ids);
+  expect(await Promise.all(ids.map(hasAsset))).toEqual([false, false, false, true, true]);
+});
+it('stores hash-verified downloads with zero dimensions when bitmap decoding fails', async () => {
+  vi.stubGlobal('createImageBitmap', async () => { throw new Error('decoder unavailable'); });
+  try {
+    await syncNoteAssets([{ content: assetRef(id, 'image/png') }], async () => new Response(new Blob(['abc'], { type: 'image/png' })));
+    expect(await hasAsset(id)).toBe(true);
+    expect(await listAssets()).toEqual([expect.objectContaining({ id, width: 0, height: 0 })]);
+  } finally { vi.unstubAllGlobals(); }
+});

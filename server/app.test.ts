@@ -693,3 +693,50 @@ describe('note assets', () => {
     })).status).toBe(413);
   });
 });
+
+// Asset hardening regressions use the existing per-test temporary data directory.
+describe('note asset hardening', () => {
+  const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+  const request = (method: string, target: string, token: string) => fetch(base + '/api/assets' + target, {
+    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(method === 'PUT' ? { body: JSON.stringify({ mime: 'image/png', data: 'YWJj' }) } : {}),
+  });
+  it('GET sets nosniff and rejects an encoded traversal id', async () => {
+    const { accessToken } = await connect('assets');
+    await request('PUT', '/' + id, accessToken);
+    const response = await request('GET', '/' + id, accessToken);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect((await request('GET', '/..%2F..%2Fauth.json', accessToken)).status).toBe(400);
+  });
+  it('lists healthy assets even when another metadata file is corrupt or unreadable', async () => {
+    const { accessToken } = await connect('assets');
+    await request('PUT', '/' + id, accessToken);
+    const other = '0'.repeat(64);
+    fs.writeFileSync(path.join(dir, 'assets', other), 'broken');
+    fs.writeFileSync(path.join(dir, 'assets', other + '.json'), '{bad json');
+    const unreadable = '1'.repeat(64);
+    fs.writeFileSync(path.join(dir, 'assets', unreadable), 'unreadable');
+    fs.mkdirSync(path.join(dir, 'assets', unreadable + '.json'));
+    const response = await request('GET', '', accessToken);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([expect.objectContaining({ id })]);
+  });
+  it('publishes each asset file with a private temp file and atomic rename', async () => {
+    const { accessToken } = await connect('assets');
+    const writes = vi.spyOn(fs, 'writeFileSync');
+    const renames = vi.spyOn(fs, 'renameSync');
+    const mkdir = vi.spyOn(fs, 'mkdirSync');
+    try {
+      expect((await request('PUT', '/' + id, accessToken)).status).toBe(200);
+      for (const name of [id, id + '.json']) {
+        const target = path.join(dir, 'assets', name);
+        const rename = renames.mock.calls.find(([, to]) => to === target);
+        expect(rename).toBeDefined();
+        expect(rename![0]).not.toBe(target);
+        const write = writes.mock.calls.find(([to]) => to === rename![0]);
+        expect(write?.[2]).toEqual(expect.objectContaining({ mode: 0o600 }));
+      }
+      expect(mkdir).toHaveBeenCalledWith(path.join(dir, 'assets'), expect.objectContaining({ mode: 0o700 }));
+    } finally { writes.mockRestore(); renames.mockRestore(); mkdir.mockRestore(); }
+  });
+});

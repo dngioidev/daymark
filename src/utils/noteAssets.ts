@@ -1,6 +1,7 @@
 import type { NoteAssetMeta } from '../types/daymark';
 import { isPhotoStorageAvailable, kvDeleteRaw, kvGetRaw, kvKeysRaw, kvPutRaw } from './vaultStore';
 
+const MAX_ASSET_BYTES = 1.5 * 1024 * 1024;
 const validId = (id: string) => /^[a-f0-9]{64}$/.test(id);
 const urls = new Map<string, string>();
 let mutations: Promise<unknown> = Promise.resolve();
@@ -24,6 +25,8 @@ export function putAsset(blob: Blob, meta: Omit<NoteAssetMeta, 'id' | 'bytes'>):
 function storeAsset(blob: Blob, meta: Omit<NoteAssetMeta, 'id' | 'bytes'>, pending: boolean, expectedId?: string): Promise<string> {
   return mutate(async () => {
     if (!isPhotoStorageAvailable()) throw new Error('Pictures need browser storage, which is unavailable here.');
+    if (blob.size === 0) throw new Error('This picture is empty. Choose another picture.');
+    if (blob.size > MAX_ASSET_BYTES) throw new Error('This picture exceeds 1.5 MiB. Choose a smaller picture.');
     if (!['image/webp', 'image/jpeg', 'image/png'].includes(meta.mime)) throw new Error('Unsupported picture format.');
     const id = await hash(blob);
     if (expectedId && id !== expectedId) throw new Error('Downloaded picture failed its integrity check.');
@@ -97,34 +100,48 @@ export async function syncNoteAssets(
       const response = await authFetch(`/api/assets/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mime: meta.mime, data: btoa(binary) }),
       });
-      if (!response.ok) return;
       if (!active()) return;
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500 && ![401, 404, 408, 429].includes(response.status)) {
+          await markUploaded(id);
+          console.warn(`Dropped picture upload ${id}: server rejected it with HTTP ${response.status}.`);
+          continue;
+        }
+        return; // transient/server/auth failures retry on the next successful note-sync round
+      }
       await markUploaded(id);
     }
     const ids = [...new Set(notes.flatMap(note => parseAssetRefs(note.content)))];
     let index = 0;
-    let stopped = false;
     const worker = async () => {
-      while (!stopped && active() && index < ids.length) {
+      while (active() && index < ids.length) {
         const id = ids[index++];
         try {
           if (await hasAsset(id)) continue;
           if (!active()) return;
           const response = await authFetch(`/api/assets/${id}`);
           if (response.status === 404) continue; // a different device may not have uploaded it yet
-          if (!response.ok) { stopped = true; return; }
+          if (!response.ok) continue;
           const blob = await response.blob();
           const mime = blob.type.split(';')[0];
-          if (!['image/webp', 'image/jpeg', 'image/png'].includes(mime) || blob.size > 1.5 * 1024 * 1024) continue;
+          if (!['image/webp', 'image/jpeg', 'image/png'].includes(mime) || blob.size > MAX_ASSET_BYTES) continue;
           let width = 0, height = 0;
           if (typeof createImageBitmap !== 'undefined') {
-            const image = await createImageBitmap(blob);
-            width = image.width; height = image.height; image.close();
+            try {
+              const image = await createImageBitmap(blob);
+              try { width = image.width; height = image.height; }
+              finally { image.close(); }
+            } catch {
+              // A decoder failure must not discard hash-verified bytes or block other pictures.
+              width = 0; height = 0;
+            }
           }
           if (!active()) return;
           await storeAsset(blob, { mime: mime as NoteAssetMeta['mime'], width, height, createdAt: new Date().toISOString() }, false, id);
           arrived.push(id);
-        } catch { stopped = true; }
+        } catch {
+          // Isolate failures to this picture; other workers and later ids still make progress.
+        }
       }
     };
     await Promise.all(Array.from({ length: 3 }, worker));

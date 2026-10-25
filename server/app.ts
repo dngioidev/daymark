@@ -1,4 +1,3 @@
-import { assetRoutes } from './assets';
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
@@ -7,6 +6,7 @@ import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGN
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
 import { DeviceRecord, FileStore } from './store';
+import { assetRoutes } from './assets';
 
 export const SERVER_VERSION = '2.0.0';
 

@@ -1,4 +1,3 @@
-import { syncNoteAssets } from '../utils/noteAssets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
 import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
@@ -8,6 +7,7 @@ import { getInstallId } from '../utils/deviceName';
 import { getHostMode } from '../utils/hostMode';
 import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
 import { uneditedRecoveredHabits } from '../utils/habits';
+import { syncNoteAssets } from '../utils/noteAssets';
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
