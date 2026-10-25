@@ -233,3 +233,12 @@ export interface HabitWidgetSnapshot {
     warnAfterDays: number;
   }[];
 }
+
+export interface NoteAssetMeta {
+  id: string;
+  mime: 'image/webp' | 'image/jpeg' | 'image/png';
+  width: number;
+  height: number;
+  bytes: number;
+  createdAt: string;
+}

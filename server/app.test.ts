@@ -649,3 +649,47 @@ describe('data files', () => {
     expect(fs.statSync(path.join(dir, 'auth.json')).mode & 0o777).toBe(0o600);
   });
 });
+
+describe('note assets', () => {
+  const bytes = Buffer.from('abc');
+  const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+  const assetRequest = (method: string, target: string, token?: string, body?: unknown) => fetch(base + '/api/assets' + target, {
+    method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  it('requires auth for all asset endpoints', async () => {
+    for (const [method, target] of [['GET', ''], ['GET', '/' + id], ['PUT', '/' + id], ['DELETE', '/' + id]]) {
+      expect((await assetRequest(method, target)).status).toBe(401);
+    }
+  });
+  it('PUT rejects mismatched hash, invalid mime, invalid id and malformed base64', async () => {
+    const { accessToken } = await connect('assets');
+    for (const [target, body] of [
+      ['0'.repeat(64), { mime: 'image/png', data: bytes.toString('base64') }],
+      [id, { mime: 'text/html', data: bytes.toString('base64') }],
+      ['bad', { mime: 'image/png', data: bytes.toString('base64') }],
+      [id, { mime: 'image/png', data: 'YWJj!!' }],
+    ] as const) expect((await assetRequest('PUT', '/' + target, accessToken, body)).status).toBe(400);
+  });
+  it('PUT then GET returns the bytes; repeated PUT is idempotent; list and delete work', async () => {
+    const { accessToken } = await connect('assets');
+    const body = { mime: 'image/png', data: bytes.toString('base64') };
+    expect((await assetRequest('PUT', '/' + id, accessToken, body)).ok).toBe(true);
+    const first = await (await assetRequest('GET', '', accessToken)).json();
+    expect(first).toEqual([expect.objectContaining({ id, mime: 'image/png', bytes: 3 })]);
+    await assetRequest('PUT', '/' + id, accessToken, body);
+    expect(await (await assetRequest('GET', '', accessToken)).json()).toEqual(first);
+    const response = await assetRequest('GET', '/' + id, accessToken);
+    expect(response.headers.get('content-type')).toContain('image/png');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect((await assetRequest('DELETE', '/' + id, accessToken)).ok).toBe(true);
+    expect((await assetRequest('GET', '/' + id, accessToken)).status).toBe(404);
+    expect(await (await assetRequest('GET', '', accessToken)).json()).toEqual([]);
+  });
+  it('rejects >1.5MB decoded assets', async () => {
+    const { accessToken } = await connect('assets');
+    expect((await assetRequest('PUT', '/' + id, accessToken, {
+      mime: 'image/png', data: Buffer.alloc(1.5 * 1024 * 1024 + 1).toString('base64'),
+    })).status).toBe(413);
+  });
+});

@@ -1,3 +1,4 @@
+import { syncNoteAssets } from '../utils/noteAssets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
 import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
@@ -55,6 +56,7 @@ export function useSync(
   callbacks.current = { onVaultChange, onConflicts };
   const running = useRef<Promise<void> | null>(null);
   const rerun = useRef(false);
+  const assetRun = useRef<Promise<void> | null>(null);
   const blocked = useRef(false);
   const closing = useRef(false);
   const wiped = useRef<Promise<void> | null>(null);
@@ -151,6 +153,13 @@ export function useSync(
           // Native refresh may have rotated while the sync request was being retried.
           await persistState({ ...outcome.state, refreshToken: stateRef.current?.refreshToken });
           if (outcome.conflicts.length) callbacks.current.onConflicts(outcome.conflicts);
+          // Pictures follow successful note sync, independently of its status/latency.
+          if (!assetRun.current && !closing.current && !blocked.current) {
+            const assetEpoch = epoch.current;
+            assetRun.current = syncNoteAssets(vaultRef.current.notes, authFetch,
+              () => !closing.current && !blocked.current && assetEpoch === epoch.current)
+              .catch(() => undefined).finally(() => { assetRun.current = null; });
+          }
         } while (rerun.current);
         setError(null);
         setStatus('idle');

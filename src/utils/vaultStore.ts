@@ -82,7 +82,7 @@ function readAll(database: IDBDatabase): Promise<Map<string, unknown>> {
       const cursor = req.result;
       if (cursor) {
         const key = String(cursor.key);
-        if (!key.startsWith('bgPhoto:') && !key.startsWith('bgThumb:')) out.set(key, cursor.value);
+        if (!key.startsWith('bgPhoto:') && !key.startsWith('bgThumb:') && !key.startsWith('noteAsset:')) out.set(key, cursor.value);
         cursor.continue();
       } else {
         resolve(out);
@@ -102,7 +102,7 @@ function putValue(database: IDBDatabase, key: string, value: unknown): Promise<v
   });
 }
 
-/** Device-only binary storage: never cached, broadcast, synced or exported. */
+/** Raw IndexedDB access bypasses the vault cache, broadcast and entity sync. */
 export function isPhotoStorageAvailable(): boolean {
   return storageMode === 'indexeddb' && db !== null && !wiping;
 }
@@ -114,6 +114,25 @@ export async function kvGetRaw(key: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const req = db!.transaction(STORE, 'readonly').objectStore(STORE).get(key);
     req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Enumerate raw metadata keys without loading picture Blobs into memory. */
+export async function kvKeysRaw(prefix: string): Promise<string[]> {
+  if (!isPhotoStorageAvailable()) return [];
+  await writeChain;
+  if (!db || wiping) return [];
+  return new Promise((resolve, reject) => {
+    const keys: string[] = [];
+    const req = db!.transaction(STORE, 'readonly').objectStore(STORE).openKeyCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) return resolve(keys);
+      const key = String(cursor.key);
+      if (key.startsWith(prefix)) keys.push(key);
+      cursor.continue();
+    };
     req.onerror = () => reject(req.error);
   });
 }

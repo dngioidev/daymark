@@ -8,6 +8,7 @@ import { SessionEndedError } from '../sync/authClient';
 import { VaultData } from '../sync/syncClient';
 
 // Run the hook's async actions without introducing a DOM dependency.
+const assetKv = vi.hoisted(() => new Map<string, unknown>());
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], index: 0, effects: [] as (() => unknown)[] }));
 vi.mock('react', () => ({
   useState: (initial: unknown) => {
@@ -25,6 +26,11 @@ vi.mock('react', () => ({
 }));
 vi.mock('../utils/hostMode', () => ({ getHostMode: vi.fn(() => 'server') }));
 vi.mock('../utils/vaultStore', () => ({
+  isPhotoStorageAvailable: () => true,
+  kvGetRaw: async (key: string) => assetKv.get(key),
+  kvPutRaw: async (key: string, value: unknown) => { assetKv.set(key, value); },
+  kvDeleteRaw: async (key: string) => { assetKv.delete(key); },
+  kvKeysRaw: async (prefix: string) => [...assetKv.keys()].filter(key => key.startsWith(prefix)),
   loadSyncState: vi.fn(), saveSyncState: vi.fn(async () => {}), wipeLocalVault: vi.fn(async () => {}), markOnboarded: vi.fn(),
 }));
 
@@ -41,6 +47,7 @@ function render(next = vault) {
 beforeEach(() => {
   vi.clearAllMocks();
   hooks.slots = [];
+  assetKv.clear();
   vi.mocked(getHostMode).mockReturnValue('server');
   vi.mocked(loadSyncState).mockReturnValue({ ...state });
   replace = vi.fn();
@@ -295,4 +302,64 @@ it.each([false, true])('persists recovered backfill habits through the vault cal
     await useSync(recovered, next => store.saveHabits(next.habits), vi.fn(), 'web').syncNow();
     expect(JSON.parse(values.get('daymark_habits_v1')!)).toEqual({ habits: [], days: [day] });
   } finally { errors.mockRestore(); }
+});
+
+it.each(['server', 'native'] as const)('retries pending picture upload and fetches missing pictures with %s auth', async mode => {
+  vi.mocked(getHostMode).mockReturnValue(mode);
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, refreshToken: 'native-refresh' });
+  const assets = await import('../utils/noteAssets');
+  const local = new Blob(['abc'], { type: 'image/png' });
+  const id = await assets.putAsset(local, { mime: 'image/png', width: 1, height: 1, createdAt: '2026-10-25' });
+  const missing = 'cb8379ac2098aa165029e3938a51da0bcecfc008fd6795f401178647f96c5b34';
+  const next = { ...vault, notes: [{ ...SEED_STANDALONE_NOTES[0], content: `![](daymark-asset:${missing}.png)` }] };
+  const original = fetchFn.getMockImplementation()!;
+  let attempts = 0;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (url.includes('/api/assets/')) {
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer access');
+      if (init?.method === 'PUT') {
+        if (++attempts === 1) throw new Error('offline');
+        return Response.json({ ok: true });
+      }
+      return new Response(new Blob(['def'], { type: 'image/png' }));
+    }
+    if (url.endsWith('/sync')) {
+      const body = JSON.parse(String(init?.body));
+      return Response.json({ rev: 1, entities: body.changes.map((c: { key: string; value: unknown }) => ({ ...c, rev: 1 })), conflicts: [] });
+    }
+    return original(url, init);
+  });
+  const arrived: string[] = [];
+  window.addEventListener('daymark-assets-changed', event => arrived.push(...(event as CustomEvent<{ ids: string[] }>).detail.ids));
+  await render(next).syncNow();
+  await vi.waitFor(() => expect(attempts).toBe(1));
+  expect(await assets.pendingUploads()).toContain(id);
+  expect(await assets.getAssetUrl(missing)).toBeNull();
+  expect(render(next).status).toBe('idle');
+  await render(next).syncNow();
+  await vi.waitFor(async () => expect(await assets.hasAsset(missing)).toBe(true));
+  expect(await assets.pendingUploads()).toEqual([]);
+  expect(arrived).toContain(missing);
+});
+
+it('finishes note sync while a picture upload is still waiting on the network', async () => {
+  const assets = await import('../utils/noteAssets');
+  const id = await assets.putAsset(new Blob(['abc'], { type: 'image/png' }), {
+    mime: 'image/png', width: 1, height: 1, createdAt: '2026-10-25',
+  });
+  const original = fetchFn.getMockImplementation()!;
+  let release!: () => void;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (url.includes('/api/assets/')) {
+      await new Promise<void>(resolve => { release = resolve; });
+      return Response.json({ ok: true });
+    }
+    return original(url, init);
+  });
+  await render().syncNow();
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+  expect(render().status).toBe('idle');
+  expect(await assets.pendingUploads()).toContain(id);
+  release();
+  await vi.waitFor(async () => expect(await assets.pendingUploads()).toEqual([]));
 });

@@ -1,3 +1,4 @@
+import { assetRoutes } from './assets';
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
@@ -39,7 +40,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       res.setHeader('Access-Control-Allow-Origin', config.corsOrigins === '*' ? '*' : origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Headers', `Authorization, Content-Type, ${WEB_CLIENT_HEADER}`);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '600');
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -189,6 +190,8 @@ export function createApp(config: ServerConfig, store: FileStore) {
     await store.persist('auth.json', 'devices.json', 'sync-log.json');
     res.json({ ok: true });
   });
+
+  app.use('/api/assets', assetRoutes(config.dataDir));
 
   app.get('/api/devices', (req, res) => {
     const { device } = authed(req);
