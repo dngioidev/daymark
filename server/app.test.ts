@@ -83,7 +83,7 @@ const note = (id: string, content: string): StandaloneNote => ({
   createdAt: '2026-10-20T00:00:00Z',
   updatedAt: '2026-10-20T00:00:00Z',
 });
-const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] } });
+const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
 
 describe('habit sync', () => {
   const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
@@ -759,4 +759,51 @@ describe('note asset hardening', () => {
       expect(mkdir).toHaveBeenCalledWith(path.join(dir, 'assets'), expect.objectContaining({ mode: 0o700 }));
     } finally { writes.mockRestore(); renames.mockRestore(); mkdir.mockRestore(); }
   });
+});
+
+describe('backlog sync', () => {
+  const item = { id: 'idea', title: 'Build it', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' };
+  it('gates backlog from legacy POST and GET clients and preserves it', async () => {
+    const a = await connect('A');
+    const pushed = await post('/api/sync', { sinceRev: 0, features: ['habits', 'backlog'], changes: [{ key: 'backlog', base: null, value: { items: [item] } }] }, a.accessToken);
+    expect(pushed.status).toBe(200);
+    for (const features of [undefined, [], ['habits']]) {
+      const pulled = await post('/api/sync', { sinceRev: 0, features, changes: [] }, a.accessToken);
+      expect((await pulled.json()).entities).toEqual([]);
+    }
+    const legacy = await fetch(base + '/api/sync?since=0', { headers: { Authorization: `Bearer ${a.accessToken}` } });
+    expect((await legacy.json()).entities).toEqual([]);
+    const overwrite = await post('/api/sync', { sinceRev: 0, changes: [{ key: 'backlog', base: { items: [item] }, value: null }] }, a.accessToken);
+    expect(overwrite.status).toBe(400);
+    const fresh = await post('/api/sync', { sinceRev: 0, features: ['backlog'], changes: [] }, a.accessToken);
+    expect((await fresh.json()).entities).toContainEqual(expect.objectContaining({ key: 'backlog', value: { items: [item] } }));
+  });
+  it('rejects invalid backlog values with 400', async () => {
+    const a = await connect('A');
+    const res = await post('/api/sync', { features: ['backlog'], changes: [{ key: 'backlog', base: null, value: { items: [{ id: 'bad' }] } }] }, a.accessToken);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Invalid value for backlog.');
+  });
+  it('keeps independent adds from two devices through server merge', async () => {
+    const a = await connect('A'), b = await connect('B');
+    await syncOnce(fetch, { ...vault([]), backlog: { items: [item] } }, a, a.accessToken);
+    const second = await syncOnce(fetch, { ...vault([]), backlog: { items: [{ ...item, id: 'other' }] } }, b, b.accessToken);
+    expect(applySyncOutcome(vault([]), second).backlog.items.map(i => i.id).sort()).toEqual(['idea', 'other']);
+  });
+});
+it('two devices picking one backlog item into different days converge without duplicates', async () => {
+  const { pickBacklogItem } = await import('../src/utils/backlog');
+  const a = await connect('A'), b = await connect('B');
+  const backlog = { items: [{ id: 'pick', title: 'Pick once', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' }] };
+  const original = { ...vault([]), backlog };
+  const first = await syncOnce(fetch, original, a, a.accessToken);
+  const second = await syncOnce(fetch, vault([]), b, b.accessToken);
+  const pa = pickBacklogItem([], backlog, 'pick', '2026-10-27', ['Work'], '2026-10-26T09:00:00Z')!;
+  const pb = pickBacklogItem([], backlog, 'pick', '2026-10-28', ['Work'], '2026-10-26T09:00:01Z')!;
+  await syncOnce(fetch, { ...original, docs: pa.docs, backlog: pa.data }, first.state, a.accessToken);
+  const merged = await syncOnce(fetch, { ...original, docs: pb.docs, backlog: pb.data }, second.state, b.accessToken);
+  const local = applySyncOutcome({ ...original, docs: pb.docs, backlog: pb.data }, merged);
+  expect(local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+  const fresh = await syncOnce(fetch, vault([]), a, a.accessToken);
+  expect(applySyncOutcome(vault([]), fresh).docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
 });

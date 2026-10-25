@@ -1,6 +1,8 @@
 import type { BacklogData, BacklogItem, DailyDocument, TaskHistoryItem, TaskItem } from '../types/daymark';
 import { isClosedCopy, mapEarlierCopies, removeTaskFromDocument, restoreTaskToDocument } from './taskActions';
 
+export const uneditedRecoveredBacklog = new WeakSet<BacklogData>();
+
 export const EMPTY_BACKLOG: BacklogData = { items: [] };
 
 const categoryKey = (category?: string): string => (category ?? '').trim().toLowerCase();
@@ -120,4 +122,28 @@ export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIs
     if (!earliest.has(task.id) || doc.date < earliest.get(task.id)!) earliest.set(task.id, doc.date);
   }
   return { items: data.items.map((item) => isVisible(item) && earliest.has(item.id) ? { ...item, pickedOn: earliest.get(item.id)!, updatedAt: nowIso } : item) };
+}
+
+/** Resolve concurrent picks across independent daily entities, retaining closed history. */
+export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[], nowIso: string): { backlog: BacklogData; docs: DailyDocument[] } {
+  const backlog = reconcileBacklog(data, docs, nowIso);
+  const destinations = new Map(backlog.items.filter(item => item.pickedOn).map(item => [item.id, item.pickedOn!]));
+  const copies = new Map<string, Set<string>>();
+  for (const doc of docs) for (const heading of doc.headings) for (const task of heading.items) {
+    if (!destinations.has(task.id) || isClosedCopy(task)) continue;
+    if (!copies.has(task.id)) copies.set(task.id, new Set());
+    copies.get(task.id)!.add(doc.date);
+  }
+  return { backlog, docs: docs.map(doc => {
+    let next = doc;
+    for (const [id, dates] of copies) {
+      // A later explicit move may leave only one copy outside the original picked date.
+      if (dates.size < 2 || !dates.has(destinations.get(id)!) || doc.date === destinations.get(id)!) continue;
+      const task = next.headings.flatMap(h => h.items).find(t => t.id === id);
+      if (!task || isClosedCopy(task)) continue;
+      const removed = removeTaskFromDocument(next, id);
+      if (removed) next = { ...removed.doc, updatedAt: nowIso };
+    }
+    return next;
+  }) };
 }

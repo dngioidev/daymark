@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { tsImport } from 'tsx/esm/api';
 import { signIn } from './helpers/server-session.mjs';
 
 const cycle = process.argv[2];
@@ -28,9 +29,8 @@ const check = (ok, label, detail = '') => {
 const shot = (page, name) => (outDir ? page.screenshot({ path: path.join(outDir, `${name}.png`) }) : undefined);
 
 function startServer() {
-  return spawn('npx', ['tsx', 'server.ts', '--production'], {
+  return spawn(process.execPath, ['--import', 'tsx', 'server.ts', '--production'], {
     env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, DAYMARK_PASSWORD: PASSWORD },
-    shell: true,
     stdio: 'ignore',
   });
 }
@@ -46,11 +46,9 @@ async function waitForServer(ms = 30000) {
 }
 const killServer = (server) =>
   new Promise((resolve) => {
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' }).on('exit', resolve);
-    else {
-      server.kill();
-      resolve();
-    }
+    if (server.exitCode !== null || server.signalCode !== null) return resolve();
+    server.once('exit', resolve);
+    server.kill();
   });
 
 const synced = (page) => page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
@@ -222,6 +220,71 @@ try {
   check(await phone.getByLabel('Note text (Markdown)', { exact: true }).inputValue() === pictureMarkdown, 'both devices keep the same picture Markdown');
   // Restore Today for the dashboard/restart checks below.
   for (const page of [laptop, phone]) await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+
+  // Cycle 10: exercise real backlog operations through each browser's persisted vault.
+  // Backlog controls arrive in later tasks; use the shared domain operations here.
+  const { addBacklogItem, moveTaskToBacklog, pickBacklogItem, visibleBacklog } = await tsImport('../src/utils/backlog.ts', import.meta.url);
+  const readVault = page => page.evaluate(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+    try {
+      const get = key => new Promise(resolve => { const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); });
+      return { docs: await get('daily_docs'), backlog: await get('backlog') ?? { items: [] } };
+    } finally { db.close(); }
+  });
+  const writeVault = async (page, docs, backlog) => {
+    await page.evaluate(async ({ docs, backlog }) => {
+      const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put(docs, 'daily_docs'); tx.objectStore('kv').put(backlog, 'backlog');
+          tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+        });
+      } finally { db.close(); }
+    }, { docs, backlog });
+    await page.reload({ waitUntil: 'networkidle' });
+  };
+  await laptop.getByRole('button', { name: /^new task/i }).click();
+  await laptop.getByPlaceholder(/what do you need to do/i).fill('Move Today to backlog');
+  await laptop.getByRole('button', { name: /^add task$/i }).click();
+  // Finish pending UI persistence before editing the vault fixture.
+  await syncNow(laptop);
+  await laptop.route('**/api/sync', route => route.abort());
+  const beforeBacklog = await readVault(laptop);
+  const source = beforeBacklog.docs.find(d => d.headings.some(h => h.items.some(t => t.title === 'Move Today to backlog')));
+  const movedId = source.headings.flatMap(h => h.items).find(t => t.title === 'Move Today to backlog').id;
+  const captured = addBacklogItem(beforeBacklog.backlog, { title: 'Home idea', category: 'Home' }, '2026-10-26T10:00:00Z', 'e2e-backlog-home');
+  const parked = moveTaskToBacklog(beforeBacklog.docs, captured, movedId, source.date, '2026-10-26T10:01:00Z');
+  if (!parked) throw new Error('could not move Today task to backlog');
+  await writeVault(laptop, parked.docs, parked.data);
+  await laptop.unroute('**/api/sync');
+  await syncNow(laptop); await syncNow(phone);
+  const receivedBacklog = await readVault(phone);
+  check(visibleBacklog(receivedBacklog.backlog).length === 2
+    && receivedBacklog.backlog.items.some(i => i.id === 'e2e-backlog-home' && i.category === 'Home')
+    && receivedBacklog.backlog.items.some(i => i.id === movedId)
+    && !receivedBacklog.docs.flatMap(d => d.headings.flatMap(h => h.items)).some(t => t.id === movedId),
+    'phone receives the Home idea and the task moved out of Today');
+  // Block sync on both devices so both picks start from the same agreed snapshot.
+  for (const page of [laptop, phone]) await page.route('**/api/sync', route => route.abort());
+  for (const [page, date, at] of [[laptop, '2026-10-28', '2026-10-26T11:00:00Z'], [phone, '2026-10-29', '2026-10-26T11:00:01Z']]) {
+    const local = await readVault(page);
+    const picked = pickBacklogItem(local.docs, local.backlog, 'e2e-backlog-home', date, ['Work'], at);
+    if (!picked) throw new Error('concurrent pick fixture did not start from a visible item');
+    await writeVault(page, picked.docs, picked.data);
+    const persisted = await readVault(page);
+    check(persisted.backlog.items.find(i => i.id === 'e2e-backlog-home')?.pickedOn === date,
+      `device independently picked the same item into ${date}`);
+  }
+  await laptop.unroute('**/api/sync'); await syncNow(laptop);
+  await phone.unroute('**/api/sync'); await syncNow(phone);
+  await syncNow(laptop); await syncNow(phone);
+  for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
+    const local = await readVault(page);
+    const copies = local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'e2e-backlog-home')));
+    check(copies.length === 1 && !visibleBacklog(local.backlog).some(i => i.id === 'e2e-backlog-home'),
+      `${label} converges to exactly one picked task and hides the backlog item`);
+  }
 
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();

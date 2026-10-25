@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
-import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
+import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncFeature, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
 import { SessionEndedError, signIn, TokenManager } from '../sync/authClient';
 import { loadSyncState, markOnboarded, saveSyncState, wipeLocalVault } from '../utils/vaultStore';
 import { getInstallId } from '../utils/deviceName';
 import { getHostMode } from '../utils/hostMode';
 import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
+import { uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { syncNoteAssets } from '../utils/noteAssets';
 
@@ -61,7 +62,7 @@ export function useSync(
   const closing = useRef(false);
   const wiped = useRef<Promise<void> | null>(null);
   const epoch = useRef(0); // stale in-flight results are dropped after replacing the vault
-  const habitsUnsupported = useRef(false); // capability fallback belongs to this session, never persisted
+  const unsupported = useRef(new Set<SyncFeature>()); // capability fallback belongs to this session, never persisted
 
   const persistState = (next: SyncState | null) => {
     stateRef.current = next;
@@ -130,11 +131,14 @@ export function useSync(
           const accessToken = await tokenManager().getAccessToken();
           if (blocked.current || closing.current) return false;
           const current = stateRef.current!;
-          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, habitsUnsupported.current);
+          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, unsupported.current);
           if (blocked.current || closing.current) return false;
-          habitsUnsupported.current = outcome.habitsUnsupported === true;
-          if (habitsUnsupported.current && stateRef.current?.habitsSynced) {
-            await persistState({ ...stateRef.current, habitsSynced: false });
+          unsupported.current = outcome.unsupported;
+          if (stateRef.current && ((unsupported.current.has('habits') && stateRef.current.habitsSynced) ||
+            (unsupported.current.has('backlog') && stateRef.current.backlogSynced))) {
+            await persistState({ ...stateRef.current,
+              habitsSynced: unsupported.current.has('habits') ? false : stateRef.current.habitsSynced,
+              backlogSynced: unsupported.current.has('backlog') ? false : stateRef.current.backlogSynced });
           }
           if (startedAt !== epoch.current) {
             rerun.current = true;
@@ -144,8 +148,10 @@ export function useSync(
             const before = vaultRef.current;
             const next = applySyncOutcome(before, outcome);
             const recoveredHabitsReleased = uneditedRecoveredHabits.has(before.habits) && !uneditedRecoveredHabits.has(next.habits);
+            const recoveredBacklogReleased = uneditedRecoveredBacklog.has(before.backlog) && !uneditedRecoveredBacklog.has(next.backlog);
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
-              canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased) {
+              canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased ||
+              canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
             }
@@ -190,7 +196,7 @@ export function useSync(
     if (!state) return;
     const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [vault.docs, vault.notes, vault.settings, vault.habits, state?.deviceId, run]);
+  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, state?.deviceId, run]);
 
   useEffect(() => {
     if (mode !== 'server' && !state?.deviceId) return;
@@ -213,7 +219,7 @@ export function useSync(
     try {
       const session = await signIn(fetch, serverUrl, 'body', { username, password, deviceName, platform, installId: getInstallId() });
       manager.current = null;
-      habitsUnsupported.current = false;
+      unsupported.current = new Set();
       blocked.current = false;
       closing.current = false;
       await persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
@@ -227,8 +233,9 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !habitsUnsupported.current), stateRef.current,
-    !habitsUnsupported.current && !uneditedRecoveredHabits.has(vaultRef.current.habits)).length : 0;
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog')), stateRef.current,
+    !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
+    !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog)).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';

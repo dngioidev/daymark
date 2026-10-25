@@ -7,6 +7,7 @@ import {
   DailyDocument,
   StandaloneNote,
   HabitData,
+  BacklogData,
   AppSettings,
   ViewTab,
   TaskItem,
@@ -21,6 +22,8 @@ import {
   loadStandaloneNotes,
   saveStandaloneNotes,
   loadHabits,
+  loadBacklog,
+  saveBacklog,
   saveHabits,
   exportVaultAsZip,
   exportVaultAsJson,
@@ -111,6 +114,7 @@ export default function App() {
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
+  const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
   const [habits, setHabits] = useState<HabitData>(loadHabits);
   const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
@@ -284,6 +288,8 @@ export default function App() {
     saveHabits(habits);
   }, [habits]);
 
+  useEffect(() => { saveBacklog(backlog); }, [backlog]);
+
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
@@ -295,6 +301,7 @@ export default function App() {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
+        else if (key === 'backlog') setBacklog(loadBacklog());
         else if (key === 'habits') setHabits(loadHabits());
         else setSettings((local) => mergeIncomingSettings(local, value as AppSettings));
       }),
@@ -611,6 +618,7 @@ export default function App() {
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
     setNotes(res.notes);
     setHabits(res.habits);
+    setBacklog(res.backlog);
     setCurrentDate(resolveToday(res.settings.simulatedToday, realToday));
     sync.rebaseAfterReplace();
     showToast('Sample vault loaded.');
@@ -627,7 +635,7 @@ export default function App() {
   };
 
   // Self-hosted sync: merges this vault with the server in the background
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits }), [dailyDocs, notes, settings, habits]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog }), [dailyDocs, notes, settings, habits, backlog]);
   const sync = useSync(
     vaultForSync,
     (next) => {
@@ -635,6 +643,7 @@ export default function App() {
       notesRef.current = next.notes;
       setNotes(next.notes);
       setHabits(next.habits);
+      setBacklog(next.backlog);
       setSettings((local) => mergeIncomingSettings(local, next.settings));
     },
     (conflicts) =>

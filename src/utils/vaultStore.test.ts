@@ -156,7 +156,7 @@ describe('habit storage', () => {
       await syncOnce(async (_url, init) => {
         sent.push(JSON.parse(String(init?.body)));
         return Response.json({ rev: 2, entities: [], conflicts: [] });
-      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded }, {
+      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] } }, {
         serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
         bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
       }, 'access');
@@ -454,4 +454,29 @@ describe('backlog storage', () => {
       expect(mergeRestoredBacklog(backlog, JSON.parse('{}').backlog)).toBe(backlog);
     });
   });
+});
+
+it('damaged backlog resets only its sync base and cannot be pushed before backfill', async () => {
+  await habitStoreTest(async ({ store, values }) => {
+    const { syncOnce, applySyncOutcome } = await import('../sync/syncClient');
+    await store.saveSyncState({ serverUrl: 'https://test', username: 'admin', deviceId: 'a', deviceName: 'A', lastRev: 99,
+      lastSyncAt: null, habitsSynced: true, backlogSynced: true, bases: { backlog: JSON.stringify(backlog), habits: '{"habits":[]}' } });
+    const recovered = store.loadBacklog();
+    const { uneditedRecoveredBacklog } = await import('./backlog');
+    expect(uneditedRecoveredBacklog.has(recovered)).toBe(true);
+    expect(store.loadSyncState()).toMatchObject({ backlogSynced: false, habitsSynced: true, bases: { habits: '{"habits":[]}' } });
+    expect(store.loadSyncState()!.bases).not.toHaveProperty('backlog');
+    const local = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered };
+    const requests: { sinceRev: number; changes: { key: string }[] }[] = [];
+    const outcome = await syncOnce(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return Response.json({ rev: 100, entities: [{ key: 'backlog', rev: 1, value: backlog }], conflicts: [] });
+    }, local, store.loadSyncState()!, 'access');
+    expect(requests[0].sinceRev).toBe(0);
+    expect(requests[0].changes.some(c => c.key === 'backlog')).toBe(false);
+    const merged = applySyncOutcome(local, outcome);
+    expect(merged.backlog).toEqual(backlog);
+    store.saveBacklog(merged.backlog);
+    expect(JSON.parse(values.get('daymark_backlog_v1')!)).toEqual(backlog);
+  }, false, '{bad json', 'daymark_backlog_v1');
 });

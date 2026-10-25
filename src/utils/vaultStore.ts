@@ -1,5 +1,5 @@
 import { AppSettings, BacklogData, DailyDocument, HabitData, StandaloneNote } from '../types/daymark';
-import { EMPTY_BACKLOG } from './backlog';
+import { EMPTY_BACKLOG, uneditedRecoveredBacklog } from './backlog';
 import { EMPTY_HABITS, uneditedRecoveredHabits } from './habits';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip, exportBackupAssets } from './vaultArchive';
@@ -385,14 +385,17 @@ export function saveHabits(data: HabitData): void {
   writeValue(KEYS.HABITS, data);
 }
 
-const uneditedRecoveredBacklog = new WeakSet<BacklogData>();
-
 export function loadBacklog(): BacklogData {
   const value = cache.get(KEYS.BACKLOG);
   if (isBacklogData(value)) return value;
   if (!cache.has(KEYS.BACKLOG)) return EMPTY_BACKLOG;
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const recovered = { items: keepValid(Array.isArray(raw.items) ? raw.items : [], isBacklogItem, 'backlog') };
+  const syncState = loadSyncState();
+  if (syncState) {
+    const { backlog: _backlog, ...bases } = syncState.bases;
+    void saveSyncState({ ...syncState, bases, backlogSynced: false }).catch(() => undefined);
+  }
   reportError('Backlog storage is damaged or unreadable; keeping the stored value until the backlog is edited.');
   uneditedRecoveredBacklog.add(recovered);
   cache.set(KEYS.BACKLOG, recovered);
