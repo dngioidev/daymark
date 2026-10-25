@@ -11,6 +11,7 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
   const [placement, setPlacement] = useState({ phone: false, bottom: 0, visible: true });
   const [link, setLink] = useState<string | null>(null);
   const [pictureLink, setPictureLink] = useState<string | null>(null);
+  const [pictureAlt, setPictureAlt] = useState('');
   const pictureInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -61,7 +62,7 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
       <button type="button" className={button} aria-label="Link" title="Link" aria-pressed={editor.isActive('link')} onMouseDown={(event) => event.preventDefault()} onClick={() => setLink(editor.getAttributes('link').href ?? '')}><Link className="w-4 h-4" /></button>
       <Menu sheetTitle="Picture" items={[
         { label: 'Choose file', onSelect: () => pictureInput.current?.click() },
-        { label: 'From link', onSelect: () => setPictureLink('') },
+        { label: 'From link', onSelect: () => { setPictureAlt(''); setPictureLink(''); } },
       ]} trigger={(props) => <button type="button" {...props} className={button} aria-label="Picture" title="Insert picture"><Image className="w-4 h-4" /></button>} />
       <button type="button" className={button} aria-label="Diagram" disabled title="Insert diagram"><Network className="w-4 h-4" /></button>
     </div>
@@ -91,10 +92,11 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
           showToast('Enter an https:// picture URL.', { tone: 'error' });
           return;
         }
-        editor.chain().focus().setImage({ src, alt: '' }).run();
+        editor.chain().focus().insertContent({ type: 'paragraph', content: [{ type: 'image', attrs: { src, alt: pictureAlt } }] }).run();
         setPictureLink(null);
       }}>
         <input aria-label="Picture URL" placeholder="https://" autoFocus value={pictureLink ?? ''} onChange={(event) => setPictureLink(event.target.value)} className="min-h-11 min-w-0 rounded border border-stone-400 bg-white px-2 text-stone-900 dark:bg-stone-800 dark:text-stone-100" />
+        <input aria-label="Picture alt text (optional)" placeholder="Alt text (optional)" value={pictureAlt} onChange={(event) => setPictureAlt(event.target.value)} className="min-h-11 min-w-0 rounded border border-stone-400 bg-white px-2 text-stone-900 dark:bg-stone-800 dark:text-stone-100" />
         <div className="flex justify-end gap-2"><button type="button" className={button} onClick={() => setPictureLink(null)}>Cancel</button><button type="submit" className={button}>Insert picture</button></div>
       </form>
     </Dialog>

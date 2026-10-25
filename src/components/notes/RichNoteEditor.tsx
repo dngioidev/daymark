@@ -48,6 +48,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
       attributes: { role: 'textbox', 'aria-label': 'Note rich text', 'aria-multiline': 'true', class: 'dm-note-prose min-h-full p-4 sm:p-5 outline-none text-stone-900 dark:text-stone-100' },
       transformPastedHTML: (html) => pasteSanitizer.sanitize(html),
       handlePaste: (_view, event) => {
+        if (event.clipboardData?.getData('text/html') || event.clipboardData?.getData('text/plain')) return false;
         const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
         if (!files.length || !activeEditor.current) return false;
         event.preventDefault();

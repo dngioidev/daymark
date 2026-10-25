@@ -38,9 +38,9 @@ async function mount(markdown = '') {
   const editor = (host.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
   return { editor, onChange };
 }
-function fileEvent(type: 'paste' | 'drop', files: File[]) {
+function fileEvent(type: 'paste' | 'drop', files: File[], payload: Record<string, string | undefined> = {}) {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, type === 'paste' ? 'clipboardData' : 'dataTransfer', { value: { files, getData: () => '', types: ['Files'] } });
+  Object.defineProperty(event, type === 'paste' ? 'clipboardData' : 'dataTransfer', { value: { files, getData: (format: string) => payload[format] ?? '', types: ['Files', ...Object.keys(payload)] } });
   return event;
 }
 it('pasted image becomes an asset reference', async () => {
@@ -52,19 +52,24 @@ it('dropped image files become asset references in order', async () => {
   const { editor, onChange } = await mount();
   vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 1, inside: 0 });
   await act(async () => { editor.view.dom.dispatchEvent(fileEvent('drop', [new File(['one'], 'one.gif', { type: 'image/gif' }), new File(['two'], 'two.jpg', { type: 'image/jpeg' })])); });
-  expect(onChange.mock.calls.at(-1)?.[0]).toBe(`![one](daymark-asset:${fixtures.id}.webp)![two](daymark-asset:${fixtures.id}.webp)`);
+  expect(onChange.mock.calls.at(-1)?.[0]).toBe(`![one](daymark-asset:${fixtures.id}.webp)\n\n![two](daymark-asset:${fixtures.id}.webp)`);
+  expect(editor.state.doc.childCount).toBe(2);
 });
 it('https image stays a link', async () => {
   const { editor, onChange } = await mount();
   await act(async () => { editor.view.pasteHTML('<p><img src="https://example.com/a.png" alt="Remote"></p>'); });
   expect(onChange).toHaveBeenLastCalledWith('![Remote](https://example.com/a.png)');
-  const image = host.querySelector('img[src]')!;
+  const image = host.querySelector<HTMLImageElement>('img[src]')!;
   expect(image.getAttribute('loading')).toBe('lazy');
   expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
+  expect(image.style.maxHeight).toBe('70vh');
+  expect(image.style.objectFit).toBe('contain');
+  expect(image.style.width).toBe('100%');
 });
 it('missing asset shows placeholder and retries on sync without saving the note', async () => {
   const { onChange } = await mount(`![Local](daymark-asset:${fixtures.id}.webp)`);
   expect(host.textContent).toContain('Picture not synced yet');
+  expect(host.querySelector('[role="img"][aria-label="Picture not synced yet"]')).not.toBeNull();
   fixtures.url = 'blob:arrived';
   await act(async () => { window.dispatchEvent(new CustomEvent('daymark-assets-changed', { detail: { ids: [fixtures.id] } })); });
   expect(host.querySelector('img[src]')?.getAttribute('src')).toBe('blob:arrived');
@@ -144,7 +149,55 @@ it('maps the insertion point through typing while a picture is being encoded', a
   await act(async () => { editor.view.dom.dispatchEvent(fileEvent('paste', [new File(['x'], 'async.png', { type: 'image/png' })])); });
   await act(async () => { editor.view.dispatch(editor.state.tr.insertText('New ', 1)); });
   await act(async () => { finish({ blob: new Blob(['x'], { type: 'image/webp' }), width: 1, height: 1, mime: 'image/webp' }); });
-  expect(editor.getMarkdown()).toBe(`New ![async](daymark-asset:${fixtures.id}.webp)Tail`);
+  expect(editor.getMarkdown()).toBe(`New \n\n![async](daymark-asset:${fixtures.id}.webp)\n\nTail`);
+});
+
+it.each([
+  { text: 'text', caret: 5, expected: 'text\n\nPICTURE' },
+  { text: 'BeforeAfter', caret: 7, expected: 'Before\n\nPICTURE\n\nAfter' },
+  { text: '', caret: 1, expected: 'PICTURE' },
+])('inserts a picture in its own paragraph at caret $caret in "$text"', async ({ text, caret, expected }) => {
+  const { editor, onChange } = await mount(text);
+  await act(async () => { editor.commands.setTextSelection(caret); editor.view.dom.dispatchEvent(fileEvent('paste', [new File(['x'], 'sky.png', { type: 'image/png' })])); });
+  expect(onChange).toHaveBeenLastCalledWith(expected.replace('PICTURE', `![sky](daymark-asset:${fixtures.id}.webp)`));
+  if (!text) expect(editor.state.doc.childCount).toBe(1);
+});
+
+it('existing inline pictures still load and round-trip unchanged after an unrelated edit', async () => {
+  const source = `Before ![sky](daymark-asset:${fixtures.id}.webp) after\n\nElsewhere`;
+  const { editor, onChange } = await mount(source);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(editor.getMarkdown()).toBe(source);
+  await act(async () => { editor.view.dispatch(editor.state.tr.insertText(' edited', editor.state.doc.content.size - 1)); });
+  expect(onChange).toHaveBeenLastCalledWith(`${source} edited`);
+});
+
+it.each([
+  { payload: { 'text/html': '<p><strong>Keep HTML</strong></p>', 'text/plain': 'Keep HTML' }, expected: '**Keep HTML**' },
+  { payload: { 'text/plain': 'Keep text' }, expected: 'Keep text' },
+])('preserves mixed clipboard content instead of swallowing it: $expected', async ({ payload, expected }) => {
+  const { editor, onChange } = await mount();
+  await act(async () => { editor.view.dom.dispatchEvent(fileEvent('paste', [new File(['x'], 'sky.png', { type: 'image/png' })], payload)); });
+  expect(onChange).toHaveBeenLastCalledWith(expected);
+  expect(editor.getMarkdown()).not.toContain('daymark-asset:');
+});
+
+it('From link inserts an optional alt in its own paragraph', async () => {
+  const { editor, onChange } = await mount('text');
+  await act(async () => { editor.commands.setTextSelection(5); host.querySelector<HTMLButtonElement>('[aria-label="Picture"]')!.click(); });
+  const fromLink = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(button => button.textContent?.includes('From link'))!;
+  await act(async () => fromLink.click());
+  const url = document.querySelector<HTMLInputElement>('[aria-label="Picture URL"]')!;
+  const alt = document.querySelector<HTMLInputElement>('[aria-label="Picture alt text (optional)"]');
+  expect(alt).not.toBeNull();
+  await act(async () => {
+    for (const [input, value] of [[url, 'https://example.com/sky.png'], [alt!, 'Blue sky']] as const) {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  await act(async () => document.querySelector('form[data-picture-link]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(onChange).toHaveBeenLastCalledWith('text\n\n![Blue sky](https://example.com/sky.png)');
 });
 
 it('never inserts a pending picture into a different note after switching', async () => {

@@ -34,15 +34,22 @@ export const Picture = Image.extend({
       let request = 0;
       const render = (url: string | null) => {
         dom.replaceChildren();
+        dom.removeAttribute('role');
+        dom.removeAttribute('aria-label');
         if (!url) {
           dom.textContent = id ? 'Picture not synced yet' : 'Picture unavailable';
+          dom.setAttribute('role', 'img');
+          dom.setAttribute('aria-label', dom.textContent);
           dom.className = 'inline-block rounded border border-stone-400 bg-stone-100 p-3 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-200';
           return;
         }
-        dom.className = 'inline-block max-w-full align-middle';
+        dom.className = 'inline-block w-full max-w-full align-middle';
         const image = document.createElement('img');
         image.setAttribute('loading', 'lazy');
         image.setAttribute('referrerpolicy', 'no-referrer');
+        image.style.maxHeight = '70vh';
+        image.style.objectFit = 'contain';
+        image.style.width = '100%';
         image.alt = node.attrs.alt ?? '';
         if (node.attrs.title) image.title = node.attrs.title;
         image.src = url;
@@ -85,7 +92,9 @@ export async function insertPictureFiles(editor: Editor, files: readonly File[],
     }
     if (pictures.length) {
       const { from, to } = bookmark.resolve(editor.state.doc);
-      editor.commands.insertContentAt({ from, to }, pictures);
+      // Keep the image schema inline for legacy notes, but insert new pictures
+      // as separate paragraphs. TipTap splits text and reuses empty paragraphs.
+      editor.commands.insertContentAt({ from, to }, pictures.map(picture => ({ type: 'paragraph', content: [picture] })));
     }
   } finally { editor.off('transaction', map); }
 }
