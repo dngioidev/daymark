@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
+import { isClosedCopy } from './taskActions';
 import { performDailyRollover } from './lifecycleEngine';
 import { isDailyDocument } from './vaultValidation';
 import { applyMarkdownEdit, closeEarlierCopies, followDoneChanges, isDoneLater, reopenEarlierCopies, getMoveTaskDateError, getMoveToTomorrowDate, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
@@ -24,6 +25,16 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 });
 
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
+
+it('recognises backlog closures and clears their mark when explicitly reopened', () => {
+  const closed = { ...task('a'), status: 'done', movedToBacklogDate: '2026-10-23' };
+  expect(isClosedCopy(closed)).toBe(true);
+  expect(isClosedCopy({ ...task('a'), movedToBacklogDate: '2026-10-23' })).toBe(true);
+  expect(isClosedCopy({ ...task('a'), status: 'done', doneLaterDate: '2026-10-23' })).toBe(true);
+  expect(isClosedCopy(task('a'))).toBe(false);
+  const reopened = doc([{ ...closed, status: 'in-progress' }]);
+  expect(followDoneChanges([reopened], doc([closed]), reopened)[0].headings[0].items[0].movedToBacklogDate).toBeUndefined();
+});
 
 describe('move to tomorrow menu destination', () => {
   it('hides the action when viewing tomorrow’s planned day', () => {

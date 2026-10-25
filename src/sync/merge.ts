@@ -1,4 +1,4 @@
-import { AppSettings, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
+import { AppSettings, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -254,10 +254,43 @@ export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, thei
 
 export const isHabitEntityKey = (key: string): boolean => key === 'habits' || key.startsWith('habitday:');
 
-/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`. */
+/** Missing items are retained as in habits; explicit tombstones participate in timestamp conflicts. */
+export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null, theirs: BacklogData | null): MergeResult<BacklogData> {
+  if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
+    return { value: null, conflicts: [] };
+  }
+  if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
+  const b = new Map(base?.items.map((item) => [item.id, item]));
+  const o = new Map(ours.items.map((item) => [item.id, item]));
+  const t = new Map(theirs.items.map((item) => [item.id, item]));
+  const items: BacklogItem[] = [];
+  const conflicts: string[] = [];
+  for (const id of new Set([...o.keys(), ...t.keys()])) {
+    const mine = o.get(id);
+    const incoming = t.get(id);
+    if (!mine || !incoming) {
+      items.push((mine ?? incoming)!);
+      continue;
+    }
+    const result = pick3(b.get(id), mine, incoming);
+    if (result.kind === 'value') items.push(result.value!);
+    else {
+      items.push(timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming);
+      conflicts.push(`Backlog item "${incoming.title}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
+    }
+  }
+  return { value: { items }, conflicts };
+}
+
+export const isBacklogEntityKey = (key: string): boolean => key === 'backlog';
+
+/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`, `backlog`. */
 export type EntityKey = string;
 
 export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown): MergeResult<unknown> {
+  if (isBacklogEntityKey(key)) {
+    return mergeBacklog(base as BacklogData | null, ours as BacklogData | null, theirs as BacklogData | null);
+  }
   if (key === 'habits') {
     return mergeHabitList(base as { habits: Habit[] } | null, ours as { habits: Habit[] } | null, theirs as { habits: Habit[] } | null);
   }
@@ -277,5 +310,5 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 }
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
-  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
+  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
 }

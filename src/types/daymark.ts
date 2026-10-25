@@ -40,6 +40,7 @@ export interface TaskItem {
   carriedFromDate?: string; // YYYY-MM-DD of the immediate previous day it rolled from
   completedDate?: string; // Effective completion date (can be historical)
   doneLaterDate?: string; // On an earlier carried copy: the day the task was finally done (closed here, not counted as done this day)
+  movedToBacklogDate?: string; // Earlier copy closed when the latest copy moved out of the daily notes
   heading: string; // e.g., 'Work', 'Meetings', 'Ideas', 'Attention'
   order: number;
   checklist?: ChecklistItem[];
@@ -52,6 +53,26 @@ export interface HeadingSection {
   name: string;
   items: TaskItem[];
   notesContent?: string; // Free-form Markdown notes under this heading
+}
+
+export interface BacklogItem {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  status?: string;
+  checklist?: ChecklistItem[];
+  tags?: string[];
+  historyLog?: TaskHistoryItem[];
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  pickedOn?: string; // YYYY-MM-DD; picked and deleted items remain as hidden tombstones
+  deletedAt?: string;
+}
+
+export interface BacklogData {
+  items: BacklogItem[];
 }
 
 export interface DailyDocument {

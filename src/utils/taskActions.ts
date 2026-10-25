@@ -77,6 +77,9 @@ export function reopenEarlierCopies(docs: DailyDocument[], taskId: string, doneD
 /** A copy closed because the task was finished on a later day: not open, and not done on its own day. */
 export const isDoneLater = (task: TaskItem): boolean => task.status === 'done' && !!task.doneLaterDate;
 
+/** Historical copies closed by completion elsewhere or by a move out of daily notes. */
+export const isClosedCopy = (task: TaskItem): boolean => isDoneLater(task) || !!task.movedToBacklogDate;
+
 /**
  * After one day changes from `previous` to `next`, closes earlier copies of tasks that became done
  * there and reopens them for tasks that are no longer done. Covers the checkbox, the status menu
@@ -93,12 +96,12 @@ export function followDoneChanges(docs: DailyDocument[], previous: DailyDocument
     else if (was === 'done' && status !== 'done' && status !== 'archived') result = reopenEarlierCopies(result, id, next.date);
   }
   // A closed copy reopened on its own day (status menu, Markdown) is an ordinary open task again
-  if (next.headings.some((h) => h.items.some((t) => t.doneLaterDate && t.status !== 'done'))) {
+  if (next.headings.some((h) => h.items.some((t) => (t.doneLaterDate || t.movedToBacklogDate) && t.status !== 'done'))) {
     result = result.map((d) => d.date !== next.date ? d : {
       ...d,
       headings: d.headings.map((h) => ({ ...h, items: h.items.map((t) => {
-        if (!t.doneLaterDate || t.status === 'done') return t;
-        const { doneLaterDate: _later, ...rest } = t;
+        if (!(t.doneLaterDate || t.movedToBacklogDate) || t.status === 'done') return t;
+        const { doneLaterDate: _later, movedToBacklogDate: _backlog, ...rest } = t;
         return rest;
       }) })),
     });
@@ -106,7 +109,7 @@ export function followDoneChanges(docs: DailyDocument[], previous: DailyDocument
   return result;
 }
 
-function mapEarlierCopies(docs: DailyDocument[], taskId: string, before: string, change: (t: TaskItem) => TaskItem): DailyDocument[] {
+export function mapEarlierCopies(docs: DailyDocument[], taskId: string, before: string, change: (t: TaskItem) => TaskItem, nowIso?: string): DailyDocument[] {
   let changed = false;
   const next = docs.map((d) => {
     if (d.date >= before) return d;
@@ -125,7 +128,7 @@ function mapEarlierCopies(docs: DailyDocument[], taskId: string, before: string,
     });
     if (!docChanged) return d;
     changed = true;
-    return { ...d, headings, updatedAt: new Date().toISOString() };
+    return { ...d, headings, updatedAt: nowIso ?? new Date().toISOString() };
   });
   return changed ? next : docs;
 }

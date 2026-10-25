@@ -11,6 +11,11 @@ function day(date: string, statuses: string[]): DailyDocument {
 }
 
 describe('day statistics', () => {
+  it('excludes moved-to-backlog copies from day counts', () => {
+    const doc = day('2026-10-21', ['done', 'in-progress']);
+    doc.headings[0].items[0].movedToBacklogDate = '2026-10-23';
+    expect(weekTrend([doc], doc.date)[6]).toEqual({ date: doc.date, done: 0, total: 1 });
+  });
   const docs = [
     day('2026-10-27', ['not-started']),
     day('2026-10-21', ['not-started', 'in-progress', 'blocked', 'waiting']),

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument, Habit, HabitDay, StandaloneNote, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
+import type { BacklogItem } from '../types/daymark';
+import { isBacklogEntityKey, mergeBacklog } from './merge';
 import {
   CONFLICT_SEPARATOR,
   canonicalJson,
@@ -16,6 +18,45 @@ const habit = (id: string, extra: Partial<Habit> = {}): Habit => ({
   id, name: id, order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z', ...extra,
 });
 const habitDay = (ticks: HabitDay['ticks']): HabitDay => ({ date: '2026-10-24', ticks });
+describe('backlog merges', () => {
+  const early = '2026-10-26T08:00:00Z';
+  const late = '2026-10-26T09:00:00Z';
+  const a: BacklogItem = { id: 'a', title: 'Task', order: 1, createdAt: early, updatedAt: early };
+  const base = { items: [a] };
+  const edited = { items: [{ ...a, title: 'Edited', updatedAt: late }] };
+  it('keeps independent additions and missing items on either side', () => {
+    const b = { ...a, id: 'b' };
+    expect(mergeBacklog(null, base, { items: [b] }).value?.items).toEqual([a, b]);
+    expect(mergeBacklog(base, { items: [] }, base).value).toEqual(base);
+    expect(mergeBacklog(base, base, { items: [] }).value).toEqual(base);
+  });
+  it('uses three-way equality before timestamps, newer edits win true conflicts, incoming wins ties', () => {
+    const other = { items: [{ ...a, title: 'Other' }] };
+    expect(mergeBacklog(base, edited, other).value).toEqual(edited);
+    expect(mergeBacklog(base, other, edited).value).toEqual(edited);
+    expect(mergeBacklog(base, other, { items: [{ ...a, title: 'Incoming' }] }).value?.items[0].title).toBe('Incoming');
+    expect(mergeBacklog(edited, edited, other).value).toEqual(other);
+    expect(mergeBacklog(base, edited, other).conflicts).toHaveLength(1);
+  });
+  it('keeps the newer edit when a concurrent pick occurs; reconciliation resolves placement later', () => {
+    const picked = { items: [{ ...a, pickedOn: '2026-10-26' }] };
+    expect(mergeBacklog(base, picked, edited).value).toEqual(edited);
+  });
+  it('retains edits against item or whole-entity deletes, honours unchanged entity deletes', () => {
+    expect(mergeBacklog(base, { items: [{ ...a, deletedAt: early }] }, edited).value).toEqual(edited);
+    expect(mergeBacklog(base, null, edited).value).toEqual(edited);
+    expect(mergeBacklog(base, edited, null).value).toEqual(edited);
+    expect(mergeBacklog(base, base, null).value).toBeNull();
+    expect(mergeBacklog(base, null, base).value).toBeNull();
+    expect(mergeBacklog(base, null, null).value).toBeNull();
+  });
+  it('accepts and dispatches only the exact backlog entity key', () => {
+    expect(isValidEntityKey('backlog')).toBe(true);
+    expect(isBacklogEntityKey('backlog')).toBe(true);
+    expect(isBacklogEntityKey('backlog:a')).toBe(false);
+    expect(mergeEntity('backlog', base, base, edited).value).toEqual(edited);
+  });
+});
 describe('habit merges', () => {
   const early = { done: true, at: '2026-10-24T08:00:00Z' };
   const late = { done: true, at: '2026-10-24T09:00:00Z' };

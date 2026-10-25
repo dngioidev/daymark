@@ -1,4 +1,5 @@
 import { AgingThresholds, DailyDocument, StatusDefinition, TaskHistoryItem, TaskItem } from '../types/daymark';
+import { isClosedCopy } from './taskActions';
 
 /**
  * Calculates calendar day difference between two YYYY-MM-DD strings.
@@ -33,6 +34,7 @@ export function getAgingSeverity(
   statuses: StatusDefinition[]
 ): 'normal' | 'attention' | 'critical' {
   if (!thresholds.enabled) return 'normal';
+  if (isClosedCopy(task)) return 'normal';
   if (task.status === 'done' || task.status === 'archived') return 'normal';
 
   // Check if status definition participates in aging
@@ -115,6 +117,7 @@ export function performDailyRollover(
           task.status !== 'done' &&
           task.status !== 'archived' &&
           !task.completedDate &&
+          !isClosedCopy(task) &&
           !existingTaskIds.has(task.id);
 
         if (isEligible) {
@@ -139,7 +142,7 @@ export function performDailyRollover(
             details: `Carried forward from ${pastDoc.date}`,
           };
 
-          const { doneLaterDate: _doneLater, ...carriedFields } = task;
+          const { doneLaterDate: _doneLater, movedToBacklogDate: _backlog, ...carriedFields } = task;
           const carriedTask: TaskItem = {
             ...carriedFields,
             carriedFromDate: pastDoc.date,
@@ -309,6 +312,7 @@ export function reopenTask(
     t.status = 'in-progress';
     t.completedDate = undefined;
     delete t.doneLaterDate;
+    delete t.movedToBacklogDate;
     t.historyLog = [
       ...(t.historyLog || []),
       {

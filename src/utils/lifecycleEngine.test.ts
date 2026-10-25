@@ -39,6 +39,13 @@ const allItems = (docs: DailyDocument[], date: string) =>
 
 describe('performDailyRollover', () => {
   const statuses = DEFAULT_SETTINGS.statuses;
+  it('never carries a moved-to-backlog copy or alerts on it, even with an open status', () => {
+    const closed = { ...task('a', 'in-progress', '2026-10-10'), movedToBacklogDate: '2026-10-20' };
+    const docs = [doc('2026-10-19', [closed])];
+    expect(performDailyRollover('2026-10-21', docs, statuses).carriedCount).toBe(0);
+    expect(getAgingSeverity(closed, '2026-10-21', DEFAULT_SETTINGS.agingThresholds, statuses)).toBe('normal');
+    expect(reopenTask('a', '2026-10-19', docs).updatedTask?.movedToBacklogDate).toBeUndefined();
+  });
 
   it('a task deleted on a day does not come back from older copies the next morning', () => {
     const first = performDailyRollover('2026-10-21', [doc('2026-10-20', [task('t1', 'in-progress', '2026-10-20')])], statuses).updatedDocs;

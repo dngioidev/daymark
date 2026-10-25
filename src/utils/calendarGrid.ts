@@ -1,6 +1,6 @@
 import type { CalendarCell, DailyDocument } from '../types/daymark';
 import { getNextDate, getPreviousDate } from './lifecycleEngine';
-import { isDoneLater } from './taskActions';
+import { isClosedCopy } from './taskActions';
 
 function cellsBetween(start: string, end: string, month: string, docs: DailyDocument[], today: string): CalendarCell[] {
   const docMap = new Map(docs.map((doc) => [doc.date, doc]));
@@ -11,8 +11,8 @@ function cellsBetween(start: string, end: string, month: string, docs: DailyDocu
     cells.push({
       date, inMonth: date.slice(0, 7) === month, isToday: date === today, isFuture: date > today,
       // Copies closed because the task was finished on a later day count on that later day only
-      done: tasks.filter((task) => task.status === 'done' && !isDoneLater(task)).length,
-      total: tasks.filter((task) => !isDoneLater(task)).length,
+      done: tasks.filter((task) => task.status === 'done' && !isClosedCopy(task)).length,
+      total: tasks.filter((task) => !isClosedCopy(task)).length,
       hasNotes: doc?.headings.some((heading) => !!heading.notesContent?.trim()) ?? false,
       titles: tasks.map((task) => task.title),
       items: tasks.map((task) => ({ title: task.title, done: task.status === 'done' })),

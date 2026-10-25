@@ -34,6 +34,9 @@ export function serializeDailyDocument(doc: DailyDocument): string {
       if (task.doneLaterDate) {
         metaParts.push(`done_later=${task.doneLaterDate}`);
       }
+      if (task.movedToBacklogDate) {
+        metaParts.push(`moved_to_backlog=${task.movedToBacklogDate}`);
+      }
       lines.push(`  <!-- daymark: ${metaParts.join(' ')} -->`);
 
       if (task.description) {
@@ -114,6 +117,7 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
         carriedFromDate: currentTask.carriedFromDate,
         completedDate: currentTask.completedDate,
         ...(currentTask.doneLaterDate ? { doneLaterDate: currentTask.doneLaterDate } : {}),
+        ...(currentTask.movedToBacklogDate ? { movedToBacklogDate: currentTask.movedToBacklogDate } : {}),
         heading: currentSection.name,
         order: taskOrder++,
         checklist: currentTask.checklist,
@@ -219,6 +223,7 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
           if (key === 'carried_from' && val) currentTask.carriedFromDate = val;
           if (key === 'completed' && val) currentTask.completedDate = val;
           if (key === 'done_later' && val) currentTask.doneLaterDate = val;
+          if (key === 'moved_to_backlog' && val) currentTask.movedToBacklogDate = val;
         }
       }
       continue;

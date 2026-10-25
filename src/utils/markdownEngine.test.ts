@@ -28,6 +28,13 @@ const sample: DailyDocument = {
 };
 
 describe('markdown round trip', () => {
+  it('round-trips moved_to_backlog without changing task identity', () => {
+    const closed = { ...sample.headings[0].items[0], status: 'done', movedToBacklogDate: '2026-10-18' };
+    const md = serializeDailyDocument({ ...sample, headings: [{ name: 'Work', items: [closed] }] });
+    expect(md).toContain('task_id=task-1 status=done created=2026-10-14');
+    expect(md).toContain('moved_to_backlog=2026-10-18');
+    expect(parseDailyDocument(md, sample.date).headings[0].items[0]).toMatchObject({ id: 'task-1', movedToBacklogDate: '2026-10-18' });
+  });
   it('preserves the daymark metadata comment', () => {
     const md = serializeDailyDocument(sample);
     expect(md).toContain('<!-- daymark:');
