@@ -186,20 +186,26 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
  */
 export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): VaultData {
   const now = toEntities(current);
+  const recovering = uneditedRecoveredHabits.has(current.habits);
+  let receivedHabits = false;
   for (const [key, serverValue] of outcome.serverValues) {
     const sent = outcome.snapshot.has(key) ? outcome.snapshot.get(key)! : null;
     const mine = now.has(key) ? now.get(key)! : null;
-    if (sameValue(mine, sent)) {
+    const recoveredHabit = recovering && isHabitEntityKey(key);
+    if (recoveredHabit) receivedHabits = true;
+    if (!recoveredHabit && sameValue(mine, sent)) {
       if (serverValue === null) now.delete(key);
       else now.set(key, serverValue);
     } else {
-      const merged = mergeEntity(key, sent, serverValue, mine);
+      // Recovery has no trustworthy habit base. Retain local survivors as additions
+      // while restoring the server's history, including ticks on partially damaged days.
+      const merged = mergeEntity(key, recoveredHabit ? null : sent, serverValue, mine);
       if (merged.value === null) now.delete(key);
       else now.set(key, merged.value);
       for (const extra of merged.extraNotes ?? []) now.set(`note:${extra.id}`, extra);
     }
   }
   const next = fromEntities(now, current.settings);
-  if (uneditedRecoveredHabits.has(current.habits)) uneditedRecoveredHabits.add(next.habits);
+  if (recovering && !receivedHabits) uneditedRecoveredHabits.add(next.habits);
   return next;
 }

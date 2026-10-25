@@ -273,3 +273,26 @@ it('applies incoming habit-only changes to the vault', async () => {
   await useSync(vault, onChange, vi.fn(), 'web').syncNow();
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ habits }));
 });
+
+it.each([false, true])('persists recovered backfill habits through the vault callback (same content: %s)', async (sameContent) => {
+  const store = await vi.importActual<typeof import('../utils/vaultStore')>('../utils/vaultStore');
+  const day = { date: '2026-10-24', ticks: { a: { done: true, at: '2026-10-24T08:00:00Z' } } };
+  const damaged = { habits: [], days: [...(sameContent ? [day] : []), { date: 'broken', ticks: {} }] };
+  const values = new Map([['daymark_habits_v1', JSON.stringify(damaged)]]);
+  vi.stubGlobal('indexedDB', undefined);
+  vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await store.initVaultStore();
+    const recovered = { ...vault, habits: store.loadHabits() };
+    vi.mocked(loadSyncState).mockReturnValue({ ...state, habitsSynced: false });
+    const original = fetchFn.getMockImplementation()!;
+    fetchFn.mockImplementation(async (url, init) => url.endsWith('/sync')
+      ? Response.json({ rev: 2, entities: [{ key: 'habitday:2026-10-24', value: day, rev: 1 }], conflicts: [] })
+      : original(url, init));
+    hooks.index = 0;
+    await useSync(recovered, next => store.saveHabits(next.habits), vi.fn(), 'web').syncNow();
+    expect(JSON.parse(values.get('daymark_habits_v1')!)).toEqual({ habits: [], days: [day] });
+  } finally { errors.mockRestore(); }
+});

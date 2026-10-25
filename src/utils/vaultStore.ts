@@ -7,6 +7,7 @@ import { isDailyDocument, isHabit, isHabitData, isHabitDay, isHabitTick, isStand
 import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
 import { decideInitialAppearance } from './appearance';
+import { isHabitEntityKey } from '../sync/merge';
 
 /**
  * Vault persistence.
@@ -343,6 +344,13 @@ export function loadHabits(): HabitData {
     return { ...day, ticks: Object.fromEntries(valid) };
   });
   const recovered = { habits, days: keepValid(days, isHabitDay, 'habit day') };
+  // Dropped values are damage, not intentional deletions. Forget only habit bases
+  // and backfill their full history before accepting another incremental cursor.
+  const syncState = loadSyncState();
+  if (syncState) {
+    const bases = Object.fromEntries(Object.entries(syncState.bases).filter(([key]) => !isHabitEntityKey(key)));
+    void saveSyncState({ ...syncState, bases, habitsSynced: false }).catch(() => undefined);
+  }
   console.error('Recovered damaged habit storage; keeping the stored value until habits are edited.');
   uneditedRecoveredHabits.add(recovered);
   cache.set(KEYS.HABITS, recovered);

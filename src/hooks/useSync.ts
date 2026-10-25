@@ -141,8 +141,9 @@ export function useSync(
           if (outcome.serverValues.size > 0) {
             const before = vaultRef.current;
             const next = applySyncOutcome(before, outcome);
+            const recoveredHabitsReleased = uneditedRecoveredHabits.has(before.habits) && !uneditedRecoveredHabits.has(next.habits);
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
-              canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits)) {
+              canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
             }

@@ -4,7 +4,7 @@ import { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { Server } from 'node:http';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DailyDocument, StandaloneNote, TaskItem } from '../src/types/daymark';
 import { DEFAULT_SETTINGS } from '../src/utils/defaultData';
 import { performDailyRollover } from '../src/utils/lifecycleEngine';
@@ -88,6 +88,56 @@ const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData =
 describe('habit sync', () => {
   const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
   const ticks = { date: '2026-10-24', ticks: { water: { done: true, at: '2026-10-24T08:00:00Z' } } };
+  it('recovers missing days by backfill and never deletes them on the first edit', async () => {
+    const a = await connect('A');
+    const b = await connect('B');
+    const d2 = { ...ticks, date: '2026-10-25' };
+    const original = { ...vault([]), habits: { ...list, days: [ticks, d2] } };
+    await syncOnce(fetch, original, a, a.accessToken);
+    const initial = await syncOnce(fetch, vault([]), b, b.accessToken);
+    const localOnly = { ...list.habits[0], id: 'read', name: 'Read' };
+    const recoveredDay = { ...ticks, ticks: { ...ticks.ticks, read: { done: true, at: '2026-10-24T09:00:00Z' } } };
+    const extraDay = { ...ticks, date: '2026-10-26' };
+    const values = new Map<string, string>([
+      ['daymark_sync_state_v1', JSON.stringify(initial.state)],
+      ['daymark_habits_v1', JSON.stringify({ habits: [...list.habits, localOnly], days: [recoveredDay, { ...d2, ticks: 'damaged' }, extraDay] })],
+    ]);
+    vi.stubGlobal('indexedDB', undefined);
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value) });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const store = await import('../src/utils/vaultStore');
+      await store.initVaultStore();
+      const recovered = { ...original, habits: store.loadHabits() };
+      const requests: { changes: { key: string; value: unknown }[]; sinceRev: number }[] = [];
+      const fetcher: typeof fetch = async (url, init) => {
+        requests.push(JSON.parse(String(init?.body)));
+        return fetch(url, init);
+      };
+      const backfill = await syncOnce(fetcher, recovered, store.loadSyncState()!, b.accessToken);
+      const merged = applySyncOutcome(recovered, backfill);
+      expect(requests[0].sinceRev).toBe(0);
+      expect(merged.habits.days).toEqual([recoveredDay, d2, extraDay]);
+      expect(merged.habits.habits).toContainEqual(localOnly);
+      store.saveHabits(merged.habits);
+      expect(JSON.parse(values.get('daymark_habits_v1')!)).toEqual(merged.habits);
+      const edited = { ...merged, habits: { ...merged.habits, days: merged.habits.days.map(day => day.date === ticks.date
+        ? { ...day, ticks: { ...day.ticks, water: { done: false, at: '2026-10-27T08:00:00Z' } } } : day) } };
+      await syncOnce(fetcher, edited, backfill.state, b.accessToken);
+      expect(requests.flatMap(r => r.changes).filter(c => c.key.startsWith('habit') && c.value === null)).toEqual([]);
+      const serverVault = await syncOnce(fetch, vault([]), a, a.accessToken);
+      expect(serverVault.serverValues.get('habitday:2026-10-25')).toEqual(d2);
+      expect(serverVault.serverValues.get('habitday:2026-10-24')).toMatchObject({ date: ticks.date, ticks: { water: { done: false } } });
+      expect(serverVault.serverValues.get('habitday:2026-10-24')).toMatchObject({ ticks: { read: recoveredDay.ticks.read } });
+      expect(serverVault.serverValues.get('habitday:2026-10-26')).toEqual(extraDay);
+      expect(serverVault.serverValues.get('habits')).toMatchObject({ habits: expect.arrayContaining([localOnly]) });
+    } finally {
+      errors.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
   it('backfills all habit days when a previously synced 1.3.0 device upgrades', async () => {
     const writer = await connect('Writer');
     await post('/api/sync', { sinceRev: 0, features: ['habits'], changes: [

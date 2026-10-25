@@ -81,6 +81,40 @@ async function habitStoreTest(run: (env: {
 }
 
 describe('habit storage', () => {
+  it.each([false, true].flatMap(indexed => [
+    { indexed, damage: 'day', value: { ...habits, days: [...habits.days, { date: 'broken', ticks: {} }] } },
+    { indexed, damage: 'habit', value: { ...habits, habits: [...habits.habits, { id: 'bad' }] } },
+    { indexed, damage: 'tick', value: { ...habits, days: [{ ...habits.days[0], ticks: { bad: { done: 'yes' } } }] } },
+    { indexed, damage: 'whole value', value: null },
+  ]))('recovery persists a habit-only rebase once ($damage, IndexedDB: $indexed)', async ({ indexed, value }) => {
+    await habitStoreTest(async ({ store, values, raw }) => {
+      const state = { serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a',
+        lastRev: 42, habitsSynced: true, lastSyncAt: null,
+        bases: { habits: JSON.stringify({ habits: habits.habits }),
+          'habitday:2026-10-24': JSON.stringify(habits.days[0]), settings: '{}', 'note:keep': '{}' } };
+      await store.saveSyncState(state);
+      store.loadHabits();
+      const expected = { ...state, habitsSynced: false, bases: { settings: '{}', 'note:keep': '{}' } };
+      expect(store.loadSyncState()).toEqual(expected);
+      await vi.waitFor(() => expect(indexed ? raw.get('sync_state') : JSON.parse(values.get('daymark_sync_state_v1')!)).toEqual(expected));
+      await store.saveSyncState(state);
+      store.loadHabits();
+      expect(store.loadSyncState()).toEqual(state);
+    }, indexed, JSON.stringify(value));
+  });
+
+  it.each([undefined, JSON.stringify(habits)])('leaves sync state untouched without recovery: %s', async (legacy) => {
+    await habitStoreTest(async ({ store, values }) => {
+      const state = { serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a',
+        lastRev: 42, habitsSynced: true, lastSyncAt: null, bases: { habits: '{}' } };
+      await store.saveSyncState(state);
+      const before = values.get('daymark_sync_state_v1');
+      store.loadHabits();
+      expect(store.loadSyncState()).toBe(state);
+      expect(values.get('daymark_sync_state_v1')).toBe(before);
+    }, false, legacy);
+  });
+
   it('keeps valid habits, days and ticks when sibling entries are damaged', async () => {
     const damaged = { habits: [habits.habits[0], { id: 'bad' }], days: [
       { ...habits.days[0], ticks: { ...habits.days[0].ticks, bad: { done: 'yes' } } },

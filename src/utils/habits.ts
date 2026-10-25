@@ -2,7 +2,7 @@ import type { Habit, HabitData, HabitDay, HabitDayItem } from '../types/daymark'
 import { getPreviousDate } from './lifecycleEngine';
 
 export const EMPTY_HABITS: HabitData = { habits: [], days: [] };
-/** Recovered load snapshots stay read-only until an explicit edit produces a new object. */
+/** Recovered load snapshots stay read-only until an explicit edit or a server habit merge. */
 export const uneditedRecoveredHabits = new WeakSet<HabitData>();
 export const DEFAULT_WARN_AFTER_DAYS = 3;
 
