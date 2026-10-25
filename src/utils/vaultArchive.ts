@@ -1,8 +1,9 @@
 // JSZip is loaded on demand: it is only needed when exporting or importing
 const loadJSZip = async () => (await import('jszip')).default;
-import { AppSettings, DailyDocument, HabitData, NoteAssetMeta, StandaloneNote } from '../types/daymark';
+import { AppSettings, BacklogData, DailyDocument, HabitData, NoteAssetMeta, StandaloneNote } from '../types/daymark';
+import { EMPTY_BACKLOG, visibleBacklog } from './backlog';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
-import { isHabitData, vaultProblem } from './vaultValidation';
+import { isBacklogData, isHabitData, vaultProblem } from './vaultValidation';
 import { assetRef, deleteAsset, invalidateAssetInventory, listAssets, MAX_ASSET_BYTES, parseAssetRefs, storeAsset } from './noteAssets';
 import { isPhotoStorageAvailable, kvGetRaw } from './vaultStore';
 
@@ -103,12 +104,29 @@ export interface VaultSnapshot {
   notes: StandaloneNote[];
   settings?: AppSettings;
   habits?: HabitData;
+  backlog?: BacklogData;
   skippedPictures?: number;
 }
 
 /** Older backups have no habits; restoring those must preserve the current data. */
 export function mergeRestoredHabits(current: HabitData, restored?: HabitData): HabitData {
   return restored ?? current;
+}
+
+/** Missing or damaged backlog in older backups must not erase the current data. */
+export function mergeRestoredBacklog(current: BacklogData, restored?: unknown): BacklogData {
+  return isBacklogData(restored) ? restored : current;
+}
+
+function backlogMarkdown(data: BacklogData): string {
+  const groups = new Map<string, { label: string; titles: string[] }>();
+  for (const item of visibleBacklog(data)) {
+    const label = item.category?.trim() || 'Unsorted';
+    const key = item.category?.trim().toLowerCase() || '';
+    if (!groups.has(key)) groups.set(key, { label, titles: [] });
+    groups.get(key)!.titles.push(item.title);
+  }
+  return [...groups.values()].map(group => `## ${group.label}\n\n${group.titles.map(title => `- [ ] ${title}`).join('\n')}\n`).join('\n');
 }
 
 const MONTH_NAMES = [
@@ -135,12 +153,14 @@ export async function buildVaultZip(
   settings: AppSettings,
   habits?: HabitData,
   onMissingPictures?: (count: number) => void,
+  backlog: BacklogData = EMPTY_BACKLOG,
 ): Promise<Uint8Array> {
   const assets = await collectBackupAssets(notes, onMissingPictures);
   const JSZip = await loadJSZip();
   const zip = new JSZip();
   const root = zip.folder('Daymark')!;
   const dailyFolder = root.folder('Daily')!;
+  root.file('Backlog.md', backlogMarkdown(backlog));
 
   for (const doc of docs) {
     const [year, monthStr] = doc.date.split('-');
@@ -184,7 +204,7 @@ export async function buildVaultZip(
   );
   meta.file(
     'vault.json',
-    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, assets: assets.map(asset => asset.meta) })
+    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, assets: assets.map(asset => asset.meta) })
   );
 
   return zip.generateAsync({ type: 'uint8array' });
@@ -233,6 +253,7 @@ export async function importVaultFromZip(
         notes: parsed.standalone_notes,
         settings: looksLikeSettings(parsed.settings) ? parsed.settings : undefined,
         habits: isHabitData(parsed.habits) ? parsed.habits : undefined,
+        backlog: isBacklogData(parsed.backlog) ? parsed.backlog : undefined,
         skippedPictures,
       };
     }

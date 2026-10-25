@@ -16,9 +16,9 @@ async function habitStoreTest(run: (env: {
   store: typeof import('./vaultStore'); values: Map<string, string>;
   raw: Map<string, unknown>; messages: unknown[];
   peers: { onmessage?: (event: { data: unknown }) => void }[];
-}) => Promise<void>, indexed = false, legacy?: string) {
+}) => Promise<void>, indexed = false, legacy?: string, legacyKey = 'daymark_habits_v1') {
   vi.resetModules();
-  const values = new Map<string, string>(legacy === undefined ? [] : [['daymark_habits_v1', legacy]]);
+  const values = new Map<string, string>(legacy === undefined ? [] : [[legacyKey, legacy]]);
   const raw = new Map<string, unknown>();
   const messages: unknown[] = [];
   const peers: { onmessage?: (event: { data: unknown }) => void }[] = [];
@@ -372,4 +372,86 @@ it('allows writes and another wipe after a failed deletion', async () => {
     expect(deletion).toHaveBeenCalledTimes(2);
     expect(values.size).toBe(0);
   } finally { vi.unstubAllGlobals(); }
+});
+
+const backlog = { items: [{ id: 'idea', title: 'Build it', order: 1, createdAt: 'now', updatedAt: 'now' }] };
+describe('backlog storage', () => {
+  it('loads empty when absent', async () => {
+    await habitStoreTest(async ({ store }) => expect(store.loadBacklog()).toEqual({ items: [] }));
+  });
+  it.each([false, true])('persists, broadcasts and reloads (IndexedDB: %s)', async indexed => {
+    await habitStoreTest(async ({ store, raw, values, messages }) => {
+      store.saveBacklog(backlog);
+      expect(store.loadBacklog()).toBe(backlog);
+      expect(messages).toContainEqual({ key: 'backlog', value: backlog });
+      await vi.waitFor(() => expect(indexed ? raw.get('backlog') : JSON.parse(values.get('daymark_backlog_v1')!)).toEqual(backlog));
+      vi.resetModules();
+      const reloaded = await import('./vaultStore');
+      await reloaded.initVaultStore();
+      expect(reloaded.loadBacklog()).toEqual(backlog);
+    }, indexed);
+  });
+  it.each([false, true].flatMap(indexed => ['{bad json', 'null', JSON.stringify({ items: [...backlog.items, { id: 'bad' }] })].map(legacy => ({ indexed, legacy }))))(
+    'preserves damaged storage until edited ($indexed, $legacy)', async ({ indexed, legacy }) => {
+      await habitStoreTest(async ({ store, values, raw, messages }) => {
+        const before = raw.get('backlog');
+        const reported: string[] = [];
+        const unsubscribe = store.subscribeStorageErrors(message => reported.push(message));
+        const error = vi.spyOn(console, 'error');
+        const loaded = store.loadBacklog();
+        expect(loaded).toEqual(legacy.startsWith('{"items"') ? backlog : { items: [] });
+        expect(store.loadBacklog()).toBe(loaded);
+        store.saveBacklog(loaded);
+        expect(values.get('daymark_backlog_v1')).toBe(legacy);
+        expect(raw.get('backlog')).toEqual(before);
+        expect(messages).toEqual([]);
+        expect(error).toHaveBeenCalled();
+        expect(reported.some(message => /backlog/i.test(message))).toBe(true);
+        store.saveBacklog({ items: [...loaded.items, { ...backlog.items[0], id: 'edited' }] });
+        const edited = store.loadBacklog();
+        await vi.waitFor(() => expect(indexed ? raw.get('backlog') : JSON.parse(values.get('daymark_backlog_v1')!)).toEqual(edited));
+        expect(edited.items.at(-1)?.id).toBe('edited');
+        unsubscribe();
+      }, indexed, legacy, 'daymark_backlog_v1');
+    });
+  it('refreshes valid peer changes, rejects damage and avoids loops', async () => {
+    await habitStoreTest(async ({ store, peers, messages }) => {
+      const received: string[] = [];
+      store.subscribeExternalChanges(key => received.push(key));
+      peers[0].onmessage?.({ data: { key: 'backlog', value: backlog } });
+      expect(store.loadBacklog()).toBe(backlog);
+      expect(received).toEqual(['backlog']);
+      peers[0].onmessage?.({ data: { key: 'backlog', value: { items: [null] } } });
+      expect(store.loadBacklog()).toBe(backlog);
+      store.saveBacklog(store.loadBacklog());
+      expect(messages).toEqual([]);
+    });
+  });
+  it.each([false, true])('reset and wipe clear backlog (IndexedDB: %s)', async indexed => {
+    await habitStoreTest(async ({ store, values, raw }) => {
+      store.saveBacklog(backlog);
+      expect(store.resetVaultToSeedData().backlog).toEqual({ items: [] });
+      expect(store.loadBacklog()).toEqual({ items: [] });
+      store.saveBacklog(backlog);
+      await store.wipeLocalVault();
+      expect(store.loadBacklog()).toEqual({ items: [] });
+      expect(values.has('daymark_backlog_v1')).toBe(false);
+      expect(raw.has('backlog')).toBe(false);
+    }, indexed);
+  });
+  it('JSON backup round-trips backlog and old JSON preserves current data', async () => {
+    await habitStoreTest(async ({ store }) => {
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      store.saveBacklog(backlog);
+      await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, habits);
+      const parsed = JSON.parse(await exported!.text());
+      expect(parsed.backlog).toEqual(backlog);
+      const { mergeRestoredBacklog } = await import('./vaultArchive');
+      store.saveBacklog(mergeRestoredBacklog({ items: [] }, parsed.backlog));
+      expect(store.loadBacklog()).toEqual(backlog);
+      expect(mergeRestoredBacklog(backlog, JSON.parse('{}').backlog)).toBe(backlog);
+    });
+  });
 });

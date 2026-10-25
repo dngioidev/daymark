@@ -1,10 +1,33 @@
-import type { DailyDocument, Habit, HabitData, HabitDay, HabitTick, StandaloneNote } from '../types/daymark';
+import type { BacklogData, BacklogItem, DailyDocument, Habit, HabitData, HabitDay, HabitTick, StandaloneNote, TaskHistoryItem } from '../types/daymark';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isDate = (v: unknown): v is string => isString(v) && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+const HISTORY_ACTIONS: readonly TaskHistoryItem['action'][] = [
+  'created', 'status_changed', 'carried_forward', 'historical_completion', 'reopened', 'archived', 'moved',
+];
+
+export function isBacklogItem(value: unknown): value is BacklogItem {
+  if (!isObject(value) || !isString(value.id) || !isString(value.title) ||
+    typeof value.order !== 'number' || !Number.isFinite(value.order) ||
+    !isString(value.createdAt) || !isString(value.updatedAt)) return false;
+  if (!['description', 'category', 'status', 'deletedAt'].every(key => value[key] === undefined || isString(value[key]))) return false;
+  if (value.pickedOn !== undefined && !isDate(value.pickedOn)) return false;
+  if (value.tags !== undefined && !(Array.isArray(value.tags) && value.tags.every(isString))) return false;
+  if (value.checklist !== undefined && !(Array.isArray(value.checklist) && value.checklist.every(item =>
+    isObject(item) && isString(item.id) && isString(item.text) && typeof item.done === 'boolean'))) return false;
+  if (value.historyLog !== undefined && !(Array.isArray(value.historyLog) && value.historyLog.every(item =>
+    isObject(item) && isString(item.id) && isString(item.timestamp) && isDate(item.date) &&
+    HISTORY_ACTIONS.some(action => action === item.action) && isString(item.details)))) return false;
+  return true;
+}
+
+export function isBacklogData(value: unknown): value is BacklogData {
+  return isObject(value) && Array.isArray(value.items) && value.items.every(isBacklogItem);
+}
 
 export function isHabit(habit: unknown): habit is Habit {
   return (

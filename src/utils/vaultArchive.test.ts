@@ -79,3 +79,32 @@ describe('vault ZIP export/import', () => {
     expect(names.filter((n) => n.includes('Notes/A/') && n.endsWith('.md'))).toHaveLength(2);
   });
 });
+
+const backlog = { items: [
+  { id: 'u', title: 'Unsorted idea', order: 1, createdAt: 'now', updatedAt: 'now' },
+  { id: 'b', title: 'Second', category: 'Ideas', order: 2, createdAt: 'now', updatedAt: 'now' },
+  { id: 'a', title: 'First', category: ' ideas ', order: 1, createdAt: 'now', updatedAt: 'now', description: 'Details', tags: ['tag'], checklist: [{ id: 'c', text: 'Step', done: true }] },
+  { id: 'z', title: 'Other', category: 'Work', order: 1, createdAt: 'now', updatedAt: 'now' },
+  { id: 'p', title: 'Picked', category: 'Ideas', order: 0, createdAt: 'now', updatedAt: 'now', pickedOn: '2026-10-26' },
+  { id: 'd', title: 'Deleted', order: 0, createdAt: 'now', updatedAt: 'now', deletedAt: 'now' },
+] };
+it('ZIP snapshot restores full backlog including tombstones and metadata', async () => {
+  const bytes = await buildVaultZip([], [], DEFAULT_SETTINGS, undefined, undefined, backlog);
+  expect((await importVaultFromZip(bytes)).backlog).toEqual(backlog);
+});
+it('Backlog.md groups visible items by normalized category, manual order, Unsorted last', async () => {
+  const zip = await JSZip.loadAsync(await buildVaultZip([], [], DEFAULT_SETTINGS, undefined, undefined, backlog));
+  expect(await zip.file('Daymark/Backlog.md')!.async('string')).toBe('## ideas\n\n- [ ] First\n- [ ] Second\n\n## Work\n\n- [ ] Other\n\n## Unsorted\n\n- [ ] Unsorted idea\n');
+});
+it('older ZIP and invalid backlog preserve current data; explicit empty replaces it', async () => {
+  const { mergeRestoredBacklog } = await import('./vaultArchive');
+  const old = new JSZip();
+  old.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [] }));
+  const restored = await importVaultFromZip(await old.generateAsync({ type: 'uint8array' }));
+  expect(mergeRestoredBacklog(backlog, restored.backlog)).toBe(backlog);
+  expect(mergeRestoredBacklog(backlog, { items: [null] })).toBe(backlog);
+  const empty = { items: [] };
+  expect(mergeRestoredBacklog(backlog, empty)).toBe(empty);
+  old.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], backlog: { items: [null] } }));
+  expect((await importVaultFromZip(await old.generateAsync({ type: 'uint8array' }))).backlog).toBeUndefined();
+});

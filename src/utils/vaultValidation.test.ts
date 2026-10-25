@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
+import { isBacklogItem, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
 
 const day = (date: string): DailyDocument => ({ date, type: 'daily', headings: [], updatedAt: `${date}T00:00:00.000Z` });
 
 const habit = { id: 'h1', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' };
 const habitDay = { date: '2026-10-24', ticks: { h1: { done: false, at: '2026-10-24T10:00:00Z' } } };
+
+const backlogItem = { id: 'idea', title: 'Build it', order: 1, createdAt: 'now', updatedAt: 'now' };
+describe('backlog validation', () => {
+  it('accepts empty data, full metadata and tombstones', () => {
+    expect(isBacklogData({ items: [] })).toBe(true);
+    expect(isBacklogItem({ ...backlogItem, description: 'Details', category: 'Ideas', status: 'custom', tags: ['tag'],
+      checklist: [{ id: 'c', text: 'Step', done: false }],
+      historyLog: [{ id: 'h', timestamp: 'now', date: '2026-10-26', action: 'moved', details: 'Moved' }],
+      pickedOn: '2026-10-27', deletedAt: 'now' })).toBe(true);
+  });
+  it.each([null, [], {}, { items: null }, { items: [null] },
+    ...[{ id: 2 }, { title: null }, { order: NaN }, { order: Infinity }, { order: '1' }, { createdAt: null },
+      { updatedAt: 2 }, { category: 2 }, { description: null }, { status: false }, { pickedOn: 'tomorrow' },
+      { deletedAt: false }, { tags: [2] }, { checklist: [{}] }, { checklist: [{ id: 'c', text: 'x', done: 'yes' }] },
+      { historyLog: [{}] }, { historyLog: [{ id: 'h', timestamp: 'now', date: '2026-10-26', action: 'unknown', details: 'x' }] },
+    ].map(patch => ({ items: [{ ...backlogItem, ...patch }] })),
+  ].map(value => [value]))('rejects damaged backlog: %j', value => expect(isBacklogData(value)).toBe(false));
+});
 
 describe('isHabitData', () => {
   it('accepts empty data, tombstones and explicit unticks', () => {
