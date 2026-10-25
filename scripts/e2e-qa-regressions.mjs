@@ -392,22 +392,20 @@ await run('B7', async () => {
   const todayXss = await page.evaluate(() => window.__xss3);
   await page.getByRole('button', { name: /^Notes$/ }).first().click();
   await page.getByText('XSS', { exact: true }).first().click();
+  const editor = page.getByRole('textbox', { name: 'Note rich text', exact: true });
+  await editor.waitFor();
   await settle(page, 800);
-  const prev = page.getByRole('button', { name: /preview/i }).first();
-  if (await prev.isVisible().catch(() => false)) { await prev.click(); await settle(page, 800); }
   const r = await page.evaluate(() => [window.__xss, window.__xss2]);
   check('B7a', !todayXss, 'HTML in day notes is not executed', 'onerror handler ran on Today');
   check('B7b', !r[0] && !r[1], 'HTML in standalone notes is not executed', JSON.stringify(r));
   await page.getByText('Safe', { exact: true }).first().click();
+  await editor.locator('[data-wiki-title="Plan"]').waitFor();
   await settle(page, 800);
-  const prev2 = page.getByRole('button', { name: /preview/i }).first();
-  if (await prev2.isVisible().catch(() => false)) { await prev2.click(); await settle(page, 800); }
-  await page.locator('.daymark-markdown-body a', { hasText: 'x' }).first().click({ timeout: 2000 }).catch(() => {});
-  await settle(page, 300);
-  check('B7c', !(await page.evaluate(() => window.__xss4)), 'javascript: links are not executed', 'javascript: URL ran');
-  check('B7d', (await page.locator('.daymark-callout-tip').count()) > 0, 'callouts still render');
-  check('B7f', (await page.locator('.daymark-markdown-body input[type=checkbox][data-task-index]').count()) > 0, 'task checkboxes still render');
-  check('B7e', (await page.locator('button[data-internal-note="Plan"]').count()) > 0, '[[Plan]] link button still renders');
+  const safeLinks = await editor.locator('a[href]').evaluateAll((links) => links.every((link) => link.protocol !== 'javascript:'));
+  check('B7c', safeLinks && !(await page.evaluate(() => window.__xss4)), 'javascript: links are absent and not executed', 'javascript: URL survived or ran');
+  check('B7d', (await editor.locator('.daymark-callout-tip').count()) > 0, 'callouts still render');
+  check('B7f', (await editor.locator('ul[data-type="taskList"] input[type=checkbox]').count()) > 0, 'task checkboxes still render');
+  check('B7e', (await editor.locator('[data-wiki-title="Plan"]').count()) > 0, '[[Plan]] wiki chip still renders');
   await context.close();
 });
 
@@ -871,9 +869,13 @@ await run('D8', async () => {
   const { page } = await fresh({ notes: [{ id: 'd8', title: 'D8 long note', content: 'A long line of writing.\n'.repeat(300), folder: '', tags: [], pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   await page.getByRole('button', { name: /D8 long note/ }).click();
-  const editor = page.getByLabel('Note text (Markdown)', { exact: true });
+  const editor = page.getByRole('textbox', { name: 'Note rich text', exact: true });
   await editor.waitFor();
-  const sizes = await editor.evaluate((el) => ({ page: document.scrollingElement.scrollHeight, viewport: innerHeight, scroll: el.scrollHeight, client: el.clientHeight }));
+  const sizes = await editor.evaluate((el) => {
+    const scroller = el.closest('.overflow-auto');
+    if (!scroller) throw new Error('Rich editor scroll container is missing');
+    return { page: document.scrollingElement.scrollHeight, viewport: innerHeight, scroll: scroller.scrollHeight, client: scroller.clientHeight };
+  });
   check('D8a', sizes.page <= sizes.viewport && sizes.scroll > sizes.client, 'Notes page fits 1440×900 and long note scrolls inside the editor', JSON.stringify(sizes));
   const search = await page.getByPlaceholder('Search notes', { exact: true }).boundingBox();
   const add = await page.getByRole('button', { name: 'New note', exact: true }).first().boundingBox();
@@ -1230,7 +1232,7 @@ await run('F4', async () => {
   });
   await savedNote(page, seeded.id, (n) => /!\[field-photo\]\(daymark-asset:[a-f0-9]{64}\.(webp|jpeg)\)/.test(n?.content ?? ''));
   await pictureLoaded(page);
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'load' });
   await openNote(page, seeded.title);
   await pictureLoaded(page);
   check('F4', await rich(page).locator('img[src]:not(.ProseMirror-separator)').isVisible(), 'pasted picture uses daymark-asset Markdown and decodes after reload');
