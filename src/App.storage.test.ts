@@ -67,3 +67,21 @@ it('JSON restore without picture storage restores the vault and toasts the skipp
   await settings().onImportJson(JSON.stringify({ daily_documents: [], standalone_notes: [], assets: [{ meta: {}, data: 'YWJj' }] }));
   expect(toast).toHaveBeenCalledWith(expect.stringMatching(/restored.*1.*picture.*skipped/i));
 });
+
+it.each(['onExportZip', 'onExportJson'] as const)('backup toast uses singular for one missing picture: %s', async action => {
+  exporter.mockImplementationOnce(async (_docs, _notes, _settings, _habits, onMissing) => { onMissing?.(1); return true; });
+  await settings()[action]();
+  expect(toast).toHaveBeenCalledWith(expect.stringContaining('1 picture was not included'));
+});
+it.each([1, 2])('restore toast uses correct skipped grammar for %s', async count => {
+  await settings().onImportJson(JSON.stringify({ daily_documents: [], standalone_notes: [], assets: Array.from({ length: count }, () => ({ meta: {}, data: 'YWJj' })) }));
+  expect(toast).toHaveBeenCalledWith(expect.stringContaining(count === 1 ? '1 picture was skipped' : '2 pictures were skipped'));
+});
+
+it.each([1, 2])('Markdown-folder ZIP restore reports the skipped picture count (%s)', async count => {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip(); zip.file('Notes/Imported.md', 'Keep my note');
+  for (let index = 0; index < count; index++) zip.file('Notes/_assets/bad-' + index + '.svg', '<svg/>');
+  await settings().onImportZip(await zip.generateAsync({ type: 'uint8array' }) as unknown as File);
+  expect(toast).toHaveBeenCalledWith(expect.stringContaining(count === 1 ? '1 picture was skipped' : '2 pictures were skipped'));
+});

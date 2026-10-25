@@ -7,7 +7,7 @@ vi.mock('./vaultStore', () => ({
   kvDeleteRaw: async (key: string) => { kv.delete(key); },
   kvKeysRaw: async (prefix: string) => [...kv.keys()].filter(key => key.startsWith(prefix)),
 }));
-import { assetRef, deleteAsset, getAssetUrl, hasAsset, listAssets, markUploaded, parseAssetRefs, pendingUploads, putAsset, syncNoteAssets } from './noteAssets';
+import { assetRef, deleteAsset, getAssetUrl, hasAsset, listAssets, markUploaded, parseAssetRefs, pendingUploads, putAsset, storeAsset, syncNoteAssets } from './noteAssets';
 const meta = { mime: 'image/png' as const, width: 10, height: 20, createdAt: '2026-10-25T00:00:00Z' };
 const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 beforeEach(() => { kv.clear(); available.value = true; });
@@ -40,7 +40,7 @@ it('keeps failed uploads pending and missing URLs as placeholders until next rou
   let fail = true;
   const fetcher = async (_path: string, init?: RequestInit) => {
     if (init?.method === 'PUT') { if (fail) throw new Error('offline'); return Response.json({ ok: true }); }
-    return new Response(new Blob(['def'], { type: 'image/png' }));
+    return pictureResponse('def');
   };
   const notes = [{ content: `![](daymark-asset:${other}.png)` }];
   await syncNoteAssets(notes, fetcher);
@@ -62,7 +62,7 @@ it('bounds downloads to three and emits arrival ids without re-uploading downloa
     inFlight++; peak = Math.max(peak, inFlight);
     await new Promise(resolve => setTimeout(resolve, 5));
     inFlight--;
-    return new Response(new Blob([bodies[ids.indexOf(path.split('/').pop()!)]], { type: 'image/png' }));
+    return pictureResponse(bodies[ids.indexOf(path.split('/').pop()!.split('?')[0])]);
   };
   const notes = [{ content: ids.map(id => `![](daymark-asset:${id}.png)`).join('\n') }];
   await syncNoteAssets(notes, fetcher);
@@ -71,14 +71,14 @@ it('bounds downloads to three and emits arrival ids without re-uploading downloa
   expect(await pendingUploads()).toEqual([]);
 });
 it('rejects a downloaded picture whose bytes do not match the reference', async () => {
-  await syncNoteAssets([{ content: `![](daymark-asset:${id}.png)` }], async () => new Response(new Blob(['wrong'], { type: 'image/png' })));
+  await syncNoteAssets([{ content: `![](daymark-asset:${id}.png)` }], async () => pictureResponse('wrong'));
   expect(await hasAsset(id)).toBe(false);
 });
 it('does not save a picture that arrives after the sync session is cancelled', async () => {
   let active = true;
   await syncNoteAssets([{ content: `![](daymark-asset:${id}.png)` }], async () => {
     active = false;
-    return new Response(new Blob(['abc'], { type: 'image/png' }));
+    return pictureResponse('abc');
   }, () => active);
   expect(await hasAsset(id)).toBe(false);
 });
@@ -121,14 +121,14 @@ it.each(['network', 'http', 'integrity'])('a failing download (%s) does not stop
   }));
   const visited: string[] = [];
   await syncNoteAssets([{ content: ids.map(id => assetRef(id, 'image/png')).join('\n') }], async path => {
-    const id = path.split('/').pop()!;
+    const id = path.split('/').pop()!.split('?')[0];
     visited.push(id);
     if (ids.indexOf(id) < 3) {
       if (failure === 'network') throw new Error('offline for this request');
       if (failure === 'http') return new Response(null, { status: 500 });
-      return new Response(new Blob(['corrupt'], { type: 'image/png' }));
+      return pictureResponse('corrupt');
     }
-    return new Response(new Blob([bodies[ids.indexOf(id)]], { type: 'image/png' }));
+    return pictureResponse(bodies[ids.indexOf(id)]);
   });
   expect(visited).toEqual(ids);
   expect(await Promise.all(ids.map(hasAsset))).toEqual([false, false, false, true, true]);
@@ -136,7 +136,7 @@ it.each(['network', 'http', 'integrity'])('a failing download (%s) does not stop
 it('stores hash-verified downloads with zero dimensions when bitmap decoding fails', async () => {
   vi.stubGlobal('createImageBitmap', async () => { throw new Error('decoder unavailable'); });
   try {
-    await syncNoteAssets([{ content: assetRef(id, 'image/png') }], async () => new Response(new Blob(['abc'], { type: 'image/png' })));
+    await syncNoteAssets([{ content: assetRef(id, 'image/png') }], async () => pictureResponse('abc'));
     expect(await hasAsset(id)).toBe(true);
     expect(await listAssets()).toEqual([expect.objectContaining({ id, width: 0, height: 0 })]);
   } finally { vi.unstubAllGlobals(); }
@@ -188,4 +188,73 @@ it('a referenced download 404 queues bytes that arrived locally during the reque
 it('listAssets counts orphan blobs without metadata', async () => {
   kv.set(`noteAsset:${id}`, new Blob(['abc'], { type: 'image/png' }));
   expect(await listAssets()).toEqual([expect.objectContaining({ id, bytes: 3, mime: 'image/png' })]);
+});
+
+function pictureResponse(body: string) { return Response.json({ mime: 'image/png', data: btoa(body) }); }
+it('always downloads JSON base64 and stores verified non-UTF8 bytes', async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 255, 0, 128]);
+  const expected = Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex');
+  const fetcher = vi.fn(async () => Response.json({ id: expected, mime: 'image/png', data: Buffer.from(bytes).toString('base64') }));
+  await syncNoteAssets([{ content: assetRef(expected, 'image/png') }], fetcher);
+  expect(fetcher).toHaveBeenCalledWith('/api/assets/' + expected + '?format=base64');
+  expect(new Uint8Array(await (kv.get('noteAsset:' + expected) as Blob).arrayBuffer())).toEqual(bytes);
+  expect(await pendingUploads()).toEqual([]);
+});
+it('UTF8 text decoding of binary bridge responses fails hash verification', async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 255, 0, 128]);
+  const expected = Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex');
+  await expect(storeAsset(new Blob([new TextDecoder().decode(bytes)]), meta, false, expected)).rejects.toThrow(/integrity/);
+  expect(await hasAsset(expected)).toBe(false);
+});
+it.each([404, 500, 'network', 'integrity'] as const)('backs off missing download %s with growing session delays', async failure => {
+  const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+  const fetcher = vi.fn(async () => {
+    if (failure === 'network') throw new Error('offline');
+    return failure === 'integrity' ? pictureResponse('wrong') : new Response(null, { status: failure });
+  });
+  const notes = [{ content: assetRef(id, 'image/png') }];
+  try {
+    let time = 0;
+    for (const delay of [60_000, 300_000, 1_800_000, 7_200_000]) {
+      await syncNoteAssets(notes, fetcher);
+      const calls = fetcher.mock.calls.length;
+      now.mockReturnValue(time + delay - 1);
+      await syncNoteAssets(notes, fetcher);
+      expect(fetcher).toHaveBeenCalledTimes(calls);
+      time += delay; now.mockReturnValue(time);
+    }
+    await syncNoteAssets(notes, fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  } finally { now.mockRestore(); }
+});
+it('idle missing-only rounds do not enumerate local metadata', async () => {
+  const keys = vi.spyOn(await import('./vaultStore'), 'kvKeysRaw');
+  const fetcher = vi.fn(async () => new Response(null, { status: 404 }));
+  const notes = [{ content: assetRef(id, 'image/png') }];
+  try {
+    await syncNoteAssets(notes, fetcher); keys.mockClear();
+    await syncNoteAssets(notes, fetcher);
+    expect(keys).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  } finally { keys.mockRestore(); }
+});
+it.each([400, 413, 415, 422])('inventory cannot requeue a session-rejected upload (%s)', async status => {
+  await putAsset(new Blob(['abc'], { type: 'image/png' }), meta);
+  const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const fetcher = vi.fn(async (path: string) => path === '/api/assets' ? Response.json([]) : new Response(null, { status }));
+  try {
+    const notes = [{ content: assetRef(id, 'image/png') }];
+    await syncNoteAssets(notes, fetcher); now.mockReturnValue(61_000);
+    await syncNoteAssets(notes, fetcher);
+    expect(fetcher.mock.calls.filter(([path]) => path !== '/api/assets')).toHaveLength(1);
+    expect(await pendingUploads()).toEqual([]);
+  } finally { now.mockRestore(); warning.mockRestore(); }
+});
+it('missing download leaves a healthy 60 second inventory cache intact', async () => {
+  await putAsset(new Blob(['abc'], { type: 'image/png' }), meta); await markUploaded(id);
+  const fetcher = vi.fn(async (path: string) => path === '/api/assets' ? Response.json([id]) : new Response(null, { status: 404 }));
+  const notes = [{ content: assetRef(id, 'image/png') + ' ' + assetRef('f'.repeat(64), 'image/png') }];
+  await syncNoteAssets(notes, fetcher); await syncNoteAssets(notes, fetcher);
+  expect(fetcher.mock.calls.filter(([path]) => path === '/api/assets')).toHaveLength(1);
 });

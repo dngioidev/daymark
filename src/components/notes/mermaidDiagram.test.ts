@@ -4,8 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MarkdownPreview } from '../MarkdownPreview';
 
-const render = vi.hoisted(() => vi.fn());
-vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render } }));
+const { render, initialize } = vi.hoisted(() => ({ render: vi.fn(), initialize: vi.fn() }));
+vi.mock('mermaid', () => ({ default: { initialize, render } }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { document.body.innerHTML = ''; vi.clearAllMocks(); });
 it('mermaid render error shows message and source in preview', async () => {
@@ -15,6 +15,7 @@ it('mermaid render error shows message and source in preview', async () => {
   await act(async () => { root.render(React.createElement(MarkdownPreview, { content: '```mermaid\nbroken graph\n```' })); });
   await vi.waitFor(() => expect(container.textContent).toContain('Invalid diagram syntax'));
   expect(container.textContent).toContain('broken graph');
+  expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', startOnLoad: false }));
   await act(async () => root.unmount());
 });
 it('preserves Mermaid HTML labels and theme styles while sanitising scripts and event handlers in preview', async () => {

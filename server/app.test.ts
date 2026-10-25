@@ -686,6 +686,26 @@ describe('note assets', () => {
     expect((await assetRequest('GET', '/' + id, accessToken)).status).toBe(404);
     expect(await (await assetRequest('GET', '', accessToken)).json()).toEqual([]);
   });
+  it('GET base64 preserves bytes and security headers', async () => {
+    const { accessToken } = await connect('assets');
+    await assetRequest('PUT', '/' + id, accessToken, { mime: 'image/png', data: 'YWJj' });
+    expect((await assetRequest('GET', '/' + id + '?format=base64')).status).toBe(401);
+    const response = await assetRequest('GET', '/' + id + '?format=base64', accessToken);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ id, mime: 'image/png', data: 'YWJj' });
+    expect((await assetRequest('GET', '/bad?format=base64', accessToken)).status).toBe(400);
+    expect((await assetRequest('GET', '/' + 'f'.repeat(64) + '?format=base64', accessToken)).status).toBe(404);
+  });
+  it.each(['', '?format=base64'])('corrupt metadata returns JSON error for GET %s', async format => {
+    const { accessToken } = await connect('assets');
+    await assetRequest('PUT', '/' + id, accessToken, { mime: 'image/png', data: 'YWJj' });
+    fs.writeFileSync(path.join(dir, 'assets', id + '.json'), '{broken');
+    const response = await assetRequest('GET', '/' + id + format, accessToken);
+    expect([404, 500]).toContain(response.status);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
+  });
   it('rejects >1.5MB decoded assets', async () => {
     const { accessToken } = await connect('assets');
     expect((await assetRequest('PUT', '/' + id, accessToken, {

@@ -238,3 +238,12 @@ it('forwards the app editor ref to the active rich editor for cleanup', () => {
   const editor = find(render(false, { richEditorHandleRef: shared }), element => element.props.noteId === note.id)!;
   expect(editor.props.ref).toBe(shared);
 });
+
+it('cleanup changes the Markdown textarea key while preserving note content', () => {
+  const rich = find(render(), element => typeof element.props.onToggleMarkdown === 'function')!;
+  (rich.props.onToggleMarkdown as () => void)();
+  const before = find(render(false, { pictureCleanupSignal: 0 }), element => element.type === 'textarea')!;
+  const after = find(render(false, { pictureCleanupSignal: 1 }), element => element.type === 'textarea')!;
+  expect(before).toBeDefined(); expect(after).toBeDefined();
+  expect(before.key).not.toBe(after.key); expect(after.props.value).toBe(note.content);
+});

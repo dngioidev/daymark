@@ -78,10 +78,10 @@ async function importBinaryAssets(assets: BinaryBackupAsset[]): Promise<number> 
 /** Explicit cleanup only. Read notes after sync, and delete remotely before local bytes. */
 export async function removeUnusedPictures(
   getNotes: () => readonly { content: string }[],
-  server?: { sync: () => Promise<void>; authFetch: (path: string, init?: RequestInit) => Promise<Response> },
+  server?: { sync: () => Promise<boolean>; authFetch: (path: string, init?: RequestInit) => Promise<Response> },
   beforeRemove?: () => void,
 ): Promise<number> {
-  if (server) await server.sync();
+  if (server && !await server.sync()) throw new Error('Sync did not complete. Try syncing again before removing unused pictures.');
   beforeRemove?.();
   if (server) invalidateAssetInventory(server.authFetch);
   let count = 0;
@@ -244,13 +244,21 @@ export async function importVaultFromZip(
   const assetPaths = new Map<string, string>();
   const now = new Date().toISOString();
   let noteCounter = 0;
+  let skippedPictures = 0;
 
   // A readable Markdown vault remains restorable even without the private snapshot.
   for (const name of names) {
     const normalized = name.replace(/\\/g, '/');
+    if (!/(?:^|\/)Notes\/_assets\//.test(normalized)) continue;
     const match = normalized.match(/(?:^|\/)Notes\/_assets\/([a-f0-9]{64})\.(webp|jpeg|jpg|png)$/);
-    if (!match) continue;
-    const bytes = isPhotoStorageAvailable() ? new Uint8Array(await zip.files[name].async('uint8array')) : new Uint8Array();
+    if (!match || !isPhotoStorageAvailable()) { skippedPictures++; continue; }
+    const bytes = new Uint8Array(await zip.files[name].async('uint8array'));
+    if (!bytes.length || bytes.length > MAX_ASSET_BYTES) { skippedPictures++; continue; }
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    if (Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('') !== match[1]) {
+      skippedPictures++;
+      continue;
+    }
     const mime = match[2] === 'webp' ? 'image/webp' : match[2] === 'png' ? 'image/png' : 'image/jpeg';
     const meta: NoteAssetMeta = { id: match[1], mime, bytes: bytes.length, width: 0, height: 0, createdAt: now };
     assets.push({ meta, data: bytes });
@@ -305,7 +313,7 @@ export async function importVaultFromZip(
   }
   const problem = vaultProblem(docs, notes);
   if (problem) throw new Error(problem);
-  const skippedPictures = await importBinaryAssets(assets);
+  skippedPictures += await importBinaryAssets(assets);
   docs.sort((a, b) => a.date.localeCompare(b.date));
   return { docs, notes, settings, skippedPictures };
 }

@@ -110,6 +110,7 @@ export default function App() {
   const notesRef = React.useRef(notes);
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
+  const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
   const [habits, setHabits] = useState<HabitData>(loadHabits);
   const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
@@ -527,7 +528,7 @@ export default function App() {
       let missingPictures = 0;
       if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; })) {
         setLastBackupAt(getLastBackupDate());
-        showToast(missingPictures ? `${done} ${missingPictures} pictures were not included (not on this device yet)` : done);
+        showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
     } catch (err) {
       if (isShareCancel(err)) return;
@@ -580,7 +581,7 @@ export default function App() {
     if (parsed.settings) setSettings(nextSettings);
     sync.rebaseAfterReplace();
     markOnboarded();
-    showToast(`Backup restored.${skippedPictures ? ` ${skippedPictures} pictures skipped because picture storage is unavailable on this device.` : ''}`);
+    showToast(`Backup restored.${skippedPictures ? ` ${skippedPictures} ${skippedPictures === 1 ? 'picture was' : 'pictures were'} skipped because picture storage is unavailable on this device.` : ''}`);
   };
 
   // Handler: Import vault ZIP (Daymark export or a folder of Markdown files)
@@ -596,7 +597,7 @@ export default function App() {
       sync.rebaseAfterReplace();
       markOnboarded();
       showToast(
-        `Restored ${snapshot.docs.length} ${snapshot.docs.length === 1 ? 'day' : 'days'} and ${snapshot.notes.length} ${snapshot.notes.length === 1 ? 'note' : 'notes'}.${snapshot.skippedPictures ? ` ${snapshot.skippedPictures} pictures skipped because picture storage is unavailable on this device.` : ''}`
+        `Restored ${snapshot.docs.length} ${snapshot.docs.length === 1 ? 'day' : 'days'} and ${snapshot.notes.length} ${snapshot.notes.length === 1 ? 'note' : 'notes'}.${snapshot.skippedPictures ? ` ${snapshot.skippedPictures} ${snapshot.skippedPictures === 1 ? 'picture was' : 'pictures were'} skipped (invalid picture files or picture storage unavailable on this device).` : ''}`
       );
     } catch (err) {
       await alertDialog("This file can't be restored", err instanceof Error ? err.message : 'Could not read this ZIP file.');
@@ -748,7 +749,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -788,6 +789,7 @@ export default function App() {
           onOpenNoteConsumed={() => setOpenNoteId(undefined)}
           focusToggleSignal={focusToggleSignal}
           richEditorHandleRef={richEditorHandleRef}
+          pictureCleanupSignal={pictureCleanupSignal}
           onOpenHistoricalModal={setHistoricalModalTask}
           onOpenHistoryDrawer={openDetails}
           onQuickHistoricalDone={handleQuickHistoricalDone}
@@ -871,6 +873,7 @@ export default function App() {
         onResetVault={handleResetVault}
         onRemoveUnusedPictures={() => removeUnusedPictures(() => notesRef.current, sync.account ? { sync: sync.syncNow, authFetch: sync.authFetch } : undefined, () => {
           richEditorHandleRef.current?.clearHistory();
+          setPictureCleanupSignal(signal => signal + 1);
           dismissToast();
         })}
         syncPanel={<ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} compact />}

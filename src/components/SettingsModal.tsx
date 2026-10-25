@@ -120,7 +120,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const count = await onRemoveUnusedPictures();
       showToast(`Removed ${count} unused ${count === 1 ? 'picture' : 'pictures'}.`);
     } catch (error) {
-      setPictureError(error instanceof Error ? error.message : 'Could not remove unused pictures.');
+      const message = error instanceof Error ? error.message : 'Could not remove unused pictures.';
+      setPictureError(message);
+      showToast(message, { tone: 'error' });
     } finally {
       await refreshPictures().catch(() => setPictureError('Could not read picture storage.'));
       setRemovingPictures(false);

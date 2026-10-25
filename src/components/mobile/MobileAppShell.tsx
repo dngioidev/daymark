@@ -30,6 +30,7 @@ interface MobileAppShellProps {
   openNoteId?: string;
   onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
+  pictureCleanupSignal?: number;
   richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
   onOpenHistoricalModal: (task: TaskItem) => void;
   onOpenHistoryDrawer: (task: TaskItem) => void;
@@ -68,6 +69,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   openNoteId,
   onOpenNoteConsumed,
   focusToggleSignal,
+  pictureCleanupSignal,
   richEditorHandleRef,
   onOpenHistoricalModal,
   onOpenHistoryDrawer,
@@ -210,7 +212,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} />}
+          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
         </main>
 
         <nav

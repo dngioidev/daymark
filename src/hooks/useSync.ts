@@ -28,7 +28,7 @@ export interface UseSyncResult {
   signOut: (opts?: { force?: boolean }) => Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'>;
   pendingChanges: () => number;
   authFetch: (path: string, init?: RequestInit) => Promise<Response>;
-  syncNow: () => Promise<void>;
+  syncNow: () => Promise<boolean>;
   /** Call right after the whole local vault was replaced (restore, sample data). */
   rebaseAfterReplace: () => void;
 }
@@ -54,7 +54,7 @@ export function useSync(
   stateRef.current = state;
   const callbacks = useRef({ onVaultChange, onConflicts });
   callbacks.current = { onVaultChange, onConflicts };
-  const running = useRef<Promise<void> | null>(null);
+  const running = useRef<Promise<boolean> | null>(null);
   const rerun = useRef(false);
   const assetRun = useRef<Promise<void> | null>(null);
   const blocked = useRef(false);
@@ -115,8 +115,8 @@ export function useSync(
 
   const authFetch = useCallback((path: string, init?: RequestInit) => tokenManager().authFetch(path, init), [mode]);
 
-  const run = useCallback((): Promise<void> => {
-    if (mode === 'local-web' || blocked.current || closing.current || (mode === 'native' && !stateRef.current)) return Promise.resolve();
+  const run = useCallback((): Promise<boolean> => {
+    if (mode === 'local-web' || blocked.current || closing.current || (mode === 'native' && !stateRef.current)) return Promise.resolve(false);
     if (running.current) {
       rerun.current = true;
       return running.current;
@@ -128,10 +128,10 @@ export function useSync(
           rerun.current = false;
           const startedAt = epoch.current;
           const accessToken = await tokenManager().getAccessToken();
-          if (blocked.current || closing.current) return;
+          if (blocked.current || closing.current) return false;
           const current = stateRef.current!;
           const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, habitsUnsupported.current);
-          if (blocked.current || closing.current) return;
+          if (blocked.current || closing.current) return false;
           habitsUnsupported.current = outcome.habitsUnsupported === true;
           if (habitsUnsupported.current && stateRef.current?.habitsSynced) {
             await persistState({ ...stateRef.current, habitsSynced: false });
@@ -163,6 +163,7 @@ export function useSync(
         } while (rerun.current);
         setError(null);
         setStatus('idle');
+        return !blocked.current && !closing.current;
       } catch (err) {
         const e = err as SyncHttpError;
         if (err instanceof SessionEndedError || e.status === 401) {

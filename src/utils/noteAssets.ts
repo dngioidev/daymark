@@ -70,13 +70,20 @@ export async function listAssets(): Promise<NoteAssetMeta[]> {
   }
   return result;
 }
-function queueUpload(id: string): Promise<void> {
+function queueUpload(id: string): Promise<boolean> {
   return mutate(async () => {
-    if (await hasAsset(id)) await kvPutRaw('noteAssetPending', [...new Set([...await pendingUploads(), id])]);
+    if (!await hasAsset(id)) return false;
+    await kvPutRaw('noteAssetPending', [...new Set([...await pendingUploads(), id])]);
+    return true;
   });
 }
 // The API has no push deletion notice. Recheck once per minute to discover cleanup elsewhere.
 const inventoryCheckedAt = new WeakMap<(path: string, init?: RequestInit) => Promise<Response>, number>();
+const sessions = new WeakMap<(path: string, init?: RequestInit) => Promise<Response>, {
+  missing: Map<string, { failures: number; retryAt: number }>;
+  rejected: Set<string>;
+}>();
+const retryDelays = [60_000, 300_000, 1_800_000, 7_200_000];
 export function invalidateAssetInventory(authFetch: (path: string, init?: RequestInit) => Promise<Response>): void {
   inventoryCheckedAt.delete(authFetch);
 }
@@ -108,13 +115,27 @@ export async function syncNoteAssets(
   active: () => boolean = () => true,
 ): Promise<void> {
   if (!isPhotoStorageAvailable()) return;
+  let session = sessions.get(authFetch);
+  if (!session) {
+    session = { missing: new Map(), rejected: new Set() };
+    sessions.set(authFetch, session);
+  }
+  const { missing, rejected } = session;
+  const failed = (id: string) => {
+    const failures = (missing.get(id)?.failures ?? 0) + 1;
+    missing.set(id, { failures, retryAt: Date.now() + retryDelays[Math.min(failures - 1, retryDelays.length - 1)] });
+  };
   const arrived: string[] = [];
   try {
     const ids = [...new Set(notes.flatMap(note => parseAssetRefs(note.content)))];
+    for (const id of missing.keys()) if (!ids.includes(id)) missing.delete(id);
+    let metas: Map<string, NoteAssetMeta> | undefined;
     const checkedAt = inventoryCheckedAt.get(authFetch);
     if (ids.length && (checkedAt === undefined || Date.now() - checkedAt >= 60_000)) {
+      inventoryCheckedAt.set(authFetch, Date.now());
       try {
-        const local = (await listAssets()).filter(meta => ids.includes(meta.id) && meta.bytes > 0);
+        metas = new Map((await listAssets()).map(meta => [meta.id, meta]));
+        const local = [...metas.values()].filter(meta => ids.includes(meta.id) && meta.bytes > 0 && !rejected.has(meta.id));
         if (local.length && active()) {
           const response = await authFetch('/api/assets');
           if (!active()) return;
@@ -132,11 +153,13 @@ export async function syncNoteAssets(
         }
       } catch { /* Inventory failures must not block pending uploads or downloads. */ }
     }
-    const metas = new Map((await listAssets()).map(meta => [meta.id, meta]));
-    for (const id of await pendingUploads()) {
+    const pending = await pendingUploads();
+    if (pending.some(id => !rejected.has(id))) metas ??= new Map((await listAssets()).map(meta => [meta.id, meta]));
+    for (const id of pending) {
       if (!active()) return;
+      if (rejected.has(id)) { await markUploaded(id); continue; }
       const blob = await kvGetRaw(`noteAsset:${id}`);
-      const meta = metas.get(id);
+      const meta = metas?.get(id);
       if (!(blob instanceof Blob) || !meta) continue;
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let binary = '';
@@ -147,6 +170,7 @@ export async function syncNoteAssets(
       if (!active()) return;
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500 && ![401, 404, 408, 429].includes(response.status)) {
+          rejected.add(id);
           await markUploaded(id);
           console.warn(`Dropped picture upload ${id}: server rejected it with HTTP ${response.status}.`);
           continue;
@@ -160,19 +184,26 @@ export async function syncNoteAssets(
       while (active() && index < ids.length) {
         const id = ids[index++];
         try {
-          if (await hasAsset(id)) continue;
+          if (await hasAsset(id)) { missing.delete(id); continue; }
+          if ((missing.get(id)?.retryAt ?? 0) > Date.now()) continue;
           if (!active()) return;
-          const response = await authFetch(`/api/assets/${id}`);
+          // CapacitorHttp text-decodes binary fetch bodies. JSON base64 is lossless on every platform.
+          const response = await authFetch(`/api/assets/${id}?format=base64`);
           if (response.status === 404) {
             // A concurrent local restore/paste may have supplied bytes during the request.
-            if (active()) await queueUpload(id);
-            invalidateAssetInventory(authFetch);
+            if (active() && !rejected.has(id) && await queueUpload(id)) invalidateAssetInventory(authFetch);
+            failed(id);
             continue;
           }
-          if (!response.ok) continue;
-          const blob = await response.blob();
-          const mime = blob.type.split(';')[0];
-          if (!['image/webp', 'image/jpeg', 'image/png'].includes(mime) || blob.size > MAX_ASSET_BYTES) continue;
+          if (!response.ok) { failed(id); continue; }
+          const payload = await response.json();
+          const { mime, data } = payload;
+          if ((payload.id !== undefined && payload.id !== id) || !['image/webp', 'image/jpeg', 'image/png'].includes(mime) ||
+            typeof data !== 'string' || data.length > Math.ceil(MAX_ASSET_BYTES / 3) * 4) throw new Error('Invalid picture response.');
+          const binary = atob(data);
+          const bytes = new Uint8Array(binary.length);
+          for (let offset = 0; offset < binary.length; offset++) bytes[offset] = binary.charCodeAt(offset);
+          const blob = new Blob([bytes], { type: mime });
           let width = 0, height = 0;
           if (typeof createImageBitmap !== 'undefined') {
             try {
@@ -186,8 +217,10 @@ export async function syncNoteAssets(
           }
           if (!active()) return;
           await storeAsset(blob, { mime: mime as NoteAssetMeta['mime'], width, height, createdAt: new Date().toISOString() }, false, id);
+          missing.delete(id);
           arrived.push(id);
         } catch {
+          if (active()) failed(id);
           // Isolate failures to this picture; other workers and later ids still make progress.
         }
       }

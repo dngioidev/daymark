@@ -49,3 +49,12 @@ it('cleanup confirmation warns that Undo cannot bring pictures back', async () =
   await act(async () => button.click());
   expect(confirm.mock.calls[0][0].message).toMatch(/can't be brought back with Undo/);
 });
+
+it('cleanup that cannot complete sync toasts the error without claiming removal', async () => {
+  await mount(); confirm.mockResolvedValue(true);
+  cleanup.mockRejectedValueOnce(new Error('Sync did not complete. Try syncing again before removing unused pictures.'));
+  const button = [...document.querySelectorAll('button')].find(button => button.textContent === 'Remove unused pictures')!;
+  await act(async () => button.click());
+  expect(toast).toHaveBeenCalledExactlyOnceWith('Sync did not complete. Try syncing again before removing unused pictures.', { tone: 'error' });
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('Sync did not complete');
+});

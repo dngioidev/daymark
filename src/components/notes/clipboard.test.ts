@@ -178,3 +178,12 @@ it.each([['Python', 'python'], ['JavaScript', 'javascript'], ['TypeScript', 'typ
   await paste(editor, `<code-block><div class="code-block-decoration"><span>${label}</span><div><button>Copy code</button></div></div><div class="formatted-code-block-internal-container"><div class="animated-opacity"><pre><code class="code-container formatted">echo(1)</code></pre></div></div></code-block>`);
   expect(editor.getMarkdown().trim()).toBe('```' + language + '\necho(1)\n```');
 });
+
+it('drops tracking pixels for external/internal paste and embedded image extraction', () => {
+  for (const prefix of ['', '<p data-pm-slice="0 0 []">']) {
+    const cleaned = cleanPastedHtml(prefix + '<img src="https://example.com/a" width="1"><img src="https://example.com/b" height="2"><img src="https://example.com/c" width="0"><img src="https://example.com/ok" width="200" height="100"><img src="https://example.com/no-dimensions">');
+    for (const suffix of ['a', 'b', 'c']) expect(cleaned).not.toContain('example.com/' + suffix);
+    expect(cleaned).toContain('example.com/ok'); expect(cleaned).toContain('example.com/no-dimensions');
+  }
+  expect(extractEmbeddedImages('<img src="data:image/png;base64,eA==" width="1">')).toEqual([]);
+});

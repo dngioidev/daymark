@@ -81,7 +81,7 @@ it('remove unused keeps referenced, including notes received by the required syn
   let notes: { content: string }[] = [];
   const deleted: string[] = [];
   const count = await removeUnusedPictures(() => notes, {
-    sync: async () => { notes = [note]; },
+    sync: async () => { notes = [note]; return true; },
     authFetch: async (path, init) => {
       expect(init?.method).toBe('DELETE');
       deleted.push(path);
@@ -101,7 +101,7 @@ it('failed sync prevents cleanup and server delete failure preserves local bytes
   })).rejects.toThrow('offline');
   expect(await hasAsset(id)).toBe(true);
   await expect(removeUnusedPictures(() => [], {
-    sync: async () => {}, authFetch: async () => new Response(null, { status: 500 }),
+    sync: async () => true, authFetch: async () => new Response(null, { status: 500 }),
   })).rejects.toThrow();
   expect(await hasAsset(id)).toBe(true);
 });
@@ -177,7 +177,7 @@ it('cleanup invalidates Undo only after successful sync and before deleting pict
     expect(synced).toBe(true);
     expect(kv.has(`noteAsset:${id}`)).toBe(true);
   });
-  await removeUnusedPictures(() => [], { sync: async () => { synced = true; }, authFetch: async () => new Response(null, { status: 204 }) }, invalidate);
+  await removeUnusedPictures(() => [], { sync: async () => { synced = true; return true; }, authFetch: async () => new Response(null, { status: 204 }) }, invalidate);
   expect(invalidate).toHaveBeenCalledOnce();
 });
 it('ZIP pictures round-trip without browser base64 conversion APIs', async () => {
@@ -202,4 +202,23 @@ it('unavailable picture storage skips ZIP picture extraction while preserving no
   expect(restored.notes).toEqual([note]);
   expect(restored.habits).toEqual(habits);
   expect(restored.skippedPictures).toBe(1);
+});
+
+it('blocked sync aborts cleanup before history invalidation or delete', async () => {
+  await seed(); const authFetch = vi.fn(), before = vi.fn();
+  await expect(removeUnusedPictures(() => [], { sync: async () => false, authFetch }, before)).rejects.toThrow(/sync.*complete/i);
+  expect(before).not.toHaveBeenCalled(); expect(authFetch).not.toHaveBeenCalled(); expect(await hasAsset(id)).toBe(true);
+});
+it('Markdown-folder import skips bad assets, keeps their links and restores healthy assets', async () => {
+  const zip = new JSZip();
+  const empty = '0'.repeat(64), wrong = '1'.repeat(64), unknown = '2'.repeat(64);
+  const links = [id + '.png', empty + '.png', wrong + '.png', unknown + '.svg'];
+  const markdown = links.map(file => '![](../_assets/' + file + ')').join(' ');
+  zip.file('Notes/A/Import.md', markdown);
+  zip.file('Notes/_assets/' + links[0], 'abc'); zip.file('Notes/_assets/' + links[1], '');
+  zip.file('Notes/_assets/' + links[2], 'wrong'); zip.file('Notes/_assets/' + links[3], '<svg/>');
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.skippedPictures).toBe(3);
+  expect(restored.notes[0].content).toBe(markdown.replace('../_assets/' + id + '.png', 'daymark-asset:' + id + '.png'));
+  expect(await hasAsset(id)).toBe(true); expect(await hasAsset(empty)).toBe(false); expect(await hasAsset(wrong)).toBe(false);
 });

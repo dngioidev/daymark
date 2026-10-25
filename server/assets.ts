@@ -75,8 +75,17 @@ export function assetRoutes(dataDir: string): Router {
   router.get('/:id', (req, res) => {
     const id = req.params.id;
     if (!fs.existsSync(file(id)) || !fs.existsSync(file(`${id}.json`))) return res.status(404).json({ error: 'Picture not found.' });
-    const meta = JSON.parse(fs.readFileSync(file(`${id}.json`), 'utf8')) as NoteAssetMeta;
-    res.type(meta.mime).send(fs.readFileSync(file(id)));
+    try {
+      const meta = JSON.parse(fs.readFileSync(file(`${id}.json`), 'utf8')) as NoteAssetMeta;
+      if (!meta || meta.id !== id || !['image/webp', 'image/jpeg', 'image/png'].includes(meta.mime)) {
+        return res.status(404).json({ error: 'Picture not found.' });
+      }
+      const bytes = fs.readFileSync(file(id));
+      if (req.query.format === 'base64') return res.json({ id, mime: meta.mime, data: bytes.toString('base64') });
+      res.type(meta.mime).send(bytes);
+    } catch {
+      return res.status(404).json({ error: 'Picture not found.' });
+    }
   });
   router.delete('/:id', (req, res) => {
     fs.rmSync(file(req.params.id), { force: true });

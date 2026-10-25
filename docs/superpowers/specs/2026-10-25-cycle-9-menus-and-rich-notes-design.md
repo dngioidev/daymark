@@ -88,7 +88,7 @@ Decided with the user:
 
 - Copy out puts both HTML and Markdown on the clipboard.
 - Picture limits: 1600 px, ~0.8 quality, ≤ 400 KB target; GIFs become stills. No automatic deletion; a manual "Remove unused pictures" in Settings › Storage. No storage quota; Settings shows usage.
-- Pictures travel as their own sync entities in the existing JSON sync, base64, one picture per entity; a sync round is split so a request stays well under the server's 25 MB body limit.
+- Pictures follow note sync through separate authenticated, content-addressed `/api/assets` endpoints: inventory GET, base64 JSON PUT, and GET `/api/assets/:id?format=base64` returning `{ id, mime, data }`. All clients use the base64 download form to preserve binary bytes through the Android HTTP bridge; binary GET remains available for compatibility. Picture bytes are not entities in `/api/sync`.
 - Pasted HTML with embedded (`data:`/blob) images or an image file on the clipboard → saved picture; `https://` images in pasted HTML → links (an expiring link from an AI chat may stop showing; accepted).
 - A device still on 1.5.0 sees picture references as plain text/broken images and keeps them when editing the note's text; accepted (only 1.6.0+ shows pictures).
 - Markdown fidelity: the editor keeps the note's original Markdown string until the user actually edits; after an edit the note is saved in a consistent style (bullet marker, table padding, escaping may normalise) while content and raw blocks are preserved. Round-trip tests check content equivalence on a fixture set, and byte-exactness for unedited notes.

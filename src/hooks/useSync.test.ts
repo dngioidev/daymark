@@ -321,7 +321,8 @@ it.each(['server', 'native'] as const)('retries pending picture upload and fetch
         if (++attempts === 1) throw new Error('offline');
         return Response.json({ ok: true });
       }
-      return new Response(new Blob(['def'], { type: 'image/png' }));
+      expect(url).toContain('?format=base64');
+      return Response.json({ id: missing, mime: 'image/png', data: 'ZGVm' });
     }
     if (url.endsWith('/sync')) {
       const body = JSON.parse(String(init?.body));
@@ -362,4 +363,21 @@ it('finishes note sync while a picture upload is still waiting on the network', 
   expect(await assets.pendingUploads()).toContain(id);
   release();
   await vi.waitFor(async () => expect(await assets.pendingUploads()).toEqual([]));
+});
+
+it('syncNow reports completed rounds and false after closing', async () => {
+  expect(await render().syncNow()).toBe(true); await render().signOut(); fetchFn.mockClear();
+  expect(await render().syncNow()).toBe(false); expect(fetchFn).not.toHaveBeenCalled();
+});
+it('syncNow reports false in local-only mode', async () => {
+  vi.mocked(getHostMode).mockReturnValue('local-web');
+  expect(await render().syncNow()).toBe(false); expect(fetchFn).not.toHaveBeenCalled();
+});
+
+it('syncNow reports false after a session is blocked', async () => {
+  fetchFn.mockResolvedValue(Response.json({ error: 'ended' }, { status: 401 }));
+  await expect(render().syncNow()).rejects.toBeInstanceOf(SessionEndedError);
+  fetchFn.mockClear();
+  expect(await render().syncNow()).toBe(false);
+  expect(fetchFn).not.toHaveBeenCalled();
 });

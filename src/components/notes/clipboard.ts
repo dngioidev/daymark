@@ -31,6 +31,12 @@ function pasteDocument(sanitizedHtml: string, stripChrome = true): HTMLElement {
   const inertDocument = document.implementation.createHTMLDocument('');
   const container = inertDocument.body;
   container.innerHTML = sanitizedHtml;
+  container.querySelectorAll('img').forEach(img => {
+    if (['width', 'height'].some(attribute => {
+      const value = img.getAttribute(attribute);
+      return value !== null && value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) <= 2;
+    })) img.remove();
+  });
   if (stripChrome) container.querySelectorAll('nav, aside, footer, [role="navigation"], [role="banner"], [role="contentinfo"], [class~="advertisement"], [class~="ads"], [class~="ad"], [id="ad"]').forEach(node => node.remove());
   return container;
 }
