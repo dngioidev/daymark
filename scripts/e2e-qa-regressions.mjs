@@ -1134,6 +1134,31 @@ await run('E6', async () => {
   }
 });
 
+await run('E7', async () => {
+  const { page } = await fresh({ mobile: true, docs: [doc(TODAY, [
+    task('e7-underneath', 'not-started', TODAY, { title: 'E7 underneath', order: 0 }),
+    task('e7-menu', 'not-started', TODAY, { title: 'E7 menu', order: 1 }),
+  ])] });
+  const checkbox = page.getByRole('button', { name: 'Mark "E7 underneath" done', exact: true });
+  await checkbox.scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'More actions for "E7 menu"', exact: true }).click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor();
+  const box = await checkbox.boundingBox();
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const backdropAtPoint = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit?.getAttribute('aria-hidden') === 'true' && hit.classList.contains('bg-black/40');
+  }, point);
+  check('E7a', backdropAtPoint, 'another task checkbox is underneath the sheet backdrop');
+  if (!backdropAtPoint) throw new Error('E7 tap point is not on the backdrop');
+  await page.touchscreen.tap(point.x, point.y);
+  await menu.waitFor({ state: 'detached' });
+  await settle(page);
+  const saved = (await readDocs(page)).find((d) => d.date === TODAY)?.headings.flatMap((h) => h.items).find((t) => t.id === 'e7-underneath');
+  check('E7b', await checkbox.isVisible() && saved?.status === 'not-started', 'backdrop tap closes the menu without completing the task underneath', JSON.stringify(saved?.status));
+});
+
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;

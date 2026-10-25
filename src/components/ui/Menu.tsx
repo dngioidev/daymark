@@ -87,7 +87,9 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', head
     if (!open) return;
     openMenus += 1;
     const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node) && !listRef.current?.contains(e.target as Node)) close();
+      // The phone backdrop owns dismissal and consumes the rest of that tap.
+      // Desktop outside clicks should keep their normal focus/activation behaviour.
+      if (window.innerWidth >= 768 && !rootRef.current?.contains(e.target as Node) && !listRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -125,7 +127,23 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', head
       }, 'aria-haspopup': 'menu', 'aria-expanded': open })}
       {open && createPortal(
         <>
-        {phone && <div className="fixed inset-0 z-[55] bg-black/40" aria-hidden="true" onClick={close} />}
+        {phone && <div className="fixed inset-0 z-[55] bg-black/40" aria-hidden="true" onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Closing removes the backdrop before click. Consume that follow-up even
+          // if the browser retargets it to a control underneath the removed backdrop.
+          const swallowClick = (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            window.removeEventListener('click', swallowClick, true);
+            window.clearTimeout(timeout);
+          };
+          window.addEventListener('click', swallowClick, true);
+          // Some browsers cancel click after preventDefault on pointerdown.
+          // Do not leave a guard behind to consume a later unrelated interaction.
+          const timeout = window.setTimeout(() => window.removeEventListener('click', swallowClick, true), 700);
+          close();
+        }} />}
         <div
           ref={listRef}
           role="menu"
