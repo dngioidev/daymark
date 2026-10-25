@@ -6,7 +6,7 @@ import type { StandaloneNote } from '../../types/daymark';
 import { WikiSuggest, type WikiSuggestHandle } from './WikiSuggest';
 
 export type WikiNote = Pick<StandaloneNote, 'id' | 'title'>;
-export interface WikiOption { title: string; create?: boolean }
+export interface WikiOption { title: string; create?: boolean; disabled?: boolean }
 interface WikiLinkOptions {
   notes(): WikiNote[];
   onCreateNote(title: string): string;
@@ -14,6 +14,7 @@ interface WikiLinkOptions {
 }
 const wikiSuggestionKey = new PluginKey('wikiSuggestion');
 const wikiPattern = /^\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]/;
+const unsafeTitle = /[\[\]|]/;
 
 export const WikiLink = Node.create<WikiLinkOptions>({
   name: 'wikiLink', group: 'inline', inline: true, atom: true,
@@ -37,7 +38,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       dom.addEventListener('keydown', event => {
         if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); this.options.onOpenLink(node.attrs.title); }
       });
-      return { dom, stopEvent: event => event.type === 'click' || event.type === 'keydown' };
+      return { dom, stopEvent: event => event.type === 'click' };
     };
   },
   parseMarkdown: token => ({ type: 'wikiLink', attrs: { title: token.title, alias: token.alias ?? null } }),
@@ -56,6 +57,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
     return [new InputRule({
       find: /(?<![!\\])\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]$/,
       handler: ({ state, range, match }) => {
+        if ((state.storedMarks ?? state.selection.$from.marks()).some(mark => mark.type.spec.code)) return null;
         state.tr.replaceWith(range.from, range.to, this.type.create({ title: match[1], alias: match[2] ?? null }));
       },
     })];
@@ -73,14 +75,17 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       items: ({ query }) => {
         // The view supplies notes newest-first, keeping this interface {id,title}.
         const notes = this.options.notes();
-        const normalized = query.toLocaleLowerCase();
-        const items: WikiOption[] = notes.filter(note => note.title.toLocaleLowerCase().includes(normalized)).slice(0, 8).map(note => ({ title: note.title }));
-        if (query.trim() && !notes.some(note => note.title.toLocaleLowerCase() === normalized)) items.push({ title: query, create: true });
+        const title = query.trim();
+        const normalized = title.toLocaleLowerCase();
+        const items: WikiOption[] = notes.filter(note => note.title.toLocaleLowerCase().includes(normalized)).slice(0, 8).map(note => ({ title: note.title, disabled: unsafeTitle.test(note.title) }));
+        if (title && !unsafeTitle.test(title) && !notes.some(note => note.title.toLocaleLowerCase() === normalized)) items.push({ title, create: true });
         return items;
       },
       command: ({ editor, range, props }) => {
-        if (props.create && !this.options.onCreateNote(props.title)) return;
-        editor.chain().focus().insertContentAt(range, { type: 'wikiLink', attrs: { title: props.title } }).run();
+        const title = props.create ? props.title.trim() : props.title;
+        if (props.disabled || unsafeTitle.test(title) || !title.trim()) return;
+        if (props.create && !this.options.onCreateNote(title)) return;
+        editor.chain().focus().insertContentAt(range, { type: 'wikiLink', attrs: { title } }).run();
       },
       render: () => {
         let renderer: ReactRenderer<WikiSuggestHandle> | undefined;

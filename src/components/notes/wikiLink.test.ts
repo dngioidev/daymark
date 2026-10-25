@@ -116,3 +116,97 @@ it('fits above the caret inside the visual viewport when the keyboard is visible
   expect(menu.style.left).toBe('62px');
   expect(menu.style.maxHeight).toBe('288px');
 });
+it.each(['Backspace', 'Delete'])('focused selected chip permits %s through the editor view', async value => {
+  const editor = await mount({ markdown: 'a[[Title]]b' });
+  await act(async () => {
+    editor.commands.setNodeSelection(2);
+    const chip = document.querySelector<HTMLElement>('[data-wiki-title]')!;
+    chip.focus();
+    chip.dispatchEvent(new KeyboardEvent('keydown', { key: value, keyCode: value === 'Backspace' ? 8 : 46, bubbles: true, cancelable: true }));
+  });
+  expect(editor.getMarkdown()).toBe('ab');
+});
+it.each([['ArrowLeft', 2, 37], ['ArrowRight', 3, 39]] as const)('focused selected chip permits %s to move past it', async (value, position, keyCode) => {
+  const editor = await mount({ markdown: 'a[[Title]]b' });
+  await act(async () => {
+    editor.commands.setNodeSelection(2);
+    const chip = document.querySelector<HTMLElement>('[data-wiki-title]')!;
+    chip.focus();
+    chip.dispatchEvent(new KeyboardEvent('keydown', { key: value, keyCode, bubbles: true, cancelable: true }));
+  });
+  expect(editor.state.selection.empty).toBe(true);
+  expect(editor.state.selection.from).toBe(position);
+  expect(editor.getMarkdown()).toBe('a[[Title]]b');
+});
+it('shows unsafe titles disabled with a hint and skips them on keyboard selection', async () => {
+  const editor = await mount({ notes: ['Bad|pipe', 'Bad[open', 'Bad]close', 'Good'].map((title, id) => ({ id: String(id), title })) });
+  await type(editor, '[[');
+  const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  expect(options).toHaveLength(4);
+  for (const option of options.slice(0, 3)) {
+    expect(option.disabled).toBe(true);
+    expect(option.textContent).toContain('Title has [ ] or |');
+    await act(async () => option.click());
+  }
+  expect(editor.getMarkdown()).not.toContain('[[Bad');
+  await key(editor, 'ArrowUp');
+  await key(editor, 'Enter');
+  expect(editor.getMarkdown()).toBe('[[Good]]');
+});
+it('keeps an all-disabled suggestion list inert for arrows and confirmation', async () => {
+  const editor = await mount({ notes: [{ id: 'bad', title: 'Bad|title' }, { id: 'also-bad', title: 'Bad[title' }] });
+  await type(editor, '[[');
+  await key(editor, 'ArrowUp'); await key(editor, 'ArrowDown'); await key(editor, 'Enter'); await key(editor, 'Tab');
+  expect(document.querySelector('[role="option"]')?.getAttribute('aria-selected')).toBe('false');
+  expect(editor.view.dom.hasAttribute('aria-activedescendant')).toBe(false);
+  expect(editor.getMarkdown()).toBe('[[');
+});
+it.each(['Bad|pipe', 'Bad[open', 'Bad]close', '   '])('does not offer creation for an invalid or blank query: %s', async query => {
+  const create = vi.fn(() => 'created');
+  const editor = await mount({ onCreateNote: create });
+  await type(editor, `[[${query}`);
+  expect(document.querySelector('[role="listbox"]')).toBeNull();
+  expect(create).not.toHaveBeenCalled();
+});
+it('trims matching and exact queries, excludes the active note, and trims creation', async () => {
+  const create = vi.fn(() => 'created');
+  const editor = await mount({ notes: [{ id: 'wiki', title: 'Self' }, { id: 'other', title: 'Existing' }], onCreateNote: create });
+  await type(editor, '[[');
+  expect([...document.querySelectorAll('[role="option"]')].map(node => node.textContent)).toEqual(['Existing']);
+  await type(editor, ' existing  ');
+  expect([...document.querySelectorAll('[role="option"]')].map(node => node.textContent)).toEqual(['Existing']);
+  await key(editor, 'Enter');
+  expect(editor.getMarkdown()).toBe('[[Existing]]');
+  await act(async () => { editor.commands.setContent('', { contentType: 'markdown' }); });
+  await type(editor, '[[  New note  '); await key(editor, 'Enter');
+  expect(create).toHaveBeenCalledWith('New note');
+  expect(editor.getMarkdown()).toBe('[[New note]]');
+});
+it('links editor accessibility attributes to the active option and cleans up on dismissal', async () => {
+  const editor = await mount({ notes: [{ id: 'one', title: 'One' }, { id: 'two', title: 'Two' }] });
+  await type(editor, '[[');
+  const listbox = document.querySelector<HTMLElement>('[role="listbox"]')!;
+  const options = [...listbox.querySelectorAll('[role="option"]')];
+  expect(listbox.id).toBeTruthy();
+  expect(editor.view.dom.getAttribute('aria-controls')).toBe(listbox.id);
+  expect(options[0].id).toBeTruthy();
+  expect(editor.view.dom.getAttribute('aria-activedescendant')).toBe(options[0].id);
+  await key(editor, 'ArrowDown');
+  expect(editor.view.dom.getAttribute('aria-activedescendant')).toBe(options[1].id);
+  await key(editor, 'Escape');
+  expect(editor.view.dom.hasAttribute('aria-controls')).toBe(false);
+  expect(editor.view.dom.hasAttribute('aria-activedescendant')).toBe(false);
+});
+it('does not convert a typed wiki input rule within inline code', async () => {
+  const editor = await mount();
+  await act(async () => { editor.commands.setCode(); });
+  for (const character of '[[x]]') {
+    await act(async () => {
+      const { from, to } = editor.state.selection;
+      const handled = editor.view.someProp('handleTextInput', handler => handler(editor.view, from, to, character, () => editor.state.tr.insertText(character)));
+      if (!handled) editor.view.dispatch(editor.state.tr.insertText(character));
+    });
+  }
+  expect(editor.getMarkdown()).toBe('`[[x]]`');
+  expect(editor.getJSON().content?.[0].content?.some(node => node.type === 'wikiLink')).toBe(false);
+});

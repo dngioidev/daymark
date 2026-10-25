@@ -34,7 +34,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   const clipboard = useMemo(() => noteClipboardProps(() => activeEditor.current), [noteId]);
   const editor = useEditor({
     extensions: editorExtensions.map(extension => extension.name === 'wikiLink' ? WikiLink.configure({
-      notes: () => wikiCallbacks.current.notes,
+      notes: () => wikiCallbacks.current.notes.filter(note => note.id !== noteId),
       onCreateNote: title => wikiCallbacks.current.onCreateNote(title),
       onOpenLink: title => latestOpenLink.current(title),
     }) : extension),
