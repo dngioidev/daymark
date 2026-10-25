@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ChevronDown,
   FilePlus,
+  FileCode,
   FolderPlus,
   ListChecks,
   Maximize2,
@@ -19,6 +20,7 @@ import { useBackHandler } from '../native/backButton';
 import { formatNoteDate, noteChecklist, notePreview, sortNotes } from '../utils/notes';
 import { NOTE_TEMPLATES, wordCount } from '../utils/noteTemplates';
 import { formatLocalDate } from '../utils/clock';
+import type { RichNoteEditorHandle } from './notes/RichNoteEditor';
 
 const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
 
@@ -48,6 +50,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [now, setNow] = useState(Date.now());
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const richEditorRef = useRef<RichNoteEditorHandle>(null);
   const focusTitle = useRef(false);
 
   useEffect(() => {
@@ -176,10 +179,6 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     `min-h-11 sm:min-h-8 px-3 rounded-full text-sm font-medium whitespace-nowrap ${
       active ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
     }`;
-  const seg = (active: boolean) =>
-    `inline-flex items-center gap-1.5 px-2.5 min-h-11 sm:min-h-9 rounded-md text-sm ${
-      active ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-    }`;
 
   const list = (
     <div className={`dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>
@@ -297,11 +296,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   );
 
   const editor = (
-    <div className={`dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'}`}>
+    <div className={`dm-card flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'}`}>
       {activeNote ? (
         <>
           <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <button type="button" onClick={() => { setFocusMode(false); setPane('list'); }} aria-label="Back to notes" className={`${iconBtn} lg:hidden`}>
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -321,11 +320,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                     e.preventDefault();
                     requestAnimationFrame(() => {
                       if (viewMode === 'markdown') editorRef.current?.focus();
-                      else document.querySelector<HTMLElement>('[aria-label="Note rich text"]')?.focus();
+                      else richEditorRef.current?.focus();
                     });
                   }
                 }}
-                className="flex-1 min-w-0 px-2 min-h-11 text-lg font-bold bg-transparent rounded-lg border border-transparent hover:border-stone-200 focus:border-stone-300 dark:hover:border-stone-700 focus:outline-hidden text-stone-900 dark:text-stone-50"
+                className="flex-1 min-w-0 w-0 truncate px-2 min-h-11 text-lg font-bold bg-transparent rounded-lg border border-transparent hover:border-stone-200 focus:border-stone-300 dark:hover:border-stone-700 focus:outline-hidden text-stone-900 dark:text-stone-50"
               />
               <button
                 type="button"
@@ -354,13 +353,13 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1 px-1">
-              <label className="flex items-center gap-1.5 text-sm text-stone-600 dark:text-stone-400 mr-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1 px-1">
+              <label className="flex min-w-0 max-w-full items-center gap-1.5 text-sm text-stone-600 dark:text-stone-400 mr-1">
                 Folder
                 <select
                   value={activeNote.folder}
                   onChange={(e) => updateActive({ folder: e.target.value })}
-                  className="px-2 min-h-11 sm:min-h-9 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100"
+                  className="min-w-0 max-w-full px-2 min-h-11 sm:min-h-9 text-sm bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-stone-900 dark:text-stone-100"
                 >
                   {[...new Set([...allFolders, activeNote.folder])].map((f) => (
                     <option key={f} value={f}>
@@ -369,18 +368,16 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   ))}
                 </select>
               </label>
-              <div className="flex items-center gap-0.5 p-0.5 bg-stone-100 dark:bg-stone-800 rounded-lg ml-auto" role="group" aria-label="View">
-                <button type="button" aria-pressed={viewMode === 'markdown'} onClick={() => setViewMode((mode) => mode === 'rich' ? 'markdown' : 'rich')} className={seg(viewMode === 'markdown')}>
-                  Markdown
-                </button>
-              </div>
             </div>
 
           </div>
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
             {viewMode === 'markdown' ? (
               <>
+                <div role="toolbar" aria-label="Formatting" className="shrink-0 border-b border-stone-200 bg-stone-50 px-2 py-1 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
+                  <button type="button" aria-label="Markdown" title="Markdown" aria-pressed={true} onClick={() => setViewMode('rich')} className="min-h-11 min-w-11 px-3 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"><FileCode className="w-4 h-4" /></button>
+                </div>
                 <label htmlFor="note-editor-textarea" className="sr-only">Note text (Markdown)</label>
                 <textarea
                   id="note-editor-textarea"
@@ -395,12 +392,14 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               <Suspense fallback={<div className="h-full p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>}>
                 <RichNoteEditor
                   key={activeNote.id}
+                  ref={richEditorRef}
                   noteId={activeNote.id}
                   markdown={activeNote.content}
                   onChange={(content) => updateActive({ content })}
                   onOpenLink={openLinkedNote}
                   notes={notes}
                   onCreateNote={(title) => createNote(activeNote.folder, title).id}
+                  onToggleMarkdown={() => setViewMode('markdown')}
                 />
               </Suspense>
             )}
@@ -425,8 +424,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     <div
       className={
         compact
-          ? 'flex-1 min-h-0 flex flex-col gap-3 text-sm'
-          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 min-h-0 flex flex-col gap-3 text-sm'
+          ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'
+          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'
       }
     >
       {(pane === 'list' || !compact) && (
@@ -438,9 +437,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       {compact ? (
         pane === 'list' ? list : editor
       ) : (
-        <div className={`flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 ${focusMode ? '' : 'lg:grid-cols-12'}`}>
+        <div className={`flex-1 min-h-0 min-w-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 ${focusMode ? '' : 'lg:grid-cols-12'}`}>
           {!focusMode && <div className={`lg:col-span-4 xl:col-span-3 min-h-0 flex-col ${pane === 'editor' ? 'hidden lg:flex' : 'flex'}`}>{list}</div>}
-          <div className={`min-h-0 flex-col ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'} ${focusMode ? '' : 'lg:col-span-8 xl:col-span-9'}`}>{editor}</div>
+          <div className={`min-h-0 min-w-0 flex-col ${pane === 'list' && !focusMode ? 'hidden lg:flex' : 'flex'} ${focusMode ? '' : 'lg:col-span-8 xl:col-span-9'}`}>{editor}</div>
         </div>
       )}
     </div>

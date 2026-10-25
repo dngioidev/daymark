@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useImperativeHandle } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import DOMPurify from 'dompurify';
 import type { StandaloneNote } from '../../types/daymark';
@@ -13,11 +13,17 @@ export interface RichNoteEditorProps {
   onOpenLink(title: string): void;
   notes: Pick<StandaloneNote, 'id' | 'title'>[];
   onCreateNote(title: string): string;
+  onToggleMarkdown?(): void;
+  ref?: React.Ref<RichNoteEditorHandle>;
 }
 
-export default function RichNoteEditor({ noteId, markdown, onChange }: RichNoteEditorProps) {
+export interface RichNoteEditorHandle { focus(): void }
+
+export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, onToggleMarkdown, ref }: RichNoteEditorProps) {
   const latestOnChange = useRef(onChange);
   latestOnChange.current = onChange;
+  const latestOpenLink = useRef(onOpenLink);
+  latestOpenLink.current = onOpenLink;
   const original = useRef(markdown);
   const editor = useEditor({
     extensions: editorExtensions,
@@ -27,6 +33,14 @@ export default function RichNoteEditor({ noteId, markdown, onChange }: RichNoteE
     editorProps: {
       attributes: { role: 'textbox', 'aria-label': 'Note rich text', 'aria-multiline': 'true', class: 'dm-note-prose min-h-full p-4 sm:p-5 outline-none text-stone-900 dark:text-stone-100' },
       transformPastedHTML: (html) => DOMPurify.sanitize(html),
+      handleDOMEvents: {
+        click: (_view, event) => {
+          const link = (event.target as Element).closest<HTMLElement>('[data-wiki-title]');
+          if (!link?.dataset.wikiTitle) return false;
+          latestOpenLink.current(link.dataset.wikiTitle);
+          return true;
+        },
+      },
     },
     onUpdate: ({ editor, transaction }) => {
       if (!transaction.docChanged || transaction.getMeta('preventUpdate')) return;
@@ -37,14 +51,16 @@ export default function RichNoteEditor({ noteId, markdown, onChange }: RichNoteE
   }, [noteId]);
   // Subscribe to selection and transactions so toolbar state follows shortcuts.
   useEditorState({ editor, selector: ({ transactionNumber }) => transactionNumber });
+  useImperativeHandle(ref, () => ({ focus: () => { editor?.commands.focus(); } }), [editor]);
   useEffect(() => {
     if (!editor || markdown === original.current) return;
     original.current = markdown;
-    editor.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false });
+    editor.chain().setContent(markdown, { contentType: 'markdown', emitUpdate: false })
+      .command(({ tr }) => { tr.setMeta('addToHistory', false); return true; }).run();
   }, [editor, markdown]);
   if (!editor) return <div className="p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>;
-  return <div className="flex flex-1 min-h-0 flex-col">
-    <EditorToolbar editor={editor} />
-    <div className="min-h-0 flex-1 overflow-auto pb-16 md:pb-0"><EditorContent editor={editor} className="h-full" /></div>
+  return <div className="flex flex-1 min-h-0 min-w-0 flex-col">
+    <EditorToolbar editor={editor} onToggleMarkdown={onToggleMarkdown} />
+    <div className="min-h-0 min-w-0 flex-1 overflow-auto pb-16 md:pb-0"><EditorContent editor={editor} className="h-full min-w-0" /></div>
   </div>;
 }

@@ -168,14 +168,21 @@ it('keeps compact rich editing bounded with a Markdown toggle', () => {
   expect(listNote).toBeDefined();
   listNote!.props.onClick();
   const html = renderToStaticMarkup(render(true));
-  expect(html).toContain('flex-1 min-h-0 flex flex-col overflow-hidden');
-  expect(html).toContain('Markdown');
+  expect(html).toContain('flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden');
+  expect(html).toContain('flex min-w-0 items-center gap-1');
+  expect(html).toContain('min-w-0 w-0 truncate');
+  expect(find(render(true), (el) => typeof el.props.onToggleMarkdown === 'function')).toBeDefined();
   expect(html).not.toContain('min-h-[60dvh]');
   expect(html).not.toContain('aria-label="Focus mode"');
 });
 
 it('toggles to the existing Markdown textarea and back without changing the note', () => {
-  const toggle = () => find(render(), (el) => el.type === 'button' && el.props.children === 'Markdown')!.props.onClick();
+  const toggle = () => {
+    const tree = render();
+    const rich = find(tree, (el) => typeof el.props.onToggleMarkdown === 'function');
+    if (rich) (rich.props.onToggleMarkdown as () => void)();
+    else find(tree, (el) => el.type === 'button' && el.props['aria-label'] === 'Markdown')!.props.onClick();
+  };
   toggle();
   const textarea = find(render(), (el) => el.props.id === 'note-editor-textarea');
   expect(textarea?.props.value).toBe(note.content);
@@ -183,6 +190,19 @@ it('toggles to the existing Markdown textarea and back without changing the note
   toggle();
   expect(find(render(), (el) => el.props.noteId === note.id && el.props.markdown === note.content)).toBeDefined();
   expect(update).not.toHaveBeenCalled();
+});
+
+it('focuses the rich editor through its handle when Enter is pressed in the title', () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback());
+  const tree = render();
+  const rich = find(tree, (el) => el.props.noteId === note.id)!;
+  const focus = vi.fn();
+  (rich.props.ref as { current: unknown }).current = { focus };
+  const title = find(tree, (el) => el.props.id === 'note-title')!;
+  const preventDefault = vi.fn();
+  (title.props.onKeyDown as (event: unknown) => void)({ key: 'Enter', preventDefault });
+  expect(focus).toHaveBeenCalledOnce();
+  expect(preventDefault).toHaveBeenCalledOnce();
 });
 
 it('pins controls around a bounded editor and shows a Markdown word count', () => {

@@ -1,4 +1,5 @@
 import { Extension, Node } from '@tiptap/core';
+import { Lexer } from 'marked';
 
 // Languages we can represent losslessly as ordinary code blocks. Unknown info
 // strings (including fence options) stay raw until a later extension owns them.
@@ -16,7 +17,13 @@ export const RawMarkdown = Node.create({
   markdownTokenizer: {
     name: 'rawMarkdown',
     level: 'block',
-    start: (src) => src.search(/^(?:---[ \t]*$|[^\n]*\[\^[^\]\n]+\]| {0,3}`{3,}| {0,3}~{3,})/m),
+    // Marked asks start() about source.slice(1); index 0 is therefore not
+    // necessarily a line boundary (e.g. the '-' after a leading backslash).
+    // Initial blocks already get tokenize(); hints only target later lines.
+    start: (src) => {
+      const index = src.search(/\n(?=---[ \t]*(?:\n|$)|[^\n]*\[\^[^\]\n]+\]| {0,3}`{3,}| {0,3}~{3,})/);
+      return index < 0 ? -1 : index + 1;
+    },
     tokenize: (src) => {
       const frontmatter = src.match(/^---[ \t]*\n[\s\S]*?\n(?:---|\.\.\.)[ \t]*(?=\n|$)/);
       const footnote = src.match(/^\[\^[^\]]+\]:[^\n]*(?:\n(?:[ \t]+[^\n]*|(?=\n[ \t]+)\n[ \t]+[^\n]*))*/);
@@ -46,4 +53,27 @@ export const RawHtml = Extension.create({
   priority: 1100,
   markdownTokenName: 'html',
   parseMarkdown: (token) => ({ type: 'rawMarkdown', attrs: { source: (token.raw ?? '').replace(/\n+$/, '') } }),
+});
+
+// An inline tokenizer runs before MarkdownManager's built-in HTML conversion,
+// which would otherwise discard tags before extension parse handlers can run.
+export const RawInline = Node.create({
+  name: 'rawInline',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  addAttributes: () => ({ source: { default: '' } }),
+  parseHTML: () => [{ tag: 'span[data-raw-inline]', getAttrs: (element) => ({ source: element.textContent ?? '' }) }],
+  renderHTML: ({ node }) => ['span', { 'data-raw-inline': '', class: 'font-mono rounded bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200' }, node.attrs.source],
+  parseMarkdown: (token) => ({ type: 'rawInline', attrs: { source: token.raw ?? '' } }),
+  renderMarkdown: (node) => node.attrs?.source ?? '',
+  markdownTokenizer: {
+    name: 'rawInline', level: 'inline',
+    start: (src) => src.search(/<|&(?:#\w+|[A-Za-z][A-Za-z\d]*);/),
+    tokenize: (src) => {
+      const raw = Lexer.rules.inline.normal.tag.exec(src)?.[0]
+        ?? src.match(/^&(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z][A-Za-z\d]*);/)?.[0];
+      return raw ? { type: 'rawInline', raw } : undefined;
+    },
+  },
 });
