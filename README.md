@@ -122,3 +122,6 @@ Project knowledge lives in [`.ai-configs/project/`](./.ai-configs/project/):
 
 ## Sovereignty
 Daily notes are standard Markdown (`YYYY-MM-DD.md`) with task metadata in HTML comments (`<!-- daymark: task_id=… -->`) that other Markdown apps ignore. Export everything at any time. No telemetry.
+
+## License
+Daymark is source-available under the [PolyForm Noncommercial License 1.0.0](./LICENSE.md). You may use, copy, change and share it for any noncommercial purpose: personal use, study, research, hobby projects, and use by charities, schools and government bodies. Commercial use needs separate permission from the copyright holder, dngioidev.

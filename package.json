@@ -2,6 +2,7 @@
   "name": "daymark",
   "private": true,
   "version": "1.4.0",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
