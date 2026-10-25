@@ -1,23 +1,12 @@
-import React, { useEffect, useRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, useMemo } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
-import DOMPurify from 'dompurify';
+import { noteClipboardProps } from './clipboard';
 import type { StandaloneNote } from '../../types/daymark';
 import { editorExtensions } from './editorExtensions';
 import { EditorToolbar } from './EditorToolbar';
-import { insertPictureFiles, isPictureSource } from './pictureNode';
+import { insertPictureFiles } from './pictureNode';
 import type { Editor } from '@tiptap/core';
 import './richNoteEditor.css';
-
-// Isolate the hook from other DOMPurify users (previews and later paste pipelines).
-const pasteSanitizer = DOMPurify(window);
-pasteSanitizer.addHook('uponSanitizeAttribute', (node, data) => {
-  if (node.nodeName.toLowerCase() !== 'img') return;
-  if (data.attrName === 'srcset') data.keepAttr = false;
-  if (data.attrName === 'src') {
-    data.keepAttr = isPictureSource(data.attrValue);
-    data.forceKeepAttr = data.keepAttr;
-  }
-});
 
 export interface RichNoteEditorProps {
   noteId: string;
@@ -39,6 +28,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   latestOpenLink.current = onOpenLink;
   const original = useRef(markdown);
   const activeEditor = useRef<Editor | null>(null);
+  const clipboard = useMemo(() => noteClipboardProps(() => activeEditor.current), [noteId]);
   const editor = useEditor({
     extensions: editorExtensions,
     content: markdown,
@@ -46,15 +36,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
     immediatelyRender: false,
     editorProps: {
       attributes: { role: 'textbox', 'aria-label': 'Note rich text', 'aria-multiline': 'true', class: 'dm-note-prose min-h-full p-4 sm:p-5 outline-none text-stone-900 dark:text-stone-100' },
-      transformPastedHTML: (html) => pasteSanitizer.sanitize(html),
-      handlePaste: (_view, event) => {
-        if (event.clipboardData?.getData('text/html') || event.clipboardData?.getData('text/plain')) return false;
-        const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
-        if (!files.length || !activeEditor.current) return false;
-        event.preventDefault();
-        void insertPictureFiles(activeEditor.current, files);
-        return true;
-      },
+      ...clipboard,
       handleDrop: (view, event, _slice, moved) => {
         const files = Array.from(event.dataTransfer?.files ?? []).filter(file => file.type.startsWith('image/'));
         if (moved || !files.length || !activeEditor.current) return false;
@@ -64,6 +46,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
         return true;
       },
       handleDOMEvents: {
+        ...clipboard.handleDOMEvents,
         click: (_view, event) => {
           const link = (event.target as Element).closest<HTMLElement>('[data-wiki-title]');
           if (!link?.dataset.wikiTitle) return false;
