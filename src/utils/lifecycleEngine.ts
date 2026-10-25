@@ -139,8 +139,9 @@ export function performDailyRollover(
             details: `Carried forward from ${pastDoc.date}`,
           };
 
+          const { doneLaterDate: _doneLater, ...carriedFields } = task;
           const carriedTask: TaskItem = {
-            ...task,
+            ...carriedFields,
             carriedFromDate: pastDoc.date,
             heading: targetHeading.name,
             order: targetHeading.items.length + 1,
@@ -307,6 +308,7 @@ export function reopenTask(
   const reopen = (t: TaskItem): TaskItem => {
     t.status = 'in-progress';
     t.completedDate = undefined;
+    delete t.doneLaterDate;
     t.historyLog = [
       ...(t.historyLog || []),
       {

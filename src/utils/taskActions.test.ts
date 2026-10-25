@@ -3,7 +3,7 @@ import { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
 import { performDailyRollover } from './lifecycleEngine';
 import { isDailyDocument } from './vaultValidation';
-import { applyMarkdownEdit, getMoveTaskDateError, getMoveToTomorrowDate, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
+import { applyMarkdownEdit, closeEarlierCopies, followDoneChanges, isDoneLater, reopenEarlierCopies, getMoveTaskDateError, getMoveToTomorrowDate, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
   id,
@@ -273,5 +273,102 @@ describe('moveTaskToDate / undoMoveTask', () => {
     expect(move([doc([task('t1')])], FROM)).toBeNull();
     expect(move([doc([task('other')])])).toBeNull();
     expect(move([])).toBeNull();
+  });
+});
+
+describe('closing earlier carried copies', () => {
+  const carried = (date: string, status = 'in-progress'): DailyDocument => ({
+    date, type: 'daily', updatedAt: `${date}T08:00:00Z`,
+    headings: [{ name: 'Work', notesContent: '', items: [{ ...task('c1', 'Carried'), status, originalNoteDate: '2026-10-20', createdDate: '2026-10-20', carriedFromDate: date === '2026-10-20' ? undefined : '2026-10-20' }] }],
+  });
+  const copyOn = (docs: DailyDocument[], date: string) => docs.find((d) => d.date === date)!.headings[0].items[0];
+  const docs = [carried('2026-10-20'), carried('2026-10-21', 'blocked'), carried('2026-10-22'), carried('2026-10-23', 'done')];
+
+  it('closes open copies before the done day as done later, without touching that day or later days', () => {
+    const next = closeEarlierCopies(docs, 'c1', '2026-10-22');
+    for (const date of ['2026-10-20', '2026-10-21']) {
+      const t = copyOn(next, date);
+      expect(t).toMatchObject({ status: 'done', completedDate: '2026-10-22', doneLaterDate: '2026-10-22' });
+      expect(t.historyLog.at(-1)).toMatchObject({ date: '2026-10-22', details: 'Done later on 2026-10-22' });
+    }
+    expect(copyOn(next, '2026-10-21').statusBeforeDone).toBe('blocked');
+    expect(copyOn(next, '2026-10-22')).toBe(copyOn(docs, '2026-10-22'));
+    expect(next[3]).toBe(docs[3]);
+    expect(copyOn(docs, '2026-10-20').status).toBe('in-progress');
+  });
+
+  it('leaves copies that were already done or archived alone', () => {
+    const withDone = [{ ...carried('2026-10-19', 'archived') }, ...docs];
+    const next = closeEarlierCopies(withDone, 'c1', '2026-10-22');
+    expect(next[0]).toBe(withDone[0]);
+  });
+
+  it('reopening on the done day restores the earlier copies', () => {
+    const closed = closeEarlierCopies(docs, 'c1', '2026-10-22');
+    const reopened = reopenEarlierCopies(closed, 'c1', '2026-10-22');
+    expect(copyOn(reopened, '2026-10-20')).toMatchObject({ status: 'in-progress' });
+    expect(copyOn(reopened, '2026-10-21')).toMatchObject({ status: 'blocked' });
+    for (const date of ['2026-10-20', '2026-10-21']) {
+      expect(copyOn(reopened, date).doneLaterDate).toBeUndefined();
+      expect(copyOn(reopened, date).completedDate).toBeUndefined();
+    }
+  });
+
+  it('returns the same array when nothing changes', () => {
+    expect(closeEarlierCopies(docs, 'missing', '2026-10-22')).toBe(docs);
+    expect(reopenEarlierCopies(docs, 'c1', '2026-10-22')).toBe(docs);
+  });
+
+  it('notes how long a carried task took when it is marked done', () => {
+    const doneCopy = toggleTaskDoneInDocument(carried('2026-10-25'), 'c1', '2026-10-25')!.task;
+    expect(doneCopy.historyLog.at(-1)?.details).toBe('Marked done · carried from 2026-10-20, done after 5 days');
+    const fresh = toggleTaskDoneInDocument(doc([task('f1')]), 'f1', '2026-10-21')!.task;
+    expect(fresh.historyLog.at(-1)?.details).toBe('Marked done');
+  });
+});
+
+describe('followDoneChanges', () => {
+  const day = (date: string, status: string): DailyDocument => ({
+    date, type: 'daily', updatedAt: `${date}T08:00:00Z`,
+    headings: [{ name: 'Work', notesContent: '', items: [{ ...task('c1', 'Carried'), status, originalNoteDate: '2026-10-20' }] }],
+  });
+  const docs = [day('2026-10-20', 'in-progress'), day('2026-10-21', 'in-progress')];
+
+  it('closes earlier copies when a task becomes done on a later day, and reopens them when it is unticked', () => {
+    const closed = followDoneChanges(docs, docs[1], day('2026-10-21', 'done'));
+    expect(closed[0].headings[0].items[0]).toMatchObject({ status: 'done', doneLaterDate: '2026-10-21' });
+    const reopened = followDoneChanges(closed, day('2026-10-21', 'done'), day('2026-10-21', 'in-progress'));
+    expect(reopened[0].headings[0].items[0].status).toBe('in-progress');
+  });
+
+  it('ignores newly added done tasks and unchanged days', () => {
+    expect(followDoneChanges(docs, undefined, day('2026-10-21', 'done'))).toBe(docs);
+    expect(followDoneChanges(docs, docs[1], docs[1])).toBe(docs);
+  });
+});
+
+describe('done-later edge cases', () => {
+  const day = (date: string, status: string, extra: Partial<TaskItem> = {}): DailyDocument => ({
+    date, type: 'daily', updatedAt: `${date}T08:00:00Z`,
+    headings: [{ name: 'Work', notesContent: '', items: [{ ...task('c1', 'Carried'), status, originalNoteDate: '2026-10-20', ...extra }] }],
+  });
+
+  it('a closed copy reopened on its own day loses its done-later mark', () => {
+    const closed = day('2026-10-20', 'done', { doneLaterDate: '2026-10-22', completedDate: '2026-10-22' });
+    const reopened = day('2026-10-20', 'in-progress', { doneLaterDate: '2026-10-22' });
+    const next = followDoneChanges([reopened], closed, reopened);
+    expect(next[0].headings[0].items[0].doneLaterDate).toBeUndefined();
+    expect(isDoneLater(next[0].headings[0].items[0])).toBe(false);
+  });
+
+  it('archiving the finished copy keeps earlier copies closed', () => {
+    const docs = closeEarlierCopies([day('2026-10-20', 'in-progress'), day('2026-10-21', 'done')], 'c1', '2026-10-21');
+    const next = followDoneChanges(docs, day('2026-10-21', 'done'), day('2026-10-21', 'archived'));
+    expect(next[0].headings[0].items[0]).toMatchObject({ status: 'done', doneLaterDate: '2026-10-21' });
+  });
+
+  it('isDoneLater needs both done status and the mark', () => {
+    expect(isDoneLater({ ...task('a'), status: 'done', doneLaterDate: '2026-10-22' })).toBe(true);
+    expect(isDoneLater({ ...task('a'), status: 'in-progress', doneLaterDate: '2026-10-22' })).toBe(false);
   });
 });

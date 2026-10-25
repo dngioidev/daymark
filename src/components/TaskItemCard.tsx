@@ -92,6 +92,8 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
     color: 'text-stone-700 bg-stone-100 border-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:border-stone-700',
   };
   const isDone = task.status === 'done';
+  // An earlier copy closed when the task was finished on a later day: reopen it from that day instead
+  const doneLater = isDone && !!task.doneLaterDate;
   const ageDays = calculateTaskAge(task, currentDate);
   const severity = isDone ? 'normal' : getAgingSeverity(task, currentDate, agingThresholds, statuses);
   const isSnoozed = isAlertDismissedForDate(task, currentDate);
@@ -134,10 +136,13 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
       <button
         type="button"
         onClick={toggleDone}
-        aria-label={isDone ? `Mark "${task.title}" not done` : `Mark "${task.title}" done`}
+        disabled={doneLater}
+        aria-label={doneLater ? `"${task.title}" was done later, ${inlineDay(task.doneLaterDate!, today)}` : isDone ? `Mark "${task.title}" not done` : `Mark "${task.title}" done`}
         aria-pressed={isDone}
         className={`relative mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border-2 shrink-0 transition-colors before:absolute before:-inset-3 before:content-[''] ${
-          isDone
+          doneLater
+            ? 'bg-stone-500 border-stone-500 text-white dark:bg-stone-600 dark:border-stone-600 cursor-default'
+            : isDone
             ? 'bg-emerald-700 border-emerald-700 text-white dark:bg-emerald-500 dark:border-emerald-500 dark:text-stone-950'
             : 'border-stone-400 dark:border-stone-500 hover:border-stone-600 dark:hover:border-stone-300 bg-white dark:bg-stone-900'
         }`}
@@ -181,7 +186,9 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
         )}
 
         <div className="mt-1 flex items-center gap-x-2.5 gap-y-1 flex-wrap text-xs text-stone-600 dark:text-stone-400">
-          <Menu
+          {doneLater ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md border font-medium whitespace-nowrap ${statusDef.color}`}>{statusDef.label}</span>
+          ) : <Menu
             heading="Status"
             items={pickableStatuses(statuses, task.status).map((s) => ({
               label: s.label,
@@ -200,7 +207,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                 <ChevronDown className="w-3 h-3 opacity-70" />
               </button>
             )}
-          />
+          />}
 
           {isCarried && ageDays > 0 && (
             <span
@@ -218,7 +225,9 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
             </span>
           )}
 
-          {isDone && task.completedDate && (
+          {doneLater ? (
+            <span>Done later, {inlineDay(task.doneLaterDate!, today)}</span>
+          ) : isDone && task.completedDate && (
             <span className="text-emerald-800 dark:text-emerald-400">Done {inlineDay(task.completedDate, currentDate)}</span>
           )}
 
@@ -250,7 +259,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                 { label: 'Mark done on another day…', icon: <CalendarCheck className="w-4 h-4" />, onSelect: () => onOpenHistoricalModal(task) },
               ]
             : []),
-          ...(onMoveTask ? [
+          ...(onMoveTask && !doneLater ? [
             ...(moveToTomorrowDate ? [{ label: 'Move to tomorrow', onSelect: () => onMoveTask(task.id, moveToTomorrowDate) }] : []),
             { label: 'Move to date…', onSelect: () => {
               // The menu item unmounts; the dialog must return focus to its persistent trigger.

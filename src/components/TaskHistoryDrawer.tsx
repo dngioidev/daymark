@@ -97,7 +97,7 @@ export const TaskHistoryDrawer: React.FC<TaskDetailsSheetProps> = ({
               <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
-          {isDone ? (
+          {isDone && task.doneLaterDate ? null : isDone ? (
             <button
               type="button"
               className={buttonClass.secondary}

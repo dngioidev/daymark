@@ -37,7 +37,7 @@ import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
+import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -159,6 +159,11 @@ export default function App() {
   const goToTab = (tab: 'today' | 'calendar' | 'notes') => {
     setActiveDesktopTab(tab);
     setActiveMobileTab(tab);
+  };
+  // The Today tab always shows the real today, even after opening another day from the Calendar.
+  const changeDesktopTab = (tab: ViewTab) => {
+    if (tab === 'today') setCurrentDate(today);
+    setActiveDesktopTab(tab);
   };
   const pickSearchResult = (result: SearchResult) => {
     if (result.kind === 'task') {
@@ -326,7 +331,8 @@ export default function App() {
       if (idx !== -1) {
         const copy = [...prev];
         copy[idx] = updatedDoc;
-        return copy;
+        // Finishing a carried task closes its open copies on earlier days (and unticking reopens them)
+        return followDoneChanges(copy, prev[idx], updatedDoc);
       }
       return [...prev, updatedDoc].sort((a, b) => a.date.localeCompare(b.date));
     });
@@ -339,7 +345,7 @@ export default function App() {
       if (idx === -1) return prev;
       const copy = [...prev];
       copy[idx] = patch(prev[idx]);
-      return copy;
+      return followDoneChanges(copy, prev[idx], copy[idx]);
     });
   };
 
@@ -367,13 +373,16 @@ export default function App() {
     note?: string
   ) => {
     const before = dailyDocs;
-    const { updatedDocs, updatedTask } = correctHistoricalCompletion(
+    const corrected = correctHistoricalCompletion(
       taskId,
       effectiveCompletedDate,
       currentDate,
       dailyDocs,
       note
     );
+    const updatedTask = corrected.updatedTask;
+    // Open copies on days before the completion day are closed as done later
+    const updatedDocs = updatedTask ? closeEarlierCopies(corrected.updatedDocs, taskId, effectiveCompletedDate) : corrected.updatedDocs;
     setDailyDocs(updatedDocs);
     if (updatedTask) {
       showToast(`Marked “${updatedTask.title}” done ${inlineDay(effectiveCompletedDate, currentDate)}.`, {
@@ -402,7 +411,8 @@ export default function App() {
       // Reopened in the past: bring it back to today's list too.
       const r = reopenIntoToday(taskId, targetDate, today, dailyDocs, settings.statuses, settings.defaultHeadings);
       if (!r.updatedTask) return;
-      setDailyDocs(r.updatedDocs);
+      // Copies closed as "done later" on that day open again too
+      setDailyDocs(reopenEarlierCopies(r.updatedDocs, taskId, targetDate));
       showToast(
         r.onToday
           ? `Reopened “${r.updatedTask.title}”. It's back on today's list.`
@@ -412,7 +422,7 @@ export default function App() {
     }
     const reopened = reopenTask(taskId, targetDate, dailyDocs, settings.defaultHeadings);
     if (!reopened.updatedTask) return;
-    setDailyDocs(reopened.updatedDocs);
+    setDailyDocs(reopenEarlierCopies(reopened.updatedDocs, taskId, targetDate));
     showToast(`Reopened “${reopened.updatedTask.title}” ${inlineDay(targetDate, today)}.`);
   };
 
@@ -490,7 +500,7 @@ export default function App() {
     setDailyDocs((prev) => {
       const todayDoc = prev.find((d) => d.date === today);
       const result = todayDoc ? toggleTaskDoneInDocument(todayDoc, taskId, today) : null;
-      return result ? prev.map((d) => (d.date === today ? result.doc : d)) : prev;
+      return result ? followDoneChanges(prev.map((d) => (d.date === today ? result.doc : d)), todayDoc, result.doc) : prev;
     });
   };
   useWidgetSync(today, dailyDocs.find((d) => d.date === today), handleWidgetToggle, () => {
@@ -675,7 +685,7 @@ export default function App() {
         <div className={`flex flex-col w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
           <Navbar
             activeTab={activeDesktopTab}
-            onTabChange={setActiveDesktopTab}
+            onTabChange={changeDesktopTab}
             onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
             onOpenSettings={() => openSettings()}
             onOpenSync={() => openSettings('sync')}

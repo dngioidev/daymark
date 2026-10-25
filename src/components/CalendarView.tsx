@@ -4,7 +4,7 @@ import { DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/d
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
-import { getMoveTaskDateError } from '../utils/taskActions';
+import { getMoveTaskDateError, isDoneLater } from '../utils/taskActions';
 import { MarkdownPreview } from './MarkdownPreview';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { Menu } from './ui/Menu';
@@ -34,7 +34,7 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DRAG_TYPE = 'application/x-daymark-task';
 
 const countTasks = (doc?: DailyDocument) => {
-  const tasks = doc?.headings.flatMap((h) => h.items) ?? [];
+  const tasks = (doc?.headings.flatMap((h) => h.items) ?? []).filter((t) => !isDoneLater(t));
   return { total: tasks.length, done: tasks.filter((t) => t.status === 'done').length };
 };
 
@@ -329,11 +329,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </div>
                               <div className="text-xs text-stone-600 dark:text-stone-400">
                                 {statusLabel}
-                                {task.completedDate && ` · done ${formatDay(task.completedDate, simulatedToday)}`}
+                                {isDoneLater(task) ? ` · done later, ${formatDay(task.doneLaterDate!, simulatedToday)}` : task.completedDate && ` · done ${formatDay(task.completedDate, simulatedToday)}`}
                                 {task.carriedFromDate && ` · moved from ${formatDay(task.carriedFromDate, simulatedToday)}`}
                               </div>
                             </div>
-                            {isDone && (
+                            {isDone && !isDoneLater(task) && (
                               <button type="button" onClick={() => onReopenTask(task.id, selectedDate)} className={`${buttonClass.ghost} ml-auto`}>
                                 <RotateCcw className="w-4 h-4" /> Reopen
                               </button>

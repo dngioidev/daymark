@@ -95,7 +95,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   const tabButton = (tab: MobileTab, icon: React.ReactNode, label: string, onClick?: () => void) => (
     <button
       type="button"
-      onClick={onClick ?? (() => setActiveTab(tab))}
+      onClick={onClick ?? (() => {
+        // The Today tab always shows the real today, even after opening another day
+        if (tab === 'today') onDateChange(simulatedToday);
+        setActiveTab(tab);
+      })}
       aria-current={activeTab === tab ? 'page' : undefined}
       className={`flex flex-col items-center justify-center gap-0.5 min-w-16 min-h-12 rounded-lg text-xs font-medium ${
         activeTab === tab ? 'bg-accent text-accent-fg font-bold' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'

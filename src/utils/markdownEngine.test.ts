@@ -41,6 +41,14 @@ describe('markdown round trip', () => {
     expect(item.title).toBe('Write roadmap');
     expect(item.carriedFromDate).toBe('2026-10-15');
   });
+
+  it('keeps a copy closed because the task was done on a later day', () => {
+    const closed = { ...sample.headings[0].items[0], status: 'done', completedDate: '2026-10-18', doneLaterDate: '2026-10-18' };
+    const md = serializeDailyDocument({ ...sample, headings: [{ ...sample.headings[0], items: [closed] }] });
+    expect(md).toContain('done_later=2026-10-18');
+    const item = parseDailyDocument(md, sample.date).headings[0].items[0];
+    expect(item).toMatchObject({ status: 'done', completedDate: '2026-10-18', doneLaterDate: '2026-10-18' });
+  });
 });
 
 describe('markdown parsing edge cases', () => {

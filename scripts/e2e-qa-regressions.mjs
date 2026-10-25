@@ -1045,6 +1045,66 @@ await run('E1', async () => {
   check('E1', covered.length === 0, 'task menu stays above the sections below it with a background photo', `covered: ${covered.join(', ')}`);
 });
 
+await run('E2', async () => {
+  const { page } = await fresh({ docs: [doc(Y2, [task('e2-past', 'not-started', Y2, { title: 'E2 past work' })]), doc(TODAY, [task('e2-today', 'not-started', TODAY, { title: 'E2 today work' })])] });
+  await calendarDay(page, Y2);
+  await page.getByRole('button', { name: 'Mark "E2 past work" done' }).waitFor();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  check('E2', await page.getByRole('button', { name: 'Mark "E2 today work" done' }).isVisible(), 'clicking the Today tab after opening a past day shows today');
+});
+
+await run('E3', async () => {
+  // A task carried from Y2 through Y1 to today: finishing it today closes the open copies on Y2 and Y1
+  const carried = (date) => task('e3', 'in-progress', Y2, { title: 'E3 carried', ...(date !== Y2 ? { carriedFromDate: Y2 } : {}) });
+  const { page } = await fresh({ docs: [doc(Y2, [carried(Y2)]), doc(Y1, [carried(Y1)]), doc(TODAY, [carried(TODAY)])] });
+  await page.getByRole('button', { name: 'Mark "E3 carried" done' }).click();
+  await persisted(page, 'daily_docs', (ds, dates) => dates.every((date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).find((t) => t.id === 'e3')?.doneLaterDate === dates.at(-1) || date === dates.at(-1)), [Y2, Y1, TODAY]);
+  const docs = await readDocs(page);
+  const copy = (date) => docs.find((d) => d.date === date).headings.flatMap((h) => h.items).find((t) => t.id === 'e3');
+  check('E3a', copy(Y2).status === 'done' && copy(Y1).doneLaterDate === TODAY && !copy(TODAY).doneLaterDate, 'finishing a carried task closes its earlier copies as done later', JSON.stringify([copy(Y2), copy(Y1)].map((t) => [t.status, t.doneLaterDate])));
+  await calendarDay(page, Y1);
+  await page.getByRole('button', { name: /^Done \(\d+\)$/ }).first().click();
+  check('E3b', await page.getByText(/Done later, today/).first().isVisible(), 'an earlier day shows the copy as done later');
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  const cell = cellFor(page, Y1);
+  check('E3c', !(await cell.innerText()).includes('1/1'), 'the earlier day does not count the closed copy as done', await cell.innerText());
+  await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+  const toggle = page.getByRole('button', { name: /^Done \(\d+\)$/ }).first();
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await page.getByRole('button', { name: 'Mark "E3 carried" not done' }).click();
+  await persisted(page, 'daily_docs', (ds, date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).find((t) => t.id === 'e3')?.status === 'in-progress', Y1);
+  check('E3d', true, 'unticking today reopens the earlier copies');
+});
+
+await run('E4', async () => {
+  // Phone: "Open this day" lands on that day, and the Today tab then returns to today
+  const { page } = await fresh({ mobile: true, docs: [doc(Y2, [task('e4-past', 'not-started', Y2, { title: 'E4 past work' })]), doc(TODAY, [task('e4-today', 'not-started', TODAY, { title: 'E4 today work' })])] });
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  await cellFor(page, Y2).click();
+  await page.getByRole('button', { name: 'Open this day', exact: true }).click();
+  check('E4a', await page.getByRole('button', { name: 'Mark "E4 past work" done' }).isVisible().catch(() => false)
+    || await page.getByRole('button', { name: 'Mark "E4 past work" done' }).waitFor({ timeout: 5000 }).then(() => true, () => false), 'phone Open this day shows that day');
+  await page.getByRole('button', { name: 'Today', exact: true }).last().click();
+  check('E4b', await page.getByRole('button', { name: 'Mark "E4 today work" done' }).waitFor({ timeout: 5000 }).then(() => true, () => false), 'phone Today tab returns to today');
+});
+
+await run('E5', async () => {
+  // Reopening the finished copy from the Calendar also reopens the earlier closed copies
+  const carried = (date) => task('e5', 'in-progress', Y1, { title: 'E5 carried', ...(date !== Y1 ? { carriedFromDate: Y1 } : {}) });
+  const { page } = await fresh({ docs: [doc(Y1, [carried(Y1)]), doc(TODAY, [carried(TODAY)])] });
+  await page.getByRole('button', { name: 'Mark "E5 carried" done' }).click();
+  await persisted(page, 'daily_docs', (ds, date) => ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).find((t) => t.id === 'e5')?.doneLaterDate, Y1);
+  await calendarDay(page, TODAY, { openDay: false });
+  await page.getByRole('button', { name: 'Reopen', exact: true }).first().click();
+  await persisted(page, 'daily_docs', (ds, date) => {
+    const t = ds.find((d) => d.date === date)?.headings.flatMap((h) => h.items).find((x) => x.id === 'e5');
+    return t?.status === 'in-progress' && !t.doneLaterDate;
+  }, Y1);
+  check('E5', true, 'Calendar Reopen on the finished day reopens the earlier closed copies');
+});
+
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;

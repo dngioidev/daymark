@@ -31,6 +31,9 @@ export function serializeDailyDocument(doc: DailyDocument): string {
       if (task.completedDate) {
         metaParts.push(`completed=${task.completedDate}`);
       }
+      if (task.doneLaterDate) {
+        metaParts.push(`done_later=${task.doneLaterDate}`);
+      }
       lines.push(`  <!-- daymark: ${metaParts.join(' ')} -->`);
 
       if (task.description) {
@@ -110,6 +113,7 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
         originalNoteDate: currentTask.originalNoteDate || date,
         carriedFromDate: currentTask.carriedFromDate,
         completedDate: currentTask.completedDate,
+        ...(currentTask.doneLaterDate ? { doneLaterDate: currentTask.doneLaterDate } : {}),
         heading: currentSection.name,
         order: taskOrder++,
         checklist: currentTask.checklist,
@@ -214,6 +218,7 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
           }
           if (key === 'carried_from' && val) currentTask.carriedFromDate = val;
           if (key === 'completed' && val) currentTask.completedDate = val;
+          if (key === 'done_later' && val) currentTask.doneLaterDate = val;
         }
       }
       continue;

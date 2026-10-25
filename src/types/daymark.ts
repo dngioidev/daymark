@@ -39,6 +39,7 @@ export interface TaskItem {
   originalNoteDate: string; // YYYY-MM-DD where originally created
   carriedFromDate?: string; // YYYY-MM-DD of the immediate previous day it rolled from
   completedDate?: string; // Effective completion date (can be historical)
+  doneLaterDate?: string; // On an earlier carried copy: the day the task was finally done (closed here, not counted as done this day)
   heading: string; // e.g., 'Work', 'Meetings', 'Ideas', 'Attention'
   order: number;
   checklist?: ChecklistItem[];
