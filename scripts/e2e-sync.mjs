@@ -190,6 +190,39 @@ try {
       && (await bar(page).locator('button[aria-expanded]').innerText()).includes('2 of 2'), `${label} merges both same-day habit ticks`);
   }
 
+  // Cycle 9: a pasted picture must travel as both note Markdown and binary asset.
+  await laptop.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await laptop.getByRole('button', { name: 'New note', exact: true }).first().click();
+  await laptop.getByLabel('Title', { exact: true }).fill('Synced field photo');
+  const richNote = laptop.getByRole('textbox', { name: 'Note rich text', exact: true });
+  await richNote.click();
+  await richNote.evaluate((element) => {
+    const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 64;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#386850'; ctx.fillRect(0, 0, 96, 64);
+    const bytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), (c) => c.charCodeAt(0));
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(new File([bytes], 'synced-field-photo.png', { type: 'image/png' }));
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+  });
+  const decodedPicture = (page) => page.waitForFunction(() => {
+    const img = document.querySelector('.ProseMirror img[src]:not(.ProseMirror-separator)');
+    return img?.complete && img.naturalWidth > 0;
+  }, undefined, { timeout: 20000 });
+  await decodedPicture(laptop);
+  await laptop.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const pictureMarkdown = await laptop.getByLabel('Note text (Markdown)', { exact: true }).inputValue();
+  check(/daymark-asset:[a-f0-9]{64}\.(webp|jpeg)/.test(pictureMarkdown), 'laptop picture is stored as a portable asset reference');
+  await syncNow(laptop);
+  await syncNow(phone);
+  await phone.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await phone.getByRole('button').filter({ has: phone.getByText('Synced field photo', { exact: true }) }).click();
+  await decodedPicture(phone);
+  check(await phone.locator('.ProseMirror img[src]:not(.ProseMirror-separator)').isVisible(), 'phone decodes the picture pasted on the laptop after both devices sync');
+  await phone.getByRole('button', { name: 'Markdown', exact: true }).click();
+  check(await phone.getByLabel('Note text (Markdown)', { exact: true }).inputValue() === pictureMarkdown, 'both devices keep the same picture Markdown');
+  // Restore Today for the dashboard/restart checks below.
+  for (const page of [laptop, phone]) await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });

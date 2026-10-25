@@ -99,7 +99,54 @@ const weekRowsShot = async (page, today) => {
   await click('button', /^week$/i)(page);
   await page.locator('button[data-date][aria-pressed="true"]').scrollIntoViewIfNeeded();
 };
+const cycle9Vault = (today) => {
+  const timestamp = `${today}T08:00:00Z`;
+  const note = (id, title, content) => ({ id, title, content, folder: 'Fieldwork', tags: [], pinned: false, createdAt: timestamp, updatedAt: timestamp });
+  return {
+    docs: [{ date: today, type: 'daily', updatedAt: timestamp, headings: [{ name: 'Work', notesContent: '', items: [
+      'Review field observations', 'Confirm sampling locations', 'Charge the camera', 'Pack water testing kit',
+      'Print river access map', 'Check weather forecast', 'Prepare specimen labels', 'Book the survey boat',
+      'Brief the field team', 'Upload survey coordinates', 'Check safety equipment', 'Send tomorrow’s field plan',
+    ].map((title, order) => ({ id: `c9-task-${order}`, title, status: 'not-started', createdDate: today, originalNoteDate: today, heading: 'Work', order, historyLog: [] })) }] }],
+    notes: [
+      note('c9-rich', 'River survey — field plan', '# River survey\n\n## Before we leave\n\n- Check the water testing kit\n- Pack spare batteries\n\n- [x] Confirm access with the ranger\n- [ ] Label the sample bottles\n\n| Site | Time | Lead |\n| --- | --- | --- |\n| North bridge | 09:00 | Maya |\n| Willow bend | 10:30 | Linh |\n\n> [!TIP] Keep samples cool\n> Store bottles in the insulated bag after collection.'),
+      note('c9-table', 'Water quality — sample register', '## Sample register\n\nMorning readings from the north-bank survey.\n\n| Site | Temperature | pH | Clarity | Follow-up |\n| --- | --- | --- | --- | --- |\n| North bridge | 21 °C | 7.2 | Clear | Baseline recorded |\n| Willow bend | 22 °C | 7.0 | Slight haze | Repeat after rain |\n| Old ferry | 21 °C | 7.1 | Clear | Photograph bank |\n| Meadow inlet | 23 °C | 6.9 | Cloudy | Collect second sample |'),
+      note('c9-mermaid', 'Survey workflow', '## From river to report\n\nEach sample follows the same review process.\n\n```mermaid\nflowchart LR\n  A[Collect sample] --> B[Record readings]\n  B --> C{Within baseline?}\n  C -->|Yes| D[Archive result]\n  C -->|No| E[Repeat measurement]\n  E --> B\n```'),
+      note('c9-paste', 'Research assistant — pasted plan', ''),
+    ],
+  };
+};
+const cycle9Note = (title, ready) => then(async (page) => {
+  await click('button', /^notes$/i)(page);
+  await page.getByRole('button').filter({ has: page.getByText(title, { exact: true }) }).click();
+  await page.getByRole('textbox', { name: 'Note rich text', exact: true }).waitFor();
+  if (ready) await ready(page);
+});
+const cycle9Menu = then(async (page) => {
+  const trigger = page.getByRole('button', { name: 'More actions for "Send tomorrow’s field plan"', exact: true });
+  await trigger.scrollIntoViewIfNeeded();
+  if (page.viewportSize().width >= 768) await trigger.evaluate((el) => el.scrollIntoView({ block: 'end' }));
+  await trigger.click();
+  await page.getByRole('menu').getByRole('menuitem').first().waitFor();
+});
 const SHOTS = [
+  { name: 'notes-rich', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('River survey — field plan') },
+  { name: 'notes-table', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('Water quality — sample register', (page) => page.locator('.ProseMirror table').waitFor()) },
+  { name: 'notes-mermaid', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('Survey workflow', (page) => page.getByRole('button', { name: 'Edit Mermaid diagram', exact: true }).locator('svg').waitFor({ timeout: 20000 })) },
+  { name: 'paste-result', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('Research assistant — pasted plan', async (page) => {
+    const html = fs.readFileSync(new URL('../src/components/notes/fixtures/paste/chatgpt.html', import.meta.url), 'utf8');
+    const editor = page.getByRole('textbox', { name: 'Note rich text', exact: true });
+    await editor.click();
+    await editor.evaluate((element, html) => {
+      const clipboardData = new DataTransfer(); clipboardData.setData('text/html', html);
+      element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+    }, html);
+    await editor.locator('table').waitFor();
+    await editor.locator('pre code').waitFor();
+    await editor.press('ControlOrMeta+Home');
+  }) },
+  { name: 'menu-sheet-phone', viewport: 'phone', cycles: ['cycle-9'], prepare: cycle9Menu },
+  { name: 'menu-flip-desktop', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Menu },
   { name: 'week-rows', viewport: 'desktop', cycles: ['cycle-7'], prepare: weekRowsShot },
   { name: 'week-rows-phone', viewport: 'phone', cycles: ['cycle-7'], prepare: weekRowsShot },
   { name: 'habits-closed', viewport: 'desktop', cycles: ['cycle-7'], prepare: loadSample },
@@ -222,6 +269,8 @@ try {
     if (!externalUrl && !shot.signedOut) {
       if (cycle === 'cycle-7') {
         await seedVault(page, baseUrl, cycle7Fixture(today));
+      } else if (cycle === 'cycle-9') {
+        await seedVault(page, baseUrl, cycle9Vault(today));
       } else await seedSample(page, baseUrl);
     }
     await page.goto(baseUrl, { waitUntil: 'networkidle' });

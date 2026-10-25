@@ -1070,10 +1070,24 @@ async function functional() {
     await btn(page, /^notes$/i).click();
     await btn(page, /^new note$/i).click();
     await page.getByLabel('Title').fill('Persisted note');
-    await page.getByLabel(/note text/i).fill('Body text');
+    await page.getByRole('textbox', { name: 'Note rich text', exact: true }).fill('Body text');
+    await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+    expect(await page.getByLabel('Note text (Markdown)', { exact: true }).inputValue() === 'Body text', 'body not saved as Markdown');
+    await page.waitForFunction(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+      });
+      try {
+        const notes = await new Promise((resolve, reject) => {
+          const r = db.transaction('kv').objectStore('kv').get('notes'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+        });
+        return notes?.some((note) => note.title === 'Persisted note' && note.content === 'Body text');
+      } finally { db.close(); }
+    });
     await page.reload({ waitUntil: 'networkidle' });
     await btn(page, /^notes$/i).click();
-    const ok = await page.getByText('Persisted note').first().isVisible();
+    await page.getByRole('button').filter({ has: page.getByText('Persisted note', { exact: true }) }).click();
+    const ok = await page.getByRole('textbox', { name: 'Note rich text', exact: true }).innerText() === 'Body text';
     await ctx.close();
     expect(ok, 'note not persisted');
   });
@@ -1083,29 +1097,35 @@ async function functional() {
       const { ctx, page } = await open(env);
       await btn(page, /^notes$/i).click();
       await btn(page, /^new note$/i).click();
-      const area = page.getByLabel(/note text/i);
+      const area = page.getByRole('textbox', { name: 'Note rich text', exact: true });
       await area.fill('word');
-      await area.evaluate((el) => el.setSelectionRange(0, 4));
+      await area.press('ControlOrMeta+a');
       await btn(page, /^bold$/i).click();
-      const v = await area.inputValue();
+      expect(await area.locator('strong').innerText() === 'word', `${env}: selection not bold in rich mode`);
+      await btn(page, /^markdown$/i).click();
+      const v = await page.getByLabel('Note text (Markdown)', { exact: true }).inputValue();
       await ctx.close();
       expect(v === '**word**', `${env}: "${v}"`);
     }
   });
 
-  await tc('NO-07', 'Edit / Read (/ Split) modes', 'P412+D1440', async () => {
-    const p = await open('P412');
-    await btn(p.page, /^notes$/i).click();
-    await p.page.getByText('Weekly Sprint Sync Notes').click();
-    const readDefault = (await btn(p.page, /^read$/i).getAttribute('aria-pressed')) === 'true';
-    await p.ctx.close();
-    const d = await open('D1440');
-    await btn(d.page, /^notes$/i).click();
-    await btn(d.page, /^split$/i).last().click();
-    const split = (await d.page.getByLabel(/note text/i).isVisible()) && (await d.page.locator('main h1, main h2').count()) > 1;
-    await d.ctx.close();
-    expect(readDefault, 'phone does not open notes for reading');
-    expect(split, 'split view missing');
+  await tc('NO-07', 'Rich default and Markdown round trip', 'P412+D1440', async () => {
+    for (const env of ['P412', 'D1440']) {
+      const { ctx, page } = await open(env);
+      await btn(page, /^notes$/i).click();
+      await page.getByText('Weekly Sprint Sync Notes', { exact: true }).click();
+      const area = page.getByRole('textbox', { name: 'Note rich text', exact: true });
+      await area.waitFor();
+      expect(await area.locator('h1, h2, h3').count() > 0, `${env}: rendered headings missing`);
+      expect(await page.locator('#note-editor-textarea').count() === 0, `${env}: Markdown textarea shown by default`);
+      const rendered = await area.innerText();
+      await btn(page, /^markdown$/i).click();
+      const markdown = await page.getByLabel('Note text (Markdown)', { exact: true }).inputValue();
+      expect(markdown.length > 0, `${env}: Markdown source missing`);
+      await btn(page, /^markdown$/i).click();
+      expect(await area.innerText() === rendered, `${env}: rich content changed on round trip`);
+      await ctx.close();
+    }
   });
 
   await tc('NO-08', 'Pin moves a note to the top', 'D1440', async () => {

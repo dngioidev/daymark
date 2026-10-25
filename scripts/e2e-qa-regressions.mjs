@@ -1159,6 +1159,155 @@ await run('E7', async () => {
   check('E7b', await checkbox.isVisible() && saved?.status === 'not-started', 'backdrop tap closes the menu without completing the task underneath', JSON.stringify(saved?.status));
 });
 
+// Cycle 9: exercise the public editor surface and committed Markdown, never TipTap internals.
+const note = (id, content, title = `Browser note ${id}`) => ({
+  id, title, content, folder: 'Browser coverage', tags: [], pinned: false,
+  createdAt: `${TODAY}T08:00:00Z`, updatedAt: `${TODAY}T08:00:00Z`,
+});
+const rich = (page) => page.getByRole('textbox', { name: 'Note rich text', exact: true });
+const openNote = async (page, title) => {
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('button').filter({ has: page.getByText(title, { exact: true }) }).click();
+  await rich(page).waitFor();
+};
+const savedNote = (page, id, predicate, arg) => persisted(page, 'notes',
+  (notes, { id, predicate, arg }) => new Function('note', 'arg', `return (${predicate})(note, arg)`)(notes?.find((n) => n.id === id), arg),
+  { id, predicate: predicate.toString(), arg });
+const pictureLoaded = (page) => page.waitForFunction(() => {
+  const image = document.querySelector('.ProseMirror img[src]:not(.ProseMirror-separator)');
+  return image?.complete && image.naturalWidth > 0;
+});
+
+await run('F1', async () => {
+  const seeded = note('f1', '# Field journal\n\n## Observations\n\n| Sample | Result |\n| --- | --- |\n| River | Clear |\n\n- [ ] Collect sample\n- [x] Label bottle');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  check('F1', await rich(page).locator('h1').innerText() === 'Field journal'
+    && await rich(page).locator('h2').innerText() === 'Observations'
+    && await rich(page).locator('table').getByText('Clear', { exact: true }).isVisible()
+    && await rich(page).locator('input[type=checkbox]').count() === 2
+    && await rich(page).locator('input[type=checkbox]').nth(1).isChecked(), 'seeded headings, table and task list render in rich mode');
+});
+
+await run('F2', async () => {
+  const seeded = note('f2', '');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  await rich(page).click();
+  await page.keyboard.type('## ');
+  await page.keyboard.type('Field observations');
+  await savedNote(page, seeded.id, (n) => n?.content === '## Field observations');
+  check('F2', await rich(page).locator('h2').innerText() === 'Field observations', 'typing ## space creates a heading saved as Markdown');
+});
+
+await run('F3', async () => {
+  const seeded = note('f3', '');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  await rich(page).click();
+  const html = fs.readFileSync(new URL('../src/components/notes/fixtures/paste/chatgpt.html', import.meta.url), 'utf8');
+  await rich(page).evaluate((element, html) => {
+    const clipboardData = new DataTransfer(); clipboardData.setData('text/html', html);
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+  }, html);
+  await savedNote(page, seeded.id, (n) => /\|\s*Name\s*\|\s*Value\s*\|/.test(n?.content ?? '')
+    && /```python\nprint\("hello"\)\n```/.test(n.content)
+    && !/Copy code|<script>|<style>/.test(n.content));
+  check('F3', await rich(page).locator('table').count() === 1 && await rich(page).locator('pre code').innerText() === 'print("hello")', 'ChatGPT HTML paste saves a Markdown table and code fence without copy chrome');
+});
+
+await run('F4', async () => {
+  const seeded = note('f4', '');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  await rich(page).click();
+  await rich(page).evaluate((element) => {
+    const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 60;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#386850'; ctx.fillRect(0, 0, 80, 60);
+    const bytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), (c) => c.charCodeAt(0));
+    const clipboardData = new DataTransfer(); clipboardData.items.add(new File([bytes], 'field-photo.png', { type: 'image/png' }));
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+  });
+  await savedNote(page, seeded.id, (n) => /!\[field-photo\]\(daymark-asset:[a-f0-9]{64}\.(webp|jpeg)\)/.test(n?.content ?? ''));
+  await pictureLoaded(page);
+  await page.reload({ waitUntil: 'networkidle' });
+  await openNote(page, seeded.title);
+  await pictureLoaded(page);
+  check('F4', await rich(page).locator('img[src]:not(.ProseMirror-separator)').isVisible(), 'pasted picture uses daymark-asset Markdown and decodes after reload');
+});
+
+await run('F5', async () => {
+  const seeded = note('f5', '```mermaid\nflowchart LR\n  Collect --> Review\n  Review --> Archive\n```');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  const diagram = rich(page).getByRole('button', { name: 'Edit Mermaid diagram', exact: true });
+  await diagram.locator('svg').waitFor({ timeout: 20000 });
+  check('F5', await diagram.locator('svg').isVisible(), 'Mermaid fence renders an SVG inside its node view');
+});
+
+await run('F6', async () => {
+  const seeded = note('f6', '## Expedition\n\nOriginal **plan**.');
+  const { page } = await fresh({ notes: [seeded] });
+  await openNote(page, seeded.title);
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const source = page.getByRole('textbox', { name: 'Note text (Markdown)', exact: true });
+  check('F6a', await source.inputValue() === seeded.content, 'Markdown toggle exposes the exact stored source');
+  const edited = `${seeded.content}\n\n- Check supplies`;
+  await source.fill(edited);
+  await savedNote(page, seeded.id, (n, expected) => n?.content === expected, edited);
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  await rich(page).locator('ul li').waitFor();
+  check('F6b', await rich(page).locator('h2').innerText() === 'Expedition' && await rich(page).locator('ul li').innerText() === 'Check supplies', 'Markdown edit renders on return to rich mode');
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+  check('F6c', await source.inputValue() === edited, 'rich round trip preserves the Markdown edit');
+});
+
+await run('F7', async () => {
+  const seeded = note('f7', '');
+  const { page } = await fresh({ notes: [seeded, note('f7-target', 'Reference material', 'Field guide')] });
+  await openNote(page, seeded.title);
+  await rich(page).click();
+  await page.keyboard.type('[[Field');
+  await page.getByRole('listbox').getByRole('option', { name: 'Field guide', exact: true }).click();
+  await savedNote(page, seeded.id, (n) => n?.content.includes('[[Field guide]]'));
+  await page.keyboard.type(' [[New expedition');
+  await page.getByRole('listbox').getByRole('option', { name: 'Create note "New expedition"', exact: true }).click();
+  await persisted(page, 'notes', (notes) => notes?.some((n) => n.title === 'New expedition')
+    && notes.find((n) => n.id === 'f7')?.content.includes('[[New expedition]]'));
+  check('F7a', await rich(page).locator('[data-wiki-title="Field guide"]').count() === 1, 'autocomplete inserts an existing wiki link');
+  await rich(page).locator('[data-wiki-title="New expedition"]').click();
+  await page.waitForFunction(() => document.querySelector('#note-title')?.value === 'New expedition');
+  check('F7b', true, 'Create note persists a linked note and the chip opens it');
+});
+
+await run('F8', async () => {
+  const seeded = note('f8', '#  Unusual spacing\n\n<!-- keep this comment -->\n\n<div data-custom="yes">raw HTML</div>\n\n$$x_1 + y_2$$\n\n![[Embedded note]]\n');
+  const { page } = await fresh({ notes: [seeded] });
+  const syncNow = async () => {
+    await openSync(page);
+    const response = page.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Sync now', exact: true }).click();
+    if (!(await response).ok()) throw new Error('F8 manual sync failed');
+    await page.getByText(/up to date/i).first().waitFor();
+    await settingsClose(page);
+  };
+  await synced(page);
+  await syncNow(); // Establish the server base before observing navigation.
+  const pushed = [];
+  const observe = (request) => {
+    if (request.url().endsWith('/api/sync') && request.method() === 'POST') pushed.push(...(request.postDataJSON()?.changes ?? []));
+  };
+  page.on('request', observe);
+  await openNote(page, seeded.title);
+  await rich(page).click();
+  await page.getByRole('button', { name: 'Today', exact: true }).first().click();
+  await settle(page, 3000); // Longer than the 2500ms automatic sync debounce.
+  await syncNow(); // Force collection even if no automatic request was scheduled.
+  page.off('request', observe);
+  await savedNote(page, seeded.id, (n, expected) => n?.content === expected.content && n.updatedAt === expected.updatedAt, seeded);
+  check('F8', !pushed.some((change) => change.key === 'note:f8'), 'opening and leaving an unusual note keeps bytes/timestamp and pushes no note change', JSON.stringify(pushed.map((c) => c.key)));
+});
+
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;
