@@ -1024,6 +1024,27 @@ await run('H8', async () => {
   check('H8b', await page.getByRole('checkbox', { name: 'Read a chapter', exact: true }).isChecked(), 'Calendar yesterday retains removed habit and its tick');
 });
 
+await run('E1', async () => {
+  // With a background photo, cards get backdrop-filter (their own stacking contexts); an open task menu must still paint above the cards after it.
+  const many = Array.from({ length: 3 }, (_, i) => task(`e1-${i}`, 'not-started', TODAY, { title: `E1 task ${i}`, heading: 'Work' }));
+  const { page } = await fresh({ docs: [{ ...doc(TODAY, many), headings: [{ name: 'Work', items: many, notesContent: '' }, { name: 'Ideas', items: [task('e1-idea', 'not-started', TODAY, { title: 'E1 idea', heading: 'Ideas' })], notesContent: '' }, { name: 'Later', items: [], notesContent: '' }] }] });
+  await settingsOpen(page);
+  await page.getByLabel('Add background photo', { exact: true }).setInputFiles(await png(page, 1));
+  await page.getByRole('button', { name: 'Select photo 1', exact: true }).waitFor();
+  await settingsClose(page);
+  await page.waitForFunction(() => document.documentElement.classList.contains('dm-glass'));
+  await page.getByRole('button', { name: 'More actions for "E1 task 2"', exact: true }).click();
+  const items = page.getByRole('menu').getByRole('menuitem');
+  await items.first().waitFor();
+  const covered = [];
+  for (let i = 0; i < await items.count(); i++) {
+    const box = await items.nth(i).boundingBox();
+    const onTop = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[role="menu"]'), { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    if (!onTop) covered.push(await items.nth(i).innerText());
+  }
+  check('E1', covered.length === 0, 'task menu stays above the sections below it with a background photo', `covered: ${covered.join(', ')}`);
+});
+
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;

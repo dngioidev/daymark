@@ -339,6 +339,11 @@ textarea {
   color: #1c1917;
   --dm-page-fg: #1c1917;
 }
+/* backdrop-filter gives each card its own stacking context, so lift the card holding an open menu above later cards. */
+.dm-glass .dm-card:has([role="menu"]) {
+  position: relative;
+  z-index: 20;
+}
 .dark.dm-glass .dm-card {
   background-color: rgb(28 25 23 / 0.82);
   color: #f5f5f4;
