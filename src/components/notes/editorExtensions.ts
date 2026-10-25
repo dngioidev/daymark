@@ -12,30 +12,8 @@ import { Markdown, type MarkdownExtensionOptions } from '@tiptap/markdown';
 import { Marked } from 'marked';
 import { RawMarkdown, RawHtml, RawInline } from './rawMarkdownNode';
 import { preserveNoteText } from '../../utils/noteTextSerialization';
-import { Extension, type JSONContent } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
-
-// Temporary text decorations keep existing wiki-link clicks working without
-// introducing the wiki node/autocomplete assigned to Task 7.
-const WikiTextLinks = Extension.create({
-  name: 'wikiTextLinks',
-  addProseMirrorPlugins: () => [new Plugin({ props: {
-    decorations(state) {
-      const decorations: Decoration[] = [];
-      state.doc.descendants((node, position) => {
-        if (node.type.name === 'codeBlock') return false;
-        if (!node.isText || !node.text || node.marks.some((mark) => mark.type.name === 'code')) return;
-        for (const match of node.text.matchAll(/\[\[([^\]\n]+)\]\]/g)) {
-          decorations.push(Decoration.inline(position + match.index, position + match.index + match[0].length, {
-            'data-wiki-title': match[1].split('|')[0], class: 'cursor-pointer underline',
-          }));
-        }
-      });
-      return DecorationSet.create(state.doc, decorations);
-    },
-  } })],
-});
+import type { JSONContent } from '@tiptap/core';
+import { WikiLink } from './wikiLink';
 
 // TipTap's default paragraph parser unwraps lone images as block nodes.
 // Keep images inline so mixed text/image paragraphs also satisfy the schema.
@@ -47,7 +25,7 @@ const NoteStarterKit = StarterKit.extend({
           const result = this.parent?.(token, helpers);
           if (result && !Array.isArray(result) && 'mark' in result) {
             const mark = { type: result.mark, ...(result.attrs ? { attrs: result.attrs } : {}) };
-            const visit = (node: JSONContent): JSONContent => node.type === 'rawInline'
+            const visit = (node: JSONContent): JSONContent => ['rawInline', 'wikiLink'].includes(node.type ?? '')
               ? { ...node, marks: [...(node.marks ?? []), mark] }
               : node.content ? { ...node, content: node.content.map(visit) } : node;
             return { ...result, content: (result.content ?? []).map(visit) };
@@ -96,6 +74,6 @@ export const editorExtensions = [
   Picture,
   Placeholder.configure({ placeholder: 'Write…' }),
   RawMarkdown, RawHtml, RawInline,
-  WikiTextLinks,
+  WikiLink,
   NoteMarkdown.configure({ marked: createNoteLexer() }),
 ];

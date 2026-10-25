@@ -18,9 +18,12 @@ export function calloutSnapshot(type: string, title: string, content: JSONConten
 
 function escapeLiteral(text: string, linePrefix: string, suffix: string, inLink: boolean): string {
   // Ask the Markdown lexer which spans would acquire formatting. Ordinary
-  // intraword underscores, operators, wiki brackets and < comparisons stay text.
+  // intraword underscores, operators and < comparisons stay text. Literal wiki
+  // brackets and entity-like text need escapes now that they have node parsers.
   let result = lexer.Lexer.lexInline(text).map((token) => {
-    if (token.type === 'text') return token.raw;
+    if (token.type === 'text') return token.raw
+      .replace(/&(?=(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z][A-Za-z\d]*);)/g, '\\&')
+      .replace(/\[\[([^\]\n]+)\]\]/g, '\\[\\[$1\\]\\]');
     if (inLink && token.type === 'link' && !/^[<[]/.test(token.raw)) return token.raw;
     return token.raw.replace(/[\\`*_\[\]~<>:&]/g, '\\$&');
   }).join('');
@@ -70,6 +73,10 @@ export function preserveNoteText(manager: MarkdownManager): MarkdownManager {
         // A temporary text slot also lets the mark serializer keep a single
         // emphasis span across inline HTML/entities. The live document stays atomic.
         return { type: 'text', text: slots(node.attrs.source, true, table), marks: node.marks };
+      }
+      if (node.type === 'wikiLink') {
+        const source = `[[${node.attrs?.title ?? ''}${node.attrs?.alias != null ? `|${node.attrs.alias}` : ''}]]`;
+        return { type: 'text', text: slots(source, true, table), marks: node.marks };
       }
       return node.content ? { ...node, content: node.content.map((child) => visit(child, code, table)) } : node;
     };

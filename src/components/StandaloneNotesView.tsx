@@ -52,6 +52,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const richEditorRef = useRef<RichNoteEditorHandle>(null);
   const focusTitle = useRef(false);
+  // Wiki creation and link insertion save in the same React batch. Keep the
+  // newly created note when the editor immediately saves the source note.
+  const latestNotes = useRef(notes);
+  latestNotes.current = notes;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -118,17 +122,21 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const updateActive = (updates: Partial<StandaloneNote>) => {
     if (!activeNote) return;
-    onUpdateNotes(notes.map((n) => (n.id === activeNote.id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)));
+    latestNotes.current = latestNotes.current.map((n) => (n.id === activeNote.id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
+    onUpdateNotes(latestNotes.current);
   };
 
-  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled', content = '') => {
+  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled', content = '', navigate = true) => {
     const now = new Date().toISOString();
     const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content, tags: [], createdAt: now, updatedAt: now, pinned: false };
-    onUpdateNotes([note, ...notes]);
-    setSelectedNoteId(note.id);
-    setViewMode('rich');
-    setPane('editor');
-    focusTitle.current = true;
+    latestNotes.current = [note, ...latestNotes.current];
+    onUpdateNotes(latestNotes.current);
+    if (navigate) {
+      setSelectedNoteId(note.id);
+      setViewMode('rich');
+      setPane('editor');
+      focusTitle.current = true;
+    }
     return note;
   };
 
@@ -397,8 +405,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   markdown={activeNote.content}
                   onChange={(content) => updateActive({ content })}
                   onOpenLink={openLinkedNote}
-                  notes={notes}
-                  onCreateNote={(title) => createNote(activeNote.folder, title).id}
+                  notes={[...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(({ id, title }) => ({ id, title }))}
+                  onCreateNote={(title) => createNote(activeNote.folder, title, '', false).id}
                   onToggleMarkdown={() => setViewMode('markdown')}
                 />
               </Suspense>

@@ -92,8 +92,9 @@ describe('note Markdown', () => {
   it('keeps wiki links, tags, images, tables, tasks and Mermaid content', () => {
     const doc = markdownToDoc(readFileSync('fixtures/notes/rich-core.md', 'utf8'));
     const json = JSON.stringify(doc);
-    for (const value of ['[[Another Note]]', '#tag', 'image', 'taskList', 'table', 'mermaid', 'graph TD; A-->B']) expect(json).toContain(value);
-    expect(JSON.stringify(markdownToDoc(docToMarkdown(doc)))).toContain('[[Another Note]]');
+    for (const value of ['wikiLink', '#tag', 'image', 'taskList', 'table', 'mermaid', 'graph TD; A-->B']) expect(json).toContain(value);
+    expect(docToMarkdown(doc)).toContain('[[Another Note]]');
+    expect(docToMarkdown(markdownToDoc(docToMarkdown(doc)))).toContain('[[Another Note]]');
   });
 
   it.each([

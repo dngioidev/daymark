@@ -28,6 +28,27 @@ import { Menu, type MenuItem } from './ui/Menu';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
+it('wiki creation uses the current folder and keeps the source note open', () => {
+  const tree = render();
+  const editor = find(tree, el => el.props.noteId === note.id)!;
+  const before = [...hooks.values];
+  const create = editor.props.onCreateNote as (title: string) => string;
+  expect(create('Linked')).toBeTruthy();
+  expect(hooks.values).toEqual(before);
+  (editor.props.onChange as (markdown: string) => void)('[[Linked]]');
+  expect(update.mock.calls.at(-1)![0]).toEqual([
+    expect.objectContaining({ title: 'Linked', folder: 'Work' }),
+    expect.objectContaining({ id: note.id, content: '[[Linked]]' }),
+  ]);
+  expect(update.mock.calls[0][0][0]).toMatchObject({ title: 'Linked', folder: 'Work' });
+  expect(find(render(), el => el.props.noteId === note.id)).toBeDefined();
+});
+it('supplies wiki suggestions most recently updated first, regardless of pinning', () => {
+  const older = { ...note, id: 'older', title: 'Older', updatedAt: '2020-01-01', pinned: true };
+  const tree = render(false, { notes: [older, note] });
+  const editor = find(tree, el => !!el.props.noteId)!;
+  expect(editor.props.notes).toEqual([{ id: note.id, title: note.title }, { id: older.id, title: older.title }]);
+});
 function render(compact = false, extra: Record<string, unknown> = {}) {
   hooks.index = 0;
   hooks.effects = [];

@@ -26,12 +26,12 @@ function sanitizeRawHtml(html: string): string {
   });
 }
 
-function pasteDocument(sanitizedHtml: string): HTMLElement {
+function pasteDocument(sanitizedHtml: string, stripChrome = true): HTMLElement {
   // Never adopt clipboard nodes into the live document, even after sanitizing.
   const inertDocument = document.implementation.createHTMLDocument('');
   const container = inertDocument.body;
   container.innerHTML = sanitizedHtml;
-  container.querySelectorAll('nav, aside, footer, [role="navigation"], [role="banner"], [role="contentinfo"], [class~="advertisement"], [class~="ads"], [class~="ad"], [id="ad"]').forEach(node => node.remove());
+  if (stripChrome) container.querySelectorAll('nav, aside, footer, [role="navigation"], [role="banner"], [role="contentinfo"], [class~="advertisement"], [class~="ads"], [class~="ad"], [id="ad"]').forEach(node => node.remove());
   return container;
 }
 
@@ -83,7 +83,16 @@ export function cleanPastedHtml(html: string): string {
   const sanitized = sanitizeRawHtml(html);
   // Keep Daymark/ProseMirror's node attributes and slice context intact. The
   // schema, rather than external-content normalization, owns internal pastes.
-  if (internalSlice.test(sanitized)) return sanitized;
+  if (internalSlice.test(sanitized)) {
+    // Slice metadata is forgeable. Preserve schema attributes while checking
+    // sources before ProseMirror parses even apparently internal clipboard HTML.
+    const slice = pasteDocument(sanitized, false);
+    slice.querySelectorAll('img').forEach(img => { if (!isPictureSource(img.getAttribute('src') ?? '')) img.remove(); });
+    slice.querySelectorAll('[href]').forEach(link => {
+      if (!/^(?:https?:|mailto:)/i.test(link.getAttribute('href') ?? '')) link.removeAttribute('href');
+    });
+    return slice.innerHTML;
+  }
   const container = pasteDocument(sanitized);
   const inertDocument = container.ownerDocument;
   container.querySelectorAll('span.katex').forEach(katex => {

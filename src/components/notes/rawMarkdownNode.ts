@@ -69,9 +69,12 @@ export const RawInline = Node.create({
   renderMarkdown: (node) => node.attrs?.source ?? '',
   markdownTokenizer: {
     name: 'rawInline', level: 'inline',
-    start: (src) => src.search(/<|&(?:#\w+|[A-Za-z][A-Za-z\d]*);/),
+    start: (src) => src.search(/<|\\\[(?=\[|\\\[)|\\?&(?:#\w+|[A-Za-z][A-Za-z\d]*);/),
     tokenize: (src) => {
-      const raw = Lexer.rules.inline.normal.tag.exec(src)?.[0]
+      const raw = src.match(/^\\\[\\\[[^\n]*?\\\]\\\]/)?.[0]
+        ?? src.match(/^\\\[(?=\[)/)?.[0]
+        ?? src.match(/^\\&(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z][A-Za-z\d]*);/)?.[0]
+        ?? Lexer.rules.inline.normal.tag.exec(src)?.[0]
         ?? src.match(/^&(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z][A-Za-z\d]*);/)?.[0];
       return raw ? { type: 'rawInline', raw } : undefined;
     },

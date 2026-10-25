@@ -24,6 +24,15 @@ async function paste(editor: Editor, html: string, text = '') {
   Object.defineProperty(event, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : type === 'text/plain' ? text : '', files: [], types: ['text/html', 'text/plain'] } });
   await act(async () => { editor.view.dom.dispatchEvent(event); });
 }
+it('forged slice strips data/blob images and unsafe link schemes', async () => {
+  const html = '<p data-pm-slice="0 0 []"><img src="data:image/png;base64,YQ=="><img src="blob:forged"><a href="javascript:alert(1)">bad</a><a href="ftp://example.com">ftp</a><a href="https://example.com">safe</a></p>';
+  const clean = cleanPastedHtml(html);
+  expect(clean).toContain('data-pm-slice');
+  expect(clean).not.toMatch(/data:image|blob:|javascript:|ftp:/);
+  const editor = await mount(); await paste(editor, html);
+  expect(editor.getMarkdown()).not.toMatch(/data:image|blob:|javascript:|ftp:/);
+  expect(editor.getMarkdown()).toContain('[safe](https://example.com)');
+});
 it.each(['chatgpt', 'claude', 'gemini', 'article'])('%s paste preserves structures in serialised Markdown and removes chrome', async (name) => {
   const editor = await mount();
   await paste(editor, readFileSync(`src/components/notes/fixtures/paste/${name}.html`, 'utf8'));

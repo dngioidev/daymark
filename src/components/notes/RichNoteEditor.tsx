@@ -3,6 +3,7 @@ import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { noteClipboardProps } from './clipboard';
 import type { StandaloneNote } from '../../types/daymark';
 import { editorExtensions } from './editorExtensions';
+import { WikiLink } from './wikiLink';
 import { EditorToolbar } from './EditorToolbar';
 import { insertPictureFiles } from './pictureNode';
 import type { Editor } from '@tiptap/core';
@@ -21,16 +22,22 @@ export interface RichNoteEditorProps {
 
 export interface RichNoteEditorHandle { focus(): void }
 
-export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, onToggleMarkdown, ref }: RichNoteEditorProps) {
+export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, notes, onCreateNote, onToggleMarkdown, ref }: RichNoteEditorProps) {
   const latestOnChange = useRef(onChange);
   latestOnChange.current = onChange;
   const latestOpenLink = useRef(onOpenLink);
   latestOpenLink.current = onOpenLink;
+  const wikiCallbacks = useRef({ notes, onCreateNote });
+  wikiCallbacks.current = { notes, onCreateNote };
   const original = useRef(markdown);
   const activeEditor = useRef<Editor | null>(null);
   const clipboard = useMemo(() => noteClipboardProps(() => activeEditor.current), [noteId]);
   const editor = useEditor({
-    extensions: editorExtensions,
+    extensions: editorExtensions.map(extension => extension.name === 'wikiLink' ? WikiLink.configure({
+      notes: () => wikiCallbacks.current.notes,
+      onCreateNote: title => wikiCallbacks.current.onCreateNote(title),
+      onOpenLink: title => latestOpenLink.current(title),
+    }) : extension),
     content: markdown,
     contentType: 'markdown',
     immediatelyRender: false,
@@ -44,15 +51,6 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
         const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
         void insertPictureFiles(activeEditor.current, files, position);
         return true;
-      },
-      handleDOMEvents: {
-        ...clipboard.handleDOMEvents,
-        click: (_view, event) => {
-          const link = (event.target as Element).closest<HTMLElement>('[data-wiki-title]');
-          if (!link?.dataset.wikiTitle) return false;
-          latestOpenLink.current(link.dataset.wikiTitle);
-          return true;
-        },
       },
     },
     onUpdate: ({ editor, transaction }) => {
