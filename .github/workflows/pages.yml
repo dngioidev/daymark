@@ -1,6 +1,8 @@
 name: Pages
 # Rebuilds the GitHub Pages site on every published release (new version, date and APK link)
 # and whenever the site changes on main.
+# GitHub Pages only makes deployments from the default branch live, so a release does not deploy
+# from its tag: it starts this workflow on main with the release tag as input.
 on:
   release:
     types: [published, edited]
@@ -8,18 +10,31 @@ on:
     branches: [main]
     paths: ['site/**', 'scripts/build-site.mjs', 'scripts/helpers/site.mjs', '.github/workflows/pages.yml']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to show (empty = latest release)
+        required: false
+        default: ''
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: true
 jobs:
-  build:
+  release:
     # The private mirror shares this history; only the public repo publishes the site
-    if: github.repository == 'dngioidev/daymark'
+    if: github.repository == 'dngioidev/daymark' && github.event_name == 'release'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f release_tag="$TAG"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+  build:
+    if: github.repository == 'dngioidev/daymark' && github.event_name != 'release'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,13 +44,19 @@ jobs:
       - run: node scripts/build-site.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || '' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
