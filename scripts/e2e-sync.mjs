@@ -299,9 +299,11 @@ try {
   await syncNow(laptop); await syncNow(phone);
   for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
     const local = await readVault(page);
-    const copies = local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'e2e-backlog-home')));
-    check(copies.length === 1 && !visibleBacklog(local.backlog).some(i => i.id === 'e2e-backlog-home'),
-      `${label} converges to exactly one picked task and hides the backlog item`);
+    const copies = local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'e2e-backlog-home').map(t => ({ date: d.date, id: t.id }))));
+    check(copies.length === 2 && pickDates.every(date => copies.filter(copy => copy.date === date).length === 1)
+      && !local.docs.some(d => d.removedTaskIds?.includes('e2e-backlog-home'))
+      && !visibleBacklog(local.backlog).some(i => i.id === 'e2e-backlog-home'),
+      `${label} keeps one task per picked day without deletions and hides the backlog item`);
   }
 
   // Server dashboard lists both devices

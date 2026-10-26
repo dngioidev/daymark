@@ -790,7 +790,7 @@ describe('backlog sync', () => {
     const second = await syncOnce(fetch, { ...vault([]), backlog: { items: [{ ...item, id: 'other' }] } }, b, b.accessToken);
     expect(applySyncOutcome(vault([]), second).backlog.items.map(i => i.id).sort()).toEqual(['idea', 'other']);
   });
-  it('two devices picking one backlog item into different days converge without duplicates', async () => {
+  it('two devices picking one backlog item retain one copy per picked day', async () => {
     const { pickBacklogItem } = await import('../src/utils/backlog');
     const a = await connect('A'), b = await connect('B');
     const backlog = { items: [{ id: 'pick', title: 'Pick once', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' }] };
@@ -802,9 +802,14 @@ describe('backlog sync', () => {
     await syncOnce(fetch, { ...original, docs: pa.docs, backlog: pa.data }, first.state, a.accessToken);
     const merged = await syncOnce(fetch, { ...original, docs: pb.docs, backlog: pb.data }, second.state, b.accessToken);
     const local = applySyncOutcome({ ...original, docs: pb.docs, backlog: pb.data }, merged);
-    expect(local.docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+    expect(local.docs.map(d => ({ date: d.date, ids: d.headings.flatMap(h => h.items.map(t => t.id)) }))).toEqual([
+      { date: '2026-10-27', ids: ['pick'] }, { date: '2026-10-28', ids: ['pick'] },
+    ]);
+    local.docs.forEach(doc => expect(doc.removedTaskIds).toBeUndefined());
     const fresh = await syncOnce(fetch, vault([]), a, a.accessToken);
-    expect(applySyncOutcome(vault([]), fresh).docs.flatMap(d => d.headings.flatMap(h => h.items.filter(t => t.id === 'pick')))).toHaveLength(1);
+    const restored = applySyncOutcome(vault([]), fresh);
+    expect(restored.docs).toEqual(local.docs);
+    expect(restored.backlog.items[0].pickedOn).toBeDefined();
   });
 
   it.each([
@@ -813,13 +818,13 @@ describe('backlog sync', () => {
     { features: ['backlog'], key: 'settings' },
     { features: ['backlog'], key: null },
     { features: ['backlog'], key: 'doc:2026-10-27' },
-  ])('skips document reconciliation for features=$features, changed key=$key', async ({ features, key, ...options }) => {
+  ])('skips backlog reconciliation for features=$features, changed key=$key', async ({ features, key, ...options }) => {
     const { pickBacklogItem } = await import('../src/utils/backlog');
     const client = await connect('A');
     const data = { items: [{ ...item, status: 'in-progress' }] };
     const early = pickBacklogItem([], data, 'idea', '2026-10-26', ['Work'], '2026-10-26T09:00:00Z')!;
     const late = pickBacklogItem([], data, 'idea', '2026-10-27', ['Work'], '2026-10-26T09:01:00Z')!;
-    const values = { backlog: early.data, 'doc:2026-10-26': early.docs[0], 'doc:2026-10-27': late.docs[0] };
+    const values = { backlog: data, 'doc:2026-10-26': early.docs[0], 'doc:2026-10-27': late.docs[0] };
     fileStore.vault.rev = 3;
     for (const [entityKey, value] of Object.entries(values)) fileStore.vault.entities[entityKey] = {
       value, rev: 3, updatedBy: client.deviceId, updatedAt: '2026-10-26T09:01:00Z',
@@ -836,6 +841,27 @@ describe('backlog sync', () => {
       else expect(fileStore.vault.entities[entityKey]).toEqual(before[entityKey]);
     }
     expect((await response.json()).entities.filter((e: { key: string }) => e.key.startsWith('doc:') && e.key !== key)).toEqual([]);
+  });
+
+  it.each(['backlog', 'doc:2026-10-28'])('reconciliation changes only backlog after a capable client pushes %s', async key => {
+    const { pickBacklogItem } = await import('../src/utils/backlog');
+    const client = await connect('A');
+    const active = { items: [{ ...item, status: 'in-progress' }] };
+    const early = pickBacklogItem([], active, 'idea', '2026-10-26', ['Work'], '2026-10-26T09:00:00Z')!;
+    const late = pickBacklogItem([], active, 'idea', '2026-10-27', ['Work'], '2026-10-26T09:01:00Z')!;
+    fileStore.vault.rev = 3;
+    const values = { backlog: active, 'doc:2026-10-26': early.docs[0], 'doc:2026-10-27': late.docs[0] };
+    for (const [entityKey, value] of Object.entries(values)) fileStore.vault.entities[entityKey] = {
+      value, rev: 3, updatedBy: client.deviceId, updatedAt: '2026-10-26T09:01:00Z',
+    };
+    const before = structuredClone(fileStore.vault.entities);
+    const value = key === 'backlog' ? { items: [{ ...active.items[0], title: 'Edited idea' }] } : { ...day([]), date: '2026-10-28' };
+    const response = await post('/api/sync', { sinceRev: 3, features: ['backlog'], changes: [{ key, base: key === 'backlog' ? active : null, value }] }, client.accessToken);
+    expect(response.status).toBe(200);
+    for (const date of ['2026-10-26', '2026-10-27']) expect(fileStore.vault.entities[`doc:${date}`]).toEqual(before[`doc:${date}`]);
+    if (key.startsWith('doc:')) expect(fileStore.vault.entities[key].value).toEqual(value);
+    expect(fileStore.vault.entities.backlog.value).toMatchObject({ items: [expect.objectContaining({ pickedOn: '2026-10-26', updatedAt: '2026-10-26T09:00:00Z' })] });
+    expect((await response.json()).entities.map((e: { key: string }) => e.key).sort()).toEqual(key === 'backlog' ? ['backlog'] : ['backlog', key]);
   });
 
 });

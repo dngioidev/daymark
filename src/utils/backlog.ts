@@ -127,30 +127,7 @@ export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIs
   }) };
 }
 
-/** Resolve concurrent picks across independent daily entities, retaining closed history. */
+/** Hide active backlog items found in daily notes; same-id copies across days are normal. */
 export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[]): { backlog: BacklogData; docs: DailyDocument[] } {
-  const backlog = reconcileBacklog(data, docs);
-  const pickedIds = new Set(backlog.items.filter(item => item.pickedOn).map(item => item.id));
-  const independentPick = (task: TaskItem, date: string): boolean => {
-    if (!pickedIds.has(task.id) || task.carriedFromDate || task.originalNoteDate !== date ||
-      task.status === 'done' || task.status === 'archived' || isClosedCopy(task) || !Array.isArray(task.historyLog)) return false;
-    // Moving away and back retains the original dates and pick entry. Only a pick
-    // with no subsequent move is still an independent pick copy.
-    const lastMove = [...task.historyLog].reverse().find(entry => entry.action === 'moved');
-    return lastMove?.details === 'Picked from backlog' && lastMove.date === date;
-  };
-  const earliestPicks = new Map<string, string>();
-  for (const doc of docs) for (const heading of doc.headings) for (const task of heading.items) {
-    if (!independentPick(task, doc.date)) continue;
-    if (!earliestPicks.has(task.id) || doc.date < earliestPicks.get(task.id)!) earliestPicks.set(task.id, doc.date);
-  }
-  return { backlog, docs: docs.map(doc => {
-    let next = doc;
-    for (const task of doc.headings.flatMap(h => h.items)) {
-      if (!independentPick(task, doc.date) || doc.date === earliestPicks.get(task.id)) continue;
-      const removed = removeTaskFromDocument(next, task.id);
-      if (removed) next = { ...removed.doc, updatedAt: doc.updatedAt };
-    }
-    return next;
-  }) };
+  return { backlog: reconcileBacklog(data, docs), docs };
 }

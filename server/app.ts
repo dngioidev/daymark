@@ -290,10 +290,6 @@ export function createApp(config: ServerConfig, store: FileStore) {
         const docs = Object.entries(store.vault.entities).filter(([key, e]) => key.startsWith('doc:') && validValue(key, e.value)).map(([, e]) => e.value as DailyDocument);
         const reconciled = reconcileBacklogVault(backlog, docs);
         if (!sameValue(backlog, reconciled.backlog)) write('backlog', reconciled.backlog);
-        for (const doc of reconciled.docs) {
-          const key = `doc:${doc.date}`;
-          if (!sameValue(store.vault.entities[key].value, doc)) write(key, doc);
-        }
       }
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)

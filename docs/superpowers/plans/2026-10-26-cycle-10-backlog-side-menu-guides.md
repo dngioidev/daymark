@@ -4,7 +4,7 @@
 
 **Goal:** Ship Daymark 1.7.0 features: an undated task backlog with category labels, a desktop side rail replacing the top bar, "Move to section" in the task menu, click-to-zoom screenshots on the site, and web/mobile guides in the app and on the site.
 
-**Architecture:** The backlog is its own synced record (`BacklogData`, sync entity `backlog`) modelled on habits: stored locally in kv, a feature flag keeps 1.6.0 clients away from it, merging is per item. Picking a task writes the same task id into a day; a reconcile step keeps "one task id, one place" true even when devices disagree. The rail replaces `Navbar` on desktop only. Guides are Markdown files in the repo, rendered in-app (bundled) and on the site (build script).
+**Architecture:** The backlog is its own synced record (`BacklogData`, sync entity `backlog`) modelled on habits: stored locally in kv, a feature flag keeps 1.6.0 clients away from it, merging is per item. Picking a task writes the same task id into a day; a non-destructive reconcile step hides picked backlog items while retaining same-id daily copies from concurrent picks on different days. Daily rollover and Done later handle those copies normally; reconciliation never edits daily documents. The rail replaces `Navbar` on desktop only. Guides are Markdown files in the repo, rendered in-app (bundled) and on the site (build script).
 
 **Tech Stack:** React 19, TypeScript, Vite, Tailwind v4 (stone palette), vitest, node:test for helpers, Express sync server, Capacitor Android (no native change), Playwright-based QA scripts.
 
@@ -97,7 +97,7 @@ Behaviour fixed by the spec/my calls: picked tasks start fresh on the pick day (
 - [ ] **Step 1: Failing tests:** `syncClient` — entities include `backlog`; collectChanges sends only a changed backlog; 1.6.0-style server (rejecting `backlog`) → client retries without it and still syncs docs and habits; server — a request without `features` containing `backlog` never receives `backlog`; invalid backlog payload rejected 400; merge through the server keeps both devices' adds; `applySyncOutcome` reconciles a picked item.
 - [ ] **Step 2: Run tests; expect FAIL.**
 - [ ] **Step 3: Implement** the client/server changes; wire `backlog` into `useSync.ts` where `vault.habits` is watched and saved.
-- [ ] **Step 4: Extend `scripts/e2e-sync.mjs`:** device A adds a backlog item with category "Home" and moves a Today task to the backlog; device B shows both; both devices pick the same item for different days at the same time; after sync exactly one task with that id exists and the item is not listed.
+- [ ] **Step 4: Extend `scripts/e2e-sync.mjs`:** device A adds a backlog item with category "Home" and moves a Today task to the backlog; device B shows both; both devices pick the same item for different days at the same time; after sync one task with that id exists per picked day, no copies are deleted or tombstoned, and the item is not listed.
 - [ ] **Step 5: Run `npx vitest run`, `npm run build`, `npm run test:sync`; expect PASS.**
 - [ ] **Step 6: Commit** `feat: sync the backlog behind a feature flag`.
 

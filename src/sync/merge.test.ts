@@ -38,7 +38,7 @@ describe('backlog merges', () => {
     expect(mergeBacklog(edited, edited, other).value).toEqual(other);
     expect(mergeBacklog(base, edited, other).conflicts).toHaveLength(1);
   });
-  it('keeps the newer edit when a concurrent pick occurs; reconciliation resolves placement later', () => {
+  it('keeps the newer edit when a concurrent pick occurs; reconciliation updates backlog visibility later', () => {
     const picked = { items: [{ ...a, pickedOn: '2026-10-26' }] };
     expect(mergeBacklog(base, picked, edited).value).toEqual(edited);
   });
