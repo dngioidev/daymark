@@ -85,6 +85,8 @@ import { ShortcutHelp } from './components/ShortcutHelp';
 import { isDialogOpen } from './components/ui/Dialog';
 import { isMenuOpen } from './components/ui/Menu';
 
+const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
+
 export default function App() {
   // App Mode: auto-detect mobile vs desktop, with instant user switcher
   const [appMode, setAppMode] = useState<AppMode>(() => {
@@ -826,6 +828,7 @@ export default function App() {
           />
 
           <main className={`dm-backdrop-surface flex-1 min-w-0 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
+            <h1 className="sr-only">{DESKTOP_PAGE_LABELS[activeDesktopTab]}</h1>
             {activeDesktopTab === 'today' && (
               <TodayView
                 habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} />}

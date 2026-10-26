@@ -1374,6 +1374,9 @@ await run('R3', async () => {
     }
     for (const height of [480, 600, 640, 900]) {
     await page.setViewportSize({ width: 1280, height });
+    // Move focus away before resetting the scroll position; focusing an already
+    // focused Search button does not trigger the browser's focus scrolling.
+    await page.locator('[data-rail-part="today"]').focus();
     const title = page.locator('[data-rail-part="title"]');
     const initial = await title.evaluate(el => {
       el.scrollTop = 0;
@@ -1389,6 +1392,33 @@ await run('R3', async () => {
     check(`R3-${largeText ? 'large-' : ''}${height}`, initial.brandTop >= initial.top && initial.dateHeight >= 16 && initial.overflow === 'auto' && focused.visible && focused.hit && focused.overflow <= 1
       && (height === 900 ? focused.scroll === 0 : focused.scroll > 0), 'short-height Title preserves readable text and scrolls focused controls within its equal row', JSON.stringify({ initial, focused }));
     }
+  }
+});
+
+await run('R4', async () => {
+  const { page } = await fresh();
+  for (const dark of [false, true]) {
+    for (const size of ['S', 'M', 'L']) {
+      await settingsOpen(page);
+      await settingsBox(page).getByRole('button', { name: dark ? /Dark$/ : /Light$/ }).click();
+      await settingsBox(page).getByRole('button', { name: size, exact: true }).click();
+      await settingsClose(page);
+      const geometry = await page.locator('.dm-side-rail').evaluate(nav => {
+        const labels = [...nav.querySelectorAll('*')].filter(el => [...el.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()));
+        return { minimumFont: Math.min(...labels.map(el => parseFloat(getComputedStyle(el).fontSize))), syncHeight: nav.querySelector('[aria-label^="Sync:"]').getBoundingClientRect().height,
+          shortcutOpacity: getComputedStyle(nav.querySelector('kbd')).opacity };
+      });
+      const key = `${dark ? 'dark' : 'light'}-${size}`;
+      check(`R4-${key}-geometry`, geometry.minimumFont >= 12 && geometry.syncHeight >= 24 && geometry.shortcutOpacity === '1', 'rail text is at least 12px, Sync target at least 24px, and shortcut keeps full contrast', JSON.stringify(geometry));
+      await page.addScriptTag({ content: fs.readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8') });
+      const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast', 'page-has-heading-one'] } })).violations.map(v => ({ id: v.id, nodes: v.nodes.map(node => node.target) })));
+      check(`R4-${key}-axe`, violations.length === 0, 'axe finds no contrast or missing page heading violations', JSON.stringify(violations));
+    }
+  }
+  for (const label of ['Today', 'Calendar', 'Notes', 'Backlog']) {
+    await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: label, exact: true }).click();
+    const heading = page.locator('main > h1.sr-only');
+    check(`R4-heading-${label}`, await heading.count() === 1 && await heading.innerText() === label, 'desktop page has its accessible heading while visible title remains removed');
   }
 });
 

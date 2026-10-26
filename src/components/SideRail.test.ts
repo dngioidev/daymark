@@ -32,6 +32,16 @@ describe('desktop side rail', () => {
     expect(title.classList.contains('justify-start')).toBe(true);
     expect(Array.from(title.children).every(el => el.classList.contains('shrink-0'))).toBe(true);
   });
+  it('uses readable Title labels and a usable Sync target without dimming the shortcut', () => {
+    const doc = document.createElement('div');
+    doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, props));
+    expect(doc.querySelector('[title="Tuesday, 27 October"]')!.classList.contains('text-[12px]')).toBe(true);
+    const sync = doc.querySelector('[aria-label="Sync: Synced. Open sync settings"]')!;
+    expect(sync.classList.contains('text-[12px]')).toBe(true);
+    expect(sync.classList.contains('min-h-[24px]')).toBe(true);
+    expect(doc.querySelector('kbd')!.classList.contains('text-[12px]')).toBe(true);
+    expect(doc.querySelector('kbd')!.className).not.toContain('opacity');
+  });
   it('wires each action to its supplied callback', () => {
     const tree = SideRail(props) as React.ReactElement<{ children: React.ReactNode }>;
     const visit = (node: React.ReactNode): void => {

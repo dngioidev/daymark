@@ -333,3 +333,9 @@ it('hides the desktop rail only while Notes reports focus mode', () => {
   (props(StandaloneNotesView).onFocusModeChange as (focused: boolean) => void)(false);
   expect(props(SideRail).hidden).toBe(false);
 });
+
+it.each(['today', 'calendar', 'notes', 'backlog', 'mobile-code'])('names the desktop %s page with an accessible hidden heading', (tab) => {
+  (props(SideRail).onTabChange as (tab: string) => void)(tab);
+  const heading = render().find(el => el.type === 'h1' && el.props.className === 'sr-only');
+  expect(heading?.props.children).toBe(tab === 'mobile-code' ? 'Mobile & Code' : tab[0].toUpperCase() + tab.slice(1));
+});
