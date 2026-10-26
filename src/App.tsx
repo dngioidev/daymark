@@ -8,6 +8,7 @@ import {
   StandaloneNote,
   HabitData,
   BacklogData,
+  BacklogItem,
   AppSettings,
   ViewTab,
   TaskItem,
@@ -35,7 +36,8 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importBackupAssets, importVaultFromZip, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklog, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
@@ -53,6 +55,7 @@ import {
 } from './utils/lifecycleEngine';
 import { Navbar } from './components/Navbar';
 import { TodayView } from './components/TodayView';
+import { BacklogView } from './components/backlog/BacklogView';
 import { HabitsBar } from './components/habits/HabitsBar';
 import { CalendarView } from './components/CalendarView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
@@ -94,7 +97,7 @@ export default function App() {
   const [activeDesktopTab, setActiveDesktopTab] = useState<ViewTab>(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
     if (tab === 'history') return 'calendar';
-    return tab === 'today' || tab === 'calendar' || tab === 'notes' ? tab : 'today';
+    return tab === 'today' || tab === 'calendar' || tab === 'notes' || tab === 'backlog' ? tab : 'today';
   });
 
   // Core vault state
@@ -115,6 +118,9 @@ export default function App() {
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
   const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
+  const backlogRef = React.useRef(backlog);
+  backlogRef.current = backlog;
+  const backlogDeletes = React.useRef(new Map<string, BacklogItem>());
   const [habits, setHabits] = useState<HabitData>(loadHabits);
   const [habitsOpenSignal, setHabitsOpenSignal] = useState(0);
 
@@ -165,7 +171,7 @@ export default function App() {
   const openSearch = () => {
     setIsSearchOpen(true);
   };
-  const goToTab = (tab: 'today' | 'calendar' | 'notes') => {
+  const goToTab = (tab: 'today' | 'calendar' | 'notes' | 'backlog') => {
     setActiveDesktopTab(tab);
     setActiveMobileTab(tab);
   };
@@ -179,6 +185,8 @@ export default function App() {
       setCurrentDate(result.date);
       goToTab('today');
       setDetailsTaskId(result.taskId);
+    } else if (result.kind === 'backlog') {
+      goToTab('backlog');
     } else {
       setOpenNoteId(result.noteId);
       goToTab('notes');
@@ -217,6 +225,7 @@ export default function App() {
         goToTab('today');
       } else if (action === 'go-calendar') goToTab('calendar');
       else if (action === 'go-notes') goToTab('notes');
+      else if (action === 'go-backlog') goToTab('backlog');
     };
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('keydown', onKey); window.clearTimeout(timer); };
@@ -289,6 +298,14 @@ export default function App() {
   }, [habits]);
 
   useEffect(() => { saveBacklog(backlog); }, [backlog]);
+
+  useEffect(() => {
+    const next = reconcileBacklog(backlog, dailyDocs);
+    if (!next.items.some((item, index) => item !== backlog.items[index])) return;
+    // Reconciliation is automatic: it must not release recovered data for persistence/sync.
+    if (uneditedRecoveredBacklog.has(backlog)) uneditedRecoveredBacklog.add(next);
+    setBacklog(next);
+  }, [backlog, dailyDocs]);
 
   useEffect(() => {
     saveSettings(settings);
@@ -417,6 +434,67 @@ export default function App() {
     handleConfirmHistoricalCorrection(taskId, targetDate, 'Marked done from the task menu');
   };
 
+  const applyBacklogMove = (result: { docs: DailyDocument[]; data: BacklogData }) => {
+    dailyDocsRef.current = result.docs;
+    backlogRef.current = result.data;
+    setDailyDocs(result.docs);
+    setBacklog(result.data);
+  };
+  const canUndoBacklogMove = (result: { docs: DailyDocument[]; data: BacklogData }) => {
+    if (dailyDocsRef.current === result.docs && backlogRef.current === result.data) return true;
+    showToast("Can't undo: the list changed since.", { tone: 'error' });
+    return false;
+  };
+  const handleCaptureBacklog = (input: { title: string; description?: string; category?: string }) => {
+    setBacklog((current) => addBacklogItem(current, input, new Date().toISOString()));
+    showToast('Added to backlog.');
+  };
+  const handleRemoveBacklog = (id: string) => {
+    const next = removeBacklogItem(backlogRef.current, id, new Date().toISOString());
+    const removed = next.items.find((item) => item.id === id);
+    if (removed) backlogDeletes.current.set(id, removed);
+    setBacklog(next);
+  };
+  const handleRestoreBacklog = (id: string) => {
+    const current = backlogRef.current;
+    if (current.items.find((item) => item.id === id) !== backlogDeletes.current.get(id)) {
+      showToast("Can't undo: the list changed since.", { tone: 'error' });
+      return;
+    }
+    setBacklog(restoreBacklogItem(current, id, new Date().toISOString()));
+    backlogDeletes.current.delete(id);
+  };
+  const handleMoveToBacklog = (id: string) => {
+    const beforeDocs = dailyDocsRef.current;
+    const beforeBacklog = backlogRef.current;
+    const result = moveTaskToBacklog(beforeDocs, beforeBacklog, id, currentDate, new Date().toISOString());
+    if (!result) return;
+    applyBacklogMove(result);
+    showToast('Moved to backlog.', { action: { label: 'Undo', onClick: () => {
+      if (!canUndoBacklogMove(result)) return;
+      const now = new Date().toISOString();
+      const previous = beforeBacklog.items.find((item) => item.id === id);
+      applyBacklogMove({
+        docs: beforeDocs.map((doc) => result.docs.find((d) => d.date === doc.date) === doc ? doc : { ...doc, updatedAt: now }),
+        // A newly-created backlog item needs a tombstone so a synced move cannot return.
+        data: { items: result.data.items.map((item) => item.id !== id ? item : previous ? { ...previous, updatedAt: now } : { ...item, deletedAt: now, updatedAt: now }) },
+      });
+    } } });
+  };
+  const handlePickBacklog = (id: string, date: string) => {
+    const error = getMoveTaskDateError(date, '', today);
+    if (error) { showToast(error, { tone: 'error' }); return; }
+    const result = pickBacklogItem(dailyDocsRef.current, backlogRef.current, id, date, settings.defaultHeadings, new Date().toISOString());
+    if (!result) { showToast('This task is already on a day.', { tone: 'info' }); return; }
+    applyBacklogMove(result);
+    const section = result.docs.find((doc) => doc.date === date)!.headings.find((heading) => heading.items.some((item) => item.id === id))!.name;
+    showToast(`Added to ${formatDay(date, today)} in ${section}`, { action: { label: 'Undo', onClick: () => {
+      if (!canUndoBacklogMove(result)) return;
+      const restored = moveTaskToBacklog(dailyDocsRef.current, backlogRef.current, id, date, new Date().toISOString());
+      if (restored) applyBacklogMove(restored);
+    } } });
+  };
+
   // Handler: Reopen Task
   const handleReopenTask = (taskId: string, targetDate = currentDate) => {
     if (targetDate < today) {
@@ -533,7 +611,7 @@ export default function App() {
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
       let missingPictures = 0;
-      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; })) {
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog())) {
         setLastBackupAt(getLastBackupDate());
         showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
@@ -552,7 +630,7 @@ export default function App() {
 
   // Importing replaces the whole vault, so ask first when there is existing data
   const confirmReplaceVault = async () =>
-    (dailyDocs.length === 0 && notes.length === 0) ||
+    (dailyDocs.length === 0 && notes.length === 0 && backlog.items.length === 0) ||
     confirmDialog({
       title: 'Restore this backup?',
       message: sync.account
@@ -585,6 +663,7 @@ export default function App() {
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
     setHabits((current) => mergeRestoredHabits(current, isHabitData(parsed.habits) ? parsed.habits : undefined));
+    setBacklog((current) => mergeRestoredBacklog(current, parsed.backlog));
     if (parsed.settings) setSettings(nextSettings);
     sync.rebaseAfterReplace();
     markOnboarded();
@@ -600,6 +679,7 @@ export default function App() {
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
       setNotes(snapshot.notes);
       setHabits((current) => mergeRestoredHabits(current, snapshot.habits));
+      setBacklog((current) => mergeRestoredBacklog(current, snapshot.backlog));
       if (snapshot.settings) setSettings(nextSettings);
       sync.rebaseAfterReplace();
       markOnboarded();
@@ -754,6 +834,7 @@ export default function App() {
                 onQuickHistoricalDone={handleQuickHistoricalDone}
                 onMoveTask={handleMoveTask}
                 onMoveToSection={handleMoveToSection}
+                onMoveToBacklog={handleMoveToBacklog}
                 onTriggerRollover={handleTriggerRollover}
               />
             )}
@@ -778,6 +859,13 @@ export default function App() {
             )}
 
             {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+
+            {activeDesktopTab === 'backlog' && <BacklogView backlog={backlog} today={today} headings={settings.defaultHeadings}
+              onAdd={handleCaptureBacklog}
+              onEdit={(id, patch) => setBacklog((current) => editBacklogItem(current, id, patch, new Date().toISOString()))}
+              onRemove={handleRemoveBacklog} onRestore={handleRestoreBacklog}
+              onReorder={(id, direction) => setBacklog((current) => reorderBacklogItem(current, id, direction, new Date().toISOString()))}
+              onPick={handlePickBacklog} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -823,6 +911,7 @@ export default function App() {
           onQuickHistoricalDone={handleQuickHistoricalDone}
           onMoveTask={handleMoveTask}
           onMoveToSection={handleMoveToSection}
+          onMoveToBacklog={handleMoveToBacklog}
           onReopenTask={handleReopenTask}
           onTriggerRollover={handleTriggerRollover}
           onOpenDay={setCurrentDate}
@@ -834,7 +923,7 @@ export default function App() {
         />
       )}
 
-      <SearchDialog isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} docs={dailyDocs} notes={notes} today={today} statuses={settings.statuses} onPick={pickSearchResult} />
+      <SearchDialog isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} docs={dailyDocs} notes={notes} backlog={backlog} today={today} statuses={settings.statuses} onPick={pickSearchResult} />
       <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
 
       <HistoricalCompletionModal
@@ -864,6 +953,8 @@ export default function App() {
         simulatedToday={today}
         targetDate={currentDate}
         onCapture={handleQuickCapture}
+        onCaptureBacklog={handleCaptureBacklog}
+        categories={visibleBacklog(backlog).map((item) => item.category).filter((category): category is string => !!category)}
       />
 
       <WelcomeModal

@@ -38,13 +38,14 @@ it.each(sectionMoveCases)('offers section moves for $label at width $width', asy
       defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
       onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(),
       onOpenHistoricalModal: vi.fn(), onOpenHistoryDrawer: vi.fn(), onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(),
-      onMoveTask: vi.fn(), onMoveToSection: move,
+      onMoveTask: vi.fn(), onMoveToSection: move, onMoveToBacklog: move,
     })));
     if (extra.status === 'done') act(() => [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('Done (1)'))!.click());
     const openDialog = () => {
       act(() => [...host.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'More actions for "Prepare"')!.click());
       const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
       const destination = items.find((b) => b.textContent === 'Move to section…');
+      expect(items.some((b) => b.textContent === 'Move to backlog')).toBe(!extra.status && available);
       if (!available) { expect(destination).toBeUndefined(); return null; }
       expect(destination).toBeDefined();
       expect(items.indexOf(destination!)).toBe(items.findIndex((b) => b.textContent === 'Move to date…') + 1);

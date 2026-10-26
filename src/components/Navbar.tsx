@@ -89,6 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
           {link('calendar', <CalendarDays className="w-4 h-4" />, 'Calendar')}
           {link('notes', <FolderOpen className="w-4 h-4" />, 'Notes')}
+          {link('backlog', <FolderOpen className="w-4 h-4" />, 'Backlog')}
           {showDevTabs && link('mobile-code', <Smartphone className="w-4 h-4" />, 'Mobile & Code')}
         </nav>
 

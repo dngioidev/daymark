@@ -1,11 +1,13 @@
-import type { DailyDocument, StandaloneNote } from '../types/daymark';
+import type { BacklogData, DailyDocument, StandaloneNote } from '../types/daymark';
+import { visibleBacklog } from './backlog';
 import { notePreview } from './notes';
 
 export type SearchResult =
   | { kind: 'task'; taskId: string; date: string; title: string; status: string; archived: boolean }
-  | { kind: 'note'; noteId: string; title: string; snippet: string };
+  | { kind: 'note'; noteId: string; title: string; snippet: string }
+  | { kind: 'backlog'; itemId: string; title: string; category?: string };
 
-export function searchVault(docs: DailyDocument[], notes: StandaloneNote[], query: string, limit = 20): SearchResult[] {
+export function searchVault(docs: DailyDocument[], notes: StandaloneNote[], query: string, limit = 20, backlog: BacklogData = { items: [] }): SearchResult[] {
   const q = query.trim().toLowerCase();
   if (!q || limit <= 0) return [];
   const results: SearchResult[] = [];
@@ -26,6 +28,11 @@ export function searchVault(docs: DailyDocument[], notes: StandaloneNote[], quer
   for (const note of notes) {
     if (note.title.toLowerCase().includes(q) || note.content.toLowerCase().includes(q)) {
       results.push({ kind: 'note', noteId: note.id, title: note.title, snippet: notePreview(note.content) });
+    }
+  }
+  for (const item of visibleBacklog(backlog)) {
+    if (`${item.title}\n${item.description ?? ''}\n${item.category ?? ''}`.toLowerCase().includes(q)) {
+      results.push({ kind: 'backlog', itemId: item.id, title: item.title, category: item.category });
     }
   }
   return results.slice(0, limit);

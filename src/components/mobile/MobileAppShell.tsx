@@ -37,6 +37,7 @@ interface MobileAppShellProps {
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onMoveTask: (taskId: string, toDate: string, fromDate?: string) => void;
   onMoveToSection?: (taskId: string, section: string) => void;
+  onMoveToBacklog?: (taskId: string) => void;
   onReopenTask: (taskId: string, targetDate: string) => void;
   onTriggerRollover: () => void;
   /** Shows any day in the Today editor. */
@@ -77,6 +78,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onQuickHistoricalDone,
   onMoveTask,
   onMoveToSection,
+  onMoveToBacklog,
   onReopenTask,
   onTriggerRollover,
   onOpenDay,
@@ -191,6 +193,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               onQuickHistoricalDone={onQuickHistoricalDone}
               onMoveTask={onMoveTask}
               onMoveToSection={onMoveToSection}
+              onMoveToBacklog={onMoveToBacklog}
               onTriggerRollover={onTriggerRollover}
             />
           )}

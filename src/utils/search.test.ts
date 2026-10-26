@@ -28,3 +28,14 @@ it('ignores blank queries and applies default and explicit limits', () => {
   expect(searchVault(docs, [note], 'pipeline', 2)).toHaveLength(2);
   expect(searchVault(docs, [note], 'pipeline', 0)).toEqual([]);
 });
+
+it('finds live backlog titles, descriptions and categories without exposing picked or deleted items', () => {
+  const items = [
+    { id: 'live', title: 'Pipeline idea', category: 'Ideas', description: 'Later work', order: 1, createdAt: '', updatedAt: '' },
+    { id: 'picked', title: 'Pipeline picked', pickedOn: '2026-10-21', order: 2, createdAt: '', updatedAt: '' },
+    { id: 'deleted', title: 'Pipeline deleted', deletedAt: '2026-10-21', order: 3, createdAt: '', updatedAt: '' },
+  ];
+  expect(searchVault([], [], 'pipeline', 20, { items })).toEqual([{ kind: 'backlog', itemId: 'live', title: 'Pipeline idea', category: 'Ideas' }]);
+  expect(searchVault([], [], 'later work', 20, { items })).toHaveLength(1);
+  expect(searchVault([], [], 'ideas', 20, { items })).toHaveLength(1);
+});

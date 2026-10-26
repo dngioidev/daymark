@@ -5,6 +5,7 @@ import type { VaultData } from './sync/syncClient';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS } from './utils/defaultData';
 
 const incomingSettings = vi.hoisted(() => ({ external: (_key: string, _value: unknown) => {}, sync: (_next: VaultData) => {} }));
+const backups = vi.hoisted(() => ({ zip: vi.fn(async () => true), json: vi.fn(async () => true) }));
 
 const { docs, toast, hooks } = vi.hoisted(() => ({ docs: [] as DailyDocument[], toast: vi.fn(), hooks: { values: [] as unknown[], index: 0, effects: [] as (() => unknown)[] } }));
 vi.mock('react', async (original) => {
@@ -15,7 +16,11 @@ vi.mock('react', async (original) => {
       if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial;
       return [hooks.values[index], (next: unknown) => { hooks.values[index] = typeof next === 'function' ? next(hooks.values[index]) : next; }];
     },
-    useEffect: (effect: () => unknown) => hooks.effects.push(effect), useMemo: (fn: () => unknown) => fn(), useRef: (current: unknown) => ({ current }),
+    useEffect: (effect: () => unknown) => hooks.effects.push(effect), useMemo: (fn: () => unknown) => fn(), useRef: (current: unknown) => {
+      const index = hooks.index++;
+      if (!(index in hooks.values)) hooks.values[index] = { current };
+      return hooks.values[index];
+    },
   };
   return { ...actual, ...reactHooks, default: { ...actual, ...reactHooks } };
 });
@@ -24,6 +29,7 @@ vi.mock('./utils/vaultStore', async (original) => ({
   loadDailyDocuments: () => docs, loadSettings: () => DEFAULT_SETTINGS,
   loadStandaloneNotes: () => [], needsOnboarding: () => false,
   subscribeExternalChanges: (listener: typeof incomingSettings.external) => { incomingSettings.external = listener; return () => {}; },
+  exportVaultAsZip: backups.zip, exportVaultAsJson: backups.json,
 }));
 const systemBars = vi.hoisted(() => ({ apply: vi.fn(), headerBg: '#12345680', headerBgOpaque: '#123456', headerText: '#ffffff' }));
 const themeMeta = { content: '#1c1917' };
@@ -42,7 +48,7 @@ vi.mock('./hooks/useSync', () => ({ useSync: (_vault: VaultData, onChange: typeo
   connect: vi.fn(), disconnect: vi.fn(), signOut: vi.fn(), pendingChanges: () => 0,
   authFetch: vi.fn(), syncNow: vi.fn(), rebaseAfterReplace: vi.fn(),
 }); } }));
-vi.mock('./components/ui/feedback', async (original) => ({ ...await original<typeof import('./components/ui/feedback')>(), showToast: toast }));
+vi.mock('./components/ui/feedback', async (original) => ({ ...await original<typeof import('./components/ui/feedback')>(), showToast: toast, confirmDialog: async () => true }));
 import App from './App';
 import { TodayView } from './components/TodayView';
 
@@ -54,6 +60,10 @@ import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
 import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { SettingsModal } from './components/SettingsModal';
+import { BacklogView } from './components/backlog/BacklogView';
+import { Navbar } from './components/Navbar';
+import { loadBacklog } from './utils/vaultStore';
+import { uneditedRecoveredBacklog } from './utils/backlog';
 const overlays = vi.hoisted(() => ({ dialog: false, menu: false }));
 vi.mock('./components/ui/Dialog', async (original) => ({ ...await original<typeof import('./components/ui/Dialog')>(), isDialogOpen: () => overlays.dialog }));
 vi.mock('./components/ui/Menu', async (original) => ({ ...await original<typeof import('./components/ui/Menu')>(), isMenuOpen: () => overlays.menu }));
@@ -80,6 +90,109 @@ beforeEach(() => {
   render(); hooks.effects.forEach((effect) => effect());
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it('captures undated tasks, picks them into a matching section and returns them with Undo', () => {
+  (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Garden', category: 'Personal' });
+  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  let page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  const item = page.backlog.items.find((item) => item.title === 'Garden')!;
+  expect(item).toBeDefined();
+  expect(props(SearchDialog).backlog).toEqual(page.backlog);
+  page.onPick(item.id, '2026-10-23');
+  expect(toast).toHaveBeenLastCalledWith(expect.stringMatching(/^Added to .* in Personal$/), expect.objectContaining({ action: expect.objectContaining({ label: 'Undo' }) }));
+  render();
+  toast.mock.calls.at(-1)![1].action.onClick();
+  page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  expect(page.backlog.items.find((i) => i.id === item.id)?.pickedOn).toBeUndefined();
+});
+it('refuses pick Undo after another device edits the picked day', () => {
+  (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Garden', category: 'Personal' });
+  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  const item = page.backlog.items.find((i) => i.title === 'Garden')!;
+  page.onPick(item.id, '2026-10-23');
+  const undo = toast.mock.calls.at(-1)![1].action.onClick;
+  (props(SearchDialog).onPick as (result: unknown) => void)({ kind: 'task', date: '2026-10-23', taskId: item.id });
+  const daily = props(TodayView) as unknown as React.ComponentProps<typeof TodayView>;
+  daily.onUpdateDocument({ ...daily.currentDocument, headings: daily.currentDocument.headings.map((h) => ({ ...h, notesContent: 'Concurrent note' })) });
+  render(); undo();
+  expect(toast).toHaveBeenLastCalledWith("Can't undo: the list changed since.", { tone: 'error' });
+  expect((props(TodayView).currentDocument as DailyDocument).headings.some((h) => h.notesContent === 'Concurrent note')).toBe(true);
+});
+it('opens Backlog from search and the g b shortcut', () => {
+  (props(SearchDialog).onPick as (result: unknown) => void)({ kind: 'backlog', itemId: 'undated', title: 'Idea' });
+  expect(props(BacklogView)).toBeDefined();
+  (props(Navbar).onTabChange as (tab: string) => void)('today');
+  key('g'); key('b');
+  expect(props(BacklogView)).toBeDefined();
+});
+it('moves an open daily task to backlog and restores the day with a backlog tombstone on Undo', () => {
+  const daily = props(TodayView) as unknown as React.ComponentProps<typeof TodayView>;
+  const source: DailyDocument = { ...docs[0], date: '2026-10-21', headings: [{ name: 'Work', notesContent: 'Keep this note', items: [{ ...docs[0].headings[0].items[0], id: 'move-backlog', status: 'in-progress' }] }] };
+  daily.onUpdateDocument(source);
+  (props(TodayView).onMoveToBacklog as (id: string) => void)('move-backlog');
+  const undo = toast.mock.calls.at(-1)![1].action.onClick;
+  expect((props(TodayView).currentDocument as DailyDocument).headings[0].items).toEqual([]);
+  render(); undo();
+  const restored = props(TodayView).currentDocument as DailyDocument;
+  expect(restored.headings[0].notesContent).toBe('Keep this note');
+  expect(restored.headings[0].items.map((i) => i.id)).toEqual(['move-backlog']);
+  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  expect(page.backlog.items.find((i) => i.id === 'move-backlog')?.deletedAt).toBeTruthy();
+});
+it('refuses move Undo after a concurrent day-note edit', () => {
+  const source: DailyDocument = { ...docs[0], date: '2026-10-21', headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], id: 'move-backlog', status: 'in-progress' }] }] };
+  (props(TodayView).onUpdateDocument as (doc: DailyDocument) => void)(source);
+  (props(TodayView).onMoveToBacklog as (id: string) => void)('move-backlog');
+  const undo = toast.mock.calls.at(-1)![1].action.onClick;
+  const moved = props(TodayView).currentDocument as DailyDocument;
+  (props(TodayView).onUpdateDocument as (doc: DailyDocument) => void)({ ...moved, headings: [{ ...moved.headings[0], notesContent: 'Added elsewhere' }] });
+  render(); undo();
+  expect(toast).toHaveBeenLastCalledWith("Can't undo: the list changed since.", { tone: 'error' });
+  expect((props(TodayView).currentDocument as DailyDocument).headings[0].notesContent).toBe('Added elsewhere');
+});
+it('restores deleted backlog items without replacing concurrent item edits', () => {
+  (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Delete trial' });
+  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  const id = page.backlog.items.find((i) => i.title === 'Delete trial')!.id;
+  page.onRemove(id); render(); page.onRestore(id);
+  let current = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  expect(current.backlog.items.find((i) => i.id === id)?.deletedAt).toBeUndefined();
+  current.onRemove(id); current = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
+  incomingSettings.sync({ docs: [], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS,
+    backlog: { items: current.backlog.items.map((i) => i.id === id ? { ...i, title: 'Edited elsewhere' } : i) } });
+  render(); page.onRestore(id);
+  expect(toast).toHaveBeenLastCalledWith("Can't undo: the list changed since.", { tone: 'error' });
+  expect((props(BacklogView).backlog as { items: { id: string; title: string }[] }).items.find((i) => i.id === id)?.title).toBe('Edited elsewhere');
+});
+it('keeps damaged backlog recovery protected during automatic reconciliation', () => {
+  const recovered = { items: [{ id: 't1', title: 'Recovered', order: 1, createdAt: '', updatedAt: '' }] };
+  uneditedRecoveredBacklog.add(recovered);
+  incomingSettings.sync({ docs: [{ ...docs[0], headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], status: 'in-progress' }] }] }], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS, backlog: recovered });
+  render(); hooks.effects.forEach((effect) => effect());
+  const reconciled = props(SearchDialog).backlog as typeof recovered;
+  expect(reconciled.items[0]).toHaveProperty('pickedOn', '2026-10-20');
+  expect(uneditedRecoveredBacklog.has(reconciled)).toBe(true);
+});
+it('includes the stored backlog in both backup formats', async () => {
+  const stored = loadBacklog();
+  await (props(SettingsModal).onExportZip as () => Promise<void>)();
+  await (props(SettingsModal).onExportJson as () => Promise<void>)();
+  expect(backups.zip).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored);
+  expect(backups.json).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored);
+});
+it('preserves backlog for old or damaged backups and replaces it for valid backups', async () => {
+  (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Keep on legacy restore' });
+  const before = props(SearchDialog).backlog;
+  for (const extra of [{}, { backlog: { damaged: true } }]) {
+    await (props(SettingsModal).onImportJson as (text: string) => Promise<void>)(JSON.stringify({ daily_documents: [], standalone_notes: [], ...extra }));
+    expect(props(SearchDialog).backlog).toBe(before);
+  }
+  const restored = { items: [{ id: 'restored', title: 'From backup', order: 1, createdAt: '', updatedAt: '' }] };
+  await (props(SettingsModal).onImportJson as (text: string) => Promise<void>)(JSON.stringify({ daily_documents: [], standalone_notes: [], backlog: restored }));
+  expect(props(SearchDialog).backlog).toEqual(restored);
+});
 it('updates system bars with the opaque header colour and resolved icon contrast', () => {
   expect(systemBars.apply).toHaveBeenLastCalledWith('#123456', true);
   systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';

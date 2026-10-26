@@ -201,11 +201,11 @@ export interface AppSettings {
   syncConfig: SyncConfiguration;
 }
 
-export type ViewTab = 'today' | 'calendar' | 'notes' | 'mobile-code' | 'server' | 'settings';
+export type ViewTab = 'today' | 'calendar' | 'notes' | 'backlog' | 'mobile-code' | 'server' | 'settings';
 
 export type AppMode = 'desktop' | 'mobile-app' | 'web-server';
 
-export type MobileTab = 'today' | 'calendar' | 'notes' | 'sync' | 'settings';
+export type MobileTab = 'today' | 'calendar' | 'notes' | 'backlog' | 'sync' | 'settings';
 
 export interface ServerAuthState {
   isLoggedIn: boolean;

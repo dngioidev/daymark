@@ -13,6 +13,8 @@ interface QuickCaptureModalProps {
   simulatedToday: string;
   targetDate: string;
   onCapture: (task: { title: string; description?: string; heading: string; status: string }) => void;
+  onCaptureBacklog?: (task: { title: string; description?: string; category?: string }) => void;
+  categories?: string[];
 }
 
 const LAST_KEY = 'daymark_capture_last';
@@ -28,13 +30,15 @@ const readLast = (): { heading?: string; status?: string } => {
  * New task sheet: docked at the bottom on phones (next to the + that opened it), centred on
  * desktop. Remembers the last section and status used. "Save & add another" keeps it open.
  */
-export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture }) => {
+export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture, onCaptureBacklog, categories = [] }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [heading, setHeading] = useState(headings[0] || 'Work');
   const [status, setStatus] = useState('not-started');
   const [savedCount, setSavedCount] = useState(0);
+  const [target, setTarget] = useState<'date' | 'backlog'>('date');
+  const [category, setCategory] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -43,13 +47,16 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
     setDescription('');
     setShowDetails(false);
     setSavedCount(0);
+    setTarget('date');
+    setCategory('');
     setHeading(last.heading && headings.includes(last.heading) ? last.heading : headings[0] || 'Work');
     setStatus(last.status && statuses.some((s) => s.id === last.status) ? last.status : 'not-started');
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (keepOpen: boolean) => {
     if (!title.trim()) return;
-    onCapture({ title: title.trim(), description: description.trim() || undefined, heading, status });
+    if (target === 'backlog') onCaptureBacklog?.({ title: title.trim(), description: description.trim() || undefined, category: category.trim() || undefined });
+    else onCapture({ title: title.trim(), description: description.trim() || undefined, heading, status });
     localStorage.setItem(LAST_KEY, JSON.stringify({ heading, status }));
     if (keepOpen) {
       setTitle('');
@@ -67,7 +74,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
       isOpen={isOpen}
       onClose={onClose}
       variant="sheet"
-      title={`New task · ${formatDay(targetDate, simulatedToday)}`}
+      title={`New task · ${target === 'backlog' ? 'Backlog' : formatDay(targetDate, simulatedToday)}`}
       footer={
         <>
           <button type="button" className={`${buttonClass.ghost} mr-auto hidden sm:inline-flex`} disabled={!title.trim()} onClick={() => save(true)}>
@@ -90,6 +97,10 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
         }}
         className="px-5 py-4 space-y-3"
       >
+        {onCaptureBacklog && <div role="group" aria-label="Task target" className="flex gap-2">
+          <button type="button" aria-pressed={target === 'date'} className={target === 'date' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('date')}>Date</button>
+          <button type="button" aria-pressed={target === 'backlog'} className={target === 'backlog' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('backlog')}>Backlog</button>
+        </div>}
         <div>
           <label htmlFor="capture-title" className="sr-only">
             Task
@@ -136,7 +147,11 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
           </button>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        {target === 'backlog' ? <div>
+          <label htmlFor="capture-category" className="block text-sm font-semibold mb-1.5">Category (optional)</label>
+          <input id="capture-category" list="capture-categories" value={category} onChange={(e) => setCategory(e.target.value)} className={field} />
+          <datalist id="capture-categories">{[...new Set([...categories, ...headings])].map((value) => <option key={value} value={value} />)}</datalist>
+        </div> : <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="capture-section" className="block text-sm font-semibold mb-1.5">
               Section
@@ -167,7 +182,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
               <ChevronDown className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-stone-500" />
             </div>
           </div>
-        </div>
+        </div>}
       </form>
     </Dialog>
   );

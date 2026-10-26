@@ -38,6 +38,7 @@ interface TaskItemCardProps {
   onToggleAlertDismiss: (taskId: string) => void;
   onMoveTask?: (taskId: string, toDate: string) => void;
   onMoveToSection?: (taskId: string, section: string) => void;
+  onMoveToBacklog?: (taskId: string) => void;
   sectionNames?: string[];
 }
 
@@ -70,6 +71,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   onToggleAlertDismiss,
   onMoveTask,
   onMoveToSection,
+  onMoveToBacklog,
   sectionNames = [],
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -281,6 +283,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
             menuButtonRef.current?.focus();
             setSectionMoveOpen(true);
           } }] : []),
+          ...(onMoveToBacklog && !isClosedCopy(task) && task.status !== 'done' && task.status !== 'archived' ? [{ label: 'Move to backlog', onSelect: () => onMoveToBacklog(task.id) }] : []),
           { label: 'Rename', icon: <Edit2 className="w-4 h-4" />, onSelect: () => (setTitleDraft(task.title), setIsEditingTitle(true)) },
           { label: 'Details & history', icon: <PanelRightOpen className="w-4 h-4" />, onSelect: () => onOpenHistoryDrawer(task) },
           ...(severity !== 'normal'

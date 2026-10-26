@@ -1,4 +1,4 @@
-export type ShortcutAction = 'new-task' | 'search' | 'help' | 'go-today' | 'go-calendar' | 'go-notes' | 'focus-notes';
+export type ShortcutAction = 'new-task' | 'search' | 'help' | 'go-today' | 'go-calendar' | 'go-notes' | 'go-backlog' | 'focus-notes';
 
 export function shortcutFor(
   e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>,
@@ -24,6 +24,7 @@ export function shortcutFor(
     if (key === 't') return 'go-today';
     if (key === 'c') return 'go-calendar';
     if (key === 'n') return 'go-notes';
+    if (key === 'b') return 'go-backlog';
   }
   return null;
 }

@@ -15,13 +15,13 @@ it('maps plain keys and g sequences', () => {
   expect(shortcutFor(key('/'), false, body)).toBe('search');
   expect(shortcutFor(key('?', { shiftKey: true }), false, body)).toBe('help');
   expect(shortcutFor(key('g'), false, body)).toBe('g-prefix');
-  for (const [letter, action] of [['t', 'go-today'], ['c', 'go-calendar'], ['n', 'go-notes']]) {
+  for (const [letter, action] of [['t', 'go-today'], ['c', 'go-calendar'], ['n', 'go-notes'], ['b', 'go-backlog']]) {
     expect(shortcutFor(key(letter), true, body)).toBe(action);
     expect(shortcutFor(key(letter), false, body)).toBeNull();
   }
 });
 it('ignores fields, unrelated keys and extra modifiers', () => {
-  for (const letter of ['/', '?', 'g', 't', 'c', 'n']) expect(shortcutFor(key(letter), true, field)).toBeNull();
+  for (const letter of ['/', '?', 'g', 't', 'c', 'n', 'b']) expect(shortcutFor(key(letter), true, field)).toBeNull();
   expect(shortcutFor(key('x'), true, body)).toBeNull();
   expect(shortcutFor(key('/'), false, null)).toBe('search');
   expect(shortcutFor(key('g', { ctrlKey: true }), false, body)).toBeNull();
@@ -30,7 +30,7 @@ it('ignores fields, unrelated keys and extra modifiers', () => {
 });
 
 it('blocks search, help and navigation when a dialog or menu is open', () => {
-  for (const letter of ['/', '?', 'g', 't', 'c', 'n']) {
+  for (const letter of ['/', '?', 'g', 't', 'c', 'n', 'b']) {
     expect(shortcutFor(key(letter), true, body, true)).toBeNull();
   }
   for (const modifier of ['ctrlKey', 'metaKey']) {

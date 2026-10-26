@@ -43,6 +43,7 @@ interface TodayViewProps {
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onMoveTask?: (taskId: string, toDate: string) => void;
   onMoveToSection?: (taskId: string, section: string) => void;
+  onMoveToBacklog?: (taskId: string) => void;
   onTriggerRollover: () => void;
   /** Phone layout: tighter spacing, no Split view, no manual refresh (rollover runs automatically). */
   compact?: boolean;
@@ -97,6 +98,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onQuickHistoricalDone,
   onMoveTask,
   onMoveToSection,
+  onMoveToBacklog,
   onTriggerRollover,
 }) => {
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
@@ -380,6 +382,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     today: simulatedToday,
     onMoveTask,
     onMoveToSection,
+    onMoveToBacklog,
     sectionNames: currentDocument.headings.map((h) => h.name),
     statuses,
     agingThresholds,
