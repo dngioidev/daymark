@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test scripts/helpers/site.test.mjs
+      - run: node --test scripts/helpers/site.test.mjs scripts/helpers/zoom.test.mjs
       - run: node scripts/build-site.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

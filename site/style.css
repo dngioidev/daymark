@@ -46,3 +46,12 @@ figcaption { color: var(--muted); font-size: .9rem; margin-top: .5rem; }
 footer { text-align: center; color: var(--muted); padding: 2rem 1rem 3rem; font-size: .9rem; }
 @media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .top { position: static; } }
+a[data-zoom] { display: block; cursor: zoom-in; border-radius: 12px; }
+a[data-zoom]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.zoom-dialog { padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); max-width: 96vw; max-height: 96dvh; }
+.zoom-dialog::backdrop { background: rgb(0 0 0 / .8); }
+.zoom-panel { padding: .75rem; }
+.zoom-controls { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; }
+.zoom-controls button { min-height: 44px; padding: .4rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
+.zoom-dialog img { max-width: min(92vmin, 90vw); max-height: calc(92dvh - 110px); width: auto; height: auto; margin: auto; object-fit: contain; }
+.zoom-dialog figcaption { max-width: 80ch; }
