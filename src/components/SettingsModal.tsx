@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, FlaskConical, LayoutGrid, Plus, Upload, X } from 'lucide-react';
-import { AppSettings, LifecycleAction, StatusDefinition, SettingsTab } from '../types/daymark';
+import { AppSettings, LifecycleAction, StatusDefinition, SettingsTab, AppMode } from '../types/daymark';
 import { formatLocalDate } from '../utils/clock';
 import { getNextDate } from '../utils/lifecycleEngine';
 import { formatDateTime } from '../utils/dateFormat';
@@ -13,11 +13,13 @@ import { AppearanceTab } from './settings/AppearanceTab';
 import { resetTab, useInstantSettings } from './settings/useInstantSettings';
 import { DEFAULT_APPEARANCE } from '../utils/defaultData';
 import { WidgetTab } from './settings/WidgetTab';
+import { HelpTab } from './settings/HelpTab';
 import type { WidgetAppColors } from '../utils/widgetStyle';
 
 export type { SettingsTab } from '../types/daymark';
 
 interface SettingsModalProps {
+  appMode?: AppMode;
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
@@ -49,6 +51,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'aging', label: 'Old-task warnings' },
   { id: 'headings', label: 'Sections' },
   { id: 'widget', label: 'Widget' },
+  { id: 'help', label: 'Help' },
   { id: 'advanced', label: 'Advanced' },
 ];
 
@@ -70,6 +73,7 @@ const daysAgo = (iso: string) => {
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
+  appMode,
   isOpen,
   onClose,
   settings,
@@ -287,6 +291,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} photoSection={photoSection} photoMeta={photoMeta} onChange={(appearance) => commit({ ...settings, appearance })} />}
         {activeTab === 'widget' && isNativeApp() && <WidgetTab initialWidgetId={widgetEditorId} app={widgetAppColors ?? null} />}
+        {activeTab === 'help' && <HelpTab appMode={appMode ?? (isNativeApp() ? 'mobile-app' : undefined)} />}
 
         {activeTab === 'storage' && (
           <>

@@ -8,7 +8,7 @@ on:
     types: [published, edited]
   push:
     branches: [main]
-    paths: ['site/**', 'scripts/build-site.mjs', 'scripts/helpers/site.mjs', '.github/workflows/pages.yml']
+    paths: ['site/**', 'docs/guide/**', 'scripts/build-site.mjs', 'scripts/helpers/site.mjs', 'scripts/helpers/guide*.mjs', '.github/workflows/pages.yml']
   workflow_dispatch:
     inputs:
       release_tag:
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test scripts/helpers/site.test.mjs scripts/helpers/zoom.test.mjs
+      - run: node --test --test-concurrency=1 scripts/helpers/site.test.mjs scripts/helpers/zoom.test.mjs scripts/helpers/guide.test.mjs
       - run: node scripts/build-site.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -55,3 +55,11 @@ a[data-zoom]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4
 .zoom-controls button { min-height: 44px; padding: .4rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
 .zoom-dialog img { max-width: min(92vmin, 90vw); max-height: calc(92dvh - 110px); width: auto; height: auto; margin: auto; object-fit: contain; }
 .zoom-dialog figcaption { max-width: 80ch; }
+.guide { padding-top: 2rem; padding-bottom: 3rem; }
+.guide section { scroll-margin-top: 6rem; max-width: 80ch; }
+.guide-topics { margin: 1.5rem 0; gap: .5rem 1.25rem; }
+.guide-switch { display: flex; gap: .5rem; }
+.guide-switch button { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; min-height: 44px; padding: .5rem 1rem; cursor: pointer; }
+.guide-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+html[data-guide-platform="web"] [data-platform="mobile"], html[data-guide-platform="mobile"] [data-platform="web"] { display: none; }
+.guide-shot { margin-top: 2rem; max-width: 800px; }

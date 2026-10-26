@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fillTemplate, releaseValues, REPO } from './helpers/site.mjs';
+import { loadGuide, renderGuidePage } from './helpers/guide.mjs';
 
 const out = path.resolve('_site');
 fs.rmSync(out, { recursive: true, force: true });
@@ -28,4 +29,5 @@ try {
 const values = releaseValues(release, version);
 const index = path.join(out, 'index.html');
 fs.writeFileSync(index, fillTemplate(fs.readFileSync(index, 'utf8'), values));
+fs.writeFileSync(path.join(out, 'guide.html'), renderGuidePage(loadGuide(path.resolve('docs/guide'))));
 console.log(`Built _site for Daymark ${values.VERSION} (APK: ${values.APK_URL})`);
