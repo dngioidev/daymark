@@ -7,6 +7,7 @@ import { showToast } from '../ui/feedback';
 
 type BacklogInput = Pick<BacklogItem, 'title' | 'description' | 'category'>;
 export interface BacklogViewProps {
+  hideTitle?: boolean;
   backlog: BacklogData;
   today: string;
   headings: string[];
@@ -74,7 +75,7 @@ function BacklogRow({ item, today, listId, first, last, onEdit, onRemove, onRest
   </li>;
 }
 
-export const BacklogView: React.FC<BacklogViewProps> = ({ backlog, today, headings, onAdd, ...actions }) => {
+export const BacklogView: React.FC<BacklogViewProps> = ({ hideTitle = false, backlog, today, headings, onAdd, ...actions }) => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const id = useId();
@@ -87,7 +88,7 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ backlog, today, headin
     groups.get(key)!.items.push(item);
   }
   return <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-    <h1 className="text-2xl font-bold">Backlog</h1>
+    {!hideTitle && <h1 className="text-2xl font-bold">Backlog</h1>}
     <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => {
       e.preventDefault();
       if (!title.trim()) return;

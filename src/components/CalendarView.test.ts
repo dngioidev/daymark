@@ -56,7 +56,7 @@ it('renders enabled future cells, counts, notes, Planned and the existing panels
     onMarkDoneOnDay: vi.fn(), onOpenDay: vi.fn(), onMoveTask: vi.fn(),
     habits: { habits: [], days: [] }, onHabitsChange: vi.fn(),
   }));
-  expect(html).toContain('>Calendar</h1>');
+  expect(html).not.toContain('>Calendar</h1>');
   expect(html).toContain('max-w-[1800px]');
   expect(html.match(/dm-card/g)).toHaveLength(2);
   expect(html).toContain('>Month</button>');

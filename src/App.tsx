@@ -53,7 +53,8 @@ import {
   getPreviousDate,
   getMostRecentPastDate,
 } from './utils/lifecycleEngine';
-import { Navbar } from './components/Navbar';
+import { SideRail } from './components/SideRail';
+import { resolveMenuSide } from './utils/appearance';
 import { TodayView } from './components/TodayView';
 import { BacklogView } from './components/backlog/BacklogView';
 import { HabitsBar } from './components/habits/HabitsBar';
@@ -151,6 +152,7 @@ export default function App() {
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const [openNoteId, setOpenNoteId] = useState<string | undefined>();
   const [focusToggleSignal, setFocusToggleSignal] = useState(0);
+  const [focusNotes, setFocusNotes] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsStatusStrip = appMode === 'mobile-app' && isSettingsOpen;
   useEffect(() => {
@@ -808,21 +810,22 @@ export default function App() {
     <div className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
-        <div className={`flex flex-col w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
-          <Navbar
+        <div className={`flex flex-row w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
+          <SideRail
             activeTab={activeDesktopTab}
             onTabChange={changeDesktopTab}
             onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
             onOpenSettings={() => openSettings()}
             onOpenSync={() => openSettings('sync')}
             onOpenSearch={openSearch}
-            onSwitchToMobileApp={() => setAppMode('mobile-app')}
             syncStatus={navbarSyncStatus}
             carriedAlertCount={carriedAlertCount}
-            showDevTabs={devMode}
+            todayLabel={new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            side={resolveMenuSide(settings.appearance)}
+            hidden={activeDesktopTab === 'notes' && focusNotes}
           />
 
-          <main className={`dm-backdrop-surface flex-1 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
+          <main className={`dm-backdrop-surface flex-1 min-w-0 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
             {activeDesktopTab === 'today' && (
               <TodayView
                 habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} />}
@@ -864,9 +867,9 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView onFocusModeChange={setFocusNotes} notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
-            {activeDesktopTab === 'backlog' && <BacklogView backlog={backlog} today={today} headings={settings.defaultHeadings}
+            {activeDesktopTab === 'backlog' && <BacklogView hideTitle backlog={backlog} today={today} headings={settings.defaultHeadings}
               onAdd={handleCaptureBacklog}
               onEdit={(id, patch) => setBacklog((current) => editBacklogItem(current, id, patch, new Date().toISOString()))}
               onRemove={handleRemoveBacklog} onRestore={handleRestoreBacklog}
@@ -978,6 +981,10 @@ export default function App() {
       />
 
       <SettingsModal
+        appMode={appMode}
+        devMode={devMode}
+        onOpenMobileCode={() => { setIsSettingsOpen(false); setActiveDesktopTab('mobile-code'); setAppMode('desktop'); }}
+        onPreviewPhone={() => { setIsSettingsOpen(false); setAppMode('mobile-app'); }}
         photoSection={<BackgroundPhotoSection background={background} />}
         photoMeta={background.meta}
         isOpen={isSettingsOpen}

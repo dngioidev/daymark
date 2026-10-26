@@ -20,6 +20,9 @@ export type { SettingsTab } from '../types/daymark';
 
 interface SettingsModalProps {
   appMode?: AppMode;
+  devMode?: boolean;
+  onOpenMobileCode?: () => void;
+  onPreviewPhone?: () => void;
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
@@ -74,6 +77,9 @@ const daysAgo = (iso: string) => {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   appMode,
+  devMode = false,
+  onOpenMobileCode,
+  onPreviewPhone,
   isOpen,
   onClose,
   settings,
@@ -518,6 +524,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {activeTab === 'advanced' && (
           <>
+            {devMode && <div className={`${card} flex flex-wrap gap-2`}>
+              <button type="button" onClick={onOpenMobileCode} className={buttonClass.secondary}>Mobile &amp; Code</button>
+              <button type="button" onClick={onPreviewPhone} className={buttonClass.secondary}>Phone layout preview</button>
+            </div>}
             <div className={card}>
               <h3 className="font-semibold">Technical backup (.json)</h3>
               <p className={`${hint} mt-1`}>One file with everything, including settings. Restore it the same way as a .zip backup.</p>

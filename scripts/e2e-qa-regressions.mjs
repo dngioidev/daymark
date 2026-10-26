@@ -39,7 +39,7 @@ const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ na
 
 browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
-async function fresh({ docs = [], notes = [], habits, mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
+async function fresh({ docs = [], notes = [], habits, backlog, mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
   const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
   const page = await context.newPage();
   const errors = [];
@@ -48,7 +48,7 @@ async function fresh({ docs = [], notes = [], habits, mobile = false, origin = b
   const session = await signIn(context, origin, 'qa-password-123');
   await resetServerVault(context, origin, session.accessToken);
   // Empty seeded arrays count as an existing vault. A fresh-install test must seed nothing.
-  if (!pristine) await seedVault(page, origin, { docs, notes, habits });
+  if (!pristine) await seedVault(page, origin, { docs, notes, habits, backlog });
   await page.goto(origin, { waitUntil: 'networkidle' });
   return { context, page, errors };
 }
@@ -114,7 +114,7 @@ await run('A1', async () => {
     check('A1b', true, 'wrong password shows Wrong username or password');
     await page.getByLabel('Password', { exact: true }).fill('qa-password-123');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).waitFor();
     check('A1c', true, 'right password opens Today');
   } finally { await context.close(); }
 });
@@ -128,7 +128,7 @@ await run('A2', async () => {
     if (!response.ok()) throw new Error('logout failed: ' + response.status());
     const navigation = await page.reload({ waitUntil: 'networkidle' });
     await page.getByLabel('Password', { exact: true }).waitFor();
-    check('A2', navigation.status() === 401 && !(await page.getByRole('heading', { name: 'Today', exact: true }).isVisible()), 'installed service worker does not serve the app after logout');
+    check('A2', navigation.status() === 401 && !(await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).isVisible()), 'installed service worker does not serve the app after logout');
   } finally { await context.close(); }
 });
 
@@ -313,7 +313,7 @@ await run('B2', async () => {
   const asks = (await page.getByRole('dialog').count()) + (await page.getByRole('alertdialog').count()) > 0;
   await page.locator('[role=dialog],[role=alertdialog]').getByRole('button', { name: 'Cancel', exact: true }).click();
   await settle(page, 300);
-  const stillToday = await page.getByRole('heading', { level: 1, name: 'Today' }).isVisible();
+  const stillToday = await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).isVisible();
   const keptDraft = (await page.locator('textarea').first().inputValue().catch(() => '')).includes('EDITED IN MARKDOWN');
   check('B2a', asks && stillToday && keptDraft, 'changing day with unsaved Markdown asks first; Cancel stays on the same day and keeps the draft', `asked=${asks}, still today=${stillToday}, draft kept=${keptDraft}`);
   await page.getByRole('button', { name: /^save/i }).first().click();
@@ -828,7 +828,7 @@ await run('D6', async () => {
   await addTask(page, 'D6 planned ahead');
   await persisted(page, 'daily_docs', (ds, date) => ds.some((d) => d.date === date && d.headings.some((h) => h.items.some((t) => t.title === 'D6 planned ahead'))), day(7));
   await page.keyboard.press('g'); await page.keyboard.press('t');
-  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).waitFor();
   check('D6a', await page.getByRole('button', { name: 'Mark "D6 planned ahead" done' }).count() === 0, 'task planned seven days ahead is absent on Today');
   await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
   const cell = cellFor(page, day(7));
@@ -857,7 +857,7 @@ await run('D7', async () => {
   await details.waitFor();
   // The daily editor is inert behind the details dialog, so inspect its DOM
   // rather than looking for it in the dialog-only accessibility tree.
-  check('D7b', (await page.locator('main h1').allTextContents()).includes(short)
+  check('D7b', (await page.locator('main [data-day-label]').allTextContents()).includes(short)
     && (await page.locator('main').innerText()).includes(longDay(date)), 'Enter opens Today at the result date with the details sheet open');
   await page.keyboard.press('Escape');
   await details.waitFor({ state: 'hidden' });
@@ -1053,7 +1053,7 @@ await run('E2', async () => {
   await page.getByRole('button', { name: 'Mark "E2 past work" done' }).waitFor();
   await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
   await page.getByRole('button', { name: 'Today', exact: true }).first().click();
-  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).waitFor();
   check('E2', await page.getByRole('button', { name: 'Mark "E2 today work" done' }).isVisible(), 'clicking the Today tab after opening a past day shows today');
 });
 
@@ -1308,6 +1308,88 @@ await run('F8', async () => {
   page.off('request', observe);
   await savedNote(page, seeded.id, (n, expected) => n?.content === expected.content && n.updatedAt === expected.updatedAt, seeded);
   check('F8', !pushed.some((change) => change.key === 'note:f8'), 'opening and leaving an unusual note keeps bytes/timestamp and pushes no note change', JSON.stringify(pushed.map((c) => c.key)));
+});
+
+// Desktop rail geometry, persisted side selection, focus, and resolved appearance.
+await run('R1', async () => {
+  for (const width of [1280, 800]) {
+    const { page, context } = await fresh({ notes: [note('rail-note', '# Rail focus\n\nText stays editable.', 'Field journal')] });
+    await page.setViewportSize({ width, height: 900 });
+    const rail = page.getByRole('navigation', { name: 'Main', exact: true });
+    const measure = () => page.evaluate(() => {
+      const rail = document.querySelector('.dm-side-rail');
+      const r = rail.getBoundingClientRect(), m = document.querySelector('main').getBoundingClientRect();
+      return { rail: r.width, content: m.width, overlap: Math.min(r.right, m.right) - Math.max(r.left, m.left), rows: [...rail.children].map(el => el.getBoundingClientRect().height), overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+    let layout = await measure();
+    check(`R1-${width}-left`, layout.rail === 168 && layout.content >= width - 169 && layout.overlap <= 1 && layout.overflow <= 1 && Math.max(...layout.rows) - Math.min(...layout.rows) <= 1,
+      'six equal rail parts leave all remaining width for content without overlap', JSON.stringify(layout));
+    console.log(`Rail ${width}px viewport: ${layout.content}px content area (168px rail).`);
+    await settingsOpen(page);
+    await settingsBox(page).getByRole('button', { name: 'Right', exact: true }).click();
+    await settingsClose(page);
+    await page.waitForFunction(() => document.querySelector('.dm-side-rail')?.getAttribute('data-side') === 'right');
+    layout = await measure();
+    check(`R1-${width}-right`, layout.overlap <= 1 && layout.overflow <= 1 && await rail.evaluate(el => Math.abs(el.getBoundingClientRect().right - innerWidth) < 1), 'Appearance moves the rail to the right with no overlap', JSON.stringify(layout));
+    await page.reload({ waitUntil: 'networkidle' });
+    check(`R1-${width}-persist`, await rail.getAttribute('data-side') === 'right', 'right-side choice survives reload');
+    await openNote(page, 'Field journal');
+    await page.getByRole('button', { name: 'Focus mode', exact: true }).click();
+    await rail.waitFor({ state: 'hidden' });
+    const editorWidth = await page.locator('main').evaluate(el => el.getBoundingClientRect().width);
+    check(`R1-${width}-focus`, editorWidth === width && await rich(page).isVisible(), 'Notes focus hides the rail and gives the editor full width');
+    await page.getByRole('button', { name: 'Focus mode', exact: true }).click();
+    await rail.waitFor();
+    check(`R1-${width}-restore`, await rail.getAttribute('data-side') === 'right', 'leaving Notes focus restores the same rail side');
+    await context.close();
+  }
+});
+await run('R2', async () => {
+  const { page } = await fresh();
+  for (const dark of [false, true]) {
+    await settingsOpen(page);
+    await settingsBox(page).getByRole('button', { name: dark ? /Dark$/ : /Light$/ }).click();
+    await settingsBox(page).getByRole('button', { name: 'Header colour #1e3a5f', exact: true }).click();
+    if (dark) {
+      await page.getByLabel('Add background photo', { exact: true }).setInputFiles(await png(page, 1));
+      await page.getByRole('button', { name: 'Select photo 1', exact: true }).waitFor();
+    }
+    await settingsClose(page);
+    const colors = await page.locator('.dm-side-rail').evaluate(el => {
+      const s = getComputedStyle(el);
+      const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+      const bg = rgb(s.backgroundColor), fg = rgb(s.color);
+      return { bg: s.backgroundColor, fg: s.color, ratio: (Math.max(bg, fg) + .05) / (Math.min(bg, fg) + .05), photo: !!document.querySelector('.dm-photo') };
+    });
+    check(`R2-${dark ? 'dark-photo' : 'light'}`, colors.bg.startsWith('rgb(30, 58, 95') && colors.ratio >= 4.5 && (!dark || colors.photo), 'rail applies custom header colour with readable text in light/dark/photo modes', JSON.stringify(colors));
+  }
+});
+await run('R3', async () => {
+  const { page } = await fresh();
+  for (const largeText of [false, true]) {
+    if (largeText) {
+      await settingsOpen(page);
+      await settingsBox(page).getByRole('button', { name: 'L', exact: true }).click();
+      await settingsClose(page);
+    }
+    for (const height of [480, 600, 640, 900]) {
+    await page.setViewportSize({ width: 1280, height });
+    const title = page.locator('[data-rail-part="title"]');
+    const initial = await title.evaluate(el => {
+      el.scrollTop = 0;
+      const r = el.getBoundingClientRect(), brand = el.children[0].getBoundingClientRect(), date = el.children[1].getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, brandTop: brand.top, dateHeight: date.height, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, overflow: getComputedStyle(el).overflowY };
+    });
+    await title.getByRole('button', { name: 'Search (Ctrl Shift F)', exact: true }).focus();
+    const focused = await title.evaluate(el => {
+      const r = el.getBoundingClientRect(), search = document.activeElement.getBoundingClientRect();
+      const hit = document.elementFromPoint(search.left + search.width / 2, search.top + search.height / 2);
+      return { scroll: el.scrollTop, visible: search.top >= r.top && search.bottom <= r.bottom + 1, hit: el.contains(hit), overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+    check(`R3-${largeText ? 'large-' : ''}${height}`, initial.brandTop >= initial.top && initial.dateHeight >= 16 && initial.overflow === 'auto' && focused.visible && focused.hit && focused.overflow <= 1
+      && (height === 900 ? focused.scroll === 0 : focused.scroll > 0), 'short-height Title preserves readable text and scrolls focused controls within its equal row', JSON.stringify({ initial, focused }));
+    }
+  }
 });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

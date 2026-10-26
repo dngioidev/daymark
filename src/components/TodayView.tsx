@@ -403,12 +403,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   // ---------- Header ----------
   const header = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={() => changeDay(getPreviousDate(date))} aria-label="Previous day" className={iconBtn}>
         <ChevronLeft className="w-5 h-5" />
       </button>
-      <div className="min-w-0 flex-1 sm:flex-none text-center sm:text-left sm:min-w-56">
-        <h1 className="text-xl font-bold leading-tight text-[var(--dm-page-fg)]">{formatDay(date, simulatedToday)}</h1>
+      <div className="min-w-0 flex-1 sm:flex-none text-center sm:text-left">
+        {compact ? <h1 data-day-label className="text-xl font-bold leading-tight text-[var(--dm-page-fg)]">{formatDay(date, simulatedToday)}</h1> : <span data-day-label className="text-sm font-semibold text-[var(--dm-page-fg)]">{formatDay(date, simulatedToday)}</span>}
         <p className="text-sm text-stone-600 dark:text-stone-400 truncate">{formatLongDate(date)}</p>
       </div>
       <button type="button" onClick={() => changeDay(getNextDate(date))} aria-label="Next day" className={iconBtn}>
@@ -790,7 +790,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const trend = useMemo(() => weekTrend(allDocs, simulatedToday), [allDocs, simulatedToday]);
   const planned = useMemo(() => nextPlannedDay(allDocs, simulatedToday), [allDocs, simulatedToday]);
   const glance = (
-    <aside aria-label="Day at a glance" className="hidden xl:block sticky top-20 space-y-3 text-sm">
+    <aside aria-label="Day at a glance" className="hidden xl:block sticky top-4 space-y-3 text-sm">
       <div className="dm-card p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/40">
         <h2 className="font-semibold text-stone-900 dark:text-stone-50">{isToday ? 'Today at a glance' : 'This day at a glance'}</h2>
         <dl className="mt-3 grid grid-cols-3 gap-2 text-center">

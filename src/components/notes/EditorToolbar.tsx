@@ -46,7 +46,7 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
     ['Quote', Quote, () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote')],
     ['Code block', Code, () => editor.chain().focus().toggleCodeBlock().run(), editor.isActive('codeBlock')],
   ] as const;
-  const bar = <div className="border-b border-stone-200 bg-stone-50 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
+  const bar = <div className="sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
     <div role="toolbar" aria-label="Formatting" className="flex items-center gap-1 overflow-x-auto px-2 py-1">
       <button type="button" aria-label="Markdown" title="Markdown" aria-pressed={false} className={button} onClick={onToggleMarkdown}><FileCode className="w-4 h-4" /></button>
       {actions.slice(0, 3).map(([label, Icon, run, active]) => <button key={label} type="button" aria-label={label} title={label} aria-pressed={active} className={button} onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon className="w-4 h-4" /></button>)}

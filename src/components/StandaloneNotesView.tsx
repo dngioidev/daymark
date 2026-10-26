@@ -32,6 +32,7 @@ interface StandaloneNotesViewProps {
   openNoteId?: string;
   onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
+  onFocusModeChange?: (focused: boolean) => void;
   pictureCleanupSignal?: number;
   richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
 }
@@ -39,7 +40,7 @@ interface StandaloneNotesViewProps {
 type ViewMode = 'rich' | 'markdown';
 
 /** Notes: searchable list (pinned first) and a rich editor backed by Markdown. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, pictureCleanupSignal = 0, richEditorHandleRef }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +50,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [pane, setPane] = useState<'list' | 'editor'>('list');
   const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => {
+    onFocusModeChange?.(focusMode);
+    return () => onFocusModeChange?.(false);
+  }, [focusMode, onFocusModeChange]);
   const [now, setNow] = useState(Date.now());
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -386,7 +391,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
           <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
             {viewMode === 'markdown' ? (
               <>
-                <div role="toolbar" aria-label="Formatting" className="shrink-0 border-b border-stone-200 bg-stone-50 px-2 py-1 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
+                <div role="toolbar" aria-label="Formatting" className="sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 px-2 py-1 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
                   <button type="button" aria-label="Markdown" title="Markdown" aria-pressed={true} onClick={() => setViewMode('rich')} className="min-h-11 min-w-11 px-3 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"><FileCode className="w-4 h-4" /></button>
                 </div>
                 <label htmlFor="note-editor-textarea" className="sr-only">Note text (Markdown)</label>
@@ -437,11 +442,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       className={
         compact
           ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'
-          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'
+          : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'
       }
     >
-      {(pane === 'list' || !compact) && (
-        <div className={`flex items-center gap-2 ${pane === 'editor' ? 'hidden lg:flex' : ''}`}>
+      {compact && pane === 'list' && (
+        <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-[var(--dm-page-fg)] mr-auto">Notes</h1>
         </div>
       )}

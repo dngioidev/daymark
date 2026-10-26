@@ -48,6 +48,7 @@ const ENVS = {
   P412: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   T768: { viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   D1024: { viewport: { width: 1024, height: 768 } },
+  D800: { viewport: { width: 800, height: 900 } },
   D1280: { viewport: { width: 1280, height: 800 } },
   D1440: { viewport: { width: 1440, height: 900 } },
   D1920: { viewport: { width: 1920, height: 1080 } },
@@ -367,7 +368,7 @@ async function functional() {
                 .map((target) => ({ height: target.getBoundingClientRect().height, width: target.getBoundingClientRect().width })) };
           });
           expect(layout.x >= 0 && layout.right <= ENVS[env].viewport.width && layout.overflow <= 1 && layout.pageOverflow <= 1, JSON.stringify(layout));
-          expect(layout.width >= (env === 'P390' ? 330 : env === 'D1440' ? 900 : 1300), `bar collapsed to ${layout.width}px`);
+          expect(layout.width >= (env === 'P390' ? 330 : env === 'D1440' ? 760 : 1160), `bar collapsed to ${layout.width}px`);
           const minimumTarget = env === 'P390' ? 44 : 36;
           expect(layout.targets.every((target) => target.height >= minimumTarget && target.width >= minimumTarget), `small habits target: ${JSON.stringify(layout.targets)}`);
         }
@@ -375,7 +376,7 @@ async function functional() {
       });
     }
   }
-  for (const [env, minimum] of [['D1440', 900], ['D1920', 1300], ['P412', 0]]) {
+  for (const [env, minimum] of [['D1440', 760], ['D1920', 1160], ['P412', 0]]) {
     await tc(`LAY-${env}`, 'Today uses available width without horizontal overflow', env, async () => {
       const { page } = await open(env);
       if (minimum) {
@@ -392,7 +393,7 @@ async function functional() {
   // ---- GL
   await tc('GL-01', 'Server sign-in opens Today without welcome', 'P412', async () => {
     const { ctx, page } = await open('P412', { start: 'none' });
-    const today = await page.getByRole('heading', { name: 'Today', exact: true }).isVisible();
+    const today = await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).isVisible();
     const welcome = await dialog(page, /welcome to daymark/i).isVisible();
     await ctx.close();
     expect(today && !welcome, 'signed-in server did not open Today directly');
@@ -498,10 +499,10 @@ async function functional() {
     expect(size.height >= 44, `status target ${Math.round(size.width)}x${Math.round(size.height)} px`);
   });
 
-  await tc('NAV-05', 'Desktop navbar items fit at 1024-1920 px', 'D1024+D1440', async () => {
+  await tc('NAV-05', 'Desktop rail items fit at 1024-1920 px', 'D1024+D1440', async () => {
     for (const env of ['D1024', 'D1440']) {
       const { ctx, page } = await open(env);
-      const fits = await page.evaluate(() => [...document.querySelectorAll('header button')].every((b) => b.getBoundingClientRect().right <= innerWidth));
+      const fits = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Main"] button')].every((b) => b.getBoundingClientRect().right <= innerWidth));
       expect(fits, `${env}: navbar item off-screen`);
       await btn(page, /^calendar$/i).click();
       expect(/last 7 days/i.test(await visibleText(page)), `${env}: calendar not shown`);
@@ -513,10 +514,35 @@ async function functional() {
     }
   });
 
-  await tc('NAV-06', 'Logo returns to Today', 'D1440', async () => {
+  await tc('NAV-10', 'Six-part desktop rail at 800 and 1280px', 'D800+D1280', async () => {
+    for (const env of ['D800', 'D1280']) {
+      const { ctx, page } = await open(env);
+      const layout = await page.locator('.dm-side-rail').evaluate((nav) => {
+        const r = nav.getBoundingClientRect(), m = document.querySelector('main').getBoundingClientRect();
+        return { width: r.width, content: m.width, rows: [...nav.children].map(el => el.getBoundingClientRect().height), overlap: r.right - m.left, overflow: document.documentElement.scrollWidth - innerWidth };
+      });
+      expect(layout.width === 168 && layout.content >= ENVS[env].viewport.width - 169 && layout.overlap <= 1 && layout.overflow <= 1, JSON.stringify(layout));
+      expect(layout.rows.length === 6 && Math.max(...layout.rows) - Math.min(...layout.rows) <= 1, `unequal rail rows: ${JSON.stringify(layout.rows)}`);
+      await openSettings(page, 'Appearance');
+      await dialog(page, 'Settings').getByRole('button', { name: 'Right', exact: true }).click();
+      await dialog(page, 'Settings').getByRole('button', { name: 'Close', exact: true }).click();
+      expect(await page.locator('.dm-side-rail').getAttribute('data-side') === 'right', 'right choice did not move the rail');
+      await btn(page, /^notes$/i).click();
+      await btn(page, /weekly sprint sync/i).click();
+      await btn(page, /^focus mode$/i).click();
+      await page.locator('.dm-side-rail').waitFor({ state: 'hidden' });
+      expect(await page.locator('.dm-side-rail').count() === 0, 'Notes focus did not hide the rail');
+      await btn(page, /^focus mode$/i).click();
+      await page.locator('.dm-side-rail').waitFor();
+      expect(await page.locator('.dm-side-rail').getAttribute('data-side') === 'right', 'leaving focus did not restore the rail');
+      await ctx.close();
+    }
+  });
+
+  await tc('NAV-06', 'Rail Today returns to Today', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /^calendar$/i).click();
-    await btn(page, /^daymark$/i).click();
+    await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: /^today/i }).click();
     await page.waitForTimeout(300);
     const ok = await taskTitle(page, T1).isVisible();
     await ctx.close();
@@ -528,8 +554,12 @@ async function functional() {
     const hidden = !(await btn(a.page, /phone layout preview/i).isVisible().catch(() => false));
     await a.ctx.close();
     const b = await open('D1440', { url: `${BASE}/?dev` });
+    await openSettings(b.page);
+    await b.page.getByRole('tab', { name: 'Advanced', exact: true }).click();
     await btn(b.page, /phone layout preview/i).click();
     await btn(b.page, /desktop layout/i).click();
+    await openSettings(b.page);
+    await b.page.getByRole('tab', { name: 'Advanced', exact: true }).click();
     const back = await btn(b.page, /phone layout preview/i).isVisible();
     await b.ctx.close();
     expect(hidden, 'phone preview button shown to everyone');
@@ -577,10 +607,10 @@ async function functional() {
   await tc('TD-01', 'Previous / next day', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /previous day/i).click();
-    const y = await page.locator('h1').first().innerText();
+    const y = await page.locator('[data-day-label]').first().innerText();
     await btn(page, /next day/i).click();
     await btn(page, /next day/i).click();
-    const t = await page.locator('h1').first().innerText();
+    const t = await page.locator('[data-day-label]').first().innerText();
     const sizes = await page.evaluate(() => ['Previous day', 'Next day'].map((n) => document.querySelector(`button[aria-label="${n}"]`)?.getBoundingClientRect().width));
     await ctx.close();
     expect(/yesterday/i.test(y), `previous day title "${y}"`);
@@ -592,7 +622,7 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /previous day/i).click();
     await btn(page, /^today$/i).first().click();
-    const h = await page.locator('h1').first().innerText();
+    const h = await page.locator('[data-day-label]').first().innerText();
     await ctx.close();
     expect(/today/i.test(h), `title "${h}"`);
   });
@@ -1439,7 +1469,7 @@ async function functional() {
     await btn(page, /^tomorrow$/i).click();
     await dialog(page, 'Settings').getByRole('button', { name: /^close$/i }).click();
     await page.waitForTimeout(300);
-    const h1 = await page.locator('h1').first().innerText();
+    const h1 = await page.locator('[data-day-label]').first().innerText();
     await openSettings(page);
     await page.getByRole('tab', { name: /^advanced$/i }).click();
     await btn(page, /use real date/i).click();

@@ -61,7 +61,7 @@ import { StandaloneNotesView } from './components/StandaloneNotesView';
 import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { SettingsModal } from './components/SettingsModal';
 import { BacklogView } from './components/backlog/BacklogView';
-import { Navbar } from './components/Navbar';
+import { SideRail } from './components/SideRail';
 import { loadBacklog } from './utils/vaultStore';
 import { reconcileBacklog, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { performDailyRollover } from './utils/lifecycleEngine';
@@ -93,7 +93,7 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 it('captures undated tasks, picks them into a matching section and returns them with Undo', () => {
   (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Garden', category: 'Personal' });
-  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  (props(SideRail).onTabChange as (tab: string) => void)('backlog');
   let page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   const item = page.backlog.items.find((item) => item.title === 'Garden')!;
   expect(item).toBeDefined();
@@ -107,7 +107,7 @@ it('captures undated tasks, picks them into a matching section and returns them 
 });
 it('refuses pick Undo after another device edits the picked day', () => {
   (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Garden', category: 'Personal' });
-  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  (props(SideRail).onTabChange as (tab: string) => void)('backlog');
   const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   const item = page.backlog.items.find((i) => i.title === 'Garden')!;
   page.onPick(item.id, '2026-10-23');
@@ -122,7 +122,7 @@ it('refuses pick Undo after another device edits the picked day', () => {
 it('opens Backlog from search and the g b shortcut', () => {
   (props(SearchDialog).onPick as (result: unknown) => void)({ kind: 'backlog', itemId: 'undated', title: 'Idea' });
   expect(props(BacklogView)).toBeDefined();
-  (props(Navbar).onTabChange as (tab: string) => void)('today');
+  (props(SideRail).onTabChange as (tab: string) => void)('today');
   key('g'); key('b');
   expect(props(BacklogView)).toBeDefined();
 });
@@ -137,7 +137,7 @@ it('moves an open daily task to backlog and restores the day with a backlog tomb
   const restored = props(TodayView).currentDocument as DailyDocument;
   expect(restored.headings[0].notesContent).toBe('Keep this note');
   expect(restored.headings[0].items.map((i) => i.id)).toEqual(['move-backlog']);
-  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  (props(SideRail).onTabChange as (tab: string) => void)('backlog');
   const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   expect(page.backlog.items.find((i) => i.id === 'move-backlog')?.deletedAt).toBeTruthy();
 });
@@ -178,7 +178,7 @@ it('refuses move Undo after a concurrent day-note edit', () => {
 });
 it('restores deleted backlog items without replacing concurrent item edits', () => {
   (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Delete trial' });
-  (props(Navbar).onTabChange as (tab: string) => void)('backlog');
+  (props(SideRail).onTabChange as (tab: string) => void)('backlog');
   const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   const id = page.backlog.items.find((i) => i.title === 'Delete trial')!.id;
   page.onRemove(id); render(); page.onRestore(id);
@@ -244,7 +244,7 @@ it.each(['external', 'sync'] as const)('preserves the latest local appearance fo
 });
 it('keeps light icons over the phone Settings dark strip and restores the header on close', () => {
   systemBars.headerBgOpaque = '#eeeeee'; systemBars.headerText = '#1c1917';
-  (render().find((el) => typeof el.props.onSwitchToMobileApp === 'function')!.props.onSwitchToMobileApp as () => void)();
+  (render().find((el) => typeof el.props.onPreviewPhone === 'function')!.props.onPreviewPhone as () => void)();
   (props(MobileAppShell).onOpenSettings as () => void)();
   render(); hooks.effects.forEach((effect) => effect());
   expect(systemBars.apply).toHaveBeenLastCalledWith('#1c1917', true);
@@ -279,7 +279,7 @@ it('only signals focus on Notes, including while typing', () => {
   expect(props(StandaloneNotesView).focusToggleSignal).toBe(1);
 });
 it('routes search results into the controlled phone tab', () => {
-  (render().find((el) => typeof el.props.onSwitchToMobileApp === 'function')!.props.onSwitchToMobileApp as () => void)();
+  (render().find((el) => typeof el.props.onPreviewPhone === 'function')!.props.onPreviewPhone as () => void)();
   (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'note', noteId: 'chosen' });
   expect(props(MobileAppShell)).toMatchObject({ activeTab: 'notes', openNoteId: 'chosen' });
   (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'task', taskId: 't1', date: '2026-10-20' });
@@ -315,10 +315,21 @@ it.each(['dialog', 'menu'] as const)('blocks global shortcuts while a %s is open
 });
 
 it.each([false, true])('clears a consumed note request before Notes is revisited (phone=%s)', (phone) => {
-  if (phone) (render().find((el) => typeof el.props.onSwitchToMobileApp === 'function')!.props.onSwitchToMobileApp as () => void)();
+  if (phone) (render().find((el) => typeof el.props.onPreviewPhone === 'function')!.props.onPreviewPhone as () => void)();
   (props(SearchDialog).onPick as (r: unknown) => void)({ kind: 'note', noteId: 'chosen' });
   const component = phone ? MobileAppShell : StandaloneNotesView;
   (props(component).onOpenNoteConsumed as () => void)();
   key('g'); key('t'); key('g'); key('n');
   expect(props(component).openNoteId).toBeUndefined();
+});
+
+it('hides the desktop rail only while Notes reports focus mode', () => {
+  (props(SideRail).onTabChange as (tab: string) => void)('notes');
+  (props(StandaloneNotesView).onFocusModeChange as (focused: boolean) => void)(true);
+  expect(props(SideRail).hidden).toBe(true);
+  (props(SideRail).onTabChange as (tab: string) => void)('today');
+  expect(props(SideRail).hidden).toBe(false);
+  (props(SideRail).onTabChange as (tab: string) => void)('notes');
+  (props(StandaloneNotesView).onFocusModeChange as (focused: boolean) => void)(false);
+  expect(props(SideRail).hidden).toBe(false);
 });
