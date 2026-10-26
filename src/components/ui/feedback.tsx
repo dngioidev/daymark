@@ -143,8 +143,8 @@ export const FeedbackHost: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  toast.action!.onClick();
                   dismissToast();
+                  toast.action!.onClick();
                 }}
                 className="min-h-11 px-3 rounded-lg font-semibold text-amber-300 hover:bg-white/10 dark:text-amber-800 dark:hover:bg-stone-900/10"
               >

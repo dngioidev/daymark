@@ -42,7 +42,7 @@ import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, moveTaskToDate, moveTaskToSection, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
+import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, isClosedCopy, moveTaskToDate, moveTaskToSection, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -467,7 +467,13 @@ export default function App() {
   const handleMoveToBacklog = (id: string) => {
     const beforeDocs = dailyDocsRef.current;
     const beforeBacklog = backlogRef.current;
-    const result = moveTaskToBacklog(beforeDocs, beforeBacklog, id, currentDate, new Date().toISOString());
+    // An older carried copy may have a stale title/notes. Park the newest open copy
+    // so all earlier copies close and automatic reconciliation cannot hide it again.
+    const latest = beforeDocs.filter((doc) => doc.headings.some((heading) => heading.items.some((task) =>
+      task.id === id && task.status !== 'done' && task.status !== 'archived' && !isClosedCopy(task)
+    ))).sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (!latest) return;
+    const result = moveTaskToBacklog(beforeDocs, beforeBacklog, id, latest.date, new Date().toISOString());
     if (!result) return;
     applyBacklogMove(result);
     showToast('Moved to backlog.', { action: { label: 'Undo', onClick: () => {

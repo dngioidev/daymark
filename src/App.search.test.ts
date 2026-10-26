@@ -63,7 +63,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { BacklogView } from './components/backlog/BacklogView';
 import { Navbar } from './components/Navbar';
 import { loadBacklog } from './utils/vaultStore';
-import { uneditedRecoveredBacklog } from './utils/backlog';
+import { reconcileBacklog, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
+import { performDailyRollover } from './utils/lifecycleEngine';
 const overlays = vi.hoisted(() => ({ dialog: false, menu: false }));
 vi.mock('./components/ui/Dialog', async (original) => ({ ...await original<typeof import('./components/ui/Dialog')>(), isDialogOpen: () => overlays.dialog }));
 vi.mock('./components/ui/Menu', async (original) => ({ ...await original<typeof import('./components/ui/Menu')>(), isMenuOpen: () => overlays.menu }));
@@ -139,6 +140,30 @@ it('moves an open daily task to backlog and restores the day with a backlog tomb
   (props(Navbar).onTabChange as (tab: string) => void)('backlog');
   const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   expect(page.backlog.items.find((i) => i.id === 'move-backlog')?.deletedAt).toBeTruthy();
+});
+it('parks the latest open copy when moving an older carried copy and keeps its newer edits', () => {
+  const original = { ...docs[0].headings[0].items[0], id: 'carried-backlog', status: 'in-progress', title: 'Old title' };
+  const earlier: DailyDocument = { ...docs[0], date: '2026-10-21', headings: [{ name: 'Work', notesContent: 'Earlier daily note', items: [original] }] };
+  const latest: DailyDocument = { ...docs[0], date: '2026-10-22', headings: [{ name: 'Personal', notesContent: 'Latest daily note', items: [{ ...original, title: 'Latest title', description: 'Edited on the latest day', heading: 'Personal', tags: ['latest'], checklist: [{ id: 'step', text: 'Keep this step', done: true }] }] }] };
+  const archived: DailyDocument = { ...docs[0], date: '2026-10-23', headings: [{ name: 'Archive', notesContent: 'Archived daily note', items: [{ ...original, status: 'archived', title: 'Archived copy' }] }] };
+  const closed: DailyDocument = { ...docs[0], date: '2026-10-24', headings: [{ name: 'Work', items: [{ ...original, movedToBacklogDate: '2026-10-25' }] }] };
+  incomingSettings.sync({ docs: [archived, earlier, closed, latest], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
+  (props(TodayView).onMoveToBacklog as (id: string) => void)(original.id);
+  const undo = toast.mock.calls.at(-1)![1].action.onClick;
+  const search = props(SearchDialog) as unknown as React.ComponentProps<typeof SearchDialog>;
+  expect(visibleBacklog(reconcileBacklog(search.backlog!, search.docs))).toEqual([expect.objectContaining({
+    id: original.id, title: 'Latest title', description: 'Edited on the latest day', category: 'Personal',
+    tags: ['latest'], checklist: [{ id: 'step', text: 'Keep this step', done: true }],
+  })]);
+  const byDate = (date: string) => search.docs.find((doc) => doc.date === date)!;
+  expect(byDate('2026-10-22').headings[0]).toMatchObject({ notesContent: 'Latest daily note', items: [] });
+  expect(byDate('2026-10-21').headings[0]).toMatchObject({ notesContent: 'Earlier daily note', items: [expect.objectContaining({ title: 'Old title', status: 'done', movedToBacklogDate: '2026-10-22' })] });
+  expect(byDate('2026-10-23')).toBe(archived);
+  expect(byDate('2026-10-24')).toBe(closed);
+  const rollover = performDailyRollover('2026-10-25', search.docs, DEFAULT_SETTINGS.statuses, DEFAULT_SETTINGS.defaultHeadings);
+  expect(rollover.updatedDocs.find((doc) => doc.date === '2026-10-25')!.headings.flatMap((heading) => heading.items).some((task) => task.id === original.id)).toBe(false);
+  render(); undo();
+  expect((props(SearchDialog).docs as DailyDocument[]).map((doc) => ({ date: doc.date, headings: doc.headings }))).toEqual([archived, earlier, closed, latest].map((doc) => ({ date: doc.date, headings: doc.headings })));
 });
 it('refuses move Undo after a concurrent day-note edit', () => {
   const source: DailyDocument = { ...docs[0], date: '2026-10-21', headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], id: 'move-backlog', status: 'in-progress' }] }] };
