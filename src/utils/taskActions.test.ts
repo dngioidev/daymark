@@ -4,6 +4,8 @@ import { DEFAULT_SETTINGS } from './defaultData';
 import { isClosedCopy } from './taskActions';
 import { performDailyRollover } from './lifecycleEngine';
 import { isDailyDocument } from './vaultValidation';
+import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
+import { moveTaskToSection } from './taskActions';
 import { applyMarkdownEdit, closeEarlierCopies, followDoneChanges, isDoneLater, reopenEarlierCopies, getMoveTaskDateError, getMoveToTomorrowDate, moveTaskToDate, undoMoveTask, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './taskActions';
 
 const task = (id: string, title = id): TaskItem => ({
@@ -25,6 +27,62 @@ const doc = (items: TaskItem[]): DailyDocument => ({
 });
 
 const titles = (d: DailyDocument) => d.headings.flatMap((h) => h.items.map((t) => t.title));
+
+describe('moveTaskToSection', () => {
+  const NOW = '2026-10-26T12:00:00.000Z';
+  const source = (): DailyDocument => ({ ...doc([]), removedTaskIds: ['unrelated'], headings: [
+    { name: 'Work', notesContent: 'Source notes', items: [{ ...task('move'), createdDate: '2026-10-19', carriedFromDate: '2026-10-20', originalNoteDate: '2026-10-19', description: 'Keep notes', checklist: [{ id: 'check', text: 'Verify', done: false }], tags: ['tag'], historyLog: [{ id: 'old', timestamp: NOW, date: '2026-10-19', action: 'created', details: 'Created' }] }] },
+    { name: 'Ideas', notesContent: 'Destination notes', items: [{ ...task('existing'), heading: 'Ideas', order: 1 }] },
+  ] });
+
+  it('matches a trimmed case-insensitive destination, preserving data and appending after its tasks', () => {
+    const before = source();
+    const result = moveTaskToSection(before, 'move', '  iDEas  ', NOW)!;
+    expect(result.created).toBe(false);
+    expect(result.doc.headings.map((h) => h.name)).toEqual(['Work', 'Ideas']);
+    expect(result.doc.headings[1].items.map((t) => [t.id, t.order])).toEqual([['existing', 1], ['move', 2]]);
+    expect(result.task).toMatchObject({ ...before.headings[0].items[0], heading: 'Ideas', order: 2, historyLog: [
+      before.headings[0].items[0].historyLog[0],
+      { id: expect.any(String), timestamp: NOW, date: before.date, action: 'moved', details: 'Moved to Ideas' },
+    ] });
+    expect(result.doc.removedTaskIds).toEqual(['unrelated']);
+    expect(result.doc.updatedAt).toBe(NOW);
+    expect(before.headings[0].items).toHaveLength(1);
+  });
+
+  it('appends a trimmed new section and preserves the empty source as existing removals do', () => {
+    const before = doc([task('move')]);
+    const result = moveTaskToSection(before, 'move', '  Personal  ', NOW)!;
+    expect(result.created).toBe(true);
+    expect(result.doc.headings.map((h) => [h.name, h.items.length])).toEqual([['Work', 0], ['Personal', 1]]);
+    expect(removeTaskFromDocument(before, 'move')!.doc.headings.map((h) => [h.name, h.items.length])).toEqual([['Work', 0]]);
+    expect(result.doc.removedTaskIds).toBeUndefined();
+    expect(result.task.heading).toBe('Personal');
+    expect(result.task.order).toBe(1);
+  });
+
+  it('returns null for the current section, blank names, missing tasks and closed copies', () => {
+    expect(moveTaskToSection(source(), 'move', ' WORK ', NOW)).toBeNull();
+    expect(moveTaskToSection(source(), 'move', '  ', NOW)).toBeNull();
+    expect(moveTaskToSection(source(), 'missing', 'Ideas', NOW)).toBeNull();
+    for (const extra of [{ status: 'done', doneLaterDate: '2026-10-22' }, { movedToBacklogDate: '2026-10-22' }]) {
+      expect(moveTaskToSection(doc([{ ...task('move'), ...extra }]), 'move', 'Ideas', NOW)).toBeNull();
+    }
+  });
+
+  it('moves completed tasks without reopening them and round trips the day through Markdown', () => {
+    const before = source();
+    before.headings[0].items[0] = { ...before.headings[0].items[0], status: 'done', completedDate: before.date };
+    const moved = moveTaskToSection(before, 'move', 'Ideas', NOW)!;
+    const markdown = serializeDailyDocument(moved.doc);
+    const parsed = parseDailyDocument(markdown, before.date, []);
+    expect(parsed.headings.map((h) => [h.name, h.notesContent, h.items.map((t) => t.id)])).toEqual([
+      ['Work', 'Source notes', []], ['Ideas', 'Destination notes', ['existing', 'move']],
+    ]);
+    expect(parsed.headings[1].items[1]).toMatchObject({ id: 'move', heading: 'Ideas', status: 'done', completedDate: before.date, createdDate: '2026-10-19', originalNoteDate: '2026-10-19', carriedFromDate: '2026-10-20', description: 'Keep notes', checklist: [{ id: expect.any(String), text: 'Verify', done: false }] });
+    expect(markdown).toContain('<!-- daymark: task_id=move status=done created=2026-10-19');
+  });
+});
 
 it('recognises backlog closures and clears their mark when explicitly reopened', () => {
   const closed = { ...task('a'), status: 'done', movedToBacklogDate: '2026-10-23' };

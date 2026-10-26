@@ -55,3 +55,51 @@ it('reports a duplicate destination without changing the vault or offering Undo'
   expect(setState).not.toHaveBeenCalled();
   expect(JSON.stringify(docs)).toBe(before);
 });
+
+it('moves a task within the current day and offers snapshot Undo', () => {
+  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  const task = { id: 'move-section', title: 'Prepare', status: 'not-started', createdDate: '2026-10-21', originalNoteDate: '2026-10-21', heading: 'Work', order: 1, historyLog: [] };
+  const source: DailyDocument = { date: '2026-10-21', type: 'daily', updatedAt: 'before', headings: [{ name: 'Work', items: [task] }, { name: 'Ideas', items: [] }] };
+  docs.splice(0, docs.length, source);
+  findToday(App())!.onMoveToSection!('move-section', 'Ideas');
+  const update = setState.mock.calls.at(-1)![0];
+  const after: DailyDocument[] = typeof update === 'function' ? update(docs) : update;
+  expect(after[0].headings.map((h) => h.items.map((t) => t.id))).toEqual([[], ['move-section']]);
+  expect(after[0].headings[1].items[0].heading).toBe('Ideas');
+  const options = toast.mock.calls.at(-1)![1];
+  expect(options.action.label).toBe('Undo');
+  // React has committed this state before the user can activate the toast.
+  docs.splice(0, docs.length, ...after);
+  options.action.onClick();
+  const undo = setState.mock.calls.at(-1)![0];
+  const restored: DailyDocument[] = typeof undo === 'function' ? undo(after) : undo;
+  expect(restored[0].headings).toEqual(source.headings);
+  expect(restored[0].updatedAt).not.toBe('before');
+  expect(source.headings[0].items[0].heading).toBe('Work');
+});
+
+it('keeps a concurrent task rename and addition when section Undo would overwrite them', () => {
+  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  const task = { id: 'move-section', title: 'Prepare', status: 'not-started', createdDate: '2026-10-21', originalNoteDate: '2026-10-21', heading: 'Work', order: 1, historyLog: [] };
+  docs.splice(0, docs.length, { date: '2026-10-21', type: 'daily', updatedAt: 'before', headings: [{ name: 'Work', items: [task] }, { name: 'Ideas', items: [] }] });
+  findToday(App())!.onMoveToSection!('move-section', 'Ideas');
+  const update = setState.mock.calls.at(-1)![0];
+  const moved: DailyDocument[] = typeof update === 'function' ? update(docs) : update;
+  const undoAction = toast.mock.calls.at(-1)![1].action.onClick;
+  const concurrent: DailyDocument = { ...moved[0], updatedAt: 'newer', headings: moved[0].headings.map((h) => h.name === 'Work'
+    ? { ...h, items: [{ ...task, id: 'added', title: 'Added on another device' }] }
+    : { ...h, items: h.items.map((t) => ({ ...t, title: 'Renamed on another device' })) }) };
+  docs.splice(0, docs.length, concurrent);
+  setState.mockClear();
+  undoAction();
+  const pending = setState.mock.calls.at(-1)?.[0];
+  const afterUndo: DailyDocument[] = typeof pending === 'function' ? pending(docs) : pending ?? docs;
+  expect(afterUndo[0].headings.flatMap((h) => h.items.map((t) => [t.id, t.title]))).toEqual([
+    ['added', 'Added on another device'], ['move-section', 'Renamed on another device'],
+  ]);
+  expect(toast).toHaveBeenLastCalledWith("Can't undo: the list changed since.", { tone: 'error' });
+});

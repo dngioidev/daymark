@@ -40,7 +40,7 @@ import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, moveTaskToDate, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
+import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, moveTaskToDate, moveTaskToSection, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
   correctHistoricalCompletion,
@@ -698,6 +698,24 @@ export default function App() {
       action: { label: 'Undo', onClick: () => setDailyDocs((prev) => undoMoveTask(prev, taskId, fromDate, toDate, before, new Date().toISOString())) },
     });
   };
+  const handleMoveToSection = (taskId: string, section: string): void => {
+    const source = dailyDocsRef.current.find((d) => d.date === currentDate);
+    if (!source) return;
+    const result = moveTaskToSection(source, taskId, section, new Date().toISOString());
+    if (!result) return;
+    const before = JSON.parse(JSON.stringify(source)) as DailyDocument;
+    handleUpdateDocument(result.doc);
+    showToast(`Moved “${result.task.title}” to ${result.task.heading}`, {
+      action: { label: 'Undo', onClick: () => {
+        // A snapshot can only be restored while this day has no newer local or synced edits.
+        if (dailyDocsRef.current.find((d) => d.date === before.date) !== result.doc) {
+          showToast("Can't undo: the list changed since.", { tone: 'error' });
+          return;
+        }
+        patchDocument(before.date, (doc) => doc === result.doc ? { ...before, updatedAt: new Date().toISOString() } : doc);
+      } },
+    });
+  };
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
   return (
@@ -735,6 +753,7 @@ export default function App() {
                 onOpenHistoryDrawer={openDetails}
                 onQuickHistoricalDone={handleQuickHistoricalDone}
                 onMoveTask={handleMoveTask}
+                onMoveToSection={handleMoveToSection}
                 onTriggerRollover={handleTriggerRollover}
               />
             )}
@@ -803,6 +822,7 @@ export default function App() {
           onOpenHistoryDrawer={openDetails}
           onQuickHistoricalDone={handleQuickHistoricalDone}
           onMoveTask={handleMoveTask}
+          onMoveToSection={handleMoveToSection}
           onReopenTask={handleReopenTask}
           onTriggerRollover={handleTriggerRollover}
           onOpenDay={setCurrentDate}

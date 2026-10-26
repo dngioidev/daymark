@@ -17,7 +17,8 @@ import {
 import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, formatFullDate, getAgingSeverity, getNextDate, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
 import { formatAge, formatDay } from '../utils/dateFormat';
-import { getMoveTaskDateError, getMoveToTomorrowDate, toggleTaskDone } from '../utils/taskActions';
+import { getMoveTaskDateError, getMoveToTomorrowDate, isClosedCopy, toggleTaskDone } from '../utils/taskActions';
+import { MoveToSectionDialog } from './MoveToSectionDialog';
 import { Menu } from './ui/Menu';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog } from './ui/feedback';
@@ -36,6 +37,8 @@ interface TaskItemCardProps {
   onQuickHistoricalDone: (taskId: string, targetDate: string) => void;
   onToggleAlertDismiss: (taskId: string) => void;
   onMoveTask?: (taskId: string, toDate: string) => void;
+  onMoveToSection?: (taskId: string, section: string) => void;
+  sectionNames?: string[];
 }
 
 /** "today" / "yesterday" / "on Fri 16 Oct", for use inside a sentence. */
@@ -66,10 +69,13 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   onQuickHistoricalDone,
   onToggleAlertDismiss,
   onMoveTask,
+  onMoveToSection,
+  sectionNames = [],
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [sectionMoveOpen, setSectionMoveOpen] = useState(false);
   const [moveDate, setMoveDate] = useState('');
   const [moveError, setMoveError] = useState<string | null>(null);
   const moveId = useId();
@@ -271,6 +277,10 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
               setMoveOpen(true);
             } },
           ] : []),
+          ...(onMoveToSection && !isClosedCopy(task) ? [{ label: 'Move to section…', onSelect: () => {
+            menuButtonRef.current?.focus();
+            setSectionMoveOpen(true);
+          } }] : []),
           { label: 'Rename', icon: <Edit2 className="w-4 h-4" />, onSelect: () => (setTitleDraft(task.title), setIsEditingTitle(true)) },
           { label: 'Details & history', icon: <PanelRightOpen className="w-4 h-4" />, onSelect: () => onOpenHistoryDrawer(task) },
           ...(severity !== 'normal'
@@ -296,6 +306,16 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
           </button>
         )}
       />
+      {sectionMoveOpen && <MoveToSectionDialog
+        taskTitle={task.title}
+        currentSection={task.heading}
+        sections={sectionNames}
+        onClose={() => setSectionMoveOpen(false)}
+        onMove={(section) => {
+          onMoveToSection?.(task.id, section);
+          setSectionMoveOpen(false);
+        }}
+      />}
       <Dialog
         isOpen={moveOpen}
         onClose={() => setMoveOpen(false)}

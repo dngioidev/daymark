@@ -162,6 +162,45 @@ export interface RemovedTask {
   index: number;
 }
 
+/** Moves within one day as an edit, retaining empty sections and creating no deletion marker. */
+export function moveTaskToSection(
+  doc: DailyDocument,
+  taskId: string,
+  sectionName: string,
+  nowIso: string
+): { doc: DailyDocument; task: TaskItem; created: boolean } | null {
+  const name = sectionName.trim();
+  const source = doc.headings.find((h) => h.items.some((t) => t.id === taskId));
+  const original = source?.items.find((t) => t.id === taskId);
+  if (!name || !source || !original || isClosedCopy(original)) return null;
+  const target = doc.headings.find((h) => h.name.trim().toLowerCase() === name.toLowerCase());
+  if (target === source) return null;
+  const destination = target ?? { name, items: [], notesContent: '' };
+  const task: TaskItem = {
+    ...original,
+    heading: destination.name,
+    order: destination.items.length + 1,
+    historyLog: [...(original.historyLog ?? []), {
+      id: `hist-section-${taskId}-${nowIso}`,
+      timestamp: nowIso,
+      date: doc.date,
+      action: 'moved',
+      details: `Moved to ${destination.name}`,
+    }],
+  };
+  const headings = target ? doc.headings : [...doc.headings, destination];
+  return {
+    doc: {
+      ...doc,
+      headings: headings.map((h) => h === source ? { ...h, items: h.items.filter((t) => t.id !== taskId) }
+        : h === destination ? { ...h, items: [...h.items, task] } : h),
+      updatedAt: nowIso,
+    },
+    task,
+    created: !target,
+  };
+}
+
 /** Moves a task without changing its identity or carry-forward origin. */
 export function moveTaskToDate(
   docs: DailyDocument[],
