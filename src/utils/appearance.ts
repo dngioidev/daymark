@@ -4,6 +4,9 @@ import { autoTextOn, composite, contrastRatio, parseHex, toHex } from './color';
 
 export type { ResolvedAppearance } from '../types/daymark';
 export const THEME_MIRROR_KEY = 'daymark_theme';
+export function resolveMenuSide(appearance?: AppearanceSettings): 'left' | 'right' {
+  return appearance?.menuSide === 'right' ? 'right' : 'left';
+}
 
 export function resolveAppearance(a: AppearanceSettings, photo: { luminance: number } | null): ResolvedAppearance {
   a = normalizeAppearance(a);

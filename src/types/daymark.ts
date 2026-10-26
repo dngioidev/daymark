@@ -170,6 +170,7 @@ export interface ThemeColors {
   accent: ColorChoice;
 }
 export interface AppearanceSettings {
+  menuSide?: 'left' | 'right';
   theme: ThemeMode;
   textSize: TextSize;
   dim: number;

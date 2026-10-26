@@ -2,7 +2,7 @@ import { parseHex } from './color';
 import { AppearanceSettings, AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  theme: 'light', textSize: 'm', dim: 35, blur: 4,
+  theme: 'light', textSize: 'm', dim: 35, blur: 4, menuSide: 'left',
   light: { headerBg: '#fafaf9', headerOpacity: 100, headerText: 'auto', pageText: 'auto', accent: 'auto' },
   dark: { headerBg: '#0c0a09', headerOpacity: 100, headerText: 'auto', pageText: 'auto', accent: 'auto' },
 };
@@ -29,6 +29,7 @@ export function normalizeAppearance(value?: AppearanceSettings): AppearanceSetti
     textSize: ['s', 'm', 'l'].includes(a.textSize) ? a.textSize : 'm',
     dim: clamp(a.dim, 0, 90, DEFAULT_APPEARANCE.dim),
     blur: clamp(a.blur, 0, 12, DEFAULT_APPEARANCE.blur),
+    menuSide: a.menuSide === 'right' ? 'right' : 'left',
     light: themeColors('light'), dark: themeColors('dark'),
   };
 }

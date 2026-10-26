@@ -41,6 +41,12 @@ export function AppearanceTab({ appearance, onChange, photoSection, photoMeta = 
       <div className="flex gap-2">{(['s', 'm', 'l'] as const).map((textSize) => <button type="button" key={textSize} aria-pressed={a.textSize === textSize} className={`${buttonClass.secondary} aria-pressed:bg-stone-900 aria-pressed:text-white dark:aria-pressed:bg-stone-100 dark:aria-pressed:text-stone-900`} onClick={() => onChange({ ...a, textSize })}>{textSize.toUpperCase()}</button>)}</div>
     </fieldset>
     <p className="text-sm text-stone-600 dark:text-stone-400">Editing {a.theme === 'light' ? 'Light' : 'Dark'} colours.</p>
+    <fieldset className="space-y-2">
+      <legend className="font-semibold">Menu side</legend>
+      <div className="flex gap-2">
+        {(['left', 'right'] as const).map(menuSide => <button type="button" key={menuSide} aria-pressed={a.menuSide === menuSide} className={`${buttonClass.secondary} aria-pressed:bg-stone-900 aria-pressed:text-white dark:aria-pressed:bg-stone-100 dark:aria-pressed:text-stone-900`} onClick={() => onChange({ ...a, menuSide })}>{menuSide === 'left' ? 'Left' : 'Right'}</button>)}
+      </div>
+    </fieldset>
     <fieldset className="space-y-3">
       <legend className="font-semibold">Header</legend>
       <div className="flex flex-wrap gap-2 items-center">
