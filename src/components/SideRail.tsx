@@ -51,12 +51,13 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
   const ToggleIcon = side === 'right' ? (collapsed ? PanelRightOpen : PanelRightClose) : (collapsed ? PanelLeftOpen : PanelLeftClose);
   const toggleLabel = collapsed ? 'Expand menu' : 'Minimize menu';
   const syncLabel = `Sync: ${sync.label}. Open sync settings`;
+  const attentionLabel = `${carriedAlertCount} ${carriedAlertCount === 1 ? 'task needs' : 'tasks need'} attention`;
   const page = (tab: ViewTab, icon: React.ReactNode, label: string) => (
-    <RailButton type="button" side={side} tooltip={collapsed ? label : undefined} aria-label={tab === 'today' && carriedAlertCount > 0 ? `${label} ${collapsed && carriedAlertCount > 99 ? '99+' : carriedAlertCount}` : label} aria-describedby={tab === 'today' && carriedAlertCount > 0 ? 'daymark-rail-attention' : undefined} data-rail-part={tab} aria-current={activeTab === tab ? 'page' : undefined}
+    <RailButton type="button" side={side} tooltip={collapsed ? label : undefined} aria-label={collapsed ? (tab === 'today' && carriedAlertCount > 0 ? `${label} ${carriedAlertCount > 99 ? '99+, ' : ''}${attentionLabel}` : label) : undefined} aria-describedby={tab === 'today' && carriedAlertCount > 0 ? 'daymark-rail-attention' : undefined} data-rail-part={tab} aria-current={activeTab === tab ? 'page' : undefined}
       onClick={() => onTabChange(tab)} className={`${part} ${activeTab === tab ? 'bg-accent text-accent-fg font-semibold' : ''}`}>
       {icon}<span className={`flex items-center gap-1.5 ${collapsed ? 'absolute right-1 top-2' : ''}`}>
         {!collapsed && label}
-        {tab === 'today' && carriedAlertCount > 0 && <span id="daymark-rail-attention" aria-label={`${carriedAlertCount} ${carriedAlertCount === 1 ? 'task needs' : 'tasks need'} attention`} className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-amber-200 text-amber-950 text-[12px] font-bold">{carriedAlertCount > 99 && collapsed ? '99+' : carriedAlertCount}</span>}
+        {tab === 'today' && carriedAlertCount > 0 && <span id="daymark-rail-attention" aria-label={attentionLabel} className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-amber-200 text-amber-950 text-[12px] font-bold">{carriedAlertCount > 99 && collapsed ? '99+' : carriedAlertCount}</span>}
       </span>
     </RailButton>
   );

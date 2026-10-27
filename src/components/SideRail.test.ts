@@ -11,6 +11,7 @@ describe('desktop side rail', () => {
     for (const collapsed of [false, true]) {
       const doc = document.createElement('div');
       doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed }));
+      expect(doc.querySelector('[data-rail-part="today"]')!.getAttribute('aria-label')).toBe(collapsed ? 'Today 3 tasks need attention' : null);
       for (const button of doc.querySelectorAll('button[aria-label]')) {
         const visible = button.textContent!.replace(/\s/g, '');
         expect(button.getAttribute('aria-label')!.replace(/\s/g, '')).toContain(visible);
@@ -23,7 +24,7 @@ describe('desktop side rail', () => {
     const nav = doc.querySelector('nav')!;
     expect(nav.classList.contains('w-[64px]')).toBe(true);
     expect(nav.children).toHaveLength(6);
-    for (const label of ['Expand menu', 'Today 3', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
+    for (const label of ['Expand menu', 'Today 3 tasks need attention', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
       expect(nav.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
     }
     expect(nav.querySelector('[aria-current="page"]')!.getAttribute('aria-label')).toBe('Notes');
