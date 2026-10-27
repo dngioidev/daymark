@@ -9,6 +9,23 @@ import type { DailyDocument, TaskItem } from '../types/daymark';
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+it('does not present a parked historical copy as completed work and preserves its journal', () => {
+  const parked: DailyDocument = { date: '2026-10-20', type: 'daily', updatedAt: '', headings: [{ name: 'Work', notesContent: 'Preserve journal text', items: [{
+    id: 'parked-history', title: 'Parked historical idea', status: 'done', movedToBacklogDate: '2026-10-21', createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 0, historyLog: [],
+  }] }] };
+  const before = JSON.stringify(parked);
+  const html = renderToStaticMarkup(React.createElement(TodayView, {
+    currentDocument: parked, allDocs: [parked], simulatedToday: '2026-10-21', statuses: DEFAULT_SETTINGS.statuses,
+    agingThresholds: DEFAULT_SETTINGS.agingThresholds, defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
+    onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(), onOpenHistoricalModal: vi.fn(),
+    onOpenHistoryDrawer: vi.fn(), onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(),
+  }));
+  expect(html).not.toContain('Done (1)');
+  expect(html).not.toContain('Parked historical idea');
+  expect(html).toContain('Preserve journal text');
+  expect(JSON.stringify(parked)).toBe(before);
+});
+
 const sectionMoveCases: { width: number; label: string; extra: Partial<TaskItem>; available: boolean }[] = [1440, 390].flatMap((width) => [
   { width, label: 'open task', extra: {}, available: true },
   { width, label: 'done task', extra: { status: 'done' }, available: true },
@@ -40,6 +57,11 @@ it.each(sectionMoveCases)('offers section moves for $label at width $width', asy
       onOpenHistoricalModal: vi.fn(), onOpenHistoryDrawer: vi.fn(), onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(),
       onMoveTask: vi.fn(), onMoveToSection: move, onMoveToBacklog: move,
     })));
+    if (extra.movedToBacklogDate) {
+      expect(host.querySelector('[aria-label=\'More actions for "Prepare"\']')).toBeNull();
+      expect(host.textContent).not.toContain('Done (1)');
+      return;
+    }
     if (extra.status === 'done') act(() => [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('Done (1)'))!.click());
     const openDialog = () => {
       act(() => [...host.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'More actions for "Prepare"')!.click());

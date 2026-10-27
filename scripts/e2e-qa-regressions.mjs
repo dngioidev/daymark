@@ -1480,6 +1480,23 @@ await run('C10-P8', async () => {
   check('C10-P8-errors', errors.length === 0, 'phone Backlog has no browser errors', errors.join(' | '));
 });
 
+await run('C10-X1', async () => {
+  const title = 'Parked carried history';
+  const { page } = await fresh({ docs: [
+    doc(Y1, [task('park-history', 'in-progress', Y1, { title })], 'Keep yesterday journal'),
+    doc(TODAY, [task('park-history', 'in-progress', Y1, { title, carriedFromDate: Y1 })], 'Keep today journal'),
+  ] });
+  await page.getByRole('button', { name: `More actions for "${title}"`, exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Move to backlog', exact: true }).click();
+  await page.getByRole('button', { name: 'Previous day', exact: true }).click();
+  check('C10-X1-day', await page.getByRole('button', { name: 'Done (1)', exact: true }).count() === 0, 'parked carried history is not shown as completed work in historical Today');
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Calendar', exact: true }).click();
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  check('C10-X1-week', await page.getByText(title, { exact: true }).count() === 0, 'parked carried history is absent from Week task lists');
+  const saved = (await readDocs(page)).find(d => d.date === Y1);
+  check('C10-X1-data', saved.headings[0].notesContent === 'Keep yesterday journal' && saved.headings[0].items.some(t => t.title === title && t.movedToBacklogDate), 'excluded historical task and journal stay in the stored document');
+});
+
 await cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

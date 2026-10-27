@@ -14,6 +14,7 @@ describe('monthCells', () => {
   it('excludes backlog closures from calendar counts', () => {
     const closed = { ...docs[0], headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], status: 'done', movedToBacklogDate: '2026-10-20' }] }] };
     expect(monthCells(2026, 9, [closed], '2026-10-21').find((c) => c.date === closed.date)).toMatchObject({ done: 0, total: 0 });
+    expect(weekCells('2026-10-16', [closed], '2026-10-21').find(c => c.date === closed.date)).toMatchObject({ items: [], titles: [] });
   });
   it('fills Sunday-first weeks, including selectable future dates and adjacent months', () => {
     const cells = monthCells(2026, 9, docs, '2026-10-21');

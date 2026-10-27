@@ -14,8 +14,8 @@ function cellsBetween(start: string, end: string, month: string, docs: DailyDocu
       done: tasks.filter((task) => task.status === 'done' && !isClosedCopy(task)).length,
       total: tasks.filter((task) => !isClosedCopy(task)).length,
       hasNotes: doc?.headings.some((heading) => !!heading.notesContent?.trim()) ?? false,
-      titles: tasks.map((task) => task.title),
-      items: tasks.map((task) => ({ title: task.title, done: task.status === 'done' })),
+      titles: tasks.filter(task => !task.movedToBacklogDate).map((task) => task.title),
+      items: tasks.filter(task => !task.movedToBacklogDate).map((task) => ({ title: task.title, done: task.status === 'done' })),
     });
   }
   return cells;

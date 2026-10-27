@@ -152,7 +152,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   const date = currentDocument.date;
   const isToday = date === simulatedToday;
-  const allTasks = useMemo(() => currentDocument.headings.flatMap((h) => h.items), [currentDocument]);
+  const allTasks = useMemo(() => currentDocument.headings.flatMap((h) => h.items).filter(task => !task.movedToBacklogDate), [currentDocument]);
 
   const severityOf = (task: TaskItem) =>
     task.status === 'done' || task.status === 'archived' || task.dismissedAlertDate === date
@@ -501,13 +501,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   // ---------- Sections ----------
   const isEmpty = (s: DailyDocument['headings'][number]) =>
-    s.items.length === 0 && !s.notesContent && activeAddHeading !== s.name && activeNoteHeading !== s.name;
+    !s.items.some(task => !task.movedToBacklogDate) && !s.notesContent && activeAddHeading !== s.name && activeNoteHeading !== s.name;
   const shownSections = currentDocument.headings.filter((s) => !isEmpty(s));
   const emptySections = currentDocument.headings.filter(isEmpty);
   const nothingYet = allTasks.length === 0 && currentDocument.headings.every((h) => !h.notesContent);
 
   const renderSection = (section: DailyDocument['headings'][number]) => {
-    const items = attentionOnly ? section.items.filter((t) => severityOf(t) !== 'normal') : section.items;
+    const visibleItems = section.items.filter(task => !task.movedToBacklogDate);
+    const items = attentionOnly ? visibleItems.filter((t) => severityOf(t) !== 'normal') : visibleItems;
     if (attentionOnly && items.length === 0) return null;
     const open = items.filter((t) => t.status !== 'done');
     const done = items.filter((t) => t.status === 'done');

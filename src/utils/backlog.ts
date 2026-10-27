@@ -1,5 +1,6 @@
 import type { BacklogData, BacklogItem, DailyDocument, TaskHistoryItem, TaskItem } from '../types/daymark';
 import { isClosedCopy, mapEarlierCopies, removeTaskFromDocument, restoreTaskToDocument } from './taskActions';
+import { mergeBacklogHistory } from './backlogHistory';
 
 export const uneditedRecoveredBacklog = new WeakSet<BacklogData>();
 
@@ -76,18 +77,19 @@ export function pickBacklogItem(docs: DailyDocument[], data: BacklogData, id: st
     date, type: 'daily' as const, headings: defaultHeadings.map((name) => ({ name, items: [], notesContent: '' })), updatedAt: nowIso,
   };
   const section = sectionForCategory(target.headings.map((h) => h.name), item.category, defaultHeadings[0] || 'Work');
+  const picked = history(id, date, nowIso, 'Picked from backlog');
   const task: TaskItem = {
     id, title: item.title, description: item.description, checklist: item.checklist, tags: item.tags,
     status: !item.status || item.status === 'done' || item.status === 'archived' ? 'not-started' : item.status,
     createdDate: date, originalNoteDate: date, heading: section.name,
     order: (target.headings.find((h) => h.name === section.name)?.items.length ?? 0) + 1,
-    historyLog: [...(item.historyLog ?? []), history(id, date, nowIso, 'Picked from backlog')],
+    historyLog: [...(item.historyLog ?? []), picked],
   };
   const restored = restoreTaskToDocument(target, { task, heading: section.name, index: task.order - 1 });
   const nextTarget = { ...restored, updatedAt: nowIso };
   return {
     docs: [...docs.filter((d) => d.date !== date), nextTarget].sort((a, b) => a.date.localeCompare(b.date)),
-    data: { items: data.items.map((i) => i.id === id ? { ...i, pickedOn: date, updatedAt: nowIso } : i) },
+    data: { items: data.items.map((i) => i.id === id ? { ...i, historyLog: task.historyLog, pickedOn: date, updatedAt: nowIso } : i) },
   };
 }
 
@@ -115,19 +117,76 @@ export function moveTaskToBacklog(docs: DailyDocument[], data: BacklogData, task
   return { docs: closed, data: { items: previous ? data.items.map((i) => i.id === taskId ? item : i) : [...data.items, item] } };
 }
 
-export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIso?: string): BacklogData {
-  const earliest = new Map<string, DailyDocument>();
+const isBacklogEvent = (event: TaskHistoryItem) => !!event && event.action === 'moved' &&
+  typeof event.id === 'string' && typeof event.timestamp === 'string' && typeof event.date === 'string' &&
+  ['Moved to backlog', 'Picked from backlog'].includes(event.details);
+const backlogEvents = (value: TaskHistoryItem[] | undefined) => Array.isArray(value) ? value.filter(isBacklogEvent) : [];
+
+function reconciliation(data: BacklogData, docs: DailyDocument[], nowIso?: string, markPicked = true) {
+  const copies = new Map<string, { doc: DailyDocument; task: TaskItem }[]>();
   for (const doc of docs) for (const heading of doc.headings) for (const task of heading.items) {
-    if (task.status === 'done' || task.status === 'archived' || isClosedCopy(task)) continue;
-    if (!earliest.has(task.id) || doc.date < earliest.get(task.id)!.date) earliest.set(task.id, doc);
+    const list = copies.get(task.id) ?? []; list.push({ doc, task }); copies.set(task.id, list);
   }
-  return { items: data.items.map((item) => {
-    const destination = earliest.get(item.id);
-    return isVisible(item) && destination ? { ...item, pickedOn: destination.date, updatedAt: nowIso ?? (destination.updatedAt || item.updatedAt) } : item;
-  }) };
+  const stale = new Map<string, TaskHistoryItem>();
+  const historiesById = new Map<string, TaskHistoryItem[]>();
+  const items = data.items.map(item => {
+    const daily = copies.get(item.id) ?? [];
+    const knownEpisode = backlogEvents(item.historyLog).length > 0;
+    const historyLog = mergeBacklogHistory(item.historyLog, ...daily.filter(({ task }) => knownEpisode || (task.status !== 'done' && task.status !== 'archived' && !isClosedCopy(task)))
+      .map(({ task }) => backlogEvents(task.historyLog)));
+    const events = historyLog ?? [];
+    historiesById.set(item.id, events);
+    const parkIndex = events.map(event => event.action === 'moved' && event.details === 'Moved to backlog').lastIndexOf(true);
+    const pickIndex = events.map(event => event.action === 'moved' && event.details === 'Picked from backlog').lastIndexOf(true);
+    const park = events[parkIndex];
+    const validPickIds = new Set(events.slice(parkIndex + 1).filter(event => event.details === 'Picked from backlog').map(event => event.id));
+    const genuine = (task: TaskItem) => !park || backlogEvents(task.historyLog).some(event => validPickIds.has(event.id));
+    if (park) stale.set(item.id, park);
+    const active = daily.filter(({ task }) => task.status !== 'done' && task.status !== 'archived' && !isClosedCopy(task) && genuine(task))
+      .sort((a, b) => a.doc.date.localeCompare(b.doc.date));
+    if (!markPicked) return item;
+    let next = historyLog === item.historyLog ? item : { ...item, historyLog };
+    const pickDates = events.slice(parkIndex + 1).filter(event => event.details === 'Picked from backlog').map(event => event.date);
+    if (park && next.pickedOn && !pickDates.includes(next.pickedOn)) {
+      const { pickedOn: _picked, ...rest } = next; next = rest;
+    }
+    const date = [active[0]?.doc.date, ...pickDates].filter((value): value is string => !!value).sort()[0];
+    if (!next.deletedAt && date && !next.pickedOn) {
+      next = { ...next, pickedOn: date, updatedAt: nowIso ?? (active[0]?.doc.updatedAt || events[pickIndex]?.timestamp || next.updatedAt) };
+    }
+    return next;
+  });
+  let changed = false;
+  const nextDocs = docs.map(doc => {
+    let docChanged = false;
+    const headings = doc.headings.map(heading => {
+      let headingChanged = false;
+      const items = heading.items.map(task => {
+        const park = stale.get(task.id);
+        if (!park || task.status === 'done' || task.status === 'archived' || isClosedCopy(task)) return task;
+        const history = historiesById.get(task.id) ?? [];
+        const parkIndex = history.map(event => event.id).lastIndexOf(park.id);
+        const valid = new Set(history.slice(parkIndex + 1).filter(event => event.details === 'Picked from backlog').map(event => event.id));
+        if (backlogEvents(task.historyLog).some(event => valid.has(event.id))) return task;
+        headingChanged = docChanged = changed = true;
+        const historyLog = Array.isArray(task.historyLog)
+          ? (backlogEvents(task.historyLog).some(event => event.id === park.id) ? task.historyLog : [...task.historyLog, park])
+          : task.historyLog === undefined ? [park] : undefined;
+        return { ...task, status: 'done', statusBeforeDone: task.status, movedToBacklogDate: park.date,
+          ...(historyLog ? { historyLog } : {}) };
+      });
+      return headingChanged ? { ...heading, items } : heading;
+    });
+    return docChanged ? { ...doc, headings } : doc;
+  });
+  return { backlog: markPicked ? { items } : data, docs: changed ? nextDocs : docs };
 }
 
-/** Hide active backlog items found in daily notes; same-id copies across days are normal. */
-export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[]): { backlog: BacklogData; docs: DailyDocument[] } {
-  return { backlog: reconcileBacklog(data, docs), docs };
+export function reconcileBacklog(data: BacklogData, docs: DailyDocument[], nowIso?: string): BacklogData {
+  return reconciliation(data, docs, nowIso).backlog;
+}
+
+/** Close only causally stale parked copies; retain every document, task field and note. */
+export function reconcileBacklogVault(data: BacklogData, docs: DailyDocument[], markPicked = true): { backlog: BacklogData; docs: DailyDocument[] } {
+  return reconciliation(data, docs, undefined, markPicked);
 }

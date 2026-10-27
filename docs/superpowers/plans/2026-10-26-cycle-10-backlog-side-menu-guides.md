@@ -4,7 +4,7 @@
 
 **Goal:** Ship Daymark 1.7.0 features: an undated task backlog with category labels, a desktop side rail replacing the top bar, "Move to section" in the task menu, click-to-zoom screenshots on the site, and web/mobile guides in the app and on the site.
 
-**Architecture:** The backlog is its own synced record (`BacklogData`, sync entity `backlog`) modelled on habits: stored locally in kv, a feature flag keeps 1.6.0 clients away from it, merging is per item. Picking a task writes the same task id into a day; a non-destructive reconcile step hides picked backlog items while retaining same-id daily copies from concurrent picks on different days. Daily rollover and Done later handle those copies normally; reconciliation never edits daily documents. The rail replaces `Navbar` on desktop only. Guides are Markdown files in the repo, rendered in-app (bundled) and on the site (build script).
+**Architecture:** The backlog is its own synced record (`BacklogData`, sync entity `backlog`) modelled on habits: stored locally in kv, a feature flag keeps 1.6.0 clients away from it, merging is per item. Picking a task writes the same task id into a day; a non-destructive reconcile step hides picked backlog items while retaining same-id daily copies from concurrent picks on different days. Daily rollover and Done later handle those copies normally; reconciliation never removes tasks or daily documents; only causally stale parked copies may be closed with all text and notes intact. The rail replaces `Navbar` on desktop only. Guides are Markdown files in the repo, rendered in-app (bundled) and on the site (build script).
 
 **Tech Stack:** React 19, TypeScript, Vite, Tailwind v4 (stone palette), vitest, node:test for helpers, Express sync server, Capacitor Android (no native change), Playwright-based QA scripts.
 
@@ -25,7 +25,9 @@
 
 ## Review Focus
 
-1. **Same item picked twice (two devices, double tap, retry):** exactly one task exists; the backlog item is marked picked. Pinned in Task 1 (`reconcileBacklog`) and Task 3 (two-device test).
+Final review clarification: park/pick histories are unioned without losing causal ordering. Reconciliation may close a stale offline edit or rollover copy that predates the latest park, preserving its task fields and journal notes. It never removes a task or document or creates deletion tombstones. Genuine subsequent picks and their carries remain open. This narrow closure exception replaces the earlier blanket no-document-edits ruling; ordinary daily merge deletion rules remain unchanged. On older clients a raced stale copy can appear as Done history rather than disappearing, while all text remains stored.
+
+1. **Same item picked twice (two devices, double tap, retry):** exactly one copy per picked day exists; same-day retry is a no-op, and different-day concurrent picks are retained. Pinned in Task 1 (`reconcileBacklog`) and Task 3 (two-device test).
 2. **Damaged or missing stored backlog must not delete the server's backlog:** a read failure keeps the stored value untouched and does not sync a deletion. Pinned in Task 2.
 3. **Move to backlog then rollover/next day:** no copy appears on any day; earlier carried copies are closed and excluded from counts and from the open-task alert. Pinned in Task 1 and Task 5.
 4. **Category matching:** `" work "`, `"WORK"`, and `"Work"` all land in an existing "Work" section (using that section's own spelling); an empty or blank label uses the default section; a 200-character label is accepted and truncated for display only. Pinned in Task 1.
@@ -211,7 +213,7 @@ Behaviour fixed by the spec/my calls: picked tasks start fresh on the pick day (
 
 - [ ] **Step 1: Failing tests:** `loadGuide` parses front matter and splits parts; missing `## Mobile` throws; every file in `docs/guide/` has both parts (this is the repo-level check); `HelpTab` renders topics and switches parts; built `_site/guide.html` exists and links every topic.
 - [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Write the 14 topic files** (short, task-oriented, each part 80–250 words, no invented features), implement the loader, the in-app tab and the site page.
+- [ ] **Step 3: Write the 13 explicitly named topic files** (short, task-oriented, each part 80–250 words, no invented features), implement the loader, the in-app tab and the site page.
 - [ ] **Step 4: Run `npm run test:helpers`, `npx vitest run src/components/settings`, `npm run build:site`, `npm run build`; expect PASS. Check the APK-bound bundle size grows by less than 100 KB gzip (record the number).**
 - [ ] **Step 5: Commit** `feat: web and mobile guides in the app and on the site`.
 

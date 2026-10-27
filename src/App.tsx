@@ -37,7 +37,7 @@ import {
   isShareCancel,
 } from './utils/vaultStore';
 import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
-import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklog, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
+import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
@@ -304,7 +304,9 @@ export default function App() {
   useEffect(() => { saveBacklog(backlog); }, [backlog]);
 
   useEffect(() => {
-    const next = reconcileBacklog(backlog, dailyDocs);
+    const reconciled = reconcileBacklogVault(backlog, dailyDocs);
+    if (reconciled.docs !== dailyDocs) setDailyDocs(reconciled.docs);
+    const next = reconciled.backlog;
     if (!next.items.some((item, index) => item !== backlog.items[index])) return;
     // Reconciliation is automatic: it must not release recovered data for persistence/sync.
     if (uneditedRecoveredBacklog.has(backlog)) uneditedRecoveredBacklog.add(next);

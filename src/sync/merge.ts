@@ -1,4 +1,5 @@
 import { AppSettings, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
+import { mergeBacklogHistory } from '../utils/backlogHistory';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -273,11 +274,14 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
       continue;
     }
     const result = pick3(b.get(id), mine, incoming);
-    if (result.kind === 'value') items.push(result.value!);
+    let winner: BacklogItem;
+    if (result.kind === 'value') winner = result.value!;
     else {
-      items.push(timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming);
+      winner = timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming;
       conflicts.push(`Backlog item "${incoming.title}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
     }
+    const historyLog = mergeBacklogHistory(winner.historyLog, mine.historyLog, incoming.historyLog);
+    items.push(historyLog === winner.historyLog ? winner : { ...winner, historyLog });
   }
   return { value: { items }, conflicts };
 }

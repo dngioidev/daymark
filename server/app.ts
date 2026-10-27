@@ -286,9 +286,14 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       const backlog = store.vault.entities.backlog?.value;
-      if (Array.isArray(body.features) && body.features.includes('backlog') && changedBacklogOrDoc && isBacklogData(backlog)) {
+      if (changedBacklogOrDoc && isBacklogData(backlog)) {
         const docs = Object.entries(store.vault.entities).filter(([key, e]) => key.startsWith('doc:') && validValue(key, e.value)).map(([, e]) => e.value as DailyDocument);
-        const reconciled = reconcileBacklogVault(backlog, docs);
+        const capable = Array.isArray(body.features) && body.features.includes('backlog');
+        const reconciled = reconcileBacklogVault(backlog, docs, capable);
+        for (const doc of reconciled.docs) {
+          const key = `doc:${doc.date}`;
+          if (!sameValue(store.vault.entities[key]?.value, doc)) { write(key, doc); touched.add(key); }
+        }
         if (!sameValue(backlog, reconciled.backlog)) write('backlog', reconciled.backlog);
       }
 

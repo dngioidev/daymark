@@ -763,6 +763,29 @@ describe('note asset hardening', () => {
 
 describe('backlog sync', () => {
   const item = { id: 'idea', title: 'Build it', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' };
+  it.each([undefined, ['habits'], ['backlog']])('closes stale parked edits and rollover from features=%j without losing journal content', async features => {
+    const { moveTaskToBacklog, visibleBacklog } = await import('../src/utils/backlog');
+    const original = { ...day([]), date: '2026-10-26', updatedAt: '2026-10-26T08:00:00Z', headings: [{ name: 'Work', notesContent: 'Keep journal', items: [{
+      id: 'parked-sync', title: 'Original', status: 'in-progress', createdDate: '2026-10-26', originalNoteDate: '2026-10-26', heading: 'Work', order: 1, historyLog: [],
+    }] }] };
+    const parked = moveTaskToBacklog([original], { items: [] }, 'parked-sync', original.date, '2026-10-26T09:00:00Z')!;
+    const client = await connect('stale');
+    fileStore.vault.rev = 2;
+    for (const [key, value] of Object.entries({ backlog: parked.data, 'doc:2026-10-26': parked.docs[0] })) fileStore.vault.entities[key] = { value, rev: 2, updatedBy: client.deviceId, updatedAt: '2026-10-26T09:00:00Z' };
+    const edited = structuredClone(original); edited.headings[0].items[0].title = 'Offline edit'; edited.headings[0].notesContent = 'Offline journal';
+    const future = { ...structuredClone(edited), date: '2026-10-27' };
+    const response = await post('/api/sync', { sinceRev: 0, features, changes: [
+      { key: 'doc:2026-10-26', base: original, value: edited }, { key: 'doc:2026-10-27', base: null, value: future },
+    ] }, client.accessToken);
+    expect(response.status).toBe(200);
+    expect(visibleBacklog(fileStore.vault.entities.backlog.value as import('../src/types/daymark').BacklogData)).toHaveLength(1);
+    for (const date of ['2026-10-26', '2026-10-27']) {
+      const saved = fileStore.vault.entities[`doc:${date}`].value as import('../src/types/daymark').DailyDocument;
+      expect(saved.headings[0].items[0]).toMatchObject({ title: 'Offline edit', status: 'done', movedToBacklogDate: '2026-10-26' });
+      expect(saved.headings[0].notesContent).toBe('Offline journal');
+    }
+    if (!features?.includes('backlog')) expect((await response.json()).entities.some((e: { key: string }) => e.key === 'backlog')).toBe(false);
+  });
   it('gates backlog from legacy POST and GET clients and preserves it', async () => {
     const a = await connect('A');
     const pushed = await post('/api/sync', { sinceRev: 0, features: ['habits', 'backlog'], changes: [{ key: 'backlog', base: null, value: { items: [item] } }] }, a.accessToken);
