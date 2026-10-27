@@ -5,8 +5,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { SideRail } from './SideRail';
 
-const props = { activeTab: 'notes' as const, onTabChange: vi.fn(), onOpenQuickCapture: vi.fn(), onOpenSearch: vi.fn(), onOpenSettings: vi.fn(), onOpenSync: vi.fn(), syncStatus: 'synced' as const, carriedAlertCount: 3, todayLabel: 'Tuesday, 27 October', side: 'left' as const };
+const props = { collapsed: false, onToggleCollapsed: vi.fn(), activeTab: 'notes' as const, onTabChange: vi.fn(), onOpenQuickCapture: vi.fn(), onOpenSearch: vi.fn(), onOpenSettings: vi.fn(), onOpenSync: vi.fn(), syncStatus: 'synced' as const, carriedAlertCount: 3, todayLabel: 'Tuesday, 27 October', side: 'left' as const };
 describe('desktop side rail', () => {
+  it('minimizes to named icons without losing navigation, actions or attention count', () => {
+    const doc = document.createElement('div');
+    doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed: true, onToggleCollapsed: vi.fn() }));
+    const nav = doc.querySelector('nav')!;
+    expect(nav.classList.contains('w-[64px]')).toBe(true);
+    expect(nav.children).toHaveLength(6);
+    for (const label of ['Expand menu', 'Today', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
+      expect(nav.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+    }
+    expect(nav.querySelector('[aria-current="page"]')!.getAttribute('aria-label')).toBe('Notes');
+    expect(nav.querySelector('[aria-label="3 tasks need attention"]')!.textContent).toBe('3');
+    expect(nav.textContent).not.toContain(props.todayLabel);
+    expect(nav.querySelector('kbd')).toBeNull();
+  });
   it('has six equal parts, active page, alert badge and accessible actions', () => {
     const doc = document.createElement('div');
     doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, props));

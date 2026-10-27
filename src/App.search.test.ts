@@ -93,6 +93,27 @@ beforeEach(() => {
   render(); hooks.effects.forEach((effect) => effect());
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it('preserves minimized rail across navigation, side changes, focus mode and remount', () => {
+  const saved = new Map<string, string>();
+  vi.stubGlobal('localStorage', { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value) });
+  expect(props(SideRail).collapsed).toBe(false);
+  (props(SideRail).onToggleCollapsed as () => void)();
+  expect(props(SideRail).collapsed).toBe(true);
+  expect(saved.get('daymark_rail_collapsed')).toBe('1');
+  (props(SideRail).onTabChange as (tab: string) => void)('notes');
+  (props(StandaloneNotesView).onFocusModeChange as (focus: boolean) => void)(true);
+  expect(props(SideRail).hidden).toBe(true);
+  incomingSettings.external('settings', { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_APPEARANCE, menuSide: 'right' } });
+  expect(props(SideRail).side).toBe('right');
+  (props(StandaloneNotesView).onFocusModeChange as (focus: boolean) => void)(false);
+  expect(props(SideRail).hidden).toBe(false);
+  expect(props(SideRail).collapsed).toBe(true);
+  hooks.values = [];
+  expect(props(SideRail).collapsed).toBe(true);
+  (props(SideRail).onToggleCollapsed as () => void)();
+  expect(props(SideRail).collapsed).toBe(false);
+  expect(saved.get('daymark_rail_collapsed')).toBe('0');
+});
 it('captures undated tasks, picks them into a matching section and returns them with Undo', () => {
   (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Garden', category: 'Personal' });
   (props(SideRail).onTabChange as (tab: string) => void)('backlog');

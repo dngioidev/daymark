@@ -54,6 +54,7 @@ import {
   getMostRecentPastDate,
 } from './utils/lifecycleEngine';
 import { SideRail } from './components/SideRail';
+import { loadRailCollapsed, saveRailCollapsed } from './utils/railPreference';
 import { resolveMenuSide } from './utils/appearance';
 import { TodayView } from './components/TodayView';
 import { BacklogView, type BacklogViewProps } from './components/backlog/BacklogView';
@@ -105,6 +106,7 @@ export default function App() {
 
   // Core vault state
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [railCollapsed, setRailCollapsed] = useState(loadRailCollapsed);
   const background = useBackgroundPhoto();
   const appearance = useAppearance(settings.appearance ?? DEFAULT_APPEARANCE, background.meta);
   useEffect(() => {
@@ -821,6 +823,12 @@ export default function App() {
       {appMode === 'desktop' && (
         <div className={`flex flex-row w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
           <SideRail
+            collapsed={railCollapsed}
+            onToggleCollapsed={() => {
+              const next = !railCollapsed;
+              setRailCollapsed(next);
+              saveRailCollapsed(next);
+            }}
             activeTab={activeDesktopTab}
             onTabChange={changeDesktopTab}
             onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
