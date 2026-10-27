@@ -44,7 +44,7 @@ const VIEWPORTS = {
 // { name, viewport, signedOut?, prepare?(page), selector? } - extend per cycle.
 // Context setup seeds the sample vault before opening the server app.
 const loadSample = async (page) => {
-  await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+  await page.locator('[data-day-label]').filter({ hasText: /^Today$/ }).waitFor();
   await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(500);
   // Dismiss any toast so it does not cover the shot
@@ -130,6 +130,45 @@ const cycle9Menu = then(async (page) => {
   await page.getByRole('menu').getByRole('menuitem').first().waitFor();
 });
 const SHOTS = [
+  { name: 'rail-left', viewport: 'desktop', cycles: ['cycle-10'], prepare: loadSample },
+  { name: 'rail-right', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(async page => {
+    await click('button', /^settings$/i)(page);
+    await settings(page).getByRole('button', { name: 'Right', exact: true }).click();
+    await closeSettings(page);
+  }) },
+  { name: 'backlog', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(click('button', /^backlog$/i)) },
+  { name: 'backlog-dark', viewport: 'desktop', dark: true, cycles: ['cycle-10'], prepare: then(click('button', /^backlog$/i)) },
+  { name: 'capture-backlog', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(async page => {
+    await page.keyboard.press('Control+k');
+    const modal = page.getByRole('dialog');
+    await modal.getByRole('button', { name: 'Backlog', exact: true }).click();
+    await modal.getByLabel('Task', { exact: true }).fill('Build a quiet reading corner');
+    await modal.getByLabel('Category (optional)', { exact: true }).fill('Home');
+  }) },
+  { name: 'move-section', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(async page => {
+    await page.getByRole('button', { name: /^More actions for/ }).first().click();
+    await page.getByRole('menuitem', { name: 'Move to section…', exact: true }).click();
+    await page.getByRole('dialog').getByLabel('New section', { exact: true }).fill('Field work');
+  }) },
+  { name: 'phone-backlog', viewport: 'android', cycles: ['cycle-10'], prepare: then(click('button', /^backlog$/i)) },
+  { name: 'help', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(async page => {
+    await click('button', /^settings$/i)(page);
+    await settings(page).getByRole('tab', { name: 'Help', exact: true }).click();
+    await settings(page).getByRole('navigation', { name: 'Help topics' }).getByRole('button', { name: 'Backlog', exact: true }).click();
+  }) },
+  { name: 'site-lightbox', viewport: 'desktop', signedOut: true, publicSite: true, cycles: ['cycle-10'], prepare: async page => {
+    const root = path.resolve('_site');
+    await page.route('**/__cycle10site/**', async route => {
+      const relative = new URL(route.request().url()).pathname.split('/__cycle10site/')[1] || 'index.html';
+      const file = path.resolve(root, relative);
+      if (!file.startsWith(root + path.sep)) return route.fulfill({ status: 403, body: '' });
+      const contentType = ({ '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png' })[path.extname(file)] || 'application/octet-stream';
+      return route.fulfill({ body: fs.readFileSync(file), contentType });
+    });
+    await page.goto(baseUrl + '/__cycle10site/index.html');
+    await page.locator('a[data-zoom]').first().click();
+    await page.getByRole('dialog', { name: 'Screenshot viewer' }).waitFor();
+  } },
   { name: 'notes-rich', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('River survey — field plan') },
   { name: 'notes-table', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('Water quality — sample register', (page) => page.locator('.ProseMirror table').waitFor()) },
   { name: 'notes-mermaid', viewport: 'desktop', cycles: ['cycle-9'], prepare: cycle9Note('Survey workflow', (page) => page.getByRole('button', { name: 'Edit Mermaid diagram', exact: true }).locator('svg').waitFor({ timeout: 20000 })) },
@@ -258,7 +297,7 @@ try {
   browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
   // Shots without `cycles` are the generic pair; tagged shots run only for their cycle
   for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle))))) {
-    const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], colorScheme: shot.dark ? 'dark' : 'light' });
+    const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], colorScheme: shot.dark ? 'dark' : 'light', ...(shot.publicSite ? { serviceWorkers: 'block' } : {}) });
     if (!shot.signedOut) {
       const session = await signIn(ctx, baseUrl, password);
       if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
@@ -269,6 +308,14 @@ try {
     if (!externalUrl && !shot.signedOut) {
       if (cycle === 'cycle-7') {
         await seedVault(page, baseUrl, cycle7Fixture(today));
+      } else if (cycle === 'cycle-10') {
+        const vault = cycle7Fixture(today);
+        vault.backlog = { items: [
+          { id: 'c10-home', title: 'Build a quiet reading corner', description: 'Measure the window nook and sketch a low bookshelf.', category: 'Home', order: 0, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
+          { id: 'c10-work', title: 'Explore a small field-notes app', category: 'Work', order: 1, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
+          { id: 'c10-unsorted', title: 'Learn to draw local birds', order: 2, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
+        ] };
+        await seedVault(page, baseUrl, vault);
       } else if (cycle === 'cycle-9') {
         await seedVault(page, baseUrl, cycle9Vault(today));
       } else await seedSample(page, baseUrl);

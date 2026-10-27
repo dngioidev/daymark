@@ -2,6 +2,21 @@
 
 Canonical map of key source directories, modules, and component responsibilities.
 
+## Cycle 10 modules
+
+| File | Layer | Purpose |
+| :--- | :--- | :--- |
+| `src/utils/backlog.ts` | Logic | Undated ideas, category matching, pick/move/reorder and non-destructive picked-item reconciliation. |
+| `src/utils/backlogHistory.ts` | Logic | Unions history without losing park/pick markers, preserving causal order across client clock skew. |
+| `src/components/backlog/BacklogView.tsx` | UI | Grouped undated ideas with capture, editing, ordering, delete/Undo and pick-date controls. |
+| `src/components/MoveToSectionDialog.tsx`, `src/utils/taskActions.ts` | UI / Logic | Same-day section moves preserving task identity and history; snapshot Undo refuses after newer edits. |
+| `src/components/SideRail.tsx` | UI | Desktop six-part navigation, sync/capture/search controls, configurable side and Notes focus visibility. |
+| `src/components/settings/HelpTab.tsx`, `src/utils/guideData.ts` | UI / Content | Offline Web/Mobile help from canonical `docs/guide/*.md` through Vite raw imports. |
+| `scripts/helpers/guide-format.mjs`, `scripts/helpers/guide.mjs` | Tooling | Shared guide parsing, validation, and site Guide generation. |
+| `site/zoom.js`, `site/guide.js` | Site | Native screenshot dialog navigation and Guide platform switching, with no-JavaScript fallbacks. |
+
+Backlog uses its own `backlog` sync entity and local kv key. Picked/deleted items remain as tombstones; unreadable local recovery is protected against accidental empty saves or sync deletions. Reconciliation never removes tasks or daily documents: it closes only causally stale parked copies, preserving all fields and notes. Visual daily/Week lists omit these copies; Markdown retains them.
+
 ## Directory Organization
 
 ```text

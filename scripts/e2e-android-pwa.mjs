@@ -138,6 +138,7 @@ try {
 
   // Deep link from manifest shortcut
   await page.goto(`${base}/?action=capture`, { waitUntil: 'networkidle' });
+  await page.getByPlaceholder(/what do you need to do/i).waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   check(await page.getByPlaceholder(/what do you need to do/i).isVisible().catch(() => false), 'shortcut ?action=capture opens quick capture');
 } catch (err) {
   console.error('E2E aborted:', err);

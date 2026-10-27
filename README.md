@@ -60,12 +60,15 @@ services:
 
 ## Features
 
+- **Backlog:** park undated ideas with category labels, then pick today or a future day. They stay out of daily counts, rollover and old-task warnings until picked. Capture directly to Backlog or move open dated tasks there, with Undo.
+- **Desktop side menu:** Today, Calendar, Notes, Backlog and Settings stay beside the full-width workspace. Choose Left or Right in Appearance; Notes focus mode hides the menu.
+- **Move to section:** move an open or completed task to another section of its day, including a new section, while preserving its details and history.
 - **Your own look:** choose Light or Dark, header and text colours, text size, and up to five background photos with dim and blur. Photos stay on this device; appearance settings sync.
 - **Calendar:** plan future days, switch between month and week, and open any day to write. Week view shows seven full-width day rows with every task, two task columns on desktop and one on phones. Drag a task onto today or a future day on desktop.
 - **Daily habits:** open the Habits bar above Today’s tasks to tick your daily list, see streaks and missed-day warnings, or edit names, order and warning days. Correct past ticks in Calendar. Habits stay separate from task totals and daily Markdown; backups include them.
 - **Roomier Today:** full-width lists and Markdown, collapsible sections, a seven-day progress strip and the next planned day. Move a task to tomorrow or another date, with Undo.
 - **Notes:** a rich editor with tables, synced pictures, Mermaid diagrams and `[[links]]` with autocomplete. Paste from AI chats and web pages to keep headings, lists, tables and code. Switch to Markdown whenever you like; focus mode, word count and templates are still here. Today's section notes stay as they are.
-- **Search:** find tasks across days and notes, then open the result directly.
+- **Search:** find tasks across days, notes and active backlog ideas, then open the result directly.
 - **Settings:** a steady-sized window with changes saved as you make them.
 - **Android widgets:** give each widget its own colours, font, size, corners and visible details, or match the app. Add **Daymark Habits** from the home-screen widget list to tick today’s habits; changes reach the notebook when the app next opens or resumes.
 - **Daily Markdown, offline access, backups and optional sync** keep your notes portable. Deleted tasks no longer come back the next morning.
@@ -76,6 +79,8 @@ For rich Notes and menus that fit the screen, see the [cycle 9 release notes](./
 
 ## Keyboard shortcuts
 
+For task-oriented Web and Mobile instructions, open **Settings → Help**, read the [guide source](./docs/guide/), or visit the [website Guide](https://dngioidev.github.io/daymark/guide.html). Website screenshots open an enlarged viewer with arrow-key navigation.
+
 | Shortcut | Action |
 | :--- | :--- |
 | Ctrl/⌘ K | New task |
@@ -83,6 +88,7 @@ For rich Notes and menus that fit the screen, see the [cycle 9 release notes](./
 | ? | Shortcut help |
 | g t | Go to Today |
 | g c | Go to Calendar |
+| g b | Go to Backlog |
 | g n | Go to Notes |
 | Ctrl/⌘ . | Toggle Notes focus mode |
 | Enter / Space on the Habits bar | Open or close habits |

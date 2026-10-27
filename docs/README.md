@@ -4,6 +4,7 @@ Project knowledge lives in [`.ai-configs/project/`](../.ai-configs/project/) (si
 
 | Topic | Document |
 | :--- | :--- |
+| Web and mobile user guide (also bundled in Settings → Help) | [`guide/`](./guide/) · [Website Guide](https://dngioidev.github.io/daymark/guide.html) |
 | Roadmap and cycle estimates | [`ROADMAP.md`](./ROADMAP.md) |
 | Per-cycle release docs with screenshots | [`releases/`](./releases/) |
 | Architecture | [`.ai-configs/project/architecture.md`](../.ai-configs/project/architecture.md) |

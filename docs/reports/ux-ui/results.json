@@ -1,13 +1,85 @@
 {
- "ranAt": "2026-10-21T07:59:40.834Z",
+ "ranAt": "2026-10-27T04:19:20.455Z",
  "results": [
   {
-   "id": "GL-01",
-   "title": "First launch shows welcome",
+   "id": "LAY-habits-P390-light",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "P390",
+   "status": "pass",
+   "details": "",
+   "ms": 3435
+  },
+  {
+   "id": "LAY-habits-P390-dark",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "P390",
+   "status": "pass",
+   "details": "",
+   "ms": 3133
+  },
+  {
+   "id": "LAY-habits-D1440-light",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2751
+  },
+  {
+   "id": "LAY-habits-D1440-dark",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2688
+  },
+  {
+   "id": "LAY-habits-D1920-light",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "D1920",
+   "status": "pass",
+   "details": "",
+   "ms": 2509
+  },
+  {
+   "id": "LAY-habits-D1920-dark",
+   "title": "Habits bar fits closed and open with usable touch targets",
+   "env": "D1920",
+   "status": "pass",
+   "details": "",
+   "ms": 2844
+  },
+  {
+   "id": "LAY-D1440",
+   "title": "Today uses available width without horizontal overflow",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2302
+  },
+  {
+   "id": "LAY-D1920",
+   "title": "Today uses available width without horizontal overflow",
+   "env": "D1920",
+   "status": "pass",
+   "details": "",
+   "ms": 2252
+  },
+  {
+   "id": "LAY-P412",
+   "title": "Today uses available width without horizontal overflow",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2024
+   "ms": 2211
+  },
+  {
+   "id": "GL-01",
+   "title": "Server sign-in opens Today without welcome",
+   "env": "P412",
+   "status": "pass",
+   "details": "",
+   "ms": 3166
   },
   {
    "id": "GL-02",
@@ -15,7 +87,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2123
+   "ms": 3162
   },
   {
    "id": "GL-03",
@@ -23,7 +95,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1586
+   "ms": 1969
   },
   {
    "id": "GL-04",
@@ -31,7 +103,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2655
+   "ms": 3294
   },
   {
    "id": "GL-05",
@@ -39,7 +111,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3121
+   "ms": 4000
   },
   {
    "id": "GL-07",
@@ -47,7 +119,7 @@
    "env": "P412",
    "status": "pass",
    "details": "visible ~4 s, above nav, dismissible",
-   "ms": 6133
+   "ms": 6493
   },
   {
    "id": "NAV-01",
@@ -55,7 +127,15 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3136
+   "ms": 3892
+  },
+  {
+   "id": "NAV-13",
+   "title": "Backlog and centred capture fit narrow phones",
+   "env": "360x740+320x740",
+   "status": "pass",
+   "details": "",
+   "ms": 4734
   },
   {
    "id": "NAV-02",
@@ -63,7 +143,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2133
+   "ms": 2315
   },
   {
    "id": "NAV-03",
@@ -71,7 +151,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1692
+   "ms": 2728
   },
   {
    "id": "NAV-04",
@@ -79,23 +159,31 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1683
+   "ms": 2100
   },
   {
    "id": "NAV-05",
-   "title": "Desktop navbar items fit at 1024-1920 px",
+   "title": "Desktop rail items fit at 1024-1920 px",
    "env": "D1024+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3483
+   "ms": 4542
+  },
+  {
+   "id": "NAV-10",
+   "title": "Six-part desktop rail at 800 and 1280px",
+   "env": "D800+D1280",
+   "status": "pass",
+   "details": "",
+   "ms": 5612
   },
   {
    "id": "NAV-06",
-   "title": "Logo returns to Today",
+   "title": "Rail Today returns to Today",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2009
+   "ms": 2342
   },
   {
    "id": "NAV-07",
@@ -103,7 +191,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3284
+   "ms": 4528
   },
   {
    "id": "NAV-08",
@@ -111,7 +199,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2093
+   "ms": 2556
   },
   {
    "id": "NAV-09",
@@ -119,7 +207,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2172
+   "ms": 2458
   },
   {
    "id": "NAV-11",
@@ -127,7 +215,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3802
+   "ms": 4413
   },
   {
    "id": "TD-01",
@@ -135,7 +223,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1790
+   "ms": 2827
   },
   {
    "id": "TD-02",
@@ -143,7 +231,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1746
+   "ms": 2750
   },
   {
    "id": "TD-03",
@@ -151,7 +239,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3605
+   "ms": 4984
   },
   {
    "id": "TD-04",
@@ -159,7 +247,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 1733
+   "ms": 2736
   },
   {
    "id": "TD-05",
@@ -167,7 +255,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1748
+   "ms": 2097
   },
   {
    "id": "TD-06",
@@ -175,7 +263,7 @@
    "env": "P360+P412",
    "status": "pass",
    "details": "",
-   "ms": 3670
+   "ms": 4327
   },
   {
    "id": "TD-07",
@@ -183,7 +271,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2034
+   "ms": 2447
   },
   {
    "id": "TD-08",
@@ -191,7 +279,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1955
+   "ms": 2368
   },
   {
    "id": "TD-09",
@@ -199,7 +287,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1798
+   "ms": 2125
   },
   {
    "id": "TD-10",
@@ -207,7 +295,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1687
+   "ms": 1916
   },
   {
    "id": "TK-01",
@@ -215,7 +303,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1763
+   "ms": 2691
   },
   {
    "id": "TK-02",
@@ -223,7 +311,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1795
+   "ms": 2140
   },
   {
    "id": "TK-03",
@@ -231,7 +319,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1746
+   "ms": 2130
   },
   {
    "id": "TK-04",
@@ -239,7 +327,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2409
+   "ms": 3455
   },
   {
    "id": "TK-05",
@@ -247,7 +335,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1848
+   "ms": 2198
   },
   {
    "id": "TK-06",
@@ -255,7 +343,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1747
+   "ms": 2147
   },
   {
    "id": "TK-07",
@@ -263,7 +351,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1788
+   "ms": 2498
   },
   {
    "id": "TK-08",
@@ -271,7 +359,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1858
+   "ms": 2486
   },
   {
    "id": "TK-09",
@@ -279,7 +367,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1692
+   "ms": 2100
   },
   {
    "id": "TK-10",
@@ -287,7 +375,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1737
+   "ms": 2186
   },
   {
    "id": "TK-11",
@@ -295,7 +383,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1788
+   "ms": 2079
   },
   {
    "id": "TK-12",
@@ -303,7 +391,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1790
+   "ms": 2137
   },
   {
    "id": "TK-13",
@@ -311,7 +399,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1674
+   "ms": 2046
   },
   {
    "id": "TK-14",
@@ -319,7 +407,7 @@
    "env": "P360",
    "status": "pass",
    "details": "",
-   "ms": 2304
+   "ms": 3534
   },
   {
    "id": "QC-01",
@@ -327,7 +415,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1697
+   "ms": 2188
   },
   {
    "id": "QC-02",
@@ -335,7 +423,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2253
+   "ms": 2595
   },
   {
    "id": "QC-03",
@@ -343,7 +431,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1789
+   "ms": 2051
   },
   {
    "id": "QC-04",
@@ -351,7 +439,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2487
+   "ms": 2601
   },
   {
    "id": "QC-05",
@@ -359,15 +447,23 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2012
+   "ms": 2400
+  },
+  {
+   "id": "HI-05",
+   "title": "Week view shows seven full-width date rows at phone and desktop sizes",
+   "env": "P390+D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 5355
   },
   {
    "id": "HI-01",
-   "title": "History opens on the latest day",
+   "title": "Calendar opens on the latest day",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3528
+   "ms": 5480
   },
   {
    "id": "HI-02",
@@ -375,7 +471,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1839
+   "ms": 2934
   },
   {
    "id": "HI-03",
@@ -383,7 +479,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1894
+   "ms": 2118
   },
   {
    "id": "HI-04",
@@ -391,7 +487,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 1788
+   "ms": 2257
   },
   {
    "id": "NO-01",
@@ -399,7 +495,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1805
+   "ms": 2062
   },
   {
    "id": "NO-02",
@@ -407,7 +503,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1796
+   "ms": 2154
   },
   {
    "id": "NO-03",
@@ -415,7 +511,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1776
+   "ms": 2161
   },
   {
    "id": "NO-04",
@@ -423,7 +519,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1980
+   "ms": 2733
   },
   {
    "id": "NO-05",
@@ -431,7 +527,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2549
+   "ms": 4816
   },
   {
    "id": "NO-06",
@@ -439,15 +535,15 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3886
+   "ms": 5317
   },
   {
    "id": "NO-07",
-   "title": "Edit / Read (/ Split) modes",
+   "title": "Rich default and Markdown round trip",
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 3660
+   "ms": 5770
   },
   {
    "id": "NO-08",
@@ -455,7 +551,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 1880
+   "ms": 2599
   },
   {
    "id": "NO-09",
@@ -463,7 +559,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1922
+   "ms": 3005
   },
   {
    "id": "NO-10",
@@ -471,7 +567,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 1928
+   "ms": 2273
   },
   {
    "id": "NO-11",
@@ -479,39 +575,39 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1865
+   "ms": 2502
   },
   {
    "id": "SY-01",
-   "title": "Sync form labels and input types",
+   "title": "Account view replaces the connection form",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1804
+   "ms": 2939
   },
   {
    "id": "SY-02",
-   "title": "Unreachable server",
+   "title": "Offline account keeps changes locally",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1844
+   "ms": 2903
   },
   {
    "id": "SY-03",
-   "title": "Wrong password",
+   "title": "Sign out returns to the sign-in form",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2149
+   "ms": 2512
   },
   {
    "id": "SY-04",
-   "title": "Connect, header status, Sync now",
+   "title": "Automatic sync, header status, Sync now",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2275
+   "ms": 2335
   },
   {
    "id": "SY-05",
@@ -519,15 +615,15 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3235
+   "ms": 2749
   },
   {
    "id": "SY-06",
-   "title": "Disconnect asks first (DS-06)",
+   "title": "Unsent sign-out asks first and Cancel keeps the task",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2241
+   "ms": 3044
   },
   {
    "id": "SY-07",
@@ -535,15 +631,15 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 10892
+   "ms": 6715
   },
   {
    "id": "SY-08",
-   "title": "Repeat sign-in does not duplicate the device",
+   "title": "Reload keeps the same signed-in device",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2491
+   "ms": 3912
   },
   {
    "id": "SE-01",
@@ -551,15 +647,15 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4166
+   "ms": 6122
   },
   {
    "id": "SE-02",
-   "title": "Close settings (X, Done, Esc, backdrop)",
+   "title": "Close settings (X, Esc, backdrop)",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2132
+   "ms": 2623
   },
   {
    "id": "SE-03",
@@ -567,7 +663,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2055
+   "ms": 2542
   },
   {
    "id": "SE-04",
@@ -575,15 +671,15 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2412
+   "ms": 2987
   },
   {
    "id": "SE-05",
-   "title": "Sample data asks first; unavailable while synced (DS-04)",
+   "title": "Sample replacement is unavailable while signed in (DS-04)",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2600
+   "ms": 2680
   },
   {
    "id": "SE-06",
@@ -591,7 +687,7 @@
    "env": "D1440+P412",
    "status": "pass",
    "details": "",
-   "ms": 4265
+   "ms": 5843
   },
   {
    "id": "SE-07",
@@ -599,7 +695,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2355
+   "ms": 3515
   },
   {
    "id": "SE-08",
@@ -607,7 +703,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2018
+   "ms": 3092
   },
   {
    "id": "SE-09",
@@ -615,7 +711,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2278
+   "ms": 3559
   },
   {
    "id": "AX-06",
@@ -623,7 +719,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4016
+   "ms": 4599
   },
   {
    "id": "AX-07",
@@ -631,7 +727,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 1783
+   "ms": 2404
   },
   {
    "id": "GL-09",
