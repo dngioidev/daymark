@@ -56,7 +56,7 @@ import {
 import { SideRail } from './components/SideRail';
 import { resolveMenuSide } from './utils/appearance';
 import { TodayView } from './components/TodayView';
-import { BacklogView } from './components/backlog/BacklogView';
+import { BacklogView, type BacklogViewProps } from './components/backlog/BacklogView';
 import { HabitsBar } from './components/habits/HabitsBar';
 import { CalendarView } from './components/CalendarView';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
@@ -808,6 +808,15 @@ export default function App() {
   };
   const openDetails = (task: TaskItem) => setDetailsTaskId(task.id);
 
+  const backlogViewProps: BacklogViewProps = {
+    backlog, today, headings: settings.defaultHeadings,
+    onAdd: handleCaptureBacklog,
+    onEdit: (id, patch) => setBacklog((current) => editBacklogItem(current, id, patch, new Date().toISOString())),
+    onRemove: handleRemoveBacklog, onRestore: handleRestoreBacklog,
+    onReorder: (id, direction) => setBacklog((current) => reorderBacklogItem(current, id, direction, new Date().toISOString())),
+    onPick: handlePickBacklog,
+  };
+
   return (
     <div className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
@@ -872,12 +881,7 @@ export default function App() {
 
             {activeDesktopTab === 'notes' && <StandaloneNotesView onFocusModeChange={setFocusNotes} notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
-            {activeDesktopTab === 'backlog' && <BacklogView hideTitle backlog={backlog} today={today} headings={settings.defaultHeadings}
-              onAdd={handleCaptureBacklog}
-              onEdit={(id, patch) => setBacklog((current) => editBacklogItem(current, id, patch, new Date().toISOString()))}
-              onRemove={handleRemoveBacklog} onRestore={handleRestoreBacklog}
-              onReorder={(id, direction) => setBacklog((current) => reorderBacklogItem(current, id, direction, new Date().toISOString()))}
-              onPick={handlePickBacklog} />}
+            {activeDesktopTab === 'backlog' && <BacklogView hideTitle {...backlogViewProps} />}
 
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -899,6 +903,7 @@ export default function App() {
 
       {appMode === 'mobile-app' && (
         <MobileAppShell
+          backlogSlot={<BacklogView compact {...backlogViewProps} />}
           habits={habits}
           onHabitsChange={setHabits}
           habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}

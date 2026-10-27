@@ -262,6 +262,7 @@ const PHONE_SCREENS = {
   'historical-modal': { open: async (p) => { await optionsButton(p, T1).click(); await p.getByRole('menuitem', { name: /another day/i }).click(); } },
   'markdown-mode': { open: async (p) => { await btn(p, /more options for this day/i).click(); await p.getByRole('menuitem', { name: /edit as markdown/i }).click(); } },
   calendar: { open: async (p) => btn(p, /^calendar$/i).click() },
+  backlog: { open: async (p) => btn(p, /^backlog$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   'note-editor': { open: async (p) => { await btn(p, /^notes$/i).click(); await p.getByText('Weekly Sprint Sync Notes').click(); } },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
@@ -273,6 +274,7 @@ const DESKTOP_SCREENS = {
   'split-mode': { open: async (p) => btn(p, /^split$/i).click() },
   'quick-capture': { open: async (p) => newTask(p).click() },
   calendar: { open: async (p) => btn(p, /^calendar$/i).click() },
+  backlog: { open: async (p) => btn(p, /^backlog$/i).click() },
   notes: { open: async (p) => btn(p, /^notes$/i).click() },
   sync: { open: async (p) => btn(p, /open sync settings/i).click() },
   'settings-backup': { open: async (p) => { await btn(p, /^settings$/i).click(); await p.getByRole('tab', { name: 'Backup & restore', exact: true }).click(); } },
@@ -302,7 +304,7 @@ async function runScans() {
   const responsive = [];
   for (const env of ['D320', 'P360', 'P412', 'T768', 'D1024', 'D1280', 'D1440', 'D1920']) {
     const phoneLayout = ENVS[env].viewport.width < 768;
-    const screens = phoneLayout ? ['today', 'calendar', 'notes', 'sync', 'settings-backup', 'settings-statuses'] : ['today', 'calendar', 'notes', 'sync', 'settings-backup', 'settings-statuses'];
+    const screens = ['today', 'calendar', 'backlog', 'notes', 'sync', 'settings-backup', 'settings-statuses'];
     for (const screen of screens) {
       const def = (phoneLayout ? PHONE_SCREENS : DESKTOP_SCREENS)[screen];
       const { ctx, page } = await open(env);
@@ -452,8 +454,10 @@ async function functional() {
   await tc('NAV-01', 'Bottom nav tabs', 'P412', async () => {
     const { ctx, page } = await open('P412');
     const nav = page.getByRole('navigation', { name: 'Main' });
+    expect(JSON.stringify(await nav.getByRole('button').evaluateAll(buttons => buttons.map(b => b.getAttribute('aria-label') || b.textContent))) === JSON.stringify(['Today', 'Calendar', 'New task', 'Backlog', 'Notes', 'Settings']), 'phone navigation order changed');
     for (const [name, check] of [
       [/^calendar$/i, async () => /last 7 days/i.test(await visibleText(page))],
+      [/^backlog$/i, async () => page.getByRole('heading', { name: 'Backlog', exact: true }).isVisible()],
       [/^notes$/i, async () => /new note/i.test(await visibleText(page))],
       [/^today$/i, async () => taskTitle(page, T1).isVisible()],
       [/^settings$/i, async () => isOpenDialog(page, 'Settings')],
@@ -465,6 +469,24 @@ async function functional() {
     const sizes = await nav.evaluate((n) => [...n.querySelectorAll('button')].map((b) => Math.round(Math.min(b.offsetWidth, b.offsetHeight))));
     await ctx.close();
     expect(sizes.every((s) => s >= 44), `bottom nav target below 44 px: ${sizes.join(', ')}`);
+  });
+
+  await tc('NAV-13', 'Backlog and centred capture fit narrow phones', '360x740+320x740', async () => {
+    for (const width of [360, 320]) {
+      const { ctx, page } = await open('P360');
+      await page.setViewportSize({ width, height: 740 });
+      const nav = page.getByRole('navigation', { name: 'Main', exact: true });
+      await nav.getByRole('button', { name: 'Backlog', exact: true }).click();
+      const geometry = await nav.evaluate(n => {
+        const bounds = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+        return { bar: bounds(n), buttons: [...n.querySelectorAll('button')].map(b => ({ ...bounds(b), label: b.textContent, clipped: b.scrollWidth > b.clientWidth })), plus: bounds(n.querySelector('[aria-label="New task"]')) };
+      });
+      expect(geometry.buttons.every(b => b.width >= 44 && b.height >= 44 && !b.clipped), `${width}: nav targets or labels do not fit: ${JSON.stringify(geometry)}`);
+      expect(Math.abs(geometry.plus.x + geometry.plus.width / 2 - width / 2) <= 1, `${width}: capture is off centre`);
+      expect(await nav.getByRole('button', { name: 'Backlog', exact: true }).getAttribute('aria-current') === 'page', `${width}: Backlog is not active`);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}: Backlog overflows`);
+      await ctx.close();
+    }
   });
 
   await tc('NAV-02', 'Centre + opens the new-task sheet with focus', 'P412', async () => {

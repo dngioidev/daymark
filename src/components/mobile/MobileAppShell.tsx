@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, CalendarDays, FolderOpen, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
 import { AppSettings, DailyDocument, HabitData, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
@@ -16,6 +16,7 @@ interface MobileAppShellProps {
   habits: HabitData;
   onHabitsChange: (next: HabitData) => void;
   habitsSlot?: React.ReactNode;
+  backlogSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
   notes: StandaloneNote[];
@@ -57,6 +58,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   habits,
   onHabitsChange,
   habitsSlot,
+  backlogSlot,
   currentDocument,
   dailyDocs,
   notes,
@@ -110,7 +112,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         setActiveTab(tab);
       })}
       aria-current={activeTab === tab ? 'page' : undefined}
-      className={`flex flex-col items-center justify-center gap-0.5 min-w-16 min-h-12 rounded-lg text-xs font-medium ${
+      className={`flex flex-col items-center justify-center gap-0.5 min-w-0 basis-0 min-h-12 rounded-lg text-xs font-medium ${tab === 'today' || tab === 'calendar' ? 'grow-[1.5]' : 'grow'} ${
         activeTab === tab ? 'bg-accent text-accent-fg font-bold' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
       }`}
     >
@@ -219,14 +221,16 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           )}
 
           {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+          {activeTab === 'backlog' && backlogSlot}
         </main>
 
         <nav
           aria-label="Main"
-          className={`dm-card bg-white! dark:bg-stone-900! border-t border-stone-200 dark:border-stone-800 flex items-center justify-around pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] px-1 z-30 ${
+          className={`dm-card bg-white! dark:bg-stone-900! border-t border-stone-200 dark:border-stone-800 flex items-center pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] z-30 ${
             activeTab === 'notes' ? 'shrink-0' : frame ? 'sm:absolute fixed bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
           }`}
         >
+          {/* Balance the two tabs on the left against the three on the right so + stays centred. */}
           {tabButton('today', <Calendar className="w-5 h-5" />, 'Today')}
           {tabButton('calendar', <CalendarDays className="w-5 h-5" />, 'Calendar', () => {
             setActiveTab('calendar');
@@ -238,10 +242,11 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             type="button"
             onClick={onOpenQuickCapture}
             aria-label="New task"
-            className="flex items-center justify-center w-14 h-14 -mt-5 rounded-full bg-accent text-accent-fg shadow-lg active:scale-95 transition-transform shrink-0"
+            className="flex items-center justify-center w-12 h-12 -mt-5 rounded-full bg-accent text-accent-fg shadow-lg active:scale-95 transition-transform shrink-0"
           >
             <Plus className="w-6 h-6 stroke-[2.5]" />
           </button>
+          {tabButton('backlog', <Inbox className="w-5 h-5" />, 'Backlog')}
           {tabButton('notes', <FolderOpen className="w-5 h-5" />, 'Notes')}
           {tabButton('settings', <Settings className="w-5 h-5" />, 'Settings', () => onOpenSettings())}
         </nav>

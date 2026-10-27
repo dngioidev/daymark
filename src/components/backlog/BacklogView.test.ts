@@ -14,6 +14,20 @@ const backlog: BacklogData = { items: [
   { id: 'a', title: 'Research', category: 'Ideas', order: 1, createdAt: '', updatedAt: '' },
 ] };
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+it('stacks compact capture and pick controls while retaining task actions and a visible heading', () => {
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(React.createElement(BacklogView, { ...props(), backlog, compact: true }));
+  expect(host.querySelector('h1')?.textContent).toBe('Backlog');
+  expect(host.querySelector('h1')?.classList.contains('sr-only')).toBe(false);
+  const date = host.querySelector('input[type="date"]')!;
+  expect(date.classList.contains('w-full')).toBe(true);
+  expect(date.parentElement?.classList.contains('w-full')).toBe(true);
+  expect(date.closest('form')?.classList.contains('flex-col')).toBe(true);
+  for (const label of ['Edit', 'Delete', 'Up', 'Down', 'Add to day']) {
+    expect([...host.querySelectorAll('button')].some(b => b.textContent === label)).toBe(true);
+  }
+  expect(host.firstElementChild?.className).not.toContain('lg:px-8');
+});
 it('groups categories alphabetically with unlabelled last and explains an empty backlog', () => {
   const html = renderToStaticMarkup(React.createElement(BacklogView, { ...props(), backlog }));
   expect(html.indexOf('Research')).toBeLessThan(html.indexOf('Garden'));

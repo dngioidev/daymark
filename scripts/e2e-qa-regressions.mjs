@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedVault } from './helpers/server-session.mjs';
+import { cycle10Qa } from './helpers/cycle-10-qa.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -1421,6 +1422,65 @@ await run('R4', async () => {
     check(`R4-heading-${label}`, await heading.count() === 1 && await heading.innerText() === label, 'desktop page has its accessible heading while visible title remains removed');
   }
 });
+
+await run('C10-P8', async () => {
+  const longCategory = 'A'.repeat(200);
+  const { page, errors } = await fresh({ mobile: true,
+    docs: [doc(TODAY, [task('phone-backlog', 'not-started', TODAY)])],
+    backlog: { items: ['First phone idea', 'Second phone idea'].map((title, order) => ({ id: `phone-idea-${order}`, title, category: longCategory, order, createdAt: `${TODAY}T08:00:00Z`, updatedAt: `${TODAY}T08:00:00Z` })) },
+  });
+  const nav = page.getByRole('navigation', { name: 'Main', exact: true });
+  const backlogRow = title => page.locator('main li').filter({ has: page.getByText(title, { exact: true }) });
+  for (const { width, small } of [{ width: 360 }, { width: 320 }, { width: 700 }, { width: 360, small: true }]) {
+    const caseId = `${width}${small ? '-small' : ''}`;
+    await page.setViewportSize({ width, height: 740 });
+    await page.evaluate(size => { document.documentElement.style.fontSize = size; }, small ? '15px' : '16px');
+    await nav.getByRole('button', { name: 'Backlog', exact: true }).click();
+    const geometry = await nav.evaluate(n => {
+      const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+      return { buttons: [...n.querySelectorAll('button')].map(b => ({ ...rect(b), label: b.getAttribute('aria-label') || b.textContent, clipped: b.scrollWidth > b.clientWidth })), plus: rect(n.querySelector('[aria-label="New task"]')) };
+    });
+    check(`C10-P8-${caseId}-navigation`, geometry.buttons.map(b => b.label).join('|') === 'Today|Calendar|New task|Backlog|Notes|Settings'
+      && geometry.buttons.every(b => b.width >= 44 && b.height >= 44 && !b.clipped)
+      && Math.abs(geometry.plus.x + geometry.plus.width / 2 - width / 2) <= 1,
+    'phone navigation fits with 44px targets, complete labels and centred capture', JSON.stringify(geometry));
+    console.log(`GEOMETRY ${width}: ${JSON.stringify(geometry)}`);
+    const first = backlogRow('First phone idea');
+    const pick = first.getByLabel('Pick a day');
+    const controls = await first.locator('button, input').evaluateAll(elements => elements.map(el => {
+      const r = el.getBoundingClientRect(); return { label: el.textContent || el.type, width: r.width, height: r.height, right: r.right };
+    }));
+    const date = await pick.boundingBox(), add = await first.getByRole('button', { name: 'Add to day', exact: true }).boundingBox();
+    check(`C10-P8-${caseId}-content`, controls.every(b => b.width >= 44 && b.height >= 44 && b.right <= width)
+      && Math.abs(date.width - add.width) <= 1 && add.y >= date.y + date.height
+      && await page.getByRole('heading', { name: 'Backlog', exact: true }).isVisible()
+      && await page.evaluate(() => document.querySelector('main').scrollWidth <= document.querySelector('main').clientWidth),
+    'compact Backlog stacks full-width picking and retains touch-sized actions', JSON.stringify({ controls, date, add }));
+    const heading = await page.locator('main h2').evaluate(el => ({ text: el.textContent, width: el.clientWidth, scroll: el.scrollWidth }));
+    check(`C10-P8-${caseId}-category`, heading.text === longCategory && heading.scroll <= heading.width, '200-character category stays complete and wraps inside the phone content', JSON.stringify(heading));
+    await nav.getByRole('button', { name: 'Today', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions for "Task phone-backlog"', exact: true }).click();
+    const menu = await page.getByRole('menu').boundingBox(), bar = await nav.boundingBox();
+    check(`C10-P8-${caseId}-sheet`, menu.y >= 0 && menu.y + menu.height <= bar.y + 1
+      && await page.getByRole('menuitem', { name: 'Move to backlog', exact: true }).isVisible(), 'task sheet including Move to backlog fits above the bottom bar', JSON.stringify({ menu, bar }));
+    await page.keyboard.press('Escape');
+  }
+  await nav.getByRole('button', { name: 'Backlog', exact: true }).click();
+  await backlogRow('First phone idea').getByRole('button', { name: 'Move First phone idea down', exact: true }).click();
+  check('C10-P8-reorder', (await page.locator('main li p.font-medium').allTextContents()).join('|') === 'Second phone idea|First phone idea', 'phone keeps manual reorder');
+  await backlogRow('Second phone idea').getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.locator('main').getByLabel('Task', { exact: true }).fill('Edited phone idea');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await backlogRow('Edited phone idea').getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  check('C10-P8-edit-delete', await backlogRow('Edited phone idea').count() === 1, 'phone edit, delete and Undo use shared state');
+  await backlogRow('First phone idea').getByRole('button', { name: 'Add to day', exact: true }).click();
+  const docs = await readDocs(page);
+  check('C10-P8-pick', docs.find(d => d.date === TODAY)?.headings.flatMap(h => h.items).filter(t => t.title === 'First phone idea').length === 1, 'phone picking creates one daily task');
+  check('C10-P8-errors', errors.length === 0, 'phone Backlog has no browser errors', errors.join(' | '));
+});
+
+await cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
 fs.writeFileSync(path.join(os.tmpdir(), 'qa-results.json'), JSON.stringify(results, null, 2));
