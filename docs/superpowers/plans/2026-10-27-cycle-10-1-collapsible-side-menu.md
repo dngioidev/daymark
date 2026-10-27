@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use superpowers:executing-plans to implement this small follow-up task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Proposed next work; implementation has not started.
+**Status:** Approved and completed on 2026-10-27. See the [verification and screenshots](../../releases/cycle-10-1/README.md), including the retained UX startup-timeout/retry evidence. No release performed.
 
 **Goal:** Let people minimize the desktop menu to icons so their content gets more horizontal space, then expand it when they want labels.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Existing React, TypeScript, Tailwind, lucide-react, Vitest and browser QA; no new dependencies.
 
-**Spec:** The design below is a proposed addendum to [Cycle 10's design](../specs/2026-10-26-cycle-10-backlog-side-menu-guides-design.md). It supersedes that design's explicit exclusion of a collapsible/icon-only rail for this follow-up only. The dimensions and persistence policy below are builder proposals, not previously approved user requirements.
+**Spec:** The approved design below is an addendum to [Cycle 10's design](../specs/2026-10-26-cycle-10-backlog-side-menu-guides-design.md). It supersedes that design's explicit exclusion of a collapsible/icon-only rail for this follow-up only. The user approved the proposed dimensions and device-local persistence policy before implementation.
 
 ## Design and acceptance criteria
 
@@ -41,11 +41,11 @@
 - `SideRailProps`: add required `collapsed: boolean` and `onToggleCollapsed: () => void`; retain `hidden` for Notes focus mode.
 - `loadRailCollapsed(): boolean` and `saveRailCollapsed(collapsed: boolean): void`: safely read/write the local preference; missing/invalid data means expanded. App initializes from the loader and saves explicit toggles. No new synced `AppSettings` field.
 
-- [ ] **Step 1: Write meaningful regressions.** Test default/invalid/blocked-storage behavior and persistence round-trip. Render both rail states and assert the six parts, named toggle, active destination, sync state, attention badge and named compact actions. In App, exercise toggling, navigation, reload persistence, side changes and hiding/restoring via Notes focus.
-- [ ] **Step 2: Run the targeted tests and confirm the missing behavior fails.** `npx vitest run src/utils/railPreference.test.ts src/components/SideRail.test.ts src/App.search.test.ts`.
-- [ ] **Step 3: Implement the controlled state and local persistence.** Use explicit labels, keyboard-operable toggle and tooltips visible on keyboard focus as well as hover. Preserve the current expanded design and keyboard shortcuts.
-- [ ] **Step 4: Run targeted tests and `npm run lint`; confirm they pass.** Review persistence cleanup against the existing sign-out behavior, which clears `daymark` local keys.
-- [ ] **Step 5: Commit** `feat: minimize the desktop menu to icons` using the cycle's existing author/trailer convention.
+- [x] **Step 1: Write meaningful regressions.** Test default/invalid/blocked-storage behavior and persistence round-trip. Render both rail states and assert the six parts, named toggle, active destination, sync state, attention badge and named compact actions. In App, exercise toggling, navigation, reload persistence, side changes and hiding/restoring via Notes focus.
+- [x] **Step 2: Run the targeted tests and confirm the missing behavior fails.** `npx vitest run src/utils/railPreference.test.ts src/components/SideRail.test.ts src/App.search.test.ts`.
+- [x] **Step 3: Implement the controlled state and local persistence.** Use explicit labels, keyboard-operable toggle and tooltips visible on keyboard focus as well as hover. Preserve the current expanded design and keyboard shortcuts.
+- [x] **Step 4: Run targeted tests and `npm run lint`; confirm they pass.** Review persistence cleanup against the existing sign-out behavior, which clears `daymark` local keys.
+- [x] **Step 5: Commit** `feat: minimize the desktop menu to icons` using the cycle's existing author/trailer convention.
 
 ## Task 2: Browser coverage, guidance and hotfix handoff
 
@@ -53,11 +53,11 @@
 - Modify: `scripts/helpers/cycle-10-qa.mjs`, `scripts/ux-suite.mjs`, `scripts/capture-screenshots.mjs`, `docs/guide/appearance.md`, `docs/ROADMAP.md`.
 - Create: `docs/releases/cycle-10-1/README.md` and captured images under `docs/releases/cycle-10-1/images/`.
 
-- [ ] **Step 1: Add browser checks** for both sides at 800px and 1440px, and 480px-high windows. Assert widths of 168px/64px, 104px reclaimed content width, no overlap/overflow and keyboard access to every compact action. Cover light/dark, custom header colours/photo backgrounds and S/M/L text sizes.
-- [ ] **Step 2: Verify focus and state interactions.** Toggle repeatedly, navigate, open/close Settings, use Notes focus and reload. Confirm tooltip visibility without focus theft, readable attention badges and full sync status names. Confirm phone navigation is unchanged.
-- [ ] **Step 3: Update the Appearance guide** with minimize/expand instructions and device-local persistence. Capture and visually inspect expanded/minimized desktop views plus a right-side minimized view. Record checks and any limitations in the hotfix handoff.
-- [ ] **Step 4: Run verification.** `npm run lint`, `npm test`, `npm run test:helpers`, `npm run build`, `npm run test:qa`, `node scripts/ux-suite.mjs`, `npm run test:e2e`, `npm run validate:ai`. Review raw accessibility scans, not just the functional pass count. Run `npm run android:build -- --test` for the shared bundle handoff; no native UI change is intended.
-- [ ] **Step 5: Review the final diff and commit** `docs: collapsible menu QA and hotfix handoff`. Leave release numbering/publication for a separate request.
+- [x] **Step 1: Add browser checks** for both sides at 800px and 1440px, and 480px-high windows. Assert widths of 168px/64px, 104px reclaimed content width, no overlap/overflow and keyboard access to every compact action. Cover light/dark, custom header colours/photo backgrounds and S/M/L text sizes.
+- [x] **Step 2: Verify focus and state interactions.** Toggle repeatedly, navigate, open/close Settings, use Notes focus and reload. Confirm tooltip visibility without focus theft, readable attention badges and full sync status names. Confirm phone navigation is unchanged.
+- [x] **Step 3: Update the Appearance guide** with minimize/expand instructions and device-local persistence. Capture and visually inspect expanded/minimized desktop views plus a right-side minimized view. Record checks and any limitations in the hotfix handoff.
+- [x] **Step 4: Run verification.** `npm run lint`, `npm test`, `npm run test:helpers`, `npm run build`, `npm run test:qa`, `node scripts/ux-suite.mjs`, `npm run test:e2e`, `npm run validate:ai`. Review raw accessibility scans, not just the functional pass count. Run `npm run android:build -- --test` for the shared bundle handoff; no native UI change is intended.
+- [x] **Step 5: Review the final diff and commit** `docs: collapsible menu QA and hotfix handoff`. Leave release numbering/publication for a separate request.
 
 ## Review focus
 

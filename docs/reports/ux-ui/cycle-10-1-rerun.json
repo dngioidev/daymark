@@ -1,0 +1,21 @@
+{
+ "ranAt": "2026-10-27T09:18:27.931Z",
+ "results": [
+  {
+   "id": "NAV-06",
+   "title": "Rail Today returns to Today",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 2895
+  },
+  {
+   "id": "GL-09",
+   "title": "Console clean",
+   "env": "all",
+   "status": "pass",
+   "details": ""
+  }
+ ],
+ "consoleErrors": []
+}

@@ -1,5 +1,7 @@
 # Daymark UX/UI Test Report
 
+**Cycle 10.1, 2026-10-27:** QA passed 466/466. The final UX run passed 92 checks and had one NAV-06 startup timeout; the [focused rerun](./cycle-10-1-rerun.json) passed that case and the console check. The original timeout is retained in [`results.json`](./results.json). The 48 screen scans and 56 responsive checks have no scan errors or page overflow, and new menu accessible-name findings are resolved. See the [hotfix handoff](../../releases/cycle-10-1/README.md) for screenshots, verification and remaining minor limitations.
+
 **Cycle 10 continuation, 2026-10-27:** the fresh full suite passed 92/92 checks, with 48 light/dark screen scans and 56 responsive checks, zero scan errors, zero page overflow and zero console errors. Current evidence is in [`results.json`](./results.json), [`scans.json`](./scans.json) and the [cycle 10 handoff](../../releases/cycle-10/README.md). The dated findings below describe earlier releases.
 
 The raw scans still report calendar date-cell accessible-name mismatches and a keyboard-focus warning on the server activity log (serious), plus landmark warnings around menus and the note editor (moderate), across 14 screen/theme scans. These are follow-ups recorded in the cycle 10 handoff; passing functional checks do not imply zero axe findings.

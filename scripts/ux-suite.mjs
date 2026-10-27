@@ -561,6 +561,29 @@ async function functional() {
     }
   });
 
+  await tc('NAV-12', 'Minimized rail reclaims width and preserves Notes focus', 'D1440', async () => {
+    const { ctx, page } = await open('D1440');
+    const rail = page.locator('.dm-side-rail');
+    const before = await page.locator('main').evaluate(el => el.getBoundingClientRect().width);
+    await rail.getByRole('button', { name: 'Minimize menu', exact: true }).click();
+    expect(await rail.evaluate(el => el.getBoundingClientRect().width) === 64, 'compact rail width');
+    expect(await page.locator('main').evaluate(el => el.getBoundingClientRect().width) === before + 104, 'content did not reclaim width');
+    await rail.getByRole('button', { name: 'Notes', exact: true }).focus();
+    expect(await page.getByRole('tooltip').textContent() === 'Notes', 'keyboard label missing');
+    await page.keyboard.press('Enter');
+    await btn(page, /weekly sprint sync/i).click();
+    await btn(page, /^focus mode$/i).click();
+    await rail.waitFor({ state: 'hidden' });
+    expect(await rail.count() === 0, 'focus did not hide rail');
+    await btn(page, /^focus mode$/i).click();
+    await rail.waitFor();
+    expect(await rail.getAttribute('data-collapsed') === 'true', 'focus lost minimized preference');
+    await page.reload({ waitUntil: 'networkidle' });
+    await rail.getByRole('button', { name: 'Expand menu', exact: true }).waitFor();
+    expect(await rail.getAttribute('data-collapsed') === 'true', 'reload lost minimized preference');
+    await ctx.close();
+  });
+
   await tc('NAV-06', 'Rail Today returns to Today', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /^calendar$/i).click();

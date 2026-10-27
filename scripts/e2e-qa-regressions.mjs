@@ -1381,7 +1381,7 @@ await run('R3', async () => {
     const title = page.locator('[data-rail-part="title"]');
     const initial = await title.evaluate(el => {
       el.scrollTop = 0;
-      const r = el.getBoundingClientRect(), brand = el.children[0].getBoundingClientRect(), date = el.children[1].getBoundingClientRect();
+      const r = el.getBoundingClientRect(), brand = el.querySelector(':scope > span.font-bold').getBoundingClientRect(), date = el.querySelector('span[title]').getBoundingClientRect();
       return { top: r.top, bottom: r.bottom, brandTop: brand.top, dateHeight: date.height, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, overflow: getComputedStyle(el).overflowY };
     });
     await title.getByRole('button', { name: 'Search (Ctrl Shift F)', exact: true }).focus();
@@ -1391,7 +1391,7 @@ await run('R3', async () => {
       return { scroll: el.scrollTop, visible: search.top >= r.top && search.bottom <= r.bottom + 1, hit: el.contains(hit), overflow: document.documentElement.scrollWidth - innerWidth };
     });
     check(`R3-${largeText ? 'large-' : ''}${height}`, initial.brandTop >= initial.top && initial.dateHeight >= 16 && initial.overflow === 'auto' && focused.visible && focused.hit && focused.overflow <= 1
-      && (height === 900 ? focused.scroll === 0 : focused.scroll > 0), 'short-height Title preserves readable text and scrolls focused controls within its equal row', JSON.stringify({ initial, focused }));
+      && (initial.scrollHeight > initial.clientHeight ? focused.scroll > 0 : focused.scroll === 0), 'short-height Title preserves readable text and scrolls focused controls within its equal row', JSON.stringify({ initial, focused }));
     }
   }
 });

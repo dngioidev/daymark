@@ -6,6 +6,10 @@ Goal: Android user first, then self-hosted app, then everything else. Each cycle
 
 Cycle 10 implementation is complete: backlog, desktop side menu, section moves, screenshot zoom and shared Web/Mobile guides. See the [implementation plan](./superpowers/plans/2026-10-26-cycle-10-backlog-side-menu-guides.md) and [verified handoff with screenshots](./releases/cycle-10/README.md). No release is cut by this plan. Actual Claude-window and token totals are unavailable to the continuation runtime; no usage estimate is presented as measured usage.
 
+## Cycle 10.1 — minimize the desktop menu
+
+Completed Cycle 10 follow-up: the side menu collapses to icons to give content more room, with an easy expand toggle, accessible labels and a remembered per-device choice. Left/right placement, Notes focus mode and phone navigation are preserved. Width is 168px expanded and 64px minimized. See the [hotfix implementation plan](./superpowers/plans/2026-10-27-cycle-10-1-collapsible-side-menu.md) and [verified handoff](./releases/cycle-10-1/README.md). No release is included.
+
 ## Baseline (reviewed 2026-10-20)
 
 Lint and build pass; `validate:ai` passes 42/42. Blockers:

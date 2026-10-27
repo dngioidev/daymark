@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { collapsibleRailQa } from './collapsible-rail-qa.mjs';
 
 /** Cycle-specific browser cases, shared by the main QA runner without a second server. */
 export async function cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs }) {
+  await collapsibleRailQa({ run, fresh, check, TODAY, doc, task, readDocs });
   const navigate = (page, name) => page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name, exact: true }).click();
   const row = (page, title) => page.locator('li').filter({ has: page.getByText(title, { exact: true }) });
   const capture = async (page, title, category) => {

@@ -130,6 +130,14 @@ const cycle9Menu = then(async (page) => {
   await page.getByRole('menu').getByRole('menuitem').first().waitFor();
 });
 const SHOTS = [
+  { name: 'expanded', viewport: 'desktop', cycles: ['cycle-10-1'], prepare: loadSample },
+  { name: 'minimized-left', viewport: 'desktop', cycles: ['cycle-10-1'], prepare: then(click('button', /^minimize menu$/i)) },
+  { name: 'minimized-right', viewport: 'desktop', dark: true, cycles: ['cycle-10-1'], prepare: then(async page => {
+    await click('button', /^settings$/i)(page);
+    await settings(page).getByRole('button', { name: 'Right', exact: true }).click();
+    await closeSettings(page);
+    await click('button', /^minimize menu$/i)(page);
+  }) },
   { name: 'rail-left', viewport: 'desktop', cycles: ['cycle-10'], prepare: loadSample },
   { name: 'rail-right', viewport: 'desktop', cycles: ['cycle-10'], prepare: then(async page => {
     await click('button', /^settings$/i)(page);
@@ -308,7 +316,7 @@ try {
     if (!externalUrl && !shot.signedOut) {
       if (cycle === 'cycle-7') {
         await seedVault(page, baseUrl, cycle7Fixture(today));
-      } else if (cycle === 'cycle-10') {
+      } else if (cycle === 'cycle-10' || cycle === 'cycle-10-1') {
         const vault = cycle7Fixture(today);
         vault.backlog = { items: [
           { id: 'c10-home', title: 'Build a quiet reading corner', description: 'Measure the window nook and sketch a low bookshelf.', category: 'Home', order: 0, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
