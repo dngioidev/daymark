@@ -7,13 +7,23 @@ import { SideRail } from './SideRail';
 
 const props = { collapsed: false, onToggleCollapsed: vi.fn(), activeTab: 'notes' as const, onTabChange: vi.fn(), onOpenQuickCapture: vi.fn(), onOpenSearch: vi.fn(), onOpenSettings: vi.fn(), onOpenSync: vi.fn(), syncStatus: 'synced' as const, carriedAlertCount: 3, todayLabel: 'Tuesday, 27 October', side: 'left' as const };
 describe('desktop side rail', () => {
+  it('includes visible shortcut hints and badge counts in explicit accessible names', () => {
+    for (const collapsed of [false, true]) {
+      const doc = document.createElement('div');
+      doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed }));
+      for (const button of doc.querySelectorAll('button[aria-label]')) {
+        const visible = button.textContent!.replace(/\s/g, '');
+        expect(button.getAttribute('aria-label')!.replace(/\s/g, '')).toContain(visible);
+      }
+    }
+  });
   it('minimizes to named icons without losing navigation, actions or attention count', () => {
     const doc = document.createElement('div');
     doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed: true, onToggleCollapsed: vi.fn() }));
     const nav = doc.querySelector('nav')!;
     expect(nav.classList.contains('w-[64px]')).toBe(true);
     expect(nav.children).toHaveLength(6);
-    for (const label of ['Expand menu', 'Today', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
+    for (const label of ['Expand menu', 'Today 3', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
       expect(nav.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
     }
     expect(nav.querySelector('[aria-current="page"]')!.getAttribute('aria-label')).toBe('Notes');

@@ -52,7 +52,7 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
   const toggleLabel = collapsed ? 'Expand menu' : 'Minimize menu';
   const syncLabel = `Sync: ${sync.label}. Open sync settings`;
   const page = (tab: ViewTab, icon: React.ReactNode, label: string) => (
-    <RailButton type="button" side={side} tooltip={collapsed ? label : undefined} aria-label={label} aria-describedby={tab === 'today' && carriedAlertCount > 0 ? 'daymark-rail-attention' : undefined} data-rail-part={tab} aria-current={activeTab === tab ? 'page' : undefined}
+    <RailButton type="button" side={side} tooltip={collapsed ? label : undefined} aria-label={tab === 'today' && carriedAlertCount > 0 ? `${label} ${collapsed && carriedAlertCount > 99 ? '99+' : carriedAlertCount}` : label} aria-describedby={tab === 'today' && carriedAlertCount > 0 ? 'daymark-rail-attention' : undefined} data-rail-part={tab} aria-current={activeTab === tab ? 'page' : undefined}
       onClick={() => onTabChange(tab)} className={`${part} ${activeTab === tab ? 'bg-accent text-accent-fg font-semibold' : ''}`}>
       {icon}<span className={`flex items-center gap-1.5 ${collapsed ? 'absolute right-1 top-2' : ''}`}>
         {!collapsed && label}
@@ -70,7 +70,7 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
         <RailButton side={side} tooltip={collapsed ? syncLabel : undefined} type="button" onClick={onOpenSync} aria-label={syncLabel} className={`shrink-0 inline-flex justify-center items-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-[24px]'} text-[12px] leading-4 hover:underline`}>
           {collapsed && <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} aria-hidden="true" />}<span className={`w-1.5 h-1.5 rounded-full ${sync.dot}`} aria-hidden="true" />{!collapsed && sync.label}
         </RailButton>
-        <RailButton side={side} tooltip={collapsed ? 'New task (Ctrl K / ⌘K)' : undefined} type="button" onClick={onOpenQuickCapture} aria-label="New task" aria-keyshortcuts="Control+K Meta+K" className={`shrink-0 mt-1 inline-flex items-center justify-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-7'} rounded-lg bg-accent text-accent-fg text-[12px] font-semibold hover:brightness-95`}>
+        <RailButton side={side} tooltip={collapsed ? 'New task (Ctrl K / ⌘K)' : undefined} type="button" onClick={onOpenQuickCapture} aria-label={collapsed ? 'New task' : `New task ${isMac ? '⌘K' : 'Ctrl K'}`} aria-keyshortcuts="Control+K Meta+K" className={`shrink-0 mt-1 inline-flex items-center justify-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-7'} rounded-lg bg-accent text-accent-fg text-[12px] font-semibold hover:brightness-95`}>
           <Plus className="w-3.5 h-3.5" aria-hidden="true" />{!collapsed && <>New task <kbd className="text-[12px] font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd></>}
         </RailButton>
         <RailButton side={side} tooltip={collapsed ? 'Search (Ctrl Shift F / ⌘ Shift F)' : undefined} type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className={`shrink-0 inline-flex items-center justify-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-[24px]'} text-[12px] hover:underline`}><Search className="w-3 h-3" aria-hidden="true" />{!collapsed && 'Search'}</RailButton>
