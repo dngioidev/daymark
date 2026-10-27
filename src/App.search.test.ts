@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { AppSettings, DailyDocument } from './types/daymark';
 import type { VaultData } from './sync/syncClient';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS } from './utils/defaultData';
+import { reconcileBacklogVault } from './utils/backlog';
+import { mergeDailyDocument } from './sync/merge';
 
 const incomingSettings = vi.hoisted(() => ({ external: (_key: string, _value: unknown) => {}, sync: (_next: VaultData) => {} }));
 const backups = vi.hoisted(() => ({ zip: vi.fn(async () => true), json: vi.fn(async () => true) }));
@@ -132,6 +134,7 @@ it('moves an open daily task to backlog and restores the day with a backlog tomb
   daily.onUpdateDocument(source);
   (props(TodayView).onMoveToBacklog as (id: string) => void)('move-backlog');
   const undo = toast.mock.calls.at(-1)![1].action.onClick;
+  const parkedDoc = props(TodayView).currentDocument as DailyDocument;
   expect((props(TodayView).currentDocument as DailyDocument).headings[0].items).toEqual([]);
   render(); undo();
   const restored = props(TodayView).currentDocument as DailyDocument;
@@ -140,6 +143,11 @@ it('moves an open daily task to backlog and restores the day with a backlog tomb
   (props(SideRail).onTabChange as (tab: string) => void)('backlog');
   const page = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   expect(page.backlog.items.find((i) => i.id === 'move-backlog')?.deletedAt).toBeTruthy();
+  const reconciled = reconcileBacklogVault(page.backlog, [restored]);
+  expect(reconciled.docs[0].headings[0].items[0]).toMatchObject({ id: 'move-backlog', status: 'in-progress' });
+  expect(reconciled.docs[0].headings[0].items[0].movedToBacklogDate).toBeUndefined();
+  expect([source, null].map(base => mergeDailyDocument(base, parkedDoc, restored).value!.headings.flatMap(h => h.items)
+    .some(task => task.id === 'move-backlog' && task.status === 'in-progress'))).toEqual([true, true]);
 });
 it('parks the latest open copy when moving an older carried copy and keeps its newer edits', () => {
   const original = { ...docs[0].headings[0].items[0], id: 'carried-backlog', status: 'in-progress', title: 'Old title' };
@@ -163,7 +171,15 @@ it('parks the latest open copy when moving an older carried copy and keeps its n
   const rollover = performDailyRollover('2026-10-25', search.docs, DEFAULT_SETTINGS.statuses, DEFAULT_SETTINGS.defaultHeadings);
   expect(rollover.updatedDocs.find((doc) => doc.date === '2026-10-25')!.headings.flatMap((heading) => heading.items).some((task) => task.id === original.id)).toBe(false);
   render(); undo();
-  expect((props(SearchDialog).docs as DailyDocument[]).map((doc) => ({ date: doc.date, headings: doc.headings }))).toEqual([archived, earlier, closed, latest].map((doc) => ({ date: doc.date, headings: doc.headings })));
+  const before = [archived, earlier, closed, latest];
+  const restored = (props(SearchDialog).docs as DailyDocument[]).map(doc => ({ date: doc.date, headings: doc.headings.map(heading => ({ ...heading, items: heading.items.map(task => {
+    const prior = before.find(d => d.date === doc.date)!.headings.flatMap(h => h.items).find(t => t.id === task.id)!;
+    if (prior.status === 'done' || prior.status === 'archived' || prior.doneLaterDate || prior.movedToBacklogDate) return task;
+    expect(task.historyLog.slice(0, -1)).toEqual(prior.historyLog);
+    expect(task.historyLog.at(-1)?.details).toBe('Undid move to backlog');
+    return { ...task, historyLog: prior.historyLog };
+  }) })) }));
+  expect(restored).toEqual(before.map(doc => ({ date: doc.date, headings: doc.headings })));
 });
 it('refuses move Undo after a concurrent day-note edit', () => {
   const source: DailyDocument = { ...docs[0], date: '2026-10-21', headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], id: 'move-backlog', status: 'in-progress' }] }] };

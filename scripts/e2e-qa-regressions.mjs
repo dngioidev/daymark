@@ -1488,6 +1488,13 @@ await run('C10-X1', async () => {
   ] });
   await page.getByRole('button', { name: `More actions for "${title}"`, exact: true }).click();
   await page.getByRole('menuitem', { name: 'Move to backlog', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByRole('button', { name: title, exact: true }).waitFor();
+  await page.waitForTimeout(600);
+  await page.reload({ waitUntil: 'networkidle' });
+  check('C10-X1-undo', await page.getByRole('button', { name: title, exact: true }).isVisible(), 'Undo cancels the park and keeps restored work open after reload');
+  await page.getByRole('button', { name: `More actions for "${title}"`, exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Move to backlog', exact: true }).click();
   await page.getByRole('button', { name: 'Previous day', exact: true }).click();
   check('C10-X1-day', await page.getByRole('button', { name: 'Done (1)', exact: true }).count() === 0, 'parked carried history is not shown as completed work in historical Today');
   await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Calendar', exact: true }).click();

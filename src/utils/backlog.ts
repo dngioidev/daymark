@@ -1,6 +1,6 @@
 import type { BacklogData, BacklogItem, DailyDocument, TaskHistoryItem, TaskItem } from '../types/daymark';
 import { isClosedCopy, mapEarlierCopies, removeTaskFromDocument, restoreTaskToDocument } from './taskActions';
-import { mergeBacklogHistory } from './backlogHistory';
+import { BACKLOG_UNDO_PREFIX, isBacklogUndoEvent, mergeBacklogHistory } from './backlogHistory';
 
 export const uneditedRecoveredBacklog = new WeakSet<BacklogData>();
 
@@ -69,6 +69,29 @@ function history(id: string, date: string, nowIso: string, details: string): Tas
   return { id: `hist-backlog-${id}-${nowIso}-${details}`, timestamp: nowIso, date, action: 'moved', details };
 }
 
+/** Cancel this specific park while retaining the sync tombstone and its causal history. */
+export function undoBacklogMove(beforeDocs: DailyDocument[], data: BacklogData, id: string, previous: BacklogItem | undefined, nowIso: string): { data: BacklogData; docs: DailyDocument[] } {
+  let cancellation: TaskHistoryItem | undefined;
+  const restored = { items: data.items.map(item => {
+    if (item.id !== id) return item;
+    const historyLog = mergeBacklogHistory(item.historyLog, previous?.historyLog) ?? [];
+    const park = [...historyLog].reverse().find(event => event.action === 'moved' && event.details === 'Moved to backlog');
+    cancellation = park ? { ...history(id, park.date, nowIso, 'Undid move to backlog'), id: `${BACKLOG_UNDO_PREFIX}${park.id}` } : undefined;
+    return { ...(previous ?? { ...item, deletedAt: nowIso }), updatedAt: nowIso,
+      historyLog: cancellation ? [...historyLog, cancellation] : historyLog };
+  }) };
+  const docs = beforeDocs.map(doc => {
+    let changed = false;
+    const headings = doc.headings.map(heading => ({ ...heading, items: heading.items.map(task => {
+      if (!cancellation || task.id !== id || task.status === 'done' || task.status === 'archived' || isClosedCopy(task)) return task;
+      changed = true;
+      return { ...task, historyLog: [...(task.historyLog ?? []), cancellation] };
+    }) }));
+    return changed ? { ...doc, headings, updatedAt: nowIso } : doc;
+  });
+  return { data: restored, docs };
+}
+
 export function pickBacklogItem(docs: DailyDocument[], data: BacklogData, id: string, date: string, defaultHeadings: string[], nowIso: string): { docs: DailyDocument[]; data: BacklogData } | null {
   const item = data.items.find((i) => i.id === id && isVisible(i));
   // Closed history elsewhere is retained; an active copy or any destination copy blocks a duplicate.
@@ -105,7 +128,7 @@ export function moveTaskToBacklog(docs: DailyDocument[], data: BacklogData, task
   const item: BacklogItem = {
     id: taskId, title: task.title, description: task.description, category, status: task.status,
     checklist: task.checklist, tags: task.tags,
-    historyLog: [...(task.historyLog ?? []), history(taskId, fromDate, nowIso, 'Moved to backlog')],
+    historyLog: [...(mergeBacklogHistory(previous?.historyLog, task.historyLog) ?? []), history(taskId, fromDate, nowIso, 'Moved to backlog')],
     order: nextOrder(data, category),
     createdAt: previous?.createdAt ?? nowIso, updatedAt: nowIso,
   };
@@ -119,7 +142,7 @@ export function moveTaskToBacklog(docs: DailyDocument[], data: BacklogData, task
 
 const isBacklogEvent = (event: TaskHistoryItem) => !!event && event.action === 'moved' &&
   typeof event.id === 'string' && typeof event.timestamp === 'string' && typeof event.date === 'string' &&
-  ['Moved to backlog', 'Picked from backlog'].includes(event.details);
+  ['Moved to backlog', 'Picked from backlog', 'Undid move to backlog'].includes(event.details);
 const backlogEvents = (value: TaskHistoryItem[] | undefined) => Array.isArray(value) ? value.filter(isBacklogEvent) : [];
 
 function reconciliation(data: BacklogData, docs: DailyDocument[], nowIso?: string, markPicked = true) {
@@ -136,7 +159,8 @@ function reconciliation(data: BacklogData, docs: DailyDocument[], nowIso?: strin
       .map(({ task }) => backlogEvents(task.historyLog)));
     const events = historyLog ?? [];
     historiesById.set(item.id, events);
-    const parkIndex = events.map(event => event.action === 'moved' && event.details === 'Moved to backlog').lastIndexOf(true);
+    const canceled = new Set(events.filter(isBacklogUndoEvent).map(event => event.id.slice(BACKLOG_UNDO_PREFIX.length)));
+    const parkIndex = events.map(event => event.action === 'moved' && event.details === 'Moved to backlog' && !canceled.has(event.id)).lastIndexOf(true);
     const pickIndex = events.map(event => event.action === 'moved' && event.details === 'Picked from backlog').lastIndexOf(true);
     const park = events[parkIndex];
     const validPickIds = new Set(events.slice(parkIndex + 1).filter(event => event.details === 'Picked from backlog').map(event => event.id));

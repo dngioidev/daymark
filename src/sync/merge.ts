@@ -1,5 +1,5 @@
 import { AppSettings, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
-import { mergeBacklogHistory } from '../utils/backlogHistory';
+import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -110,7 +110,14 @@ export function mergeDailyDocument(
   if (!base) {
     for (const side of [o, t]) {
       const own = tasksById(side);
-      for (const id of side.removedTaskIds ?? []) if (!own.has(id)) mergedTasks.delete(id);
+      for (const id of side.removedTaskIds ?? []) if (!own.has(id)) {
+        const restored = mergedTasks.get(id);
+        // A cancellation after this removal restores the task even if the park response was lost.
+        // Older cancellations must not override a later ordinary deletion.
+        const restoredAfterRemoval = restored && Array.isArray(restored.historyLog) && restored.historyLog.some(event =>
+          isBacklogUndoEvent(event) && event.date === side.date && Date.parse(event.timestamp) >= Date.parse(side.updatedAt));
+        if (!restoredAfterRemoval) mergedTasks.delete(id);
+      }
     }
   }
 

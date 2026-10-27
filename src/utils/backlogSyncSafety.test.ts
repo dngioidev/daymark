@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
-import { moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, visibleBacklog } from './backlog';
+import { moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, undoBacklogMove, visibleBacklog } from './backlog';
 import { mergeBacklog, mergeDailyDocument } from '../sync/merge';
 import { performDailyRollover } from './lifecycleEngine';
 import { isClosedCopy } from './taskActions';
@@ -98,4 +98,40 @@ it('does not crash or overwrite malformed legacy history accepted by the daily-d
   expect(taskOn(result.docs, original.date).historyLog).toBe('legacy history text');
   expect(isClosedCopy(taskOn(result.docs, original.date))).toBe(true);
   expect(visibleBacklog(result.backlog)).toHaveLength(1);
+});
+
+it('a synced park cancellation preserves restored work while ordinary backlog deletion still closes stale copies', () => {
+  const parked = park();
+  const undone = undoBacklogMove([structuredClone(original)], parked.data, 'parked', undefined, '2026-10-26T10:00:00Z');
+  const canceled = undone.data;
+  const merged = mergeBacklog(null, parked.data, canceled).value!;
+  const docs = undone.docs;
+  expect(reconcileBacklogVault(merged, docs).docs).toBe(docs);
+  expect(visibleBacklog(merged)).toHaveLength(0);
+  const deleted = removeBacklogItem(parked.data, 'parked', '2026-10-26T10:00:00Z');
+  expect(isClosedCopy(taskOn(reconcileBacklogVault(deleted, [structuredClone(original)]).docs, original.date))).toBe(true);
+  const parkedAgain = moveTaskToBacklog(docs, canceled, 'parked', original.date, '2026-10-26T11:00:00Z')!;
+  expect(isClosedCopy(taskOn(reconcileBacklogVault(parkedAgain.data, docs).docs, original.date))).toBe(true);
+});
+
+it('undoing a repark restores the previous picked record and keeps its daily task open after sync', () => {
+  const parked = park();
+  const picked = pickBacklogItem(parked.docs, parked.data, 'parked', '2026-10-27', ['Work'], '2026-10-26T10:00:00Z')!;
+  const again = moveTaskToBacklog(picked.docs, picked.data, 'parked', '2026-10-27', '2026-10-26T11:00:00Z')!;
+  const undone = undoBacklogMove(picked.docs, again.data, 'parked', picked.data.items[0], '2026-10-26T12:00:00Z');
+  const canceled = undone.data;
+  const merged = mergeBacklog(picked.data, again.data, canceled).value!;
+  const result = reconcileBacklogVault(merged, undone.docs);
+  expect(result.docs).toBe(undone.docs);
+  expect(visibleBacklog(result.backlog)).toHaveLength(0);
+  expect(taskOn(result.docs, '2026-10-27').status).toBe('in-progress');
+});
+
+it('an old park Undo does not override a later ordinary deletion on first sync', () => {
+  const parked = park();
+  const undone = undoBacklogMove([structuredClone(original)], parked.data, 'parked', undefined, '2026-10-26T10:00:00Z');
+  const removed = { ...undone.docs[0], updatedAt: '2026-10-26T11:00:00Z', removedTaskIds: ['parked'], headings: [{ name: 'Work', items: [], notesContent: 'Keep this journal' }] };
+  const merged = mergeDailyDocument(null, removed, undone.docs[0]).value!;
+  expect(merged.headings.flatMap(h => h.items)).toEqual([]);
+  expect(merged.removedTaskIds).toEqual(['parked']);
 });

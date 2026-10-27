@@ -1,5 +1,9 @@
 import type { TaskHistoryItem } from '../types/daymark';
 
+export const BACKLOG_UNDO_PREFIX = 'hist-backlog-undo:';
+export const isBacklogUndoEvent = (event: TaskHistoryItem): boolean => !!event && event.action === 'moved' &&
+  event.details === 'Undid move to backlog' && typeof event.id === 'string' && event.id.startsWith(BACKLOG_UNDO_PREFIX);
+
 const key = (event: TaskHistoryItem) => JSON.stringify([event.id, event.timestamp, event.date, event.action, event.details]);
 const compare = (a: TaskHistoryItem, b: TaskHistoryItem) =>
   ((Date.parse(a.timestamp) || 0) - (Date.parse(b.timestamp) || 0)) || key(a).localeCompare(key(b));

@@ -37,7 +37,7 @@ import {
   isShareCancel,
 } from './utils/vaultStore';
 import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
-import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
+import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, undoBacklogMove, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
@@ -486,11 +486,7 @@ export default function App() {
       if (!canUndoBacklogMove(result)) return;
       const now = new Date().toISOString();
       const previous = beforeBacklog.items.find((item) => item.id === id);
-      applyBacklogMove({
-        docs: beforeDocs.map((doc) => result.docs.find((d) => d.date === doc.date) === doc ? doc : { ...doc, updatedAt: now }),
-        // A newly-created backlog item needs a tombstone so a synced move cannot return.
-        data: { items: result.data.items.map((item) => item.id !== id ? item : previous ? { ...previous, updatedAt: now } : { ...item, deletedAt: now, updatedAt: now }) },
-      });
+      applyBacklogMove(undoBacklogMove(beforeDocs, result.data, id, previous, now));
     } } });
   };
   const handlePickBacklog = (id: string, date: string) => {
