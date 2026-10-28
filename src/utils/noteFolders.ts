@@ -96,7 +96,8 @@ export function renameFolder(notes: StandaloneNote[], meta: NoteMeta, fromPath: 
   };
   const tombstones: NoteFolder[] = [];
   for (const folder of meta.folders) {
-    const moved = underSource(folder.path);
+    // Removed records describe their original path; moving them would delete destinations.
+    const moved = !folder.removed && underSource(folder.path);
     const next = moved ? { ...folder, path: rewrite(folder.path), updatedAt: nowIso } : folder;
     put(next);
     if (moved && pathKey(next.path) !== pathKey(folder.path)) {

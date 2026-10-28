@@ -106,6 +106,41 @@ describe('note folders', () => {
     expect(result.meta.folders).toContainEqual({ path: 'Tech/Java/Java', updatedAt: now, removed: true });
   });
 
+  it.each([false, true].flatMap(reverse => [before, '2026-10-28T09:00:00.000Z'].map(updatedAt => ({ reverse, updatedAt }))))(
+    'does not move a source tombstone onto a live destination (reverse=$reverse, destination=$updatedAt)', ({ reverse, updatedAt }) => {
+      const source = { path: 'Tech/Java', removed: true, updatedAt: before };
+      const destination = { path: 'Dev/Java', updatedAt };
+      const folders = [source, destination];
+      if (reverse) folders.reverse();
+      const data = { folders, dismissed: [] };
+      const snapshot = structuredClone(data);
+      const result = renameFolder([], data, 'Tech', 'Dev', now)!;
+      expect(result.meta.folders.find(f => f.path === 'Dev/Java')).toEqual(destination);
+      expect(result.meta.folders.filter(f => f.path === 'Dev/Java')).toHaveLength(1);
+      expect(result.meta.folders.find(f => f.path === 'Tech/Java')?.removed).toBe(true);
+      expect(buildFolderTree([], result.meta)[0].children.map(f => f.path)).toEqual(['Dev/Java']);
+      expect(data).toEqual(snapshot);
+    },
+  );
+
+  it('moves notes out of a tombstoned source without tombstoning destination folders', () => {
+    const notes = [note('a', 'Tech/Java')];
+    const data = meta('Tech/Java', 'Dev/Java');
+    data.folders[0].removed = true;
+    const result = renameFolder(notes, data, 'Tech', 'Dev', now)!;
+    expect(result.notes).toEqual([{ ...notes[0], folder: 'Dev/Java', updatedAt: now }]);
+    expect(result.meta.folders.find(f => f.path === 'Dev/Java')).toEqual(data.folders[1]);
+    expect(result.meta.folders.find(f => f.path === 'Tech/Java')?.removed).toBe(true);
+    expect(buildFolderTree(result.notes, result.meta)).toEqual([
+      { path: 'Dev', name: 'Dev', ownCount: 0, totalCount: 1, children: [
+        { path: 'Dev/Java', name: 'Java', ownCount: 1, totalCount: 1, children: [] },
+      ] },
+    ]);
+    const withoutDestination = renameFolder(notes, { folders: [data.folders[0]], dismissed: [] }, 'Tech', 'Dev', now)!;
+    expect(withoutDestination.meta.folders.some(f => f.path === 'Dev/Java')).toBe(false);
+    expect(buildFolderTree(withoutDestination.notes, withoutDestination.meta)[0].children[0].path).toBe('Dev/Java');
+  });
+
   it('deletes a subtree by moving all notes to its parent and tombstoning folders', () => {
     const notes = [note('a', 'Tech/Java'), note('b', 'tech/java/x'), note('c', 'Tech/JavaScript')];
     const data = meta('Tech/Java', 'Tech/Java/x', 'Other');
