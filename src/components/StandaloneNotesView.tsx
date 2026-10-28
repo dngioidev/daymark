@@ -27,6 +27,10 @@ import { loadPanePrefs, savePanePrefs, paneMode } from '../utils/notesPanes';
 import { NoteFolderTree, type FolderAction } from './notes/NoteFolderTree';
 import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
+import { useRelatedNotes } from '../hooks/useRelatedNotes';
+import { addRelatedLink, canLinkToTitle, pairKey } from '../utils/noteRelated';
+import { RelatedPanel } from './notes/RelatedPanel';
+import { RelatedSheet } from './notes/RelatedSheet';
 const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
 
 interface StandaloneNotesViewProps {
@@ -141,6 +145,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const editedMinutes = activeNote ? Math.max(0, Math.floor((now - new Date(activeNote.updatedAt).getTime()) / 60_000)) : 0;
   const editedLabel = editedMinutes < 1 ? 'just now' : editedMinutes < 60 ? `${editedMinutes} min ago` : activeNote ? formatNoteDate(activeNote.updatedAt) : '';
   const words = activeNote ? wordCount(activeNote.content) : 0;
+  const related = useRelatedNotes(notes, activeNote?.id ?? '', noteMeta.dismissed);
+  const [relatedOpen, setRelatedOpen] = useState(false);
+  // Compact desktop starts minimized without overwriting the wider-screen preference.
+  const [compactRelatedOpen, setCompactRelatedOpen] = useState(false);
+  const relatedMinimized = paneMode(width) === 'compactRelated' ? !compactRelatedOpen : prefs.related === 'min';
+  useEffect(() => { setRelatedOpen(false); setCompactRelatedOpen(false); }, [width]);
 
   useEffect(() => {
     if (focusTitle.current && titleRef.current) {
@@ -154,6 +164,39 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     if (!activeNote) return;
     latestNotes.current = latestNotes.current.map((n) => (n.id === activeNote.id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
     onUpdateNotes(latestNotes.current);
+  };
+
+  const setPairDismissed = (sourceId: string, targetId: string, restored: boolean) => {
+    const key = pairKey(sourceId, targetId);
+    const meta = latestMeta.current;
+    const next = { ...meta, dismissed: [...meta.dismissed.filter(pair => pair.key !== key), { key, at: new Date().toISOString(), restored }] };
+    latestMeta.current = next;
+    onUpdateNoteMeta?.(next);
+  };
+  const relatedProps = {
+    ...related,
+    onLink: (id: string) => {
+      const target = latestNotes.current.find(note => note.id === id);
+      if (!activeNote || !target || target.id === activeNote.id || !canLinkToTitle(target.title)) return;
+      if (viewMode === 'rich') richEditorRef.current?.appendRelatedLink(target.title);
+      else {
+        const content = addRelatedLink(activeNote.content, target.title);
+        if (content !== activeNote.content) updateActive({ content });
+      }
+    },
+    onDismiss: (id: string) => {
+      if (!activeNote) return;
+      const sourceId = activeNote.id;
+      setPairDismissed(sourceId, id, false);
+      showToast('Suggestion hidden.', { action: { label: 'Undo', onClick: () => setPairDismissed(sourceId, id, true) } });
+    },
+    onRestore: (id: string) => { if (activeNote) setPairDismissed(activeNote.id, id, true); },
+    onOpen: (id: string) => { setSelectedNoteId(id); setSelectedFolder('all'); setPane('editor'); setRelatedOpen(false); },
+    minimized: relatedMinimized,
+    onToggleMinimized: () => {
+      const next = { ...prefs, related: relatedMinimized ? 'open' as const : 'min' as const };
+      setCompactRelatedOpen(relatedMinimized); setPrefs(next); savePanePrefs(next);
+    },
   };
 
   const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled', content = '', navigate = true) => {
@@ -441,6 +484,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             <div className="flex min-w-0 flex-wrap items-center gap-1 px-1">
               {drawers && <button type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button>}
               <FolderPicker tree={tree} value={activeNote.folder} onChange={path => moveNoteTo(activeNote.id, path)} />
+              {drawers && <button type="button" className={`${buttonClass.secondary} min-h-11`} aria-haspopup="dialog" onClick={() => setRelatedOpen(true)}>Related · {related.suggestions.length}</button>}
             </div>
 
           </div>
@@ -500,6 +544,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       {drawers && (pane === 'list' || !activeNote) && <div className="shrink-0 flex items-center gap-2"><button ref={listFoldersRef} type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button></div>}
       {drawer && <Dialog isOpen title="Folders" variant="sheet" onClose={() => setDrawer(false)}><div className="p-3">{folderTree}<button type="button" className={buttonClass.secondary} onClick={() => folderAction('new', selectedFolder === 'all' ? '' : selectedFolder)}>New folder</button></div></Dialog>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
+      <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
       {compact ? (pane === 'list' ? list : editor) : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-4">
           {!focusMode && <div aria-label="Notes navigation" className={`shrink-0 min-h-0 gap-2 ${drawers ? (pane === 'editor' ? 'hidden' : 'flex w-full') : 'flex'}`}>
@@ -510,6 +555,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             <section aria-label="Notes list" className={`${drawers ? 'w-full' : 'w-64'} min-h-0 flex flex-col`}>{list}</section>
           </div>}
           <div className={`min-h-0 min-w-0 flex-1 flex-col ${drawers && pane === 'list' && !focusMode ? 'hidden' : 'flex'}`}>{editor}</div>
+          {!drawers && !focusMode && activeNote && <RelatedPanel {...relatedProps} />}
         </div>
       )}
     </div>

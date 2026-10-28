@@ -183,3 +183,24 @@ it('cleanup history cannot Undo the deletion of a picture reference', async () =
   expect(editor.getMarkdown()).not.toContain(source);
   await act(async () => root.unmount());
 });
+
+it('appendRelatedLink uses the current editor content, one update and one isolated Undo step', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const ref = React.createRef<import('./RichNoteEditor').RichNoteEditorHandle>(); const onChange = vi.fn();
+  await act(async () => root.render(React.createElement(RichNoteEditor, { noteId: 'related', markdown: 'Java stream', onChange, onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new', ref })));
+  expect(onChange).not.toHaveBeenCalled();
+  await act(async () => { core(host).commands.insertContentAt(core(host).state.doc.content.size - 1, ' local edit'); });
+  const before = core(host).getMarkdown(); onChange.mockClear();
+  const transaction = vi.fn(); core(host).on('transaction', transaction);
+  await act(async () => ref.current!.appendRelatedLink('Java collectors'));
+  expect(transaction).toHaveBeenCalledTimes(1);
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(core(host).getMarkdown().trimEnd()).toBe(before + '\n\n## Related\n\n- [[Java collectors]]');
+  await act(async () => core(host).commands.undo()); expect(core(host).getMarkdown()).toBe(before);
+  await act(async () => core(host).commands.redo()); expect(core(host).getMarkdown()).toContain('[[Java collectors]]');
+  const linked = core(host).getMarkdown();
+  await act(async () => core(host).commands.insertContentAt(core(host).state.doc.content.size - 1, 'typing'));
+  await act(async () => core(host).commands.undo()); expect(core(host).getMarkdown()).toBe(linked);
+  onChange.mockClear(); await act(async () => ref.current!.appendRelatedLink('Bad|title')); expect(onChange).not.toHaveBeenCalled();
+  await act(async () => root.unmount());
+});

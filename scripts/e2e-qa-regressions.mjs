@@ -1506,6 +1506,92 @@ await run('C10-X1', async () => {
   check('C10-X1-data', saved.headings[0].notesContent === 'Keep yesterday journal' && saved.headings[0].items.some(t => t.title === title && t.movedToBacklogDate), 'excluded historical task and journal stay in the stored document');
 });
 
+// Cycle 11 Task 6: related suggestions, explicit edits, dismissals and phone sheet.
+await run('C11-Related', async () => {
+  const { page, errors } = await fresh();
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  for (const title of ['Java stream', 'Java collectors']) {
+    await page.getByRole('region', { name: 'Notes list', exact: true }).getByRole('button', { name: 'New note', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Title', exact: true }).fill(title);
+    await rich(page).fill('Java stream collectors pipeline processing');
+  }
+  const panel = page.getByRole('complementary', { name: 'Related panel', exact: true });
+  const suggested = panel.getByRole('region', { name: 'Suggested notes', exact: true });
+  await suggested.getByRole('button', { name: 'Link', exact: true }).waitFor();
+  check('C11-Related-shares', (await suggested.innerText()).includes('shares:') && (await suggested.innerText()).includes('java'), 'two written Java notes show shared words');
+  await suggested.getByRole('button', { name: 'Not related', exact: true }).click();
+  await persisted(page, 'notemeta', meta => meta?.dismissed?.some(pair => !pair.restored));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await panel.getByText('Hidden suggestions (1)', { exact: true }).waitFor();
+  check('C11-Related-dismiss', await suggested.getByRole('button', { name: 'Link', exact: true }).count() === 0, 'dismissal survives reload');
+  await panel.getByText('Hidden suggestions (1)', { exact: true }).click();
+  await panel.getByRole('button', { name: 'Restore', exact: true }).click();
+  await suggested.getByRole('button', { name: 'Link', exact: true }).waitFor();
+  await persisted(page, 'notemeta', meta => meta?.dismissed?.some(pair => pair.restored));
+  check('C11-Related-restore', true, 'restore records restored:true and brings back the suggestion');
+  const source = await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue();
+  const target = await suggested.getByRole('button').first().innerText();
+  await suggested.getByRole('button', { name: 'Link', exact: true }).click();
+  await persisted(page, 'notes', (notes, { source, target }) => notes?.some(note => note.title === source && note.content.includes(`## Related`) && note.content.includes(`- [[${target}]]`)), { source, target });
+  await suggested.getByRole('button', { name: 'Link', exact: true }).waitFor({ state: 'hidden' });
+  await panel.getByRole('region', { name: 'Linked notes', exact: true }).getByRole('button', { name: target, exact: true }).click();
+  await panel.getByRole('region', { name: 'Linked notes', exact: true }).getByRole('button', { name: source, exact: true }).waitFor();
+  check('C11-Related-link', (await rich(page).innerText()).includes('Related') === false && (await panel.innerText()).includes('Incoming'), 'Link writes only the source; the target shows its incoming backlink');
+  await page.getByRole('button', { name: 'Minimize Related', exact: true }).click();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Expand Related', exact: true }).waitFor();
+  check('C11-Related-prefs', true, 'Related minimized state survives reload');
+  check('C11-Related-errors', errors.length === 0, 'Related actions have no browser errors', errors.join(' | '));
+});
+
+for (const width of [1200, 900, 390]) await run(`C11-Related-${width}`, async () => {
+  const { page } = await fresh({ mobile: width === 390, notes: [note('related-a', 'Java stream collectors pipeline', 'Java stream'), note('related-b', 'Java stream collectors pipeline', 'Java collectors')] });
+  await page.setViewportSize({ width, height: 900 });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('button').filter({ has: page.getByText('Java stream', { exact: true }) }).first().click();
+  await rich(page).waitFor();
+  const outDir = path.join(os.tmpdir(), 'daymark-task-6-qa'); fs.mkdirSync(outDir, { recursive: true });
+  if (width === 1200) {
+    const strip = page.getByRole('complementary', { name: 'Related minimized', exact: true });
+    await strip.getByText('1', { exact: true }).waitFor();
+    check('C11-Related-1200-strip', await strip.isVisible(), 'compact desktop starts minimized with a suggestion badge');
+    await strip.getByRole('button', { name: 'Expand Related', exact: true }).click();
+  } else {
+    const opener = page.getByRole('button', { name: 'Related · 1', exact: true });
+    await opener.click();
+    const sheet = page.getByRole('dialog', { name: 'Related', exact: true });
+    await sheet.getByRole('button', { name: 'Link', exact: true }).waitFor();
+    const heights = await sheet.locator('button, summary').evaluateAll(els => els.filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect().height));
+    check(`C11-Related-${width}-targets`, heights.every(h => h >= 44), 'Related sheet actions have 44px targets', JSON.stringify(heights));
+    if (width === 390) {
+      const box = await sheet.boundingBox();
+      check('C11-Related-390-bottom', Math.abs(box.y + box.height - 900) <= 1, 'phone sheet docks to the bottom');
+    }
+    await page.screenshot({ path: path.join(outDir, `related-${width}-sheet.png`) });
+    // Select the real saved theme so dm-card variables follow the palette too.
+    await page.keyboard.press('Escape');
+    await settingsOpen(page);
+    await settingsBox(page).getByRole('button', { name: /Dark$/ }).click();
+    await settingsClose(page);
+    await themeSaved(page, 'dark');
+    await opener.click();
+    await page.screenshot({ path: path.join(outDir, `related-${width}-sheet-dark.png`) });
+    await page.keyboard.press('Escape');
+    check(`C11-Related-${width}-focus`, await opener.evaluate(el => el === document.activeElement), 'closing Related returns focus to the note header');
+    // Markdown Link uses the textarea's normal edit path.
+    await page.getByRole('button', { name: 'Markdown', exact: true }).click();
+    await opener.click();
+    await sheet.getByRole('button', { name: 'Link', exact: true }).click();
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+    check(`C11-Related-${width}-markdown`, (await page.getByRole('textbox', { name: 'Note text (Markdown)', exact: true }).inputValue()).includes('- [[Java collectors]]'), 'sheet Link edits the Markdown textarea');
+  }
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  check(`C11-Related-${width}-layout`, !overflow, 'Related fits the viewport');
+  await page.screenshot({ path: path.join(outDir, `related-${width}.png`) });
+});
+
 // Cycle 11 Task 4: folder operations use the public UI and persisted vault data.
 await run('C11-Folders', async () => {
   const notes = [

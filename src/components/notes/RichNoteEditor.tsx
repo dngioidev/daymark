@@ -7,7 +7,8 @@ import { WikiLink } from './wikiLink';
 import { EditorToolbar } from './EditorToolbar';
 import { insertPictureFiles } from './pictureNode';
 import type { Editor } from '@tiptap/core';
-import { history } from '@tiptap/pm/history';
+import { closeHistory, history } from '@tiptap/pm/history';
+import { addRelatedLink } from '../../utils/noteRelated';
 import './richNoteEditor.css';
 
 export interface RichNoteEditorProps {
@@ -21,7 +22,7 @@ export interface RichNoteEditorProps {
   ref?: React.Ref<RichNoteEditorHandle>;
 }
 
-export interface RichNoteEditorHandle { focus(): void; clearHistory(): void }
+export interface RichNoteEditorHandle { focus(): void; clearHistory(): void; appendRelatedLink(title: string): void }
 
 export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, notes, onCreateNote, onToggleMarkdown, ref }: RichNoteEditorProps) {
   const latestOnChange = useRef(onChange);
@@ -66,6 +67,15 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   useEditorState({ editor, selector: ({ transactionNumber }) => transactionNumber });
   useImperativeHandle(ref, () => ({
     focus: () => { editor?.commands.focus(); },
+    appendRelatedLink: title => {
+      if (!editor || editor.isDestroyed) return;
+      const current = editor.getMarkdown();
+      const next = addRelatedLink(current, title);
+      if (next === current) return;
+      // One transaction, saved by onUpdate. Start a separate Undo step from prior typing.
+      editor.chain().setContent(next, { contentType: 'markdown' })
+        .command(({ tr }) => { closeHistory(tr); return true; }).run();
+    },
     clearHistory: () => {
       if (!editor || editor.isDestroyed) return;
       // Reinitialize only the shared history plugin; keep document, selection and other plugins.
