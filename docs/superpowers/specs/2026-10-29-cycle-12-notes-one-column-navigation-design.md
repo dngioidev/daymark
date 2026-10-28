@@ -65,6 +65,15 @@ My calls (please check):
 - All existing folder operations, Undo guards, drawers and QA/UX behaviours must keep working; existing tests that assert the two-pane layout are updated to the one column, not weakened.
 - Release 1.9.0 (minor), same release process as 1.8.0.
 
+## Calls made after the builder check (mine; please check)
+
+- **Current folder:** it changes when you click a folder row or open a note by any route (tree, link, Related, graph, search, new note); it becomes that folder / that note's folder. New note and New folder land in the current folder; with nothing opened yet they go to the top level.
+- **Drag and drop targets:** a note can be dropped on a folder row, or on the "Notes without a folder" heading (which is the top-level drop zone, shown even when empty while a drag is active); not on the "Pinned" group. The non-drag paths (Move to folder picker, folder Move dialog) cover every destination including the top level.
+- **Minimised strip and drawer:** the strip's Search icon expands the column and focuses the search box; its New note icon creates a note in the current folder with the default template; New folder opens the new-folder dialog; folder icons are the top-level folders (at most 8, then "+N") and open the expanded column with that folder current. The narrow-window drawer keeps its search text and expanded folders while the Notes page stays mounted, and closes on selecting a note or Escape.
+- **Search details:** matching is exactly the existing search (title, body and tags, case-insensitive); only highlighting and snippets are new. A body-only match shows one snippet around its first match (about 60 characters each side). The dimmed open note keeps its ancestors expanded and is not counted in "N notes match".
+- **Pinned and counts:** the Pinned group is hidden while searching (matches show in the tree with their pin icon); a pinned note is counted once in folder counts and once in "N notes match"; the Pinned group is A–Z (there is no pin time).
+- **Empty states kept:** "No notes yet. Create a note." when the vault is empty, and "No notes match “…”" when a search finds nothing. Tests that assert the two-pane layout are rewritten for one column; behaviour tests (folder operations, Undo, pinning, search, wiki links, focus mode, Related and graph integration) are kept. Note order changes from "pinned then most recently edited" to A–Z inside folders on purpose.
+
 ## Left to the builder
 
 The pure tree-model module and its row types; virtualisation technique; exact tooltip/long-press mechanics; where the expansion state is stored (per-device preference like the pane prefs); test plan, including QA at 1440/1280/1100/900/390px, keyboard-only paths, a 1,000-note performance check, and axe in light and dark.
