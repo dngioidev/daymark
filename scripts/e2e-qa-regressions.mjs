@@ -7,6 +7,7 @@ import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedVault } from './helpers/server-session.mjs';
 import { cycle10Qa } from './helpers/cycle-10-qa.mjs';
 import { knowledgeGraphQa } from './helpers/knowledge-graph-qa.mjs';
+import { cycle11Qa } from './helpers/cycle-11-qa.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -1647,7 +1648,11 @@ await run('C11-Folders', async () => {
   ];
   const { page, errors } = await fresh({ notes });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
-  const folderRow = path => page.getByRole('button', { name: new RegExp(`^${path}, \\d+ notes?$`) });
+  // Row names start with the visible folder name and count; nested rows then say where they live ("Nested, 0 notes, in Empty").
+  const folderRow = path => {
+    const parts = path.split('/'), where = parts.length > 1 ? `, in ${parts.slice(0, -1).join('/')}` : '';
+    return page.getByRole('button', { name: new RegExp(`^${parts.at(-1)}, \\d+ notes?${where}$`) });
+  };
   const noteList = page.getByRole('region', { name: 'Notes list', exact: true });
   await page.getByRole('button', { name: 'Notes (top level)', exact: true }).click();
   check('C11-Folders-root-only', await noteList.getByText('Root note', { exact: true }).isVisible() && await noteList.getByText('Java notes', { exact: true }).count() === 0 && await noteList.getByText('Inbox notes', { exact: true }).count() === 0, 'top-level Notes excludes nested and other folder notes');
@@ -1665,7 +1670,7 @@ await run('C11-Folders', async () => {
   await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Nested');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await folderRow('Empty/Nested').waitFor();
-  check('C11-Folders-empty', await folderRow('Empty/Nested').getAttribute('aria-label') === 'Empty/Nested, 0 notes', 'nested empty folders exist without overview notes');
+  check('C11-Folders-empty', await folderRow('Empty/Nested').getAttribute('aria-label') === 'Nested, 0 notes, in Empty', 'nested empty folders exist without overview notes');
 
   await folderRow('Tech').click();
   check('C11-Folders-nested-filter', await noteList.getByText('Java notes', { exact: true }).isVisible() && await noteList.getByText('Root note', { exact: true }).count() === 0, 'parent folder filtering includes descendants only');
@@ -1779,6 +1784,7 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
 });
 
 await knowledgeGraphQa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, png });
+await cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, themeSaved });
 await cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);

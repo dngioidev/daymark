@@ -139,6 +139,14 @@ async function tc(id, title, env, fn) {
 const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 const btn = (page, re) => page.getByRole('button', { name: re });
 const visibleText = (page) => page.locator('body').innerText();
+// Note rows only: the folder tree (ul[aria-label]), the Related panel and the editor also contain list buttons.
+const noteRows = (page) => page.locator('main ul:not([aria-label]):not([aria-label="Note editor"] *):not(aside *):not([role="dialog"] *) > li > button');
+// Select a folder in the tree: inline on the compact phone list, otherwise in the tree pane or the Folders drawer.
+async function openFolder(page, name) {
+  const row = page.getByRole('button', { name: new RegExp(`^${name}, \\d+ notes?`) });
+  if (!(await row.first().isVisible())) await page.getByRole('button', { name: 'Folders', exact: true }).first().click();
+  await row.first().click();
+}
 const count = (loc) => loc.count();
 const taskCheckbox = (page, title) => page.getByRole('button', { name: `Mark "${title}" done` });
 const T1 = 'Investigate build pipeline failure';
@@ -529,7 +537,7 @@ async function functional() {
       await btn(page, /^calendar$/i).click();
       expect(/last 7 days/i.test(await visibleText(page)), `${env}: calendar not shown`);
       await btn(page, /^notes$/i).click();
-      expect(await btn(page, /^\+?\s*folder$/i).isVisible(), `${env}: notes not shown`);
+      expect(await btn(page, /^new folder$/i).isVisible(), `${env}: notes not shown`);
       await openSettings(page);
       expect(await isOpenDialog(page, 'Settings'), `${env}: settings not shown`);
       await ctx.close();
@@ -1103,7 +1111,7 @@ async function functional() {
   await tc('NO-01', 'Notes list: pinned first, plain previews', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
-    const items = await page.locator('main li button').allInnerTexts();
+    const items = await noteRows(page).allInnerTexts();
     await ctx.close();
     expect(items.length >= 4, `${items.length} notes`);
     expect(!items.some((t) => /\[ \]|\[x\]|\*\*|^#/m.test(t)), 'Markdown syntax in previews');
@@ -1114,7 +1122,7 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await page.getByLabel('Search notes').fill('sprint');
-    const one = await page.locator('main li button').count();
+    const one = await noteRows(page).count();
     await page.getByLabel('Search notes').fill('zzzz');
     const none = /no notes match/i.test(await visibleText(page));
     await ctx.close();
@@ -1124,8 +1132,8 @@ async function functional() {
   await tc('NO-03', 'Folder chips', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
-    await btn(page, /^meetings$/i).click();
-    const n = await page.locator('main li button').count();
+    await openFolder(page, 'Meetings');
+    const n = await noteRows(page).count();
     await ctx.close();
     expect(n === 1, `${n} notes in Meetings`);
   });
@@ -1208,7 +1216,7 @@ async function functional() {
     await btn(page, /^notes$/i).click();
     await page.getByText('Q4 Reading List & Research Papers').first().click();
     await btn(page, /pin note to the top/i).click();
-    const first = await page.locator('main li button').first().innerText();
+    const first = await noteRows(page).first().innerText();
     await ctx.close();
     expect(/q4 reading list/i.test(first), `first note "${first.split('\n')[0]}"`);
   });

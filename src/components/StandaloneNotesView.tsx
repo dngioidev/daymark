@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FilePlus,
   FileCode,
   FolderPlus,
@@ -596,7 +598,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               <button type="button" aria-label={treeMinimized ? 'Expand folders' : 'Minimize folders'} title={treeMinimized ? 'Expand folders' : 'Minimize folders'} className="min-h-11 w-full text-stone-700 dark:text-stone-200" onClick={() => {
                 if (treeMinimized && prefs.tree === 'open') { setDrawer(true); return; }
                 const next = { ...loadPanePrefs(), tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
-              }}>{treeMinimized ? '>' : '< Folders'}</button>
+              }}>{treeMinimized ? <ChevronRight className="w-4 h-4 mx-auto" aria-hidden="true" /> : <span className="flex items-center justify-center gap-1"><ChevronLeft className="w-4 h-4" aria-hidden="true" />Folders</span>}</button>
               {folderTree}
             </aside>}
             <section aria-label="Notes list" className={`${drawers ? 'w-full' : 'w-64'} min-h-0 flex flex-col`}>{list}</section>

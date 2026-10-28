@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { StandaloneNote } from '../../../types/daymark';
 import type { FolderNode } from '../../../utils/noteFolders';
@@ -31,7 +32,10 @@ export default function GraphView(props: GraphViewProps) {
   const [suggestions, setSuggestions] = useState<SuggestionProgress & { notes: StandaloneNote[]; index: NoteIndex; dismissed: Set<string> }>(() => ({ edges: [], pending: true, completed: 0, batchMs: 0, notes: props.notes, index: props.index, dismissed: props.dismissed }));
   useEffect(() => {
     const identity = { notes: props.notes, index: props.index, dismissed: props.dismissed };
-    setSuggestions({ ...identity, edges: [], pending: true, completed: 0, batchMs: 0 });
+    // Keep the previous edges until the first new publish: buildGraph drops edges
+    // to missing notes and dismissed pairs, so nothing stale is shown, and nodes
+    // held only by suggestions do not blink away while rescoring.
+    setSuggestions(previous => ({ ...identity, edges: previous.edges, pending: true, completed: 0, batchMs: 0 }));
     // Scoring still yields every 12ms. Publish at most four progressive graph
     // snapshots: rebuilding the accessible list for every idle callback causes
     // a render backlog on large vaults even when scoring itself is inexpensive.
@@ -49,7 +53,7 @@ export default function GraphView(props: GraphViewProps) {
   // spring forces. Include filtered orphans so newly connected nodes already
   // have a position when their progressive suggestions arrive.
   const layout = useMemo(() => createLayout(baseGraph.nodes, baseGraph.edges), [baseGraph]);
-  const graph = useMemo(() => buildGraph(props.notes, props.index, props.dismissed, structuralOptions, currentSuggestions ? suggestions.edges : []), [props.notes, props.index, props.dismissed, structuralOptions, currentSuggestions, suggestions.edges]);
+  const graph = useMemo(() => buildGraph(props.notes, props.index, props.dismissed, structuralOptions, suggestions.edges), [props.notes, props.index, props.dismissed, structuralOptions, suggestions.edges]);
   const matches = useMemo(() => {
     const query = options.query?.trim().toLocaleLowerCase();
     return new Set(graph.nodes.filter(node => query && `${node.title} ${node.folder} ${node.tags.join(' ')}`.toLocaleLowerCase().includes(query)).map(node => node.id));
@@ -194,14 +198,14 @@ export default function GraphView(props: GraphViewProps) {
 
   return <div className="flex flex-1 min-h-0 min-w-0 gap-2 text-stone-900 dark:text-stone-100" aria-label="Knowledge graph">
     <aside aria-label="Graph filters" className={`${filterMin ? 'w-12' : 'w-52'} shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
-      <button type="button" className={`${button} w-full`} aria-label={`${filterMin ? 'Expand' : 'Minimize'} graph filters`} aria-expanded={!filterMin} onClick={() => togglePane('graphFilters')}>{filterMin ? '>' : '< Filters'}</button>
+      <button type="button" className={`${button} w-full`} aria-label={`${filterMin ? 'Expand' : 'Minimize'} graph filters`} aria-expanded={!filterMin} onClick={() => togglePane('graphFilters')}>{filterMin ? <ChevronRight size={16} aria-hidden="true" className="mx-auto" /> : <span className="flex items-center justify-center gap-1"><ChevronLeft size={16} aria-hidden="true" />Filters</span>}</button>
       {!filterMin && <GraphFilters tree={props.folderTree} tags={tags} options={options} onChange={setOptions} activeNoteId={selectedId ?? props.activeNoteId} />}
     </aside>
     <div className="flex-1 flex flex-col min-w-0 min-h-0 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950 overflow-hidden">
       <div className="flex flex-wrap gap-1 p-2 items-center">
         <button type="button" className={button} aria-label="List view" aria-pressed={listView} onClick={() => setListView(!listView)}>List view</button>
-        <button type="button" className={button} aria-label="Zoom in" onClick={() => zoomAt(1.25)}>+</button>
-        <button type="button" className={button} aria-label="Zoom out" onClick={() => zoomAt(.8)}>−</button>
+        <button type="button" className={button} aria-label="Zoom in" onClick={() => zoomAt(1.25)}><Plus size={16} aria-hidden="true" className="mx-auto" /></button>
+        <button type="button" className={button} aria-label="Zoom out" onClick={() => zoomAt(.8)}><Minus size={16} aria-hidden="true" className="mx-auto" /></button>
         <button type="button" className={button} onClick={() => { camera.current = { x: 0, y: 0, zoom: Math.min(1, 500 / Math.max(500, Math.sqrt(graph.nodes.length) * 40)) }; invalidate.current(); }}>Reset view</button>
         <span className="text-xs" role="status">{graph.nodes.length} notes · {graph.edges.length} connections</span>
         {options.query?.trim() && <span className="text-xs" role="status">{matches.size} matching notes</span>}
@@ -238,7 +242,7 @@ export default function GraphView(props: GraphViewProps) {
       <div ref={list} className={listView ? 'p-3 overflow-y-auto flex-1 min-h-0' : 'sr-only'}><GraphList nodes={listInput.nodes} edges={listInput.edges} matches={listInput.matches} {...actions} tabIndex={listView ? 0 : -1} /></div>
     </div>
     <aside aria-label="Graph detail" className={`${detailMin ? 'w-12' : 'w-56'} shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
-      <button type="button" className={`${button} w-full`} aria-label={`${detailMin ? 'Expand' : 'Minimize'} graph detail`} aria-expanded={!detailMin} onClick={() => togglePane('graphDetail')}>{detailMin ? '<' : 'Detail >'}</button>
+      <button type="button" className={`${button} w-full`} aria-label={`${detailMin ? 'Expand' : 'Minimize'} graph detail`} aria-expanded={!detailMin} onClick={() => togglePane('graphDetail')}>{detailMin ? <ChevronLeft size={16} aria-hidden="true" className="mx-auto" /> : <span className="flex items-center justify-center gap-1">Detail<ChevronRight size={16} aria-hidden="true" /></span>}</button>
       {!detailMin && <GraphDetail nodes={graph.nodes} edges={graph.edges} selectedId={selectedId} {...actions} />}
     </aside>
   </div>;

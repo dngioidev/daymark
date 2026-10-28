@@ -24,7 +24,7 @@ it.each(['Java|alias', 'Java]]', 'Java\nstream'])('pressing disabled Link cannot
   await act(async () => link.click()); expect(onLink).not.toHaveBeenCalled();
   await act(async () => root.unmount()); host.remove();
 });
-it.each([[0, 'no suggestions'], [1, '1 suggestion'], [2, '2 suggestions']])('announces the minimized count: %s', (count, label) => {
+it.each([[0, '0 suggestions'], [1, '1 suggestion'], [2, '2 suggestions']])('announces the minimized count: %s', (count, label) => {
   const html = renderToStaticMarkup(React.createElement(RelatedPanel, { ...props, minimized: true, suggestions: Array.from({ length: Number(count) }, () => props.suggestions[0]) }));
   expect(html).toContain(`aria-label="Expand Related, ${label}"`);
 });

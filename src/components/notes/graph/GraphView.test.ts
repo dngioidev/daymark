@@ -79,3 +79,24 @@ it('search and progressive suggestions never reseed or step the settled layout; 
     await act(async () => escape.click()); expect(host.textContent).not.toContain('Local note is missing or outside these filters');
   } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
+it('keeps the previous suggestion edges until the first new publish when notes or dismissed change', async () => {
+  vi.stubGlobal('innerWidth', 1440); localStorage.clear();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const publishers: Array<(progress: suggestionJobs.SuggestionProgress) => void> = [];
+  vi.spyOn(suggestionJobs, 'scheduleGraphSuggestions').mockImplementation((_notes, _index, _dismissed, callback) => { publishers.push(callback); return () => {}; });
+  const notes = ['a', 'b', 'c'].map(id => ({ id, title: `Note ${id}`, content: '', folder: '', tags: [], createdAt: '', updatedAt: '' }));
+  const host = document.createElement('div'), root = createRoot(host), index = buildNoteIndex(notes);
+  const render = (dismissed: Set<string>) => act(async () => root.render(React.createElement(GraphView, { notes, index, dismissed, folderTree: [], selectedFolder: 'all', onOpenNote: () => {}, onLink: () => {}, onDismiss: () => {} })));
+  const label = () => host.querySelector('canvas')?.getAttribute('aria-label') ?? '';
+  try {
+    await render(new Set<string>());
+    await act(async () => publishers[0]({ completed: 3, pending: false, batchMs: 1, edges: [{ a: 'a', b: 'b', kind: 'suggested' }] }));
+    expect(label()).toContain('3 notes, 1 connections');
+    // A new dismissed set restarts scoring; the old edge stays until the new run publishes.
+    await render(new Set<string>(['a\u0000c']));
+    expect(publishers).toHaveLength(2); expect(label()).toContain('3 notes, 1 connections');
+    expect(host.textContent).toContain('Finding suggestions');
+    await act(async () => publishers[1]({ completed: 3, pending: false, batchMs: 1, edges: [] }));
+    expect(label()).toContain('3 notes, 0 connections'); expect(host.textContent).not.toContain('Finding suggestions');
+  } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
+});

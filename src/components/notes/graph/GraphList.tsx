@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphNode, GraphEdge } from '../../../utils/graphData';
 import { ConnectionActions, type GraphActions } from './GraphDetail';
 
@@ -23,16 +23,27 @@ export const GraphList = React.memo(function GraphList({ nodes, edges, matches, 
   }, [nodes, edges]);
   const rows = useMemo(() => matches ? nodes.filter(node => matches.has(node.id)) : nodes, [nodes, matches]);
   const [page, setPage] = useState(0);
+  const section = useRef<HTMLElement>(null), refocus = useRef(false);
   const pages = Math.max(1, Math.ceil(rows.length / GRAPH_LIST_PAGE));
   const current = Math.min(page, pages - 1), first = current * GRAPH_LIST_PAGE;
   const windowed = rows.slice(first, first + GRAPH_LIST_PAGE);
   const noun = matches ? 'matching notes' : 'notes';
-  return <section aria-label="Graph nodes"><h2 className="font-bold">Visible notes and connections</h2>
+  // Paging disables the button that was just pressed (Next on the last page), so
+  // keyboard focus would be lost. Move it to the first row of the new page.
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    section.current?.querySelector<HTMLButtonElement>('[data-node-id] button')?.focus();
+  }, [current]);
+  const go = (next: number) => { refocus.current = true; setPage(next); };
+  const paged = rows.length > GRAPH_LIST_PAGE;
+  return <section ref={section} aria-label="Graph nodes"><h2 className="font-bold">Visible notes and connections</h2>
     {nodes.length === 0 ? <p>No notes match these filters.</p> : matches && rows.length === 0 ? <p>No notes match this search.</p> : null}
-    {rows.length > GRAPH_LIST_PAGE && <div className="flex flex-wrap items-center gap-2 py-2">
-      <p role="status" className="text-sm">Showing {first + 1}–{first + windowed.length} of {rows.length} {noun}; use search or filters to narrow.</p>
-      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous {GRAPH_LIST_PAGE} notes</button>
-      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next {GRAPH_LIST_PAGE} notes</button>
+    {/* Always mounted so screen readers register the live region before it changes. */}
+    <p role="status" className={paged ? 'text-sm' : 'sr-only'}>{paged ? `Showing ${first + 1}–${first + windowed.length} of ${rows.length} ${noun}; use search or filters to narrow.` : ''}</p>
+    {paged && <div className="flex flex-wrap items-center gap-2 py-2">
+      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current === 0} onClick={() => go(current - 1)}>Previous {GRAPH_LIST_PAGE} notes</button>
+      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current >= pages - 1} onClick={() => go(current + 1)}>Next {GRAPH_LIST_PAGE} notes</button>
     </div>}
     <ul className="space-y-4">{windowed.map(node => <li key={node.id} data-node-id={node.id} className="border-b border-stone-300 dark:border-stone-700 pb-3">
       <h3 className="font-semibold">{node.title}</h3><p>{node.folder || 'Root'}</p>

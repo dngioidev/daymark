@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { StandaloneNote } from '../../types/daymark';
 import type { RelatedNoteSuggestion } from '../../hooks/useRelatedNotes';
 import { canLinkToTitle } from '../../utils/noteRelated';
@@ -47,10 +48,10 @@ export function RelatedContents({ suggestions, linked, hidden, onLink, onDismiss
 
 export function RelatedPanel(props: RelatedPanelProps) {
   const count = props.suggestions.length;
-  const countLabel = count === 0 ? 'no suggestions' : `${count} ${count === 1 ? 'suggestion' : 'suggestions'}`;
+  const countLabel = `${count} ${count === 1 ? 'suggestion' : 'suggestions'}`;
   return <aside aria-label={props.minimized ? 'Related minimized' : 'Related panel'} className={`${props.minimized ? 'w-14' : 'w-64'} shrink-0 min-h-0 overflow-y-auto rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100`}>
     <button type="button" data-related-toggle className="min-h-11 w-full px-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800" aria-expanded={!props.minimized || !!props.overlayOpen} aria-label={props.minimized ? `${props.overlayOpen ? 'Close' : 'Expand'} Related, ${countLabel}` : 'Minimize Related'} onClick={props.onToggleMinimized}>
-      {props.minimized ? <><span aria-hidden="true">&gt;</span><span className="block rounded-full bg-stone-200 dark:bg-stone-700 mx-auto w-8">{props.suggestions.length}</span></> : 'Related <'}
+      {props.minimized ? <><ChevronRight size={14} aria-hidden="true" className="mx-auto" /><span className="block rounded-full bg-stone-200 dark:bg-stone-700 mx-auto w-8">{props.suggestions.length}</span></> : <span className="flex items-center justify-center gap-1">Related<ChevronLeft size={14} aria-hidden="true" /></span>}
     </button>
     {!props.minimized && <RelatedContents {...props} />}
   </aside>;

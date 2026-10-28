@@ -39,6 +39,7 @@ const VIEWPORTS = {
   android: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   laptop: { viewport: { width: 1024, height: 768 } },
+  narrow: { viewport: { width: 900, height: 800 } },
 };
 
 // { name, viewport, signedOut?, prepare?(page), selector? } - extend per cycle.
@@ -129,7 +130,46 @@ const cycle9Menu = then(async (page) => {
   await trigger.click();
   await page.getByRole('menu').getByRole('menuitem').first().waitFor();
 });
+const cycle11Vault = (today) => {
+  const stamp = (day) => `${today}T0${day}:00:00Z`;
+  const note = (id, title, folder, content, tags, hour, extra = {}) => ({ id, title, folder, content, tags, pinned: false, createdAt: stamp(hour), updatedAt: stamp(hour), ...extra });
+  return {
+    ...cycle7Fixture(today),
+    notes: [
+      note('c11-streams', 'Java streams', 'Tech/Java', '# Java streams\n\nA stream pipeline filters, maps and collects elements without changing the source collection.\n\nSee also [[Java collectors]].', ['java'], 1),
+      note('c11-collectors', 'Java collectors', 'Tech/Java', '# Java collectors\n\nCollectors end a stream pipeline: groupingBy builds a map of lists, joining builds a string and toList collects the elements.\n\nPractice: group the library books by author with a stream pipeline.', ['java', 'practice'], 2),
+      note('c11-records', 'Java records', 'Tech/Java', '# Java records\n\nRecords are compact immutable classes. Use a record as the key when a stream pipeline groups elements into a map.', ['java'], 3),
+      note('c11-asyncio', 'Python asyncio', 'Tech/Python', '# Python asyncio\n\nCoroutines, tasks and the event loop run many waiting operations without threads.', ['python'], 4),
+      note('c11-atomic', 'Atomic Habits notes', 'Reading', '# Atomic Habits\n\nSmall habits compound. Make the cue obvious and the habit easy to repeat each day.', ['reading', 'habits'], 5),
+      note('c11-deep', 'Deep Work notes', 'Reading', '# Deep Work\n\nProtect long blocks of focus. Plan the day so shallow tasks do not crowd out deep work.', ['reading'], 6),
+      note('c11-roadmap', 'Daymark roadmap', 'Projects/Daymark', '# Daymark roadmap\n\nFolders, related notes and a knowledge graph for the notebook. Review the habits tracker next.', ['project'], 7),
+      note('c11-review', 'Weekly review', '', '# Weekly review\n\nLook back at the week, plan the next focus blocks and move loose ideas into notes.', ['review'], 8),
+    ],
+  };
+};
+const cycle11Note = (title) => then(async (page) => {
+  await click('button', /^notes$/i)(page);
+  await page.getByRole('button').filter({ has: page.getByText(title, { exact: true }) }).first().click();
+  await page.getByRole('textbox', { name: 'Note rich text', exact: true }).waitFor();
+  const link = page.getByRole('complementary', { name: 'Related panel', exact: true }).getByRole('button', { name: 'Link', exact: true });
+  if (await page.getByRole('complementary', { name: 'Related panel', exact: true }).count()) await link.first().waitFor({ timeout: 10000 }).catch(() => {});
+});
+const cycle11Graph = then((page) => page.emulateMedia({ reducedMotion: 'reduce' }), click('button', /^notes$/i),
+  // Open a Java note first so the graph starts with it selected and its suggestions in the Detail pane.
+  (page) => page.getByRole('button').filter({ has: page.getByText('Java collectors', { exact: true }) }).first().click(),
+  click('button', /^graph$/i), async (page) => {
+  await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
+  await page.getByText('Finding suggestions…').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+});
 const SHOTS = [
+  { name: 'notes-three-pane', viewport: 'wide', cycles: ['cycle-11'], prepare: cycle11Note('Java collectors') },
+  { name: 'notes-minimized', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Note('Java collectors'), click('button', /^minimize folders$/i), click('button', /^minimize related$/i)) },
+  { name: 'notes-related', viewport: 'wide', cycles: ['cycle-11'], selector: 'aside[aria-label="Related panel"]', prepare: cycle11Note('Java collectors') },
+  { name: 'notes-drawer', viewport: 'narrow', cycles: ['cycle-11'], prepare: then(click('button', /^notes$/i), click('button', /^folders$/i)) },
+  { name: 'graph-folder-filter', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Graph, (page) => page.getByRole('complementary', { name: 'Graph filters' }).getByLabel('Reading, 2 notes', { exact: true }).uncheck()) },
+  { name: 'graph-dark', viewport: 'wide', dark: true, cycles: ['cycle-11'], prepare: cycle11Graph },
+  { name: 'phone-folders', viewport: 'android', cycles: ['cycle-11'], prepare: then(click('button', /^notes$/i), click('button', /^folders$/i)) },
+  { name: 'phone-related', viewport: 'android', cycles: ['cycle-11'], prepare: then(click('button', /^notes$/i), (page) => page.getByRole('button').filter({ has: page.getByText('Java collectors', { exact: true }) }).first().click(), (page) => page.getByRole('button', { name: /^Related · / }).click(), (page) => page.getByRole('dialog', { name: 'Related', exact: true }).waitFor()) },
   { name: 'expanded', viewport: 'desktop', cycles: ['cycle-10-1'], prepare: loadSample },
   { name: 'minimized-left', viewport: 'desktop', cycles: ['cycle-10-1'], prepare: then(click('button', /^minimize menu$/i)) },
   { name: 'minimized-right', viewport: 'desktop', dark: true, cycles: ['cycle-10-1'], prepare: then(async page => {
@@ -324,6 +364,8 @@ try {
           { id: 'c10-unsorted', title: 'Learn to draw local birds', order: 2, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
         ] };
         await seedVault(page, baseUrl, vault);
+      } else if (cycle === 'cycle-11') {
+        await seedVault(page, baseUrl, cycle11Vault(today));
       } else if (cycle === 'cycle-9') {
         await seedVault(page, baseUrl, cycle9Vault(today));
       } else await seedSample(page, baseUrl);

@@ -61,7 +61,15 @@ daymark/
 | `src/utils/dateFormat.ts` | Logic | The UI's date vocabulary: Today/Yesterday/Tomorrow, "Fri 16 Oct", long dates, ages. No ISO dates on screen. |
 | `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, checklist counts, pinned-first sorting. |
 | `src/components/TodayView.tsx` | UI | Full-width daily notebook with visual, split and Markdown modes, collapsible sections and progress/planned-day sidebar. |
-| `src/components/StandaloneNotesView.tsx` | UI | Full-height notes list and editor, folders, templates, word count and focus mode. |
+| `src/components/StandaloneNotesView.tsx` | UI | Full-height notes list and editor with the nested folder tree, Related panel, List/Graph switch, templates, word count and focus mode; owns pane modes (`paneMode`) and folder/dismissal writes. |
+| `src/utils/noteFolders.ts` | Logic | Folder paths (`Tech/Java`), tree building with counts, normalisation, rename/move/delete rewrites, `folderMatches`; empty folders live in `notemeta`. |
+| `src/components/notes/NoteFolderTree.tsx`, `FolderDialogs.tsx`, `FolderPicker.tsx` | UI | Nested folder tree with actions and drag and drop, New/Rename/Move dialogs and the phone Move to folder picker. |
+| `src/utils/notesPanes.ts` | Logic | Per-device pane preferences (folder tree, Related, graph filter/detail) and the width-driven pane layout (`inline`, `overlay`, `drawers`). |
+| `src/utils/noteRelated.ts`, `src/hooks/useRelatedNotes.ts` | Logic | On-device relatedness engine (shared-term scoring, `NoteIndex`, `pairKey`, safe wiki-link writes) and the hook that scores the active note. |
+| `src/components/notes/RelatedPanel.tsx`, `RelatedSheet.tsx` | UI | Related panel (Link / Not related, Linked, Hidden suggestions), overlay drawer and phone sheet. |
+| `src/utils/graphData.ts`, `graphLayout.ts`, `graphSuggestions.ts` | Logic | Knowledge graph projection (folder/tag/orphan/local filters), deterministic force layout and idle-time progressive suggestion scoring. |
+| `src/components/notes/graph/*` | UI | Graph canvas view, filters, detail pane and the paged accessible list view with the same Link / Not related actions. |
+| `notemeta` sync entity (`src/sync/*`, `server/*`) | Sync | Synced empty-folder list and dismissed Related pairs; gated by the `notemeta` feature flag so older clients keep working. |
 | `src/components/CalendarView.tsx` | UI | Calendar: month grid and week rows, future planning, day notes and habits, open any day and desktop drag to move. |
 | `src/components/TaskItemCard.tsx` | UI | Compact task row: checkbox, title (opens details), status menu, age, "…" menu (Mark done on…, Rename, Delete). Details live in `TaskHistoryDrawer.tsx` (the task details sheet). |
 | `src/components/MarkdownPreview.tsx` | UI | Markdown renderer supporting GFM checklists, callouts, and wikilinks. |
