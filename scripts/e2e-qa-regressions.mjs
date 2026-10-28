@@ -1509,6 +1509,7 @@ await run('C10-X1', async () => {
 // Cycle 11 Task 6: related suggestions, explicit edits, dismissals and phone sheet.
 await run('C11-Related', async () => {
   const { page, errors } = await fresh();
+  await page.setViewportSize({ width: 1920, height: 900 });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   for (const title of ['Java stream', 'Java collectors']) {
     await page.getByRole('region', { name: 'Notes list', exact: true }).getByRole('button', { name: 'New note', exact: true }).click();
@@ -1541,7 +1542,7 @@ await run('C11-Related', async () => {
   await page.getByRole('button', { name: 'Minimize Related', exact: true }).click();
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
-  await page.getByRole('button', { name: 'Expand Related', exact: true }).waitFor();
+  await page.getByRole('button', { name: /^Expand Related,/ }).waitFor();
   check('C11-Related-prefs', true, 'Related minimized state survives reload');
   check('C11-Related-errors', errors.length === 0, 'Related actions have no browser errors', errors.join(' | '));
 });
@@ -1557,7 +1558,7 @@ for (const width of [1200, 900, 390]) await run(`C11-Related-${width}`, async ()
     const strip = page.getByRole('complementary', { name: 'Related minimized', exact: true });
     await strip.getByText('1', { exact: true }).waitFor();
     check('C11-Related-1200-strip', await strip.isVisible(), 'compact desktop starts minimized with a suggestion badge');
-    await strip.getByRole('button', { name: 'Expand Related', exact: true }).click();
+    await strip.getByRole('button', { name: /^Expand Related,/ }).click();
   } else {
     const opener = page.getByRole('button', { name: 'Related · 1', exact: true });
     await opener.click();
@@ -1590,6 +1591,50 @@ for (const width of [1200, 900, 390]) await run(`C11-Related-${width}`, async ()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   check(`C11-Related-${width}-layout`, !overflow, 'Related fits the viewport');
   await page.screenshot({ path: path.join(outDir, `related-${width}.png`) });
+});
+
+for (const width of [1100, 1280, 1366, 1440, 1600, 1920]) await run(`C11-Related-space-${width}`, async () => {
+  const { page } = await fresh({ notes: [note('space-a', 'Java stream collectors pipeline', 'Java stream'), note('space-b', 'Java stream collectors pipeline', 'Java collectors')] });
+  await page.setViewportSize({ width, height: 900 });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await rich(page).waitFor();
+  const editor = page.getByRole('group', { name: 'Note editor', exact: true });
+  const initial = await editor.boundingBox();
+  check(`C11-Related-space-${width}-minimum`, initial.width >= 480, 'default editor stays at least 480px', String(initial.width));
+  const expand = page.getByRole('button', { name: /^Expand Related,/ });
+  const overlay = editor.getByRole('dialog', { name: 'Related', exact: true });
+  if (width <= 1440) {
+    await expand.click();
+    await overlay.waitFor();
+    const expanded = await editor.boundingBox();
+    check(`C11-Related-space-${width}-overlay`, Math.abs(initial.width - expanded.width) <= 1, 'explicit expand overlays the editor without squeezing it');
+    await page.setViewportSize({ width: width + 1, height: 900 });
+    await settle(page, 100);
+    check(`C11-Related-space-${width}-resize`, await overlay.isVisible(), 'a one-pixel resize keeps the overlay open');
+    await page.keyboard.press('Escape');
+    check(`C11-Related-space-${width}-escape`, await expand.evaluate(el => el === document.activeElement), 'Escape returns focus to the counted strip toggle');
+    await expand.click();
+    await page.getByRole('searchbox', { name: 'Search notes', exact: true }).click();
+    check(`C11-Related-space-${width}-outside`, await overlay.count() === 0, 'outside click closes the overlay');
+    await expand.click();
+    if (width === 1280) {
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+      await overlay.waitFor();
+      check('C11-Related-space-open-persisted', Math.abs((await editor.boundingBox()).width - initial.width) <= 1, 'explicit open preference survives reload as an overlay');
+    }
+    await overlay.getByRole('button', { name: 'Minimize Related', exact: true }).click();
+    check(`C11-Related-space-${width}-toggle`, await overlay.count() === 0, 'the overlay toggle closes it');
+    if (width === 1280) {
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+      await expand.waitFor();
+      check('C11-Related-space-min-persisted', await overlay.count() === 0, 'explicit minimize survives reload');
+    }
+  } else {
+    check(`C11-Related-space-${width}-inline`, await page.getByRole('complementary', { name: 'Related panel', exact: true }).isVisible() && await overlay.count() === 0, 'wide default opens Related inline');
+  }
+  check(`C11-Related-space-${width}-overflow`, !await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'desktop panes fit the viewport');
 });
 
 // Cycle 11 Task 4: folder operations use the public UI and persisted vault data.
@@ -1686,7 +1731,7 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   await page.setViewportSize({ width, height: 900 });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   if (width >= 1100) {
-    await page.getByRole('button', { name: 'Minimize folders', exact: true }).waitFor();
+    await page.getByRole('button', { name: /^(Minimize|Expand) folders$/ }).waitFor();
     check(`C11-Width-${width}-tree`, await page.getByRole('button', { name: 'Tech, 1 note', exact: true }).isVisible(), 'desktop tree stays reachable');
   } else {
     const opener = page.getByRole('button', { name: 'Folders', exact: true });

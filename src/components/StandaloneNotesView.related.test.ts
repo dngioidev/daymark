@@ -25,6 +25,8 @@ it('opening Related never saves; Markdown Link edits only the active note; dismi
   expect(opener, host.textContent ?? "").toBeDefined();
   opener!.focus();
   await act(async () => opener!.click()); expect(save).not.toHaveBeenCalled();
+  await act(async () => { window.innerWidth = 901; window.dispatchEvent(new Event('resize')); });
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
   await act(async () => button('Not related').click());
   expect(metaSave.mock.calls.at(-1)![0].dismissed).toEqual([expect.objectContaining({ key: 'a|b', restored: false })]);
   await act(async () => button('Undo').click()); expect(metaSave.mock.calls.at(-1)![0].dismissed[0].restored).toBe(true);

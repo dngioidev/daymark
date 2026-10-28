@@ -25,5 +25,10 @@ it('computes at idle after 800ms, retains suggestions while editing, excludes li
   await act(async () => vi.advanceTimersByTime(801)); expect(result.suggestions).toEqual([]); expect(result.hidden[0].id).toBe('b');
   await act(async () => root.render(React.createElement(Probe, { notes, dismissed: [{ key: 'a|b', at: 'later', restored: true }] })));
   expect(result.suggestions).toHaveLength(1); expect(result.hidden).toEqual([]);
+  idle.mockClear();
+  await act(async () => result.refresh());
+  expect(result.suggestions).toHaveLength(1);
+  await act(async () => vi.advanceTimersByTime(801));
+  expect(idle).toHaveBeenCalledOnce();
   await act(async () => root.unmount());
 });

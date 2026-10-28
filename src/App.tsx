@@ -894,7 +894,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView railCollapsed={railCollapsed} onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
             {activeDesktopTab === 'backlog' && <BacklogView hideTitle {...backlogViewProps} />}
 

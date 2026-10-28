@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { StandaloneNote } from '../../types/daymark';
 import type { RelatedNoteSuggestion } from '../../hooks/useRelatedNotes';
 import { canLinkToTitle } from '../../utils/noteRelated';
@@ -12,6 +12,7 @@ export interface RelatedPanelProps {
   onRestore(noteId: string): void;
   onOpen(noteId: string): void;
   minimized: boolean;
+  overlayOpen?: boolean;
   onToggleMinimized(): void;
 }
 const action = 'min-h-11 min-w-11 px-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -35,6 +36,7 @@ export function RelatedContents({ suggestions, linked, hidden, onLink, onDismiss
     <section aria-label="Linked notes"><h3 className="font-semibold">Linked</h3>
       {(['outgoing', 'incoming'] as const).map(direction => <div key={direction}><h4 className="mt-2 text-xs text-stone-600 dark:text-stone-400">{direction === 'outgoing' ? 'Outgoing' : 'Incoming'}</h4>
         <ul>{linked[direction].map(note => <li key={note.id}>{openNote(note)}</li>)}</ul>
+        {!linked[direction].length && <p className="py-2 text-stone-600 dark:text-stone-400">None</p>}
       </div>)}
     </section>
     <details><summary className="min-h-11 flex items-center cursor-pointer font-medium">Hidden suggestions ({hidden.length})</summary>
@@ -44,10 +46,42 @@ export function RelatedContents({ suggestions, linked, hidden, onLink, onDismiss
 }
 
 export function RelatedPanel(props: RelatedPanelProps) {
+  const count = props.suggestions.length;
+  const countLabel = count === 0 ? 'no suggestions' : `${count} ${count === 1 ? 'suggestion' : 'suggestions'}`;
   return <aside aria-label={props.minimized ? 'Related minimized' : 'Related panel'} className={`${props.minimized ? 'w-14' : 'w-64'} shrink-0 min-h-0 overflow-y-auto rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100`}>
-    <button type="button" className="min-h-11 w-full px-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800" aria-label={props.minimized ? 'Expand Related' : 'Minimize Related'} onClick={props.onToggleMinimized}>
+    <button type="button" data-related-toggle className="min-h-11 w-full px-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800" aria-expanded={!props.minimized || !!props.overlayOpen} aria-label={props.minimized ? `${props.overlayOpen ? 'Close' : 'Expand'} Related, ${countLabel}` : 'Minimize Related'} onClick={props.onToggleMinimized}>
       {props.minimized ? <><span aria-hidden="true">&gt;</span><span className="block rounded-full bg-stone-200 dark:bg-stone-700 mx-auto w-8">{props.suggestions.length}</span></> : 'Related <'}
     </button>
     {!props.minimized && <RelatedContents {...props} />}
   </aside>;
+}
+
+/** Nonmodal drawer anchored to the editor; other panes retain their widths. */
+export function RelatedOverlay({ onClose, ...props }: RelatedPanelProps & { onClose(): void }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    panelRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation(); closeRef.current();
+    };
+    const outside = (event: Event) => {
+      const target = event.target as HTMLElement;
+      // The surviving strip toggle handles its own click without an outside-close race.
+      if (!panelRef.current?.contains(target) && !target.closest?.('[data-related-toggle]')) closeRef.current();
+    };
+    document.addEventListener('keydown', keydown, true);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      document.removeEventListener('keydown', keydown, true);
+      document.removeEventListener('pointerdown', outside);
+      opener?.focus();
+    };
+  }, []);
+  return <div ref={panelRef} role="dialog" aria-label="Related" className="absolute inset-y-0 right-0 z-40 w-64 overflow-y-auto rounded-xl shadow-xl bg-white dark:bg-stone-900">
+    <RelatedPanel {...props} minimized={false} onToggleMinimized={() => { props.onToggleMinimized(); onClose(); }} />
+  </div>;
 }

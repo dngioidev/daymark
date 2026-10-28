@@ -23,13 +23,13 @@ import { formatLocalDate } from '../utils/clock';
 import type { RichNoteEditorHandle } from './notes/RichNoteEditor';
 
 import { buildFolderTree, createFolder as createEmptyFolder, renameFolder, moveFolder, deleteFolder, moveNote, folderMatches, normalizeFolderPath } from '../utils/noteFolders';
-import { loadPanePrefs, savePanePrefs, paneMode } from '../utils/notesPanes';
+import { loadPanePrefs, savePanePrefs, paneMode, relatedPaneLayout, MIN_EDITOR_WIDTH } from '../utils/notesPanes';
 import { NoteFolderTree, type FolderAction } from './notes/NoteFolderTree';
 import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
 import { useRelatedNotes } from '../hooks/useRelatedNotes';
 import { addRelatedLink, canLinkToTitle, pairKey } from '../utils/noteRelated';
-import { RelatedPanel } from './notes/RelatedPanel';
+import { RelatedPanel, RelatedOverlay } from './notes/RelatedPanel';
 import { RelatedSheet } from './notes/RelatedSheet';
 const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
 
@@ -46,12 +46,13 @@ interface StandaloneNotesViewProps {
   onFocusModeChange?: (focused: boolean) => void;
   pictureCleanupSignal?: number;
   richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
+  railCollapsed?: boolean;
 }
 
 type ViewMode = 'rich' | 'markdown';
 
 /** Notes: searchable list (pinned first) and a rich editor backed by Markdown. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,9 +66,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const latestMeta = useRef(noteMeta);
   latestMeta.current = noteMeta;
   const tree = useMemo(() => buildFolderTree(notes, noteMeta), [notes, noteMeta]);
-  const drawers = compact || paneMode(width) === 'drawers';
+  const mode = compact ? 'drawers' : paneMode(width);
+  const drawers = mode === 'drawers';
+  const layout = relatedPaneLayout(width, railCollapsed, prefs);
+  const treeMinimized = layout.tree === 'min';
   useEffect(() => {
-    const resize = () => { setWidth(window.innerWidth); setDrawer(false); };
+    const resize = () => { setWidth(window.innerWidth); };
     window.addEventListener?.('resize', resize);
     return () => window.removeEventListener?.('resize', resize);
   }, []);
@@ -147,10 +151,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const words = activeNote ? wordCount(activeNote.content) : 0;
   const related = useRelatedNotes(notes, activeNote?.id ?? '', noteMeta.dismissed);
   const [relatedOpen, setRelatedOpen] = useState(false);
-  // Compact desktop starts minimized without overwriting the wider-screen preference.
-  const [compactRelatedOpen, setCompactRelatedOpen] = useState(false);
-  const relatedMinimized = paneMode(width) === 'compactRelated' ? !compactRelatedOpen : prefs.related === 'min';
-  useEffect(() => { setRelatedOpen(false); setCompactRelatedOpen(false); }, [width]);
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const overlayOpen = !drawers && layout.overlay && !overlayDismissed;
+  const relatedMinimized = layout.related === 'min' || (layout.overlay && !overlayOpen);
+  useEffect(() => { setRelatedOpen(false); setDrawer(false); setOverlayDismissed(false); }, [mode, layout.overlay]);
 
   useEffect(() => {
     if (focusTitle.current && titleRef.current) {
@@ -177,11 +181,20 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     ...related,
     onLink: (id: string) => {
       const target = latestNotes.current.find(note => note.id === id);
-      if (!activeNote || !target || target.id === activeNote.id || !canLinkToTitle(target.title)) return;
-      if (viewMode === 'rich') richEditorRef.current?.appendRelatedLink(target.title);
+      if (!target) {
+        showToast('That note no longer exists. Suggestions are refreshing.', { tone: 'info' });
+        related.refresh(); return;
+      }
+      if (!activeNote || target.id === activeNote.id || !canLinkToTitle(target.title)) return;
+      if (viewMode === 'rich') {
+        if (!richEditorRef.current) { showToast('The editor is still loading, try again', { tone: 'info' }); return; }
+        richEditorRef.current.appendRelatedLink(target.title);
+      }
       else {
-        const content = addRelatedLink(activeNote.content, target.title);
-        if (content !== activeNote.content) updateActive({ content });
+        const source = latestNotes.current.find(note => note.id === activeNote.id);
+        if (!source) return;
+        const content = addRelatedLink(source.content, target.title);
+        if (content !== source.content) updateActive({ content });
       }
     },
     onDismiss: (id: string) => {
@@ -195,7 +208,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     minimized: relatedMinimized,
     onToggleMinimized: () => {
       const next = { ...prefs, related: relatedMinimized ? 'open' as const : 'min' as const };
-      setCompactRelatedOpen(relatedMinimized); setPrefs(next); savePanePrefs(next);
+      setOverlayDismissed(false); setPrefs(next); savePanePrefs(next);
     },
   };
 
@@ -311,7 +324,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     setSelectedFolder('all');
   };
   const folderTree = <NoteFolderTree tree={tree} selectedPath={selectedFolder} compact={compact}
-    minimized={!drawers && prefs.tree === 'min'}
+    minimized={!drawers && !drawer && treeMinimized}
     onSelect={path => {
       setSelectedFolder(path); setDrawer(false);
       if (drawers) {
@@ -539,23 +552,29 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   );
 
   return (
-    <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
+    <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
       {compact && pane === 'list' && <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1>}
       {drawers && (pane === 'list' || !activeNote) && <div className="shrink-0 flex items-center gap-2"><button ref={listFoldersRef} type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button></div>}
       {drawer && <Dialog isOpen title="Folders" variant="sheet" onClose={() => setDrawer(false)}><div className="p-3">{folderTree}<button type="button" className={buttonClass.secondary} onClick={() => folderAction('new', selectedFolder === 'all' ? '' : selectedFolder)}>New folder</button></div></Dialog>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
       {compact ? (pane === 'list' ? list : editor) : (
-        <div className="flex-1 min-h-0 min-w-0 flex gap-4">
-          {!focusMode && <div aria-label="Notes navigation" className={`shrink-0 min-h-0 gap-2 ${drawers ? (pane === 'editor' ? 'hidden' : 'flex w-full') : 'flex'}`}>
-            {!drawers && <aside aria-label="Folder navigation" className={`${prefs.tree === 'min' ? 'w-14' : 'w-56'} shrink-0 overflow-y-auto border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>
-              <button type="button" aria-label={prefs.tree === 'min' ? 'Expand folders' : 'Minimize folders'} title={prefs.tree === 'min' ? 'Expand folders' : 'Minimize folders'} className="min-h-11 w-full text-stone-700 dark:text-stone-200" onClick={() => { const next = { ...prefs, tree: prefs.tree === 'min' ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next); }}>{prefs.tree === 'min' ? '>' : '< Folders'}</button>
+        <div className="flex-1 min-h-0 min-w-0 flex gap-3">
+          {!focusMode && <div role="group" aria-label="Notes navigation" className={`shrink-0 min-h-0 gap-2 ${drawers ? (pane === 'editor' ? 'hidden' : 'flex w-full') : 'flex'}`}>
+            {!drawers && <aside aria-label="Folder navigation" className={`${treeMinimized ? 'w-14' : 'w-56'} shrink-0 overflow-y-auto border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>
+              <button type="button" aria-label={treeMinimized ? 'Expand folders' : 'Minimize folders'} title={treeMinimized ? 'Expand folders' : 'Minimize folders'} className="min-h-11 w-full text-stone-700 dark:text-stone-200" onClick={() => {
+                if (treeMinimized && prefs.tree === 'open') { setDrawer(true); return; }
+                const next = { ...prefs, tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
+              }}>{treeMinimized ? '>' : '< Folders'}</button>
               {folderTree}
             </aside>}
             <section aria-label="Notes list" className={`${drawers ? 'w-full' : 'w-64'} min-h-0 flex flex-col`}>{list}</section>
           </div>}
-          <div className={`min-h-0 min-w-0 flex-1 flex-col ${drawers && pane === 'list' && !focusMode ? 'hidden' : 'flex'}`}>{editor}</div>
-          {!drawers && !focusMode && activeNote && <RelatedPanel {...relatedProps} />}
+          <div role="group" aria-label="Note editor" style={!drawers ? { minWidth: MIN_EDITOR_WIDTH } : undefined} className={`relative min-h-0 min-w-0 flex-1 flex-col ${drawers && pane === 'list' && !focusMode ? 'hidden' : 'flex'}`}>
+            {editor}
+            {!focusMode && activeNote && overlayOpen && <RelatedOverlay {...relatedProps} onClose={() => setOverlayDismissed(true)} />}
+          </div>
+          {!drawers && !focusMode && activeNote && <RelatedPanel {...relatedProps} minimized={layout.overlay || relatedMinimized} overlayOpen={overlayOpen} />}
         </div>
       )}
     </div>

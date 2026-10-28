@@ -30,9 +30,29 @@ import { Menu, type MenuItem } from './ui/Menu';
 import { NoteFolderTree } from './notes/NoteFolderTree';
 import { FolderPicker } from './notes/FolderPicker';
 import { FolderDialogs } from './notes/FolderDialogs';
+import { RelatedPanel } from './notes/RelatedPanel';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
+it('explains a loading editor and missing targets instead of silently ignoring Link', () => {
+  const related = find(render(), el => el.type === RelatedPanel)!;
+  (related.props.onLink as (id: string) => void)('missing');
+  expect(feedback.toast).toHaveBeenLastCalledWith('That note no longer exists. Suggestions are refreshing.', { tone: 'info' });
+  const target = { ...note, id: 'target', title: 'Target' };
+  const loading = find(render(false, { notes: [note, target], richEditorHandleRef: { current: null } }), el => el.type === RelatedPanel)!;
+  (loading.props.onLink as (id: string) => void)('target');
+  expect(feedback.toast).toHaveBeenLastCalledWith('The editor is still loading, try again', { tone: 'info' });
+  expect(update).not.toHaveBeenCalled();
+});
+it('Markdown Link reads the latest source even before the parent rerenders', () => {
+  const target = { ...note, id: 'target', title: 'Target' };
+  const extra = { notes: [note, target] };
+  (find(render(false, extra), el => !!el.props.noteId)!.props.onToggleMarkdown as () => void)();
+  const tree = render(false, extra);
+  (find(tree, el => el.type === 'textarea')!.props.onChange as (event: unknown) => void)({ target: { value: 'Latest unsaved typing' } });
+  (find(tree, el => el.type === RelatedPanel)!.props.onLink as (id: string) => void)('target');
+  expect(update.mock.calls.at(-1)![0].find((n: StandaloneNote) => n.id === note.id).content).toBe('Latest unsaved typing\n\n## Related\n- [[Target]]\n');
+});
 it('wiki creation uses the current folder and keeps the source note open', () => {
   const tree = render();
   const editor = find(tree, el => el.props.noteId === note.id)!;
