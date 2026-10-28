@@ -68,6 +68,13 @@ Decided with the user: a whole-vault graph like Obsidian, with a filter by the f
 - Pan and zoom; layout is force-directed and settles quickly; it stays smooth with at least 1,000 notes (the builder may cap drawn labels by zoom level). Colours follow the app theme in light, dark and photo modes and meet contrast rules; every dot is also reachable by keyboard through a list view of the same data.
 - Reduced-motion users get a static layout.
 
+## UI decisions from the mockups (approved by the user)
+
+- **Desktop Notes has up to four panes:** the menu rail (already minimizable), a **folder tree**, the **editor**, and the **Related panel**. The tree and the Related panel each have a minimize/expand button; minimized they are thin strips (the tree strip shows folder icons, the Related strip shows a badge with the number of suggestions). Each pane's state is remembered per device. The List | Graph switch sits in the note header.
+- **Responsive:** at 1280px and wider all panes can be open; between 1100 and 1280px the Related panel starts minimized; between 800 and 1100px the tree and the Related panel become **drawers** opened by a "Folders" button and a "Related · N" button. Below 768px the phone layout applies.
+- **Graph screen (desktop):** a left **filter panel** (folder tree with checkboxes where a parent includes its subfolders, tag filter, toggles for suggestions / tag lines / orphans, Whole vault or Local (2 steps), search), the graph in the middle, and a right **detail panel** (selected note, Open note, its suggestions with Link / Not related, its linked notes). Both side panels minimize. Solid = links, faint = shared tags, dashed amber = suggestions, the selected note is the large amber dot; pan with drag, zoom with wheel or pinch.
+- **Phone:** the Notes list is the folder tree as expandable rows (at least 44px) with a ⋯ menu per folder (New folder inside, Rename, Move, Delete); a note has a "Related · N" button that opens a bottom sheet (suggestions with Link / Not related, linked notes, "Hidden suggestions"); a note's "Tech / Java ▾" line moves it to another folder. No graph on phones.
+
 ## Constraints
 
 - Notes stay plain Markdown (CLAUDE.md invariants, daily Markdown format untouched); an unedited note is never re-serialised (existing cycle 9 rule).
