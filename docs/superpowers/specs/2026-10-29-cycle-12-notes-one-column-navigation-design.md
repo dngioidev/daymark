@@ -18,6 +18,7 @@ Mockup approved by the user ("yess it good, need to be like this"): `.superpower
 - **B.** Notes appear in the tree as rows showing only their title, nested under their folder; clicking a note opens it; clicking a folder expands or collapses it.
 - **C.** Search filters the tree in place.
 - **D.** Works at every width: wide desktop, minimised strip, narrow-window drawer, phone full-screen column.
+- **E.** Reclaim wasted space in the chrome: the side menu keeps **5 parts** (Title, Today, Calendar, Notes, Backlog) with **Settings as a small ⚙ button in the Title part**; the Notes page loses its header row, and the **List | Graph switch moves into the navigation column** (and into the graph toolbar while in Graph mode).
 
 ## Non-goals
 
@@ -57,6 +58,13 @@ My calls (please check):
 - **Phone (<768px):** the column is the Notes screen (same order, 44px rows, ⋯ menu per folder); tapping a note opens it full screen; Back returns to the column; the folder line in the note header still moves it.
 
 **Graph:** the List | Graph switch stays in the note header; the graph filter keeps its own folder tree.
+
+## Additions after the user's feedback (approved direction; my picks marked)
+
+- **Side menu:** 5 equal parts: Title, Today, Calendar, Notes, Backlog. The Title part gains a small **⚙ Settings** button next to Search (below the date and sync status; keeps the accessible name "Settings" and opens the same Settings dialog). The old sixth "Settings" part is removed. Applies to the rail in both its expanded and minimised forms (minimised: the ⚙ icon stays reachable). Phones are unchanged (bottom bar already has Settings).
+- **No root row, no root heading:** the tree has no "Notes", "All notes" or "Notes (top level)" row and no "Notes without a folder" heading. Top-level folders are the first level; notes that have no folder are listed directly after the top-level folders, with no label, like Obsidian. While a drag is active a slim "Move to top level" drop strip appears at the bottom of the tree (the non-drag Move paths still cover it).
+- **Notes page header removed:** the row above the panes that held the page title and the List | Graph switch is gone on desktop; the navigation column, editor and Related panel start at the top of the page. (The page still has an `h1` for assistive tech, visually hidden.)
+- **List | Graph switch (my pick, option A of the mockup):** a small segmented switch in the navigation column's button row, next to New note and New folder, always visible (also when Related is minimised). In Graph mode the navigation column is replaced by the graph filters, so the same segmented switch sits first in the graph toolbar to return to List. Not shown on phones or below 768px (no graph there). Keyboard: both switches are a labelled radio group (arrow keys), the state is announced.
 
 ## Constraints
 
