@@ -83,7 +83,7 @@ const note = (id: string, content: string): StandaloneNote => ({
   createdAt: '2026-10-20T00:00:00Z',
   updatedAt: '2026-10-20T00:00:00Z',
 });
-const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
+const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 
 describe('habit sync', () => {
   const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
@@ -887,4 +887,21 @@ describe('backlog sync', () => {
     expect((await response.json()).entities.map((e: { key: string }) => e.key).sort()).toEqual(key === 'backlog' ? ['backlog'] : ['backlog', key]);
   });
 
+});
+
+it('gates NoteMeta reads and writes including tombstones from legacy clients', async () => {
+  const a = await connect('A');
+  const value = { folders: [{ path: 'Tech/Java', updatedAt: '2026-10-28T08:00:00Z' }], dismissed: [{ key: 'a|b', at: '2026-10-28T08:00:00Z' }] };
+  expect((await post('/api/sync', { features: ['notemeta'], changes: [{ key: 'notemeta', base: null, value }] }, a.accessToken)).status).toBe(200);
+  for (const features of [undefined, [], ['habits', 'backlog']]) {
+    const pulled = await post('/api/sync', { sinceRev: 0, features, changes: [] }, a.accessToken);
+    expect((await pulled.json()).entities.some((e: { key: string }) => e.key === 'notemeta')).toBe(false);
+    expect((await post('/api/sync', { features, changes: [{ key: 'notemeta', base: value, value: null }] }, a.accessToken)).status).toBe(400);
+  }
+  const legacyGet = await fetch(base + '/api/sync?sinceRev=0', { headers: { Authorization: `Bearer ${a.accessToken}` } });
+  expect((await legacyGet.json()).entities.some((e: { key: string }) => e.key === 'notemeta')).toBe(false);
+  const fresh = await post('/api/sync', { features: ['notemeta'], changes: [] }, a.accessToken);
+  expect((await fresh.json()).entities).toContainEqual(expect.objectContaining({ key: 'notemeta', value }));
+  const invalid = await post('/api/sync', { features: ['notemeta'], changes: [{ key: 'notemeta', base: value, value: { folders: [null], dismissed: [] } }] }, a.accessToken);
+  expect((await invalid.json()).error).toBe('Invalid value for notemeta.');
 });

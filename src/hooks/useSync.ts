@@ -1,3 +1,4 @@
+import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
 import { applySyncOutcome, collectChanges, normalizeServerUrl, rebaseAfterVaultReplace, SyncFeature, SyncHttpError, SyncState, syncOnce, toEntities, VaultData } from '../sync/syncClient';
@@ -135,10 +136,12 @@ export function useSync(
           if (blocked.current || closing.current) return false;
           unsupported.current = outcome.unsupported;
           if (stateRef.current && ((unsupported.current.has('habits') && stateRef.current.habitsSynced) ||
-            (unsupported.current.has('backlog') && stateRef.current.backlogSynced))) {
+            (unsupported.current.has('backlog') && stateRef.current.backlogSynced) ||
+            (unsupported.current.has('notemeta') && stateRef.current.notemetaSynced))) {
             await persistState({ ...stateRef.current,
               habitsSynced: unsupported.current.has('habits') ? false : stateRef.current.habitsSynced,
-              backlogSynced: unsupported.current.has('backlog') ? false : stateRef.current.backlogSynced });
+              backlogSynced: unsupported.current.has('backlog') ? false : stateRef.current.backlogSynced,
+              notemetaSynced: unsupported.current.has('notemeta') ? false : stateRef.current.notemetaSynced });
           }
           if (startedAt !== epoch.current) {
             rerun.current = true;
@@ -148,10 +151,12 @@ export function useSync(
             const before = vaultRef.current;
             const next = applySyncOutcome(before, outcome);
             const recoveredHabitsReleased = uneditedRecoveredHabits.has(before.habits) && !uneditedRecoveredHabits.has(next.habits);
+            const recoveredNoteMetaReleased = uneditedRecoveredNoteMeta.has(before.notemeta) && !uneditedRecoveredNoteMeta.has(next.notemeta);
             const recoveredBacklogReleased = uneditedRecoveredBacklog.has(before.backlog) && !uneditedRecoveredBacklog.has(next.backlog);
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
               canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased ||
-              canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased) {
+              canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased ||
+              canonicalJson(next.notemeta) !== canonicalJson(before.notemeta) || recoveredNoteMetaReleased) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
             }
@@ -196,7 +201,7 @@ export function useSync(
     if (!state) return;
     const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, state?.deviceId, run]);
+  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, vault.notemeta, state?.deviceId, run]);
 
   useEffect(() => {
     if (mode !== 'server' && !state?.deviceId) return;
@@ -233,9 +238,10 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog')), stateRef.current,
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta')), stateRef.current,
     !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
-    !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog)).length : 0;
+    !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog),
+    !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta)).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';

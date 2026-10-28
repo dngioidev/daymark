@@ -156,7 +156,7 @@ describe('habit storage', () => {
       await syncOnce(async (_url, init) => {
         sent.push(JSON.parse(String(init?.body)));
         return Response.json({ rev: 2, entities: [], conflicts: [] });
-      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] } }, {
+      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
         serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
         bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
       }, 'access');
@@ -466,7 +466,7 @@ it('damaged backlog resets only its sync base and cannot be pushed before backfi
     expect(uneditedRecoveredBacklog.has(recovered)).toBe(true);
     expect(store.loadSyncState()).toMatchObject({ backlogSynced: false, habitsSynced: true, bases: { habits: '{"habits":[]}' } });
     expect(store.loadSyncState()!.bases).not.toHaveProperty('backlog');
-    const local = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered };
+    const local = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
     const requests: { sinceRev: number; changes: { key: string }[] }[] = [];
     const outcome = await syncOnce(async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)));
@@ -577,4 +577,16 @@ describe('notemeta storage', () => {
       expect((await importVaultFromZip(await exported!.arrayBuffer())).notemeta).toEqual(notemeta);
     });
   });
+});
+
+it('damaged NoteMeta resets only its sync bookkeeping', async () => {
+  await habitStoreTest(async ({ store }) => {
+    await store.saveSyncState({ serverUrl: 'https://test', username: 'admin', deviceId: 'a', deviceName: 'A', lastRev: 99,
+      lastSyncAt: null, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
+      bases: { notemeta: JSON.stringify(notemeta), backlog: JSON.stringify(backlog), habits: '{"habits":[]}' } });
+    store.loadNoteMeta();
+    const state = store.loadSyncState()!;
+    expect(state).toMatchObject({ notemetaSynced: false, backlogSynced: true, habitsSynced: true, lastRev: 99 });
+    expect(state.bases).toEqual({ backlog: JSON.stringify(backlog), habits: '{"habits":[]}' });
+  }, false, '{bad json', 'daymark_notemeta_v1');
 });

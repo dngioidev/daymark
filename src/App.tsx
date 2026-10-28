@@ -24,6 +24,8 @@ import {
   saveStandaloneNotes,
   loadHabits,
   loadBacklog,
+  loadNoteMeta,
+  saveNoteMeta,
   saveBacklog,
   saveHabits,
   exportVaultAsZip,
@@ -122,6 +124,7 @@ export default function App() {
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
+  const [notemeta, setNoteMeta] = useState(loadNoteMeta);
   const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
   const backlogRef = React.useRef(backlog);
   backlogRef.current = backlog;
@@ -303,6 +306,7 @@ export default function App() {
     saveHabits(habits);
   }, [habits]);
 
+  useEffect(() => { saveNoteMeta(notemeta); }, [notemeta]);
   useEffect(() => { saveBacklog(backlog); }, [backlog]);
 
   useEffect(() => {
@@ -326,6 +330,7 @@ export default function App() {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
+        else if (key === 'notemeta') setNoteMeta(loadNoteMeta());
         else if (key === 'backlog') setBacklog(loadBacklog());
         else if (key === 'habits') setHabits(loadHabits());
         else setSettings((local) => mergeIncomingSettings(local, value as AppSettings));
@@ -725,7 +730,7 @@ export default function App() {
   };
 
   // Self-hosted sync: merges this vault with the server in the background
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog }), [dailyDocs, notes, settings, habits, backlog]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta }), [dailyDocs, notes, settings, habits, backlog, notemeta]);
   const sync = useSync(
     vaultForSync,
     (next) => {
@@ -734,6 +739,7 @@ export default function App() {
       setNotes(next.notes);
       setHabits(next.habits);
       setBacklog(next.backlog);
+      setNoteMeta(next.notemeta);
       setSettings((local) => mergeIncomingSettings(local, next.settings));
     },
     (conflicts) =>

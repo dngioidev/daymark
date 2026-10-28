@@ -36,7 +36,7 @@ vi.mock('../utils/vaultStore', () => ({
 
 const state = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'Browser',
   lastRev: 0, bases: {}, lastSyncAt: null };
-const vault: VaultData = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } };
+const vault: VaultData = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
 let fetchFn: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
 let replace: ReturnType<typeof vi.fn>;
 function render(next = vault) {
@@ -60,6 +60,7 @@ beforeEach(() => {
     if (url.endsWith('/refresh')) return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
     if (url.endsWith('/logout')) return Response.json({ ok: true });
     return Response.json({ rev: 1, entities: [{ key: 'settings', value: toSyncedSettings(DEFAULT_SETTINGS), rev: 1 },
+      { key: 'notemeta', value: { folders: [], dismissed: [] }, rev: 1 },
       { key: 'habits', value: { habits: [] }, rev: 1 }, { key: 'backlog', value: { items: [] }, rev: 1 }], conflicts: [] });
   });
   vi.stubGlobal('fetch', fetchFn);
@@ -110,7 +111,7 @@ it('syncs before logout and wipes before redirecting', async () => {
 });
 
 it('requires confirmation after a failed sync even with no pending changes, then force wipes', async () => {
-  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { settings: canonicalJson(toSyncedSettings(DEFAULT_SETTINGS)), habits: canonicalJson({ habits: [] }), backlog: canonicalJson({ items: [] }) } });
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { notemeta: canonicalJson(vault.notemeta), settings: canonicalJson(toSyncedSettings(DEFAULT_SETTINGS)), habits: canonicalJson({ habits: [] }), backlog: canonicalJson({ items: [] }) } });
   fetchFn.mockImplementation(async (url: string) => {
     if (url.endsWith('/sync')) throw new Error('offline');
     return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
@@ -129,7 +130,7 @@ it('requires confirmation when sync leaves unsent changes', async () => {
     ? { accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } }
     : { rev: 1, entities: [], conflicts: [] }));
   expect(await render().signOut()).toBe('needs-confirm');
-  expect(render().pendingChanges()).toBe(3);
+  expect(render().pendingChanges()).toBe(4);
   expect(fetchFn.mock.calls.some(([url]) => url.endsWith('/sync'))).toBe(true);
   expect(wipeLocalVault).not.toHaveBeenCalled();
 });
@@ -201,7 +202,7 @@ it('local web ignores old sync credentials and never syncs', async () => {
 });
 
 it('remembers unsupported habits for the session and leaves habit bases untouched', async () => {
-  const bases = { backlog: canonicalJson({ items: [] }), habits: canonicalJson({ habits: [] }), 'habitday:2026-10-23': canonicalJson({ date: '2026-10-23', ticks: {} }) };
+  const bases = { notemeta: canonicalJson(vault.notemeta), backlog: canonicalJson({ items: [] }), habits: canonicalJson({ habits: [] }), 'habitday:2026-10-23': canonicalJson({ date: '2026-10-23', ticks: {} }) };
   vi.mocked(loadSyncState).mockReturnValue({ ...state, bases });
   const original = fetchFn.getMockImplementation()!;
   const bodies: { changes: { key: string; value: unknown }[] }[] = [];
@@ -223,7 +224,7 @@ it('remembers unsupported habits for the session and leaves habit bases untouche
 });
 
 it('remembers unsupported habits when a vault replacement discards the round', async () => {
-  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { backlog: canonicalJson({ items: [] }) } });
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases: { notemeta: canonicalJson(vault.notemeta), backlog: canonicalJson({ items: [] }) } });
   let release!: () => void;
   const original = fetchFn.getMockImplementation()!;
   const bodies: { changes: { key: string; value: unknown }[] }[] = [];
@@ -248,7 +249,7 @@ it('remembers unsupported habits when a vault replacement discards the round', a
 });
 
 it('clears the backfill marker even if a fallback result becomes stale', async () => {
-  vi.mocked(loadSyncState).mockReturnValue({ ...state, habitsSynced: true, backlogSynced: true, bases: { backlog: canonicalJson({ items: [] }) } });
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, habitsSynced: true, backlogSynced: true, bases: { notemeta: canonicalJson(vault.notemeta), backlog: canonicalJson({ items: [] }) } });
   const original = fetchFn.getMockImplementation()!;
   let release!: () => void;
   let calls = 0;
@@ -385,7 +386,7 @@ it('syncNow reports false after a session is blocked', async () => {
 
 it('remembers unsupported backlog without disabling habits or losing backlog bases', async () => {
   const backlog = { items: [{ id: 'idea', title: 'Idea', order: 1, createdAt: 'now', updatedAt: 'now' }] };
-  const bases = { backlog: canonicalJson({ items: [] }) };
+  const bases = { notemeta: canonicalJson(vault.notemeta), backlog: canonicalJson({ items: [] }) };
   vi.mocked(loadSyncState).mockReturnValue({ ...state, bases });
   const original = fetchFn.getMockImplementation()!;
   const bodies: { changes: { key: string; value: unknown }[] }[] = [];
@@ -418,4 +419,41 @@ it.each([false, true])('persists incoming backlog, including release of recovere
   await useSync(local, onChange, vi.fn(), 'web').syncNow();
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ backlog }));
   expect(uneditedRecoveredBacklog.has(onChange.mock.calls[0][0].backlog)).toBe(false);
+});
+
+it('remembers unsupported notemeta without disabling habits or losing notemeta bases', async () => {
+  const notemeta = { folders: [{ path: 'Empty', updatedAt: 'now' }], dismissed: [] };
+  const bases = { notemeta: canonicalJson({ folders: [], dismissed: [] }) };
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, bases });
+  const original = fetchFn.getMockImplementation()!;
+  const bodies: { changes: { key: string; value: unknown }[] }[] = [];
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    const body = JSON.parse(String(init?.body)); bodies.push(body);
+    if (body.changes.some((c: { key: string }) => c.key === 'notemeta')) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    return Response.json({ rev: 1, entities: body.changes.map((c: { key: string; value: unknown }) => ({ ...c, rev: 1 })), conflicts: [] });
+  });
+  const local = { ...vault, notemeta };
+  await render(local).syncNow();
+  await render(local).syncNow();
+  expect(bodies).toHaveLength(3);
+  expect(bodies[1].changes.some(c => c.key === 'habits')).toBe(true);
+  expect(bodies.slice(1).every(b => b.changes.every(c => c.key !== 'notemeta'))).toBe(true);
+  expect(render(local).error).toBeNull();
+  expect(render(local).pendingChanges()).toBe(0);
+  expect(saveSyncState).toHaveBeenLastCalledWith(expect.objectContaining({ habitsSynced: true, notemetaSynced: false, bases: expect.objectContaining(bases) }));
+});
+
+it.each([false, true])('persists incoming notemeta, including release of recovered identical content (%s)', async recovered => {
+  const { uneditedRecoveredNoteMeta } = await import('../utils/noteFolders');
+  const notemeta = { folders: [{ path: 'Empty', updatedAt: 'now' }], dismissed: [] };
+  const local = { ...vault, notemeta: recovered ? notemeta : { folders: [], dismissed: [] } };
+  if (recovered) uneditedRecoveredNoteMeta.add(local.notemeta);
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => url.endsWith('/sync')
+    ? Response.json({ rev: 1, entities: [{ key: 'notemeta', value: notemeta, rev: 1 }], conflicts: [] }) : original(url, init));
+  const onChange = vi.fn(); hooks.index = 0;
+  await useSync(local, onChange, vi.fn(), 'web').syncNow();
+  expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ notemeta }));
+  expect(uneditedRecoveredNoteMeta.has(onChange.mock.calls[0][0].notemeta)).toBe(false);
 });

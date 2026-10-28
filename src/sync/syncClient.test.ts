@@ -13,9 +13,9 @@ const habits: HabitData = {
     { date: '2026-10-24', ticks: { water: { done: false, at: '2026-10-24T08:00:00Z' } } }],
 };
 const vault: VaultData = { docs: [{ date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T08:00:00Z' }],
-  notes: [], settings: DEFAULT_SETTINGS, habits, backlog: { items: [] } };
+  notes: [], settings: DEFAULT_SETTINGS, habits, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
 const state: SyncState = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'test',
-  lastRev: 0, bases: {}, lastSyncAt: null };
+  lastRev: 0, bases: { notemeta: canonicalJson({ folders: [], dismissed: [] }) }, lastSyncAt: null };
 
 it('toEntities/fromEntities round-trip habits', () => {
   const map = toEntities({ ...vault, habits: { ...habits, days: [...habits.days].reverse() } });
@@ -28,7 +28,7 @@ it('toEntities/fromEntities round-trip habits', () => {
 describe('older server fallback', () => {
   it.each(['Invalid entity key in sync request.'])('retries without habit keys on %s', async (error) => {
     const calls: SyncRequest[] = [];
-    const bases = { backlog: canonicalJson({ items: [] }), habits: canonicalJson({ habits: [] }), 'habitday:2026-10-22': canonicalJson({ date: '2026-10-22', ticks: {} }) };
+    const bases = { notemeta: canonicalJson({ folders: [], dismissed: [] }), backlog: canonicalJson({ items: [] }), habits: canonicalJson({ habits: [] }), 'habitday:2026-10-22': canonicalJson({ date: '2026-10-22', ticks: {} }) };
     const outcome = await syncOnce(async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as SyncRequest;
       calls.push(body);
@@ -36,7 +36,7 @@ describe('older server fallback', () => {
       return Response.json({ rev: 1, entities: body.changes.map((c) => ({ key: c.key, value: c.value, rev: 1 })), conflicts: [] });
     }, vault, { ...state, bases }, 'access');
     expect(calls).toHaveLength(2);
-    expect(calls[0].features).toEqual(['habits', 'backlog']);
+    expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta']);
     expect(calls[1].changes.some((c) => c.key.startsWith('habit'))).toBe(false);
     expect(calls[1].changes.some((c) => c.key === 'doc:2026-10-24')).toBe(true);
     expect(outcome.habitsUnsupported).toBe(true);
@@ -159,7 +159,7 @@ it('falls back on a 1.6 server without disabling habits and remembers it next ro
     return Response.json({ rev: 42, entities: body.changes.map(c => ({ ...c, rev: 42 })), conflicts: [] });
   };
   const first = await syncOnce(fetcher, { ...vault, backlog }, state, 'access');
-  expect(calls[0].features).toEqual(['habits', 'backlog']);
+  expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta']);
   expect(calls[1].changes.some(c => c.key === 'backlog')).toBe(false);
   expect(calls[1].changes.some(c => c.key === 'habits')).toBe(true);
   expect(calls[1].changes.some(c => c.key.startsWith('doc:'))).toBe(true);

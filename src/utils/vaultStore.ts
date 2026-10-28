@@ -420,6 +420,11 @@ export function loadNoteMeta(): NoteMeta {
     folders: keepValid(Array.isArray(raw.folders) ? raw.folders : [], isNoteFolder, 'note folder'),
     dismissed: keepValid(Array.isArray(raw.dismissed) ? raw.dismissed : [], isDismissedPair, 'dismissed pair'),
   };
+  const syncState = loadSyncState();
+  if (syncState) {
+    const { notemeta: _notemeta, ...bases } = syncState.bases;
+    void saveSyncState({ ...syncState, bases, notemetaSynced: false }).catch(() => undefined);
+  }
   reportError('Note metadata storage is damaged or unreadable; keeping the stored value until note metadata is edited.');
   uneditedRecoveredNoteMeta.add(recovered);
   cache.set(KEYS.NOTE_META, recovered);

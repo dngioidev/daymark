@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { reconcileBacklogVault } from '../src/utils/backlog';
 import type { DailyDocument } from '../src/types/daymark';
-import { isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
-import { isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
+import { isNoteMeta, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
+import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
 import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
@@ -230,6 +230,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
 
   /** Shape check for a sync value against its entity key. */
   const validValue = (key: string, value: unknown): boolean => {
+    if (key === 'notemeta') return isNoteMeta(value);
     if (key === 'backlog') return isBacklogData(value);
     if (key === 'habits') return typeof value === 'object' && value !== null && !Array.isArray(value) &&
       isHabitData({ habits: (value as Record<string, unknown>).habits, days: [] });
@@ -253,6 +254,9 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
       if (changes.some(c => isBacklogEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('backlog'))) {
         return res.status(400).json({ error: 'Backlog feature is required.' });
+      }
+      if (changes.some(c => isNoteMetaEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('notemeta'))) {
+        return res.status(400).json({ error: 'NoteMeta feature is required.' });
       }
       const invalid = changes.find((c) => c.value !== null && c.value !== undefined && !validValue(c.key, c.value));
       if (invalid) {
@@ -298,6 +302,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)
+        .filter(([key]) => (Array.isArray(body.features) && body.features.includes('notemeta')) || !isNoteMetaEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('habits')) || !isHabitEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('backlog')) || !isBacklogEntityKey(key))
         .filter(([key, e]) => e.rev > sinceRev || touched.has(key))

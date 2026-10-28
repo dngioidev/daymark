@@ -1,4 +1,4 @@
-import { AppSettings, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
+import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory';
 
 /**
@@ -293,12 +293,37 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
   return { value: { items }, conflicts };
 }
 
+/** Missing records survive; tombstones and restorations compete by timestamp. */
+export function mergeNoteMeta(base: NoteMeta | null, ours: NoteMeta | null, theirs: NoteMeta | null): MergeResult<NoteMeta> {
+  if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
+    return { value: null, conflicts: [] };
+  }
+  if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
+  const folders = new Map<string, NoteMeta['folders'][number]>();
+  for (const folder of [...ours.folders, ...theirs.folders]) {
+    const key = folder.path.toLowerCase();
+    const previous = folders.get(key);
+    if (!previous || timestamp(folder.updatedAt) >= timestamp(previous.updatedAt)) folders.set(key, folder);
+  }
+  const dismissed = new Map<string, NoteMeta['dismissed'][number]>();
+  for (const pair of [...ours.dismissed, ...theirs.dismissed]) {
+    const previous = dismissed.get(pair.key);
+    if (!previous || timestamp(pair.at) >= timestamp(previous.at)) dismissed.set(pair.key, pair);
+  }
+  return { value: { folders: [...folders.values()], dismissed: [...dismissed.values()] }, conflicts: [] };
+}
+
+export const isNoteMetaEntityKey = (key: string): boolean => key === 'notemeta';
+
 export const isBacklogEntityKey = (key: string): boolean => key === 'backlog';
 
-/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`, `backlog`. */
+/** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`, `backlog`, `notemeta`. */
 export type EntityKey = string;
 
 export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown): MergeResult<unknown> {
+  if (isNoteMetaEntityKey(key)) {
+    return mergeNoteMeta(base as NoteMeta | null, ours as NoteMeta | null, theirs as NoteMeta | null);
+  }
   if (isBacklogEntityKey(key)) {
     return mergeBacklog(base as BacklogData | null, ours as BacklogData | null, theirs as BacklogData | null);
   }
@@ -321,5 +346,5 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 }
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
-  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
+  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
 }

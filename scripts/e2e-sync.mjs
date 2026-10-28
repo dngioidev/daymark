@@ -306,6 +306,66 @@ try {
       `${label} keeps one task per picked day without deletions and hides the backlog item`);
   }
 
+  // Cycle 11: use shared domain edits until the folder controls arrive in later tasks.
+  const { createFolder, renameFolder } = await tsImport('../src/utils/noteFolders.ts', import.meta.url);
+  const readNotes = page => page.evaluate(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+    try {
+      const get = key => new Promise(resolve => { const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); });
+      return { notes: await get('notes') ?? [], meta: await get('notemeta') ?? { folders: [], dismissed: [] } };
+    } finally { db.close(); }
+  });
+  const writeNotes = async (page, notes, meta) => {
+    await page.evaluate(async ({ notes, meta }) => {
+      const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put(notes, 'notes'); tx.objectStore('kv').put(meta, 'notemeta');
+          tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+        });
+      } finally { db.close(); }
+    }, { notes, meta });
+    await page.reload({ waitUntil: 'networkidle' });
+  };
+  await laptop.route('**/api/sync', route => route.abort());
+  const initialNotes = await readNotes(laptop);
+  const folderAt = new Date().toISOString();
+  const folderMeta = createFolder(createFolder(initialNotes.meta, 'Tech/Java', folderAt), 'Empty', folderAt);
+  const folderNotes = [...initialNotes.notes, ...['e2e-folder-a', 'e2e-folder-b'].map(id => ({
+    id, title: id, folder: 'Tech/Java', tags: [], content: 'Keep this note', createdAt: folderAt, updatedAt: folderAt,
+  }))];
+  folderMeta.dismissed = [...folderMeta.dismissed, { key: 'e2e-folder-a|e2e-folder-b', at: folderAt }];
+  await writeNotes(laptop, folderNotes, folderMeta);
+  await laptop.unroute('**/api/sync'); await syncNow(laptop); await syncNow(phone);
+  const receivedMeta = await readNotes(phone);
+  check(['Tech/Java', 'Empty'].every(path => receivedMeta.meta.folders.some(f => f.path === path && !f.removed))
+    && receivedMeta.meta.dismissed.some(p => p.key === 'e2e-folder-a|e2e-folder-b' && !p.restored),
+    'phone receives nested and empty folders and the dismissed suggestion pair');
+  const idsBeforeRename = folderNotes.map(n => n.id).sort();
+  for (const page of [laptop, phone]) await page.route('**/api/sync', route => route.abort());
+  const renameAt = Date.now();
+  for (const [page, destination, offset] of [[laptop, 'Tech/Kotlin', 0], [phone, 'Tech/JVM', 1000]]) {
+    const local = await readNotes(page);
+    const renamed = renameFolder(local.notes, local.meta, 'Tech/Java', destination, new Date(renameAt + offset).toISOString());
+    if (!renamed) throw new Error('folder rename fixture failed');
+    await writeNotes(page, renamed.notes, renamed.meta);
+  }
+  await laptop.unroute('**/api/sync'); await syncNow(laptop);
+  await phone.unroute('**/api/sync'); await syncNow(phone);
+  await syncNow(laptop); await syncNow(phone);
+  const afterA = await readNotes(laptop), afterB = await readNotes(phone);
+  const stable = value => JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+  const sortedNotes = local => [...local.notes].sort((a, b) => a.id.localeCompare(b.id));
+  check(stable(afterA.meta) === stable(afterB.meta) && stable(sortedNotes(afterA)) === stable(sortedNotes(afterB)),
+    'concurrent folder renames converge on identical metadata and notes');
+  for (const [local, label] of [[afterA, 'laptop'], [afterB, 'phone']]) {
+    check(idsBeforeRename.every(id => local.notes.some(n => n.id === id))
+      && local.notes.filter(n => n.id.startsWith('e2e-folder-')).every(n => n.content === 'Keep this note'),
+      label + ' retains every original note and its content after concurrent folder renames');
+  }
+
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });
