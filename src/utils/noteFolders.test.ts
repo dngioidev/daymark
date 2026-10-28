@@ -130,3 +130,36 @@ describe('note folders', () => {
     expect(folderMatches(note('a', 'Tech'), '')).toBe(true);
   });
 });
+
+it('freezes the shared empty metadata and its arrays', () => {
+  expect(() => EMPTY_NOTE_META.folders.push({ path: 'Oops', updatedAt: now })).toThrow();
+  expect(() => EMPTY_NOTE_META.dismissed.push({ key: 'a|b', at: now })).toThrow();
+  expect(() => { EMPTY_NOTE_META.folders = []; }).toThrow();
+});
+it('sorts folders deterministically with numeric English ordering', () => {
+  expect(buildFolderTree([], meta('Folder10', 'Folder2', 'Z', '\u00e4')).map(n => n.name)).toEqual(['\u00e4', 'Folder2', 'Folder10', 'Z']);
+});
+it('deletes using canonical parent spelling from existing notes and metadata', () => {
+  expect(deleteFolder([note('a', 'Tech/Java')], meta(), 'tech/java', now).notes[0].folder).toBe('Tech');
+  expect(deleteFolder([note('a', 'tech/java')], meta('TECH'), 'TeCh/JaVa', now).notes[0].folder).toBe('tech');
+  const data = meta('Tech', 'tech/Java');
+  expect(deleteFolder([note('a', 'tech/java')], data, 'TECH/JAVA', now).meta.folders[1].removed).toBe(true);
+  expect(deleteFolder([note('parent', 'Tech'), note('child', 'tech/java')], meta(), 'TECH/JAVA', now).notes[1].folder).toBe('Tech');
+  expect(deleteFolder([note('parent', 'Other')], data, 'TECH/JAVA', now).meta.folders[1].removed).toBe(true);
+});
+it('neutralizes unsafe export segments and collapses sanitization collisions', () => {
+  const paths = ['.././Tech. /CON/aux.txt/NUL', 'A:B/Q', 'a_B/q', 'PRN/COM1/LPT9', '.../x\\y', 'Work./Child', 'work/child'];
+  expect([...exportFolderPath(paths.map((path, i) => note(String(i), path))).values()]).toEqual([
+    '_/_/Tech/_CON/_aux.txt/_NUL', 'A_B/Q', 'A_B/Q', '_PRN/_COM1/_LPT9', '_/x_y', 'Work/Child', 'Work/Child',
+  ]);
+});
+
+it.each(['CON', 'PRN', 'AUX', 'NUL', ...Array.from({ length: 9 }, (_, i) => `COM${i + 1}`),
+  ...Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`)])('makes reserved segment %s portable, including extensions and mixed case', name => {
+  expect([...exportFolderPath([note('a', `${name}/${name.toLowerCase()}.txt`)]).values()]).toEqual([`_${name}/_${name.toLowerCase()}.txt`]);
+});
+
+it('collapses case-insensitive sanitization collisions at every ancestor', () => {
+  expect([...exportFolderPath([note('a', 'A:B/C:D'), note('b', 'a_B/c_d/E'), note('c', 'A_B/C_D')]).values()])
+    .toEqual(['A_B/C_D', 'A_B/C_D/E', 'A_B/C_D']);
+});

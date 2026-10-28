@@ -1,10 +1,25 @@
-import type { BacklogData, BacklogItem, DailyDocument, Habit, HabitData, HabitDay, HabitTick, StandaloneNote, TaskHistoryItem } from '../types/daymark';
+import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isDate = (v: unknown): v is string => isString(v) && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+export function isNoteFolder(value: unknown): value is NoteFolder {
+  return isObject(value) && isString(value.path) && isString(value.updatedAt) &&
+    (value.removed === undefined || typeof value.removed === 'boolean');
+}
+
+export function isDismissedPair(value: unknown): value is DismissedPair {
+  return isObject(value) && isString(value.key) && isString(value.at) &&
+    (value.restored === undefined || typeof value.restored === 'boolean');
+}
+
+export function isNoteMeta(value: unknown): value is NoteMeta {
+  return isObject(value) && Array.isArray(value.folders) && value.folders.every(isNoteFolder) &&
+    Array.isArray(value.dismissed) && value.dismissed.every(isDismissedPair);
+}
 
 const HISTORY_ACTIONS: readonly TaskHistoryItem['action'][] = [
   'created', 'status_changed', 'carried_forward', 'historical_completion', 'reopened', 'archived', 'moved',

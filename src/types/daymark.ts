@@ -160,6 +160,9 @@ export interface NoteMeta {
 }
 
 export const EMPTY_NOTE_META: NoteMeta = { folders: [], dismissed: [] };
+Object.freeze(EMPTY_NOTE_META.folders);
+Object.freeze(EMPTY_NOTE_META.dismissed);
+Object.freeze(EMPTY_NOTE_META);
 
 export interface AgingThresholds {
   attentionDays: number; // default 3

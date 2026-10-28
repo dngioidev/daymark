@@ -108,3 +108,42 @@ it('older ZIP and invalid backlog preserve current data; explicit empty replaces
   old.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], backlog: { items: [null] } }));
   expect((await importVaultFromZip(await old.generateAsync({ type: 'uint8array' }))).backlog).toBeUndefined();
 });
+
+const notemeta = { folders: [{ path: 'Tech/Empty', updatedAt: 'now' }, { path: 'Gone', updatedAt: 'now', removed: true }], dismissed: [{ key: 'a|b', at: 'now' }] };
+it('ZIP round-trips note metadata including empty folders and tombstones', async () => {
+  const bytes = await buildVaultZip([], [], DEFAULT_SETTINGS, undefined, undefined, undefined, notemeta);
+  expect((await importVaultFromZip(bytes)).notemeta).toEqual(notemeta);
+  const zip = await JSZip.loadAsync(bytes);
+  expect(zip.files['Daymark/Notes/Tech/Empty/']?.dir).toBe(true);
+  expect(zip.files['Daymark/Notes/Gone/']).toBeUndefined();
+});
+it('empty metadata folders share the notes canonical safe directory spelling', async () => {
+  const notes = [{ ...SEED_STANDALONE_NOTES[0], folder: 'A:B/Java' }];
+  const data = { folders: [{ path: 'a_b/java/Empty.', updatedAt: 'now' }], dismissed: [] };
+  const zip = await JSZip.loadAsync(await buildVaultZip([], notes, DEFAULT_SETTINGS, undefined, undefined, undefined, data));
+  expect(zip.files['Daymark/Notes/A_B/Java/Empty/']?.dir).toBe(true);
+});
+it('old or invalid backup metadata keeps current; explicit empty replaces', async () => {
+  const { mergeRestoredNoteMeta } = await import('./vaultArchive');
+  for (const value of [undefined, { folders: [null], dismissed: [] }]) {
+    const zip = new JSZip();
+    zip.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], notemeta: value }));
+    const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+    expect(restored.notemeta).toBeUndefined();
+    expect(mergeRestoredNoteMeta(notemeta, restored.notemeta)).toBe(notemeta);
+    expect(mergeRestoredNoteMeta(notemeta, value)).toBe(notemeta);
+  }
+  const empty = { folders: [], dismissed: [] };
+  expect(mergeRestoredNoteMeta(notemeta, empty)).toBe(empty);
+});
+it('ZIP uses nested canonical safe directories and case-insensitive unique filenames', async () => {
+  const paths = ['Tech/Java', 'tech/java', 'A:B', 'a_B', '../CON', '', 'Tech/Java'];
+  const titles = ['Same', 'same', 'X', 'X', 'NUL', 'Root', 'Same (2)'];
+  const notes = paths.map((folder, i) => ({ ...SEED_STANDALONE_NOTES[0], id: String(i), folder, title: titles[i], content: 'body-' + i }));
+  const zip = await JSZip.loadAsync(await buildVaultZip([], notes, DEFAULT_SETTINGS));
+  const names = Object.keys(zip.files).filter(n => n.startsWith('Daymark/Notes/') && n.endsWith('.md'));
+  expect(names).toEqual(['Daymark/Notes/Tech/Java/Same.md', 'Daymark/Notes/Tech/Java/same (2).md',
+    'Daymark/Notes/A_B/X.md', 'Daymark/Notes/A_B/X (2).md', 'Daymark/Notes/_/_CON/_NUL.md',
+    'Daymark/Notes/Root.md', 'Daymark/Notes/Tech/Java/Same (2) (2).md']);
+  for (let i = 0; i < names.length; i++) expect(await zip.file(names[i])!.async('string')).toBe('body-' + i);
+});

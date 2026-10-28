@@ -480,3 +480,101 @@ it('damaged backlog resets only its sync base and cannot be pushed before backfi
     expect(JSON.parse(values.get('daymark_backlog_v1')!)).toEqual(backlog);
   }, false, '{bad json', 'daymark_backlog_v1');
 });
+
+const notemeta = { folders: [{ path: 'Tech/Java', updatedAt: 'now' }, { path: 'Gone', updatedAt: 'now', removed: true }], dismissed: [{ key: 'a|b', at: 'now', restored: true }] };
+describe('notemeta storage', () => {
+  it('loads empty when absent', async () => {
+    await habitStoreTest(async ({ store }) => expect(store.loadNoteMeta()).toEqual({ folders: [], dismissed: [] }));
+  });
+  it.each([false, true])('persists, broadcasts and reloads (IndexedDB: %s)', async indexed => {
+    await habitStoreTest(async ({ store, raw, values, messages }) => {
+      store.saveNoteMeta(notemeta);
+      expect(store.loadNoteMeta()).toBe(notemeta);
+      expect(messages).toContainEqual({ key: 'notemeta', value: notemeta });
+      await vi.waitFor(() => expect(indexed ? raw.get('notemeta') : JSON.parse(values.get('daymark_notemeta_v1')!)).toEqual(notemeta));
+      vi.resetModules();
+      const reloaded = await import('./vaultStore');
+      await reloaded.initVaultStore();
+      expect(reloaded.loadNoteMeta()).toEqual(notemeta);
+    }, indexed);
+  });
+  it.each([false, true].flatMap(indexed => ['{bad json', 'null',
+    JSON.stringify({ ...notemeta, folders: [...notemeta.folders, { path: 1 }] }),
+    JSON.stringify({ ...notemeta, dismissed: [...notemeta.dismissed, { key: false }] }),
+  ].map(legacy => ({ indexed, legacy }))))(
+    'preserves damaged storage until edited ($indexed, $legacy)', async ({ indexed, legacy }) => {
+      await habitStoreTest(async ({ store, values, raw, messages }) => {
+        const before = raw.get('notemeta');
+        const reported: string[] = [];
+        const unsubscribe = store.subscribeStorageErrors(message => reported.push(message));
+        const error = vi.spyOn(console, 'error');
+        const loaded = store.loadNoteMeta();
+        expect(loaded).toEqual(legacy.startsWith('{"folders"') ? notemeta : { folders: [], dismissed: [] });
+        expect(store.loadNoteMeta()).toBe(loaded);
+        const { uneditedRecoveredNoteMeta } = await import('./noteFolders');
+        expect(uneditedRecoveredNoteMeta.has(loaded)).toBe(true);
+        store.saveNoteMeta(loaded);
+        expect(values.get('daymark_notemeta_v1')).toBe(legacy);
+        expect(raw.get('notemeta')).toEqual(before);
+        expect(messages).toEqual([]);
+        expect(error).toHaveBeenCalled();
+        expect(reported.some(message => /note metadata/i.test(message))).toBe(true);
+        store.saveNoteMeta({ ...loaded, folders: [...loaded.folders, { path: 'edited', updatedAt: 'now' }] });
+        const edited = store.loadNoteMeta();
+        await vi.waitFor(() => expect(indexed ? raw.get('notemeta') : JSON.parse(values.get('daymark_notemeta_v1')!)).toEqual(edited));
+        expect(edited.folders.at(-1)?.path).toBe('edited');
+        unsubscribe();
+      }, indexed, legacy, 'daymark_notemeta_v1');
+    });
+  it('refreshes valid peer changes, rejects damage and avoids loops', async () => {
+    await habitStoreTest(async ({ store, peers, messages }) => {
+      const received: string[] = [];
+      store.subscribeExternalChanges(key => received.push(key));
+      peers[0].onmessage?.({ data: { key: 'notemeta', value: notemeta } });
+      expect(store.loadNoteMeta()).toBe(notemeta);
+      expect(received).toEqual(['notemeta']);
+      peers[0].onmessage?.({ data: { key: 'notemeta', value: { folders: [null], dismissed: [] } } });
+      expect(store.loadNoteMeta()).toBe(notemeta);
+      store.saveNoteMeta(store.loadNoteMeta());
+      expect(messages).toEqual([]);
+    });
+  });
+  it.each([false, true])('reset and wipe clear notemeta (IndexedDB: %s)', async indexed => {
+    await habitStoreTest(async ({ store, values, raw }) => {
+      store.saveNoteMeta(notemeta);
+      expect(store.resetVaultToSeedData().notemeta).toEqual({ folders: [], dismissed: [] });
+      expect(store.loadNoteMeta()).toEqual({ folders: [], dismissed: [] });
+      store.saveNoteMeta(notemeta);
+      await store.wipeLocalVault();
+      expect(store.loadNoteMeta()).toEqual({ folders: [], dismissed: [] });
+      expect(values.has('daymark_notemeta_v1')).toBe(false);
+      expect(raw.has('notemeta')).toBe(false);
+    }, indexed);
+  });
+  it('JSON backup round-trips notemeta and old JSON preserves current data', async () => {
+    await habitStoreTest(async ({ store }) => {
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      store.saveNoteMeta(notemeta);
+      await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, habits);
+      const parsed = JSON.parse(await exported!.text());
+      expect(parsed.notemeta).toEqual(notemeta);
+      const { mergeRestoredNoteMeta } = await import('./vaultArchive');
+      store.saveNoteMeta(mergeRestoredNoteMeta({ folders: [], dismissed: [] }, parsed.notemeta));
+      expect(store.loadNoteMeta()).toEqual(notemeta);
+      expect(mergeRestoredNoteMeta(notemeta, JSON.parse('{}').notemeta)).toBe(notemeta);
+    });
+  });
+  it('ZIP download defaults to the persisted note metadata', async () => {
+    await habitStoreTest(async ({ store }) => {
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      store.saveNoteMeta(notemeta);
+      await store.exportVaultAsZip([], [], DEFAULT_SETTINGS, habits);
+      const { importVaultFromZip } = await import('./vaultArchive');
+      expect((await importVaultFromZip(await exported!.arrayBuffer())).notemeta).toEqual(notemeta);
+    });
+  });
+});

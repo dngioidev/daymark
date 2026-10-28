@@ -1,5 +1,9 @@
 import type { NoteFolder, NoteMeta, StandaloneNote } from '../types/daymark';
 
+/** Recovered data is read-only until an explicit edit; also consumed by sync. */
+export const uneditedRecoveredNoteMeta = new WeakSet<NoteMeta>();
+const folderCollator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+
 export function normalizeFolderPath(input: string): string {
   return input.split('/').map(part => part.trim()).filter(Boolean).join('/');
 }
@@ -45,7 +49,7 @@ export function buildFolderTree(notes: StandaloneNote[], meta: NoteMeta): Folder
     (parent ? parent.children : roots).push(node);
   }
   function rollUp(siblings: FolderNode[]): number {
-    siblings.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    siblings.sort((a, b) => folderCollator.compare(a.name, b.name));
     return siblings.reduce((sum, node) => {
       node.totalCount = node.ownCount + rollUp(node.children);
       return sum + node.totalCount;
@@ -104,6 +108,10 @@ export function moveFolder(notes: StandaloneNote[], meta: NoteMeta, path: string
 export function deleteFolder(notes: StandaloneNote[], meta: NoteMeta, path: string, nowIso: string): FolderResult {
   path = normalizeFolderPath(path);
   if (!path) return { notes, meta };
+  const spellings = new Map<string, string>();
+  for (const note of notes) canonicalPath(note.folder, spellings);
+  for (const folder of meta.folders) if (!folder.removed) canonicalPath(folder.path, spellings);
+  path = canonicalPath(path, spellings);
   const key = pathKey(path);
   const under = (candidate: string) => containsPath(pathKey(candidate), key);
   const folders = meta.folders.map(folder => under(folder.path) ? { ...folder, removed: true, updatedAt: nowIso } : folder);
@@ -129,12 +137,19 @@ export function moveNote(notes: StandaloneNote[], noteId: string, folderPath: st
 }
 
 /** Directory paths relative to the ZIP's Notes/ directory. */
-export function exportFolderPath(notes: StandaloneNote[]): Map<string, string> {
+export function exportFolderPath(notes: readonly Pick<StandaloneNote, 'id' | 'folder'>[]): Map<string, string> {
   const spellings = new Map<string, string>();
-  return new Map(notes.map(note => {
-    const path = canonicalPath(note.folder, spellings);
-    return [note.id, path.replace(/[<>:"\\|?*\u0000-\u001f]/g, '_')];
-  }));
+  const safeSpellings = new Map<string, string>();
+  const exportPath = (path: string) => canonicalPath(
+    canonicalPath(path, spellings).split('/').filter(Boolean).map(safeExportSegment).join('/'), safeSpellings,
+  );
+  return new Map(notes.map(note => [note.id, exportPath(note.folder)]));
+}
+
+/** A single portable filename/directory segment, never a relative path. */
+export function safeExportSegment(segment: string): string {
+  const safe = segment.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim().replace(/[. ]+$/g, '') || '_';
+  return /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(safe) ? `_${safe}` : safe;
 }
 
 export function folderMatches(note: StandaloneNote, selectedPath: string): boolean {

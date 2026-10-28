@@ -1,9 +1,10 @@
 // JSZip is loaded on demand: it is only needed when exporting or importing
 const loadJSZip = async () => (await import('jszip')).default;
-import { AppSettings, BacklogData, DailyDocument, HabitData, NoteAssetMeta, StandaloneNote } from '../types/daymark';
+import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, NoteAssetMeta, StandaloneNote } from '../types/daymark';
+import { exportFolderPath, safeExportSegment } from './noteFolders';
 import { EMPTY_BACKLOG, visibleBacklog } from './backlog';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
-import { isBacklogData, isHabitData, vaultProblem } from './vaultValidation';
+import { isNoteMeta, isBacklogData, isHabitData, vaultProblem } from './vaultValidation';
 import { assetRef, deleteAsset, invalidateAssetInventory, listAssets, MAX_ASSET_BYTES, parseAssetRefs, storeAsset } from './noteAssets';
 import { isPhotoStorageAvailable, kvGetRaw } from './vaultStore';
 
@@ -105,6 +106,7 @@ export interface VaultSnapshot {
   settings?: AppSettings;
   habits?: HabitData;
   backlog?: BacklogData;
+  notemeta?: NoteMeta;
   skippedPictures?: number;
 }
 
@@ -116,6 +118,11 @@ export function mergeRestoredHabits(current: HabitData, restored?: HabitData): H
 /** Missing or damaged backlog in older backups must not erase the current data. */
 export function mergeRestoredBacklog(current: BacklogData, restored?: unknown): BacklogData {
   return isBacklogData(restored) ? restored : current;
+}
+
+/** Missing or invalid metadata preserves the current vault; explicit empty replaces it. */
+export function mergeRestoredNoteMeta(current: NoteMeta, restored?: unknown): NoteMeta {
+  return isNoteMeta(restored) ? restored : current;
 }
 
 function backlogMarkdown(data: BacklogData): string {
@@ -154,6 +161,7 @@ export async function buildVaultZip(
   habits?: HabitData,
   onMissingPictures?: (count: number) => void,
   backlog: BacklogData = EMPTY_BACKLOG,
+  notemeta: NoteMeta = EMPTY_NOTE_META,
 ): Promise<Uint8Array> {
   const assets = await collectBackupAssets(notes, onMissingPictures);
   const JSZip = await loadJSZip();
@@ -171,19 +179,24 @@ export async function buildVaultZip(
   const notesFolder = root.folder('Notes')!;
   const assetFiles = new Map(assets.map(({ meta }) => [meta.id, assetRef(meta.id, meta.mime).split(':')[1]]));
   for (const { meta, data } of assets) notesFolder.file(`_assets/${assetFiles.get(meta.id)}`, data);
+  // Include live empty folders after notes, sharing the same canonical spelling maps.
+  const paths = [...notes.map(note => note.folder), ...notemeta.folders.filter(folder => !folder.removed).map(folder => folder.path)];
+  const folderPaths = exportFolderPath(paths.map((folder, index) => ({ id: String(index), folder })));
+  for (let index = notes.length; index < paths.length; index++) {
+    const folder = folderPaths.get(String(index))!;
+    if (folder) notesFolder.folder(folder);
+  }
   const usedPaths = new Set<string>();
-  for (const note of notes) {
-    const folderName = (note.folder || 'General').replace(/\\/g, '/').split('/')
-      .filter(segment => segment && segment !== '.').map(segment => segment === '..' ? '_' : segment.replace(/[?%*:|"<>]/g, '-')).join('/') || 'General';
-    const safeTitle = note.title.replace(/[/\\?%*:|"<>]/g, '-').trim() || `note-${note.id}`;
-    let fileName = `${safeTitle}.md`;
-    // Two notes with the same title in one folder must not overwrite each other
-    for (let n = 2; usedPaths.has(`${folderName}/${fileName}`); n++) fileName = `${safeTitle} (${n}).md`;
-    usedPaths.add(`${folderName}/${fileName}`);
+  for (const [index, note] of notes.entries()) {
+    const folderName = folderPaths.get(String(index))!;
+    const safeTitle = safeExportSegment(note.title.trim() || 'note-' + note.id);
+    let fileName = safeTitle + '.md';
+    for (let n = 2; usedPaths.has((folderName + '/' + fileName).toLowerCase()); n++) fileName = safeTitle + ' (' + n + ').md';
+    usedPaths.add((folderName + '/' + fileName).toLowerCase());
     const depth = folderName.split('/').filter(Boolean).length;
     const markdown = note.content.replace(/daymark-asset:([a-f0-9]{64})\.(?:webp|jpeg|jpg|png)\b/g,
-      (ref, id: string) => assetFiles.has(id) ? `${'../'.repeat(depth)}_assets/${assetFiles.get(id)}` : ref);
-    notesFolder.folder(folderName)!.file(fileName, markdown);
+      (ref, id: string) => assetFiles.has(id) ? '../'.repeat(depth) + '_assets/' + assetFiles.get(id) : ref);
+    (folderName ? notesFolder.folder(folderName)! : notesFolder).file(fileName, markdown);
   }
 
   const meta = root.folder('.daymark')!;
@@ -204,7 +217,7 @@ export async function buildVaultZip(
   );
   meta.file(
     'vault.json',
-    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, assets: assets.map(asset => asset.meta) })
+    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, notemeta, assets: assets.map(asset => asset.meta) })
   );
 
   return zip.generateAsync({ type: 'uint8array' });
@@ -254,6 +267,7 @@ export async function importVaultFromZip(
         settings: looksLikeSettings(parsed.settings) ? parsed.settings : undefined,
         habits: isHabitData(parsed.habits) ? parsed.habits : undefined,
         backlog: isBacklogData(parsed.backlog) ? parsed.backlog : undefined,
+        notemeta: isNoteMeta(parsed.notemeta) ? parsed.notemeta : undefined,
         skippedPictures,
       };
     }

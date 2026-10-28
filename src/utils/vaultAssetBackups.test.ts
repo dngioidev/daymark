@@ -153,7 +153,7 @@ it('ZIP and JSON restore keep notes and skip pictures when browser picture stora
 it('folder paths and picture link depth use the same normalized safe segments', async () => {
   await seed();
   const zip = await JSZip.loadAsync(await buildVaultZip([], [{ ...note, folder: 'A/./B/../C' }], DEFAULT_SETTINGS));
-  expect(await zip.file('Daymark/Notes/A/B/_/C/Picture.md')!.async('string')).toBe(`![picture](../../../../_assets/${id}.png)`);
+  expect(await zip.file('Daymark/Notes/A/_/B/_/C/Picture.md')!.async('string')).toBe(`![picture](../../../../../_assets/${id}.png)`);
   expect(Object.keys(zip.files).some(path => path.includes('/../') || path.includes('/./'))).toBe(false);
 });
 it('Markdown-only Windows ZIP normalizes asset keys before resolving picture links', async () => {

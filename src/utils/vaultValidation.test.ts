@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { DailyDocument } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { isBacklogItem, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
+import { isNoteFolder, isDismissedPair, isNoteMeta, isBacklogItem, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
 
 const day = (date: string): DailyDocument => ({ date, type: 'daily', headings: [], updatedAt: `${date}T00:00:00.000Z` });
+
+const folder = { path: 'Tech/Java', updatedAt: 'now' };
+const pair = { key: 'a|b', at: 'now' };
+describe('note metadata validation', () => {
+  it('accepts empty data, folders, dismissed pairs and tombstones', () => {
+    expect(isNoteMeta({ folders: [], dismissed: [] })).toBe(true);
+    expect(isNoteFolder({ ...folder, removed: true })).toBe(true);
+    expect(isDismissedPair({ ...pair, restored: false })).toBe(true);
+    expect(isNoteMeta({ folders: [folder], dismissed: [pair] })).toBe(true);
+  });
+  it.each([null, [], {}, { folders: [], dismissed: null }, { folders: null, dismissed: [] },
+    ...[{ path: 1 }, { updatedAt: null }, { removed: 'yes' }].map(change => ({ folders: [{ ...folder, ...change }], dismissed: [] })),
+    ...[{ key: 1 }, { at: null }, { restored: 'yes' }].map(change => ({ folders: [], dismissed: [{ ...pair, ...change }] })),
+    { folders: [null], dismissed: [] }, { folders: [], dismissed: [null] },
+  ].map(value => [value]))('rejects damaged metadata: %j', value => expect(isNoteMeta(value)).toBe(false));
+});
 
 const habit = { id: 'h1', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' };
 const habitDay = { date: '2026-10-24', ticks: { h1: { done: false, at: '2026-10-24T10:00:00Z' } } };
