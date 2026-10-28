@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, CalendarDays, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
-import { AppSettings, DailyDocument, HabitData, MobileTab, StandaloneNote, TaskItem } from '../../types/daymark';
+import { AppSettings, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
@@ -20,6 +20,8 @@ interface MobileAppShellProps {
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
   notes: StandaloneNote[];
+  noteMeta?: NoteMeta;
+  onUpdateNoteMeta?: (meta: NoteMeta) => void;
   settings: AppSettings;
   simulatedToday: string;
   onDateChange: (date: string) => void;
@@ -62,6 +64,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   currentDocument,
   dailyDocs,
   notes,
+  noteMeta,
+  onUpdateNoteMeta,
   settings,
   simulatedToday,
   onDateChange,
@@ -220,7 +224,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} noteMeta={noteMeta} onUpdateNoteMeta={onUpdateNoteMeta} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
           {activeTab === 'backlog' && backlogSlot}
         </main>
 

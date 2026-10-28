@@ -38,7 +38,7 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
 import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, undoBacklogMove, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
@@ -677,6 +677,7 @@ export default function App() {
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
+    setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
     setHabits((current) => mergeRestoredHabits(current, isHabitData(parsed.habits) ? parsed.habits : undefined));
     setBacklog((current) => mergeRestoredBacklog(current, parsed.backlog));
     if (parsed.settings) setSettings(nextSettings);
@@ -693,6 +694,7 @@ export default function App() {
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
       setNotes(snapshot.notes);
+      setNoteMeta(current => mergeRestoredNoteMeta(current, snapshot.notemeta));
       setHabits((current) => mergeRestoredHabits(current, snapshot.habits));
       setBacklog((current) => mergeRestoredBacklog(current, snapshot.backlog));
       if (snapshot.settings) setSettings(nextSettings);
@@ -712,6 +714,7 @@ export default function App() {
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
     setNotes(res.notes);
+    setNoteMeta(res.notemeta);
     setHabits(res.habits);
     setBacklog(res.backlog);
     setCurrentDate(resolveToday(res.settings.simulatedToday, realToday));
@@ -891,7 +894,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView onFocusModeChange={setFocusNotes} notes={notes} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
             {activeDesktopTab === 'backlog' && <BacklogView hideTitle {...backlogViewProps} />}
 
@@ -927,6 +930,8 @@ export default function App() {
           onDateChange={setCurrentDate}
           onUpdateDocument={handleUpdateDocument}
           onPatchDocument={patchDocument}
+          noteMeta={notemeta}
+          onUpdateNoteMeta={setNoteMeta}
           onUpdateNotes={setNotes}
           onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
           onOpenSearch={openSearch}

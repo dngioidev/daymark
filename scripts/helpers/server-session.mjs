@@ -12,13 +12,13 @@ export async function signIn(context, origin, password, extra = {}) {
 export async function resetServerVault(context, origin, accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const response = await context.request.post(origin + '/api/sync', {
-    headers, data: { sinceRev: 0, changes: [], features: ['habits', 'backlog'] },
+    headers, data: { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta'] },
   });
   if (!response.ok()) throw new Error(`Read test vault failed: ${response.status()}`);
   const { entities } = await response.json();
   const changes = entities.filter((entity) => entity.value !== null).map(({ key, value }) => ({ key, base: value, value: null }));
   if (!changes.length) return;
-  const cleared = await context.request.post(origin + '/api/sync', { headers, data: { sinceRev: 0, changes, features: ['habits', 'backlog'] } });
+  const cleared = await context.request.post(origin + '/api/sync', { headers, data: { sinceRev: 0, changes, features: ['habits', 'backlog', 'notemeta'] } });
   if (!cleared.ok()) throw new Error(`Reset test vault failed: ${cleared.status()}`);
 }
 

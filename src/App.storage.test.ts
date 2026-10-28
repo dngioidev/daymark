@@ -1,14 +1,17 @@
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from './utils/defaultData';
-const { toast, dismiss, exporter, refs } = vi.hoisted(() => ({ toast: vi.fn(), dismiss: vi.fn(),
+const { toast, dismiss, exporter, refs, metaSet } = vi.hoisted(() => ({ toast: vi.fn(), dismiss: vi.fn(), metaSet: vi.fn(),
   exporter: vi.fn(async (_docs: unknown, _notes: unknown, _settings: unknown, _habits: unknown, onMissing?: (count: number) => void) => { onMissing?.(2); return true; }),
   refs: [] as { current: unknown }[],
 }));
 vi.mock('react', async (original) => {
   const actual = await original<typeof React>();
   const hooks = {
-    useState: (initial: unknown) => [typeof initial === 'function' ? initial() : initial, vi.fn()],
+    useState: (initial: unknown) => {
+      const value = typeof initial === 'function' ? initial() : initial;
+      return [value, value && typeof value === 'object' && 'folders' in value ? metaSet : vi.fn()];
+    },
     useEffect: () => {}, useMemo: (fn: () => unknown) => fn(),
     useRef: (current: unknown) => { const ref = { current }; refs.push(ref); return ref; },
   };
@@ -45,7 +48,7 @@ function settings() {
   refs.length = 0;
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
   vi.stubGlobal('document', { cookie: '' });
-  vi.stubGlobal('localStorage', { getItem: () => null });
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
   return elements(App()).find(element => element.type === SettingsModal)!.props as unknown as React.ComponentProps<typeof SettingsModal>;
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
@@ -84,4 +87,23 @@ it.each([1, 2])('Markdown-folder ZIP restore reports the skipped picture count (
   for (let index = 0; index < count; index++) zip.file('Notes/_assets/bad-' + index + '.svg', '<svg/>');
   await settings().onImportZip(await zip.generateAsync({ type: 'uint8array' }) as unknown as File);
   expect(toast).toHaveBeenCalledWith(expect.stringContaining(count === 1 ? '1 picture was skipped' : '2 pictures were skipped'));
+});
+
+it('JSON restore restores folders and dismissals into the live metadata state', async () => {
+  const notemeta = { folders: [{ path: 'Tech/Empty', updatedAt: '2026-10-28T00:00:00Z' }], dismissed: [{ key: 'a|b', at: '2026-10-28T00:00:00Z' }] };
+  await settings().onImportJson(JSON.stringify({ daily_documents: [], standalone_notes: [], notemeta }));
+  expect(metaSet).toHaveBeenCalledOnce();
+  expect(metaSet.mock.calls[0][0]({ folders: [], dismissed: [] })).toEqual(notemeta);
+});
+it('ZIP restore restores folders and dismissals into the live metadata state', async () => {
+  const JSZip = (await import('jszip')).default;
+  const notemeta = { folders: [{ path: 'Empty', updatedAt: '2026-10-28T00:00:00Z' }], dismissed: [] };
+  const zip = new JSZip(); zip.file('.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], notemeta }));
+  await settings().onImportZip(await zip.generateAsync({ type: 'uint8array' }) as unknown as File);
+  expect(metaSet).toHaveBeenCalledOnce();
+  expect(metaSet.mock.calls[0][0]({ folders: [], dismissed: [] })).toEqual(notemeta);
+});
+it('sample reset replaces the live metadata state with the seed metadata', () => {
+  settings().onResetVault();
+  expect(metaSet).toHaveBeenCalledWith({ folders: [], dismissed: [] });
 });

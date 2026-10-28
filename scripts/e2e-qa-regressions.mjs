@@ -42,6 +42,8 @@ browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.laun
 
 async function fresh({ docs = [], notes = [], habits, backlog, mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
   const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
+  // External font availability is outside this disposable app server and sandbox.
+  await context.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: '' }));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -61,7 +63,7 @@ const titlesOn = (docs, date) => (docs.find((d) => d.date === date)?.headings ??
 const settle = (page, ms = 600) => page.waitForTimeout(ms);
 const run = async (id, fn) => {
   if (only && !id.startsWith(only)) return;
-  try { await fn(); } catch (e) { check(id, false, 'scenario crashed', e.message.split('\n')[0]); }
+  try { await fn(); } catch (e) { check(id, false, 'scenario crashed', e.message); }
   finally { for (const context of browser.contexts()) await context.close(); }
 };
 
@@ -1502,6 +1504,122 @@ await run('C10-X1', async () => {
   check('C10-X1-week', await page.getByText(title, { exact: true }).count() === 0, 'parked carried history is absent from Week task lists');
   const saved = (await readDocs(page)).find(d => d.date === Y1);
   check('C10-X1-data', saved.headings[0].notesContent === 'Keep yesterday journal' && saved.headings[0].items.some(t => t.title === title && t.movedToBacklogDate), 'excluded historical task and journal stay in the stored document');
+});
+
+// Cycle 11 Task 4: folder operations use the public UI and persisted vault data.
+await run('C11-Folders', async () => {
+  const notes = [
+    { ...note('folder-java', 'Keep Java body', 'Java notes'), folder: 'Tech/Java' },
+    { ...note('folder-inbox', 'Keep inbox body', 'Inbox notes'), folder: 'Inbox' },
+  ];
+  const { page, errors } = await fresh({ notes });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  const folderRow = path => page.getByRole('button', { name: new RegExp(`^${path}, \\d+ notes$`) });
+  const action = async (path, name) => {
+    await page.getByRole('button', { name: `Actions for ${path}`, exact: true }).click();
+    await page.getByRole('menuitem', { name, exact: true }).click();
+  };
+  await page.getByRole('button', { name: 'New folder', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Empty');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await folderRow('Empty').waitFor();
+  await action('Empty', 'New folder inside');
+  await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Nested');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await folderRow('Empty/Nested').waitFor();
+  check('C11-Folders-empty', await folderRow('Empty/Nested').getAttribute('aria-label') === 'Empty/Nested, 0 notes', 'nested empty folders exist without overview notes');
+
+  await folderRow('Tech').click();
+  await page.getByRole('button', { name: /Move to folder:/ }).click();
+  await page.getByRole('menuitem', { name: 'Empty / Nested', exact: true }).click();
+  await savedNote(page, 'folder-java', n => n.folder === 'Empty/Nested');
+  check('C11-Folders-picker', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Java notes', 'picker moves the note and keeps it open');
+  await page.getByRole('button').filter({ has: page.getByText('Java notes', { exact: true }) }).dragTo(folderRow('Tech/Java'));
+  await savedNote(page, 'folder-java', n => n.folder === 'Tech/Java');
+  check('C11-Folders-drag', true, 'desktop note drag persists its destination');
+
+  await action('Tech', 'Rename folder');
+  await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Engineering');
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  await savedNote(page, 'folder-java', n => n.folder === 'Engineering/Java');
+  await folderRow('Engineering/Java').waitFor();
+  check('C11-Folders-rename', true, 'renaming a parent moves child paths');
+
+  await action('Empty/Nested', 'Move folder');
+  await page.getByRole('combobox', { name: 'Destination folder', exact: true }).selectOption('Engineering');
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await folderRow('Engineering/Nested').waitFor();
+  check('C11-Folders-move', true, 'folder Move dialog provides the keyboard alternative');
+  await folderRow('Engineering/Nested').dragTo(folderRow('Empty'));
+  await folderRow('Empty/Nested').waitFor();
+  check('C11-Folders-folder-drag', true, 'desktop folder drag moves an empty subtree');
+
+  await action('Inbox', 'Rename folder');
+  await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Engineering');
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  const merge = page.getByRole('alertdialog', { name: 'Merge folders?', exact: true });
+  await merge.waitFor();
+  check('C11-Folders-merge-count', (await merge.innerText()).includes('2 notes'), 'merge confirmation reports all affected notes');
+  await merge.getByRole('button', { name: 'Merge', exact: true }).click();
+  await savedNote(page, 'folder-inbox', n => n.folder === 'Engineering');
+  await action('Engineering', 'Delete folder');
+  const deletion = page.getByRole('alertdialog', { name: 'Delete folder?', exact: true });
+  check('C11-Folders-delete-message', (await deletion.innerText()).includes('No notes are deleted'), 'delete confirmation states where notes go and preserves notes');
+  await deletion.getByRole('button', { name: 'Delete', exact: true }).click();
+  await savedNote(page, 'folder-java', n => n.folder === '' && n.content === 'Keep Java body');
+  await savedNote(page, 'folder-inbox', n => n.folder === '' && n.content === 'Keep inbox body');
+  check('C11-Folders-delete', true, 'folder delete preserves every note body at the parent');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await savedNote(page, 'folder-java', n => n.folder === 'Engineering/Java');
+  check('C11-Folders-undo', true, 'Undo restores the subtree');
+  await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Expand folders', exact: true }).waitFor();
+  check('C11-Folders-prefs', await folderRow('Engineering').isVisible(), 'minimized folder strip survives reload with accessible icons');
+  check('C11-Folders-errors', errors.length === 0, 'folder operations have no browser errors', errors.join(' | '));
+});
+
+for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, async () => {
+  const { page } = await fresh({ mobile: width === 390, notes: [{ ...note('responsive-folder', 'Body', 'Responsive note'), folder: 'Tech/Java' }] });
+  await page.setViewportSize({ width, height: 900 });
+  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  if (width >= 1100) {
+    await page.getByRole('button', { name: 'Minimize folders', exact: true }).waitFor();
+    check(`C11-Width-${width}-tree`, await page.getByRole('button', { name: 'Tech, 1 notes', exact: true }).isVisible(), 'desktop tree stays reachable');
+  } else {
+    const opener = page.getByRole('button', { name: 'Folders', exact: true });
+    await opener.click();
+    const drawer = page.getByRole('dialog', { name: 'Folders', exact: true });
+    await drawer.getByRole('button', { name: 'Tech, 1 notes', exact: true }).waitFor();
+    if (width === 390) {
+      const heights = await drawer.locator('button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
+      check('C11-Width-390-rows', heights.every(height => height >= 44), 'phone folder rows and actions have 44px targets', JSON.stringify(heights));
+    }
+    await page.keyboard.press('Escape');
+    check(`C11-Width-${width}-escape`, await opener.evaluate(el => el === document.activeElement), 'Escape closes the drawer and restores focus');
+    await opener.click();
+    await drawer.getByRole('button', { name: 'Tech, 1 notes', exact: true }).click();
+    check(`C11-Width-${width}-selection`, await drawer.count() === 0 && await opener.evaluate(el => el === document.activeElement), 'folder selection closes the drawer and restores focus');
+  }
+  await page.getByRole('button').filter({ has: page.getByText('Responsive note', { exact: true }) }).click();
+  await rich(page).waitFor();
+  const bounds = await page.getByRole('textbox', { name: 'Title', exact: true }).boundingBox();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  check(`C11-Width-${width}-layout`, !overflow && bounds.x >= 0 && bounds.x + bounds.width <= width, 'editor fits without horizontal overlap');
+  const outDir = path.join(os.tmpdir(), 'daymark-task-4-qa'); fs.mkdirSync(outDir, { recursive: true });
+  await page.screenshot({ path: path.join(outDir, `notes-${width}.png`) });
+  // Select the saved app theme: a system colour scheme alone does not override sample settings.
+  await settingsOpen(page);
+  await settingsBox(page).getByRole('button', { name: /Dark$/ }).click();
+  await settingsClose(page);
+  await themeSaved(page, 'dark');
+  await page.screenshot({ path: path.join(outDir, `notes-${width}-dark.png`) });
+  if (width < 1100) {
+    await page.getByRole('button', { name: 'Folders', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Folders', exact: true }).waitFor();
+    await page.screenshot({ path: path.join(outDir, `folders-${width}-dark.png`) });
+  }
 });
 
 await cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs });

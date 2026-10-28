@@ -4,11 +4,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { StandaloneNote } from '../types/daymark';
 
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as (() => unknown)[] }));
+const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn() }));
+vi.mock('./ui/feedback', () => ({ confirmDialog: feedback.confirm, showToast: feedback.toast }));
 vi.mock('react', async (original) => ({
   ...await original<typeof React>(),
   useState: (initial: unknown) => {
     const index = hooks.index++;
-    if (!(index in hooks.values)) hooks.values[index] = initial;
+    if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial;
     return [hooks.values[index], (next: unknown) => {
       hooks.values[index] = typeof next === 'function' ? next(hooks.values[index]) : next;
     }];
@@ -25,6 +27,9 @@ vi.mock('../native/backButton', () => ({ useBackHandler: vi.fn() }));
 vi.mock('./MarkdownPreview', () => ({ MarkdownPreview: () => React.createElement('p', null, 'Preview') }));
 import { StandaloneNotesView } from './StandaloneNotesView';
 import { Menu, type MenuItem } from './ui/Menu';
+import { NoteFolderTree } from './notes/NoteFolderTree';
+import { FolderPicker } from './notes/FolderPicker';
+import { FolderDialogs } from './notes/FolderDialogs';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
@@ -70,7 +75,7 @@ function find(element: React.ReactNode, predicate: (el: React.ReactElement<Recor
     if (match) return match;
   }
 }
-beforeEach(() => { hooks.values = []; update.mockClear(); });
+beforeEach(() => { hooks.values = []; update.mockClear(); feedback.confirm.mockReset().mockResolvedValue(true); feedback.toast.mockClear(); });
 afterEach(() => vi.unstubAllGlobals());
 
 it('provides a focus toggle and restores the list with the same button', () => {
@@ -169,18 +174,18 @@ it('keeps All and a matching search when creating a blank note', () => {
   (input.props.onChange as (e: unknown) => void)({ target: { value: 'untitled' } });
   find(render(), (el) => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))!.props.onClick();
   const next = render();
-  expect(find(next, (el) => el.props['aria-pressed'] === true && Array.isArray(el.props.children) && el.props.children[0] === 'All (')).toBeDefined();
+  expect(find(next, (el) => el.type === NoteFolderTree)?.props.selectedPath).toBe('all');
   expect(find(next, (el) => el.props.id === 'notes-search')?.props.value).toBe('untitled');
 });
 
 it('switches a conflicting folder and clears a nonmatching search for templates', () => {
-  find(render(), (el) => el.type === 'button' && el.props.children === 'Work')!.props.onClick();
+  (find(render(), (el) => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
   const input = find(render(), (el) => el.props.id === 'notes-search')!;
   (input.props.onChange as (e: unknown) => void)({ target: { value: 'no-match' } });
   const menu = find(render(), (el) => el.type === Menu && (el.props.items as MenuItem[]).some((item) => item.label === 'Meeting'))!;
   menu.props.items.find((item) => item.label === 'Meeting')!.onSelect();
   expect(find(render(), (el) => el.props.id === 'notes-search')?.props.value).toBe('');
-  expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.props.children === 'Meetings' && el.props['aria-pressed'] === true)).toBeDefined();
+  expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.type === NoteFolderTree)?.props.selectedPath).toBe('Meetings');
 });
 
 it('keeps compact rich editing bounded with a Markdown toggle', () => {
@@ -246,4 +251,86 @@ it('cleanup changes the Markdown textarea key while preserving note content', ()
   const after = find(render(false, { pictureCleanupSignal: 1 }), element => element.type === 'textarea')!;
   expect(before).toBeDefined(); expect(after).toBeDefined();
   expect(before.key).not.toBe(after.key); expect(after.props.value).toBe(note.content);
+});
+
+it('selects descendants through the tree and provides the header picker', () => {
+  const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
+  const extra = { notes: [note, child] };
+  const tree = find(render(false, extra), el => el.type === NoteFolderTree)!;
+  (tree.props.onSelect as (path: string) => void)('Tech');
+  const next = render(false, extra);
+  expect(find(next, el => el.type === 'span' && el.props.children === 'Child')).toBeDefined();
+  expect(find(next, el => el.type === 'span' && el.props.children === 'Existing')).toBeUndefined();
+  expect(find(next, el => el.type === FolderPicker)).toBeDefined();
+  expect(find(next, el => el.props.role === 'group' && el.props['aria-label'] === 'Folders')).toBeUndefined();
+});
+it('creates an empty folder through metadata without an overview note', async () => {
+  const onUpdateNoteMeta = vi.fn();
+  const extra = { noteMeta: { folders: [], dismissed: [] }, onUpdateNoteMeta };
+  find(render(false, extra), el => el.props['aria-label'] === 'New folder')!.props.onClick();
+  const dialog = find(render(false, extra), el => el.type === FolderDialogs)!;
+  await (dialog.props.onSubmit as (name: string) => Promise<void>)('Empty');
+  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Empty' })] }));
+  expect(update).toHaveBeenCalledOnce();
+  expect(update).toHaveBeenCalledWith([note]);
+});
+
+it('keeps the moved note open when it was selected by a folder filter', () => {
+  const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
+  const extra = { notes: [note, child] };
+  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Tech');
+  (find(render(false, extra), el => el.type === FolderPicker)!.props.onChange as (path: string) => void)('Work');
+  expect(find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.props.id === 'note-title')?.props.value).toBe('Child');
+});
+
+it('keeps editing the active note when an edit no longer matches search', () => {
+  (find(render(), el => el.props.id === 'notes-search')!.props.onChange as (event: unknown) => void)({ target: { value: 'Existing' } });
+  (find(render(), el => el.props.id === 'note-title')!.props.onChange as (event: unknown) => void)({ target: { value: 'Renamed' } });
+  expect(find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.props.id === 'note-title')?.props.value).toBe('Renamed');
+});
+
+it('retains the source folder when moving its last note', () => {
+  const onUpdateNoteMeta = vi.fn();
+  const extra = { noteMeta: { folders: [], dismissed: [] }, onUpdateNoteMeta };
+  (find(render(false, extra), el => el.type === FolderPicker)!.props.onChange as (path: string) => void)('Tech');
+  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Work' })] }));
+});
+
+it('keeps Back to notes reachable throughout the drawer breakpoint', () => {
+  vi.stubGlobal('window', { innerWidth: 1050 });
+  const back = find(render(), el => el.props['aria-label'] === 'Back to notes')!;
+  expect(back.props.className).not.toContain('lg:hidden');
+});
+
+it('treats moving a folder to its current parent as a quiet no-op', () => {
+  const tree = find(render(), el => el.type === NoteFolderTree)!;
+  (tree.props.onDropFolder as (path: string, parent: string) => void)('Work', '');
+  expect(update).not.toHaveBeenCalled();
+  expect(feedback.toast).not.toHaveBeenCalled();
+});
+it('confirms collision counts and cancels a merge without changing notes', async () => {
+  const other = { ...note, id: 'other', folder: 'Personal' };
+  const extra = { notes: [note, other] };
+  feedback.confirm.mockResolvedValueOnce(false);
+  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onFolderAction as (action: string, path: string) => void)('rename', 'Work');
+  await (find(render(false, extra), el => el.type === FolderDialogs)!.props.onSubmit as (value: string) => Promise<void>)('Personal');
+  expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Merge folders?', message: expect.stringMatching(/2 notes.*Personal/) }));
+  expect(update).not.toHaveBeenCalled();
+});
+it('rejects Undo after a newer note edit instead of overwriting it', async () => {
+  const meta = { folders: [], dismissed: [] };
+  const extra = { noteMeta: meta, onUpdateNoteMeta: vi.fn() };
+  (find(render(false, extra), el => el.type === FolderPicker)!.props.onChange as (path: string) => void)('Tech');
+  const undo = feedback.toast.mock.calls.at(-1)![1].action.onClick;
+  const newer = [{ ...update.mock.calls.at(-1)![0][0], content: 'Newer edit' }];
+  render(false, { ...extra, notes: newer });
+  update.mockClear();
+  undo();
+  expect(update).not.toHaveBeenCalled();
+  expect(feedback.toast).toHaveBeenLastCalledWith("Can't undo: the notes changed since.", { tone: 'error' });
+});
+
+it('does not combine a hidden desktop Back button with a display utility', () => {
+  vi.stubGlobal('window', { innerWidth: 1440 });
+  expect(find(render(), el => el.props['aria-label'] === 'Back to notes')!.props.className).toBe('hidden');
 });
