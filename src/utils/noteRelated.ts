@@ -6,15 +6,19 @@ const FIELD_WEIGHT = { title: 3, tags: 2, body: 1 };
 const COMMON_RATIO = 0.8;
 // Four notes avoid treating overlap in a tiny vault as meaningless vocabulary.
 const COMMON_MIN_NOTES = 4;
-// Fixture tuning: weak incidental overlaps stay below the suggestion cutoff.
-const MIN_SCORE = 0.16;
+// Enlarged fixture: reject tag-only scores <= 0.276 while retaining related pairs >= 0.445.
+const MIN_SCORE = 0.30;
 // Shared tags provide a small boost after the meaningful-term gate passes.
 const TAG_BONUS = 0.08;
 // A common resolved third-note target is supporting evidence, not sufficient alone.
 const LINK_BONUS = 0.06;
 // An unlinked full-title mention is stronger evidence than a shared tag.
 const MENTION_BONUS = 0.12;
-const STOP_WORDS = new Set('the and for with this that from into are was were have has had not but you your our their they them then than can will would should could about also'.split(' '));
+const STOP_WORDS = new Set((
+  'a an the and or for with this that from into are was were have has had not but you your yours our ours their theirs they them then than can will would should could about also ' +
+  'there what which when where who whom whose why how just more most some any all each every both either neither other another these those over under only very been being be is am do does did doing we us it its as at by if in of on out so such too up no nor same through until while ' +
+  'cua cac nhung khong duoc mot nhu nay khi cho voi trong cung nhieu rat la va de den ra vao se da dang neu thi ma tu theo tren duoi nguoi hon'
+).split(' '));
 const titleKey = (title: string): string => title.trim().toLowerCase();
 const normalize = (text: string): string => text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
 const words = (text: string): string => (normalize(text).match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
@@ -46,9 +50,19 @@ function maskCode(markdown: string): string {
   return masked.replace(/(`+)[\s\S]*?\1(?!`)/g, code => code.replace(/[^\r\n]/g, ' '));
 }
 
+/** Trimmed raw bracket text, including #/| suffixes; consumers resolve raw first. */
 export function extractWikiTargets(markdown: string): string[] {
-  return [...maskCode(markdown).matchAll(/(?<![!\\])\[\[([^\[\]\n]+)\]\]/g)]
-    .map(match => match[1].split(/[|#]/)[0].trim()).filter(Boolean);
+  return [...maskCode(markdown).matchAll(/(?<![!\\])\[\[([^\r\n\u2028\u2029]+?)\]\](?!\])/g)]
+    .map(match => match[1].trim()).filter(Boolean);
+}
+
+function resolveWikiTarget(target: string, titles: ReadonlyMap<string, string>): string | undefined {
+  return titles.get(titleKey(target)) ?? titles.get(titleKey(target.split(/[|#]/)[0]));
+}
+
+/** The UI disables Link for titles that cannot safely be written as [[title]]. */
+export function canLinkToTitle(title: string): boolean {
+  return !!title.trim() && !/\]\]|\[\[|[|\r\n\u2028\u2029]/.test(title);
 }
 
 function plainText(text: string): string {
@@ -85,6 +99,7 @@ export interface RelatedSuggestion { noteId: string; score: number; sharedTerms:
 export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
   const titles = new Map<string, string>();
   const incoming = new Map(notes.map(note => [note.id, new Set<string>()]));
+  // Duplicate normalized titles resolve to the first note in input order, like openLinkedNote.
   for (const note of notes) if (!titles.has(titleKey(note.title))) titles.set(titleKey(note.title), note.id);
   const frequency = new Map<string, number>();
   const entries = notes.map(note => {
@@ -97,7 +112,7 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
     for (const term of weights.keys()) frequency.set(term, (frequency.get(term) ?? 0) + 1);
     const outgoing = new Set<string>();
     for (const target of extractWikiTargets(note.content)) {
-      const id = titles.get(titleKey(target));
+      const id = resolveWikiTarget(target, titles);
       if (id && id !== note.id) { outgoing.add(id); incoming.get(id)!.add(note.id); }
     }
     return { id: note.id, title: note.title, titlePhrase: words(note.title), titleTerms: new Set(titleTerms),
@@ -161,6 +176,7 @@ export function suggestRelated(index: NoteIndex, noteId: string, opts?: { dismis
 }
 
 export function addRelatedLink(markdown: string, title: string): string {
+  if (!canLinkToTitle(title)) return markdown;
   const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
   const finish = (text: string) => text.replace(/(?:\r?\n)+$/, '') + newline;
   const headings = [...maskCode(markdown).matchAll(/^ {0,3}(#{1,2})[\t ]+([^\r\n]*)(?:\r?\n|$)/gm)];
@@ -171,7 +187,11 @@ export function addRelatedLink(markdown: string, title: string): string {
   }
   const start = related.index! + related[0].length;
   const end = headings.find(match => match.index! >= start)?.index ?? markdown.length;
-  if (extractWikiTargets(markdown.slice(start, end)).some(target => titleKey(target) === titleKey(title))) return finish(markdown);
-  const before = markdown.slice(0, end);
-  return finish(before + (before.endsWith('\n') ? '' : newline) + `- [[${title}]]` + newline + markdown.slice(end));
+  const section = markdown.slice(start, end);
+  const knownTitle = new Map([[titleKey(title), title]]);
+  if (extractWikiTargets(section).some(target => resolveWikiTarget(target, knownTitle) !== undefined)) return markdown;
+  const lastLine = [...section.matchAll(/^[^\r\n]*\S[^\r\n]*(?:\r?\n|$)/gm)].at(-1);
+  const insertAt = lastLine ? start + lastLine.index! + lastLine[0].length : start;
+  const before = markdown.slice(0, insertAt);
+  return finish(before + (before.endsWith('\n') ? '' : newline) + `- [[${title}]]` + newline + markdown.slice(insertAt));
 }

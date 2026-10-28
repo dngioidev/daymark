@@ -6,7 +6,7 @@ const note = (id: string, title: string, content: string, tags: string[] = []): 
 
 /** Hand-labelled topic clusters; cross-cluster pairs are unrelated. */
 export const relatedNotes = [
-  note('java', 'Java basics', 'Java classes objects methods collections runtime.', ['java']),
+  note('java', 'Java basics', 'Java classes objects methods collections runtime. There are some other which we have been.', ['java']),
   note('java21', 'Java 21 news', 'Java runtime classes virtual threads collections news.', ['java']),
   note('streams', 'Java Streams', 'Java streams collections filter methods pipeline.', ['java']),
   note('collections', 'Java collections', 'Java collections classes methods list streams.', ['java']),
@@ -20,13 +20,20 @@ export const relatedNotes = [
   note('travel', 'Mountain travel', 'Travel mountain hiking trail backpack camping.', ['holiday']),
   note('hiking', 'Hiking equipment', 'Mountain hiking backpack camping trail boots.', ['holiday']),
   note('camping', 'Camping trail', 'Travel camping trail mountain hiking tent.', ['holiday']),
-  note('viet-java', 'Lập trình Java', 'Lập trình Java lớp đối tượng phương thức bộ nhớ.', ['lập trình']),
+  note('viet-java', 'Lập trình Java', 'Lập trình Java lớp đối tượng phương thức bộ nhớ. Sách của những người đang theo học.', ['lập trình']),
   note('viet-java-plain', 'Lap trinh Java nang cao', 'Lap trinh Java lop doi tuong phuong thuc bo nho.', ['lap trinh']),
   note('viet-food', 'Nấu bánh truyền thống', 'Nấu bánh bột đường trứng lò nướng công thức.', ['ẩm thực']),
   note('viet-food-plain', 'Nau banh tai nha', 'Nau banh bot duong trung lo nuong cong thuc.', ['am thuc']),
   note('linked', 'Java reference', 'Java classes methods runtime [[Java basics]].', ['java']),
   note('empty', 'Java', ''),
+  // Adversarial negatives: filler, incidental term, tag-only, folded homograph.
+  note('filler', 'Miscellaneous', 'There are some other which we have been. Của những người đang theo. Telescope.'),
+  note('incidental', 'Maritime archive', 'Java ' + Array.from({ length: 200 }, (_, i) => `navigation${i} manifest${i}`).join(' ')),
+  note('tag-only', 'Astronomy', 'Galaxies telescope nebula orbit stars.', ['java']),
+  note('homograph', 'Vệ sinh', 'Sạch sát khuẩn xà phòng tẩy rửa.'),
 ];
+
+export const adversarialIds = ['filler', 'incidental', 'tag-only', 'homograph'];
 
 export const relatedPairs = [
   { a: 'java', b: 'java21', terms: ['java', 'classes'] },
