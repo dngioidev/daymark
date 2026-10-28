@@ -1511,10 +1511,16 @@ await run('C11-Folders', async () => {
   const notes = [
     { ...note('folder-java', 'Keep Java body', 'Java notes'), folder: 'Tech/Java' },
     { ...note('folder-inbox', 'Keep inbox body', 'Inbox notes'), folder: 'Inbox' },
+    { ...note('folder-root', 'Keep root body', 'Root note'), folder: ' / ' },
   ];
   const { page, errors } = await fresh({ notes });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
-  const folderRow = path => page.getByRole('button', { name: new RegExp(`^${path}, \\d+ notes$`) });
+  const folderRow = path => page.getByRole('button', { name: new RegExp(`^${path}, \\d+ notes?$`) });
+  const noteList = page.getByRole('region', { name: 'Notes list', exact: true });
+  await page.getByRole('button', { name: 'Notes (top level)', exact: true }).click();
+  check('C11-Folders-root-only', await noteList.getByText('Root note', { exact: true }).isVisible() && await noteList.getByText('Java notes', { exact: true }).count() === 0 && await noteList.getByText('Inbox notes', { exact: true }).count() === 0, 'top-level Notes excludes nested and other folder notes');
+  await page.getByRole('button', { name: 'All notes', exact: true }).click();
+  check('C11-Folders-all', await noteList.getByText('Root note', { exact: true }).isVisible() && await noteList.getByText('Java notes', { exact: true }).isVisible() && await noteList.getByText('Inbox notes', { exact: true }).isVisible(), 'All notes remains a separate whole-vault selection');
   const action = async (path, name) => {
     await page.getByRole('button', { name: `Actions for ${path}`, exact: true }).click();
     await page.getByRole('menuitem', { name, exact: true }).click();
@@ -1530,6 +1536,7 @@ await run('C11-Folders', async () => {
   check('C11-Folders-empty', await folderRow('Empty/Nested').getAttribute('aria-label') === 'Empty/Nested, 0 notes', 'nested empty folders exist without overview notes');
 
   await folderRow('Tech').click();
+  check('C11-Folders-nested-filter', await noteList.getByText('Java notes', { exact: true }).isVisible() && await noteList.getByText('Root note', { exact: true }).count() === 0, 'parent folder filtering includes descendants only');
   await page.getByRole('button', { name: /Move to folder:/ }).click();
   await page.getByRole('menuitem', { name: 'Empty / Nested', exact: true }).click();
   await savedNote(page, 'folder-java', n => n.folder === 'Empty/Nested');
@@ -1568,15 +1575,23 @@ await run('C11-Folders', async () => {
   await deletion.getByRole('button', { name: 'Delete', exact: true }).click();
   await savedNote(page, 'folder-java', n => n.folder === '' && n.content === 'Keep Java body');
   await savedNote(page, 'folder-inbox', n => n.folder === '' && n.content === 'Keep inbox body');
+  check('C11-Folders-delete-selection', await page.getByRole('button', { name: 'Notes (top level)', exact: true }).getAttribute('aria-current') === 'true' && await noteList.getByText('Java notes', { exact: true }).isVisible(), 'top-level delete selects the root and shows the moved notes');
   check('C11-Folders-delete', true, 'folder delete preserves every note body at the parent');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await savedNote(page, 'folder-java', n => n.folder === 'Engineering/Java');
   check('C11-Folders-undo', true, 'Undo restores the subtree');
   await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+  const strip = page.getByRole('complementary', { name: 'Folder navigation', exact: true });
+  const stripBounds = await strip.boundingBox();
+  const listBounds = await noteList.boundingBox();
+  check('C11-Folders-min-list', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).isVisible() && await noteList.getByRole('button', { name: 'New note', exact: true }).isVisible() && listBounds.x >= stripBounds.x + stripBounds.width && Math.abs(stripBounds.width - 56) <= 1, 'minimizing only the tree leaves search, creation and a notes list beside the 56px strip');
+  await folderRow('Engineering').click();
+  check('C11-Folders-strip-select', await noteList.getByText('Java notes', { exact: true }).isVisible() && await noteList.getByText('Inbox notes', { exact: true }).isVisible() && await noteList.getByText('Root note', { exact: true }).count() === 0, 'folder strip icon selects and filters its notes');
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   await page.getByRole('button', { name: 'Expand folders', exact: true }).waitFor();
   check('C11-Folders-prefs', await folderRow('Engineering').isVisible(), 'minimized folder strip survives reload with accessible icons');
+  check('C11-Folders-persist-list', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).isVisible() && await noteList.getByRole('button', { name: 'New note', exact: true }).isVisible() && await noteList.getByText('Root note', { exact: true }).isVisible(), 'reloaded minimized state keeps search, New note and the notes list');
   check('C11-Folders-errors', errors.length === 0, 'folder operations have no browser errors', errors.join(' | '));
 });
 
@@ -1586,12 +1601,12 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   if (width >= 1100) {
     await page.getByRole('button', { name: 'Minimize folders', exact: true }).waitFor();
-    check(`C11-Width-${width}-tree`, await page.getByRole('button', { name: 'Tech, 1 notes', exact: true }).isVisible(), 'desktop tree stays reachable');
+    check(`C11-Width-${width}-tree`, await page.getByRole('button', { name: 'Tech, 1 note', exact: true }).isVisible(), 'desktop tree stays reachable');
   } else {
     const opener = page.getByRole('button', { name: 'Folders', exact: true });
     await opener.click();
     const drawer = page.getByRole('dialog', { name: 'Folders', exact: true });
-    await drawer.getByRole('button', { name: 'Tech, 1 notes', exact: true }).waitFor();
+    await drawer.getByRole('button', { name: 'Tech, 1 note', exact: true }).waitFor();
     if (width === 390) {
       const heights = await drawer.locator('button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
       check('C11-Width-390-rows', heights.every(height => height >= 44), 'phone folder rows and actions have 44px targets', JSON.stringify(heights));
@@ -1599,11 +1614,20 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
     await page.keyboard.press('Escape');
     check(`C11-Width-${width}-escape`, await opener.evaluate(el => el === document.activeElement), 'Escape closes the drawer and restores focus');
     await opener.click();
-    await drawer.getByRole('button', { name: 'Tech, 1 notes', exact: true }).click();
+    await drawer.getByRole('button', { name: 'Tech, 1 note', exact: true }).click();
     check(`C11-Width-${width}-selection`, await drawer.count() === 0 && await opener.evaluate(el => el === document.activeElement), 'folder selection closes the drawer and restores focus');
   }
   await page.getByRole('button').filter({ has: page.getByText('Responsive note', { exact: true }) }).click();
   await rich(page).waitFor();
+  if (width < 1100) {
+    await page.getByRole('button', { name: 'Folders', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Folders', exact: true }).getByRole('button', { name: 'Tech, 1 note', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Search notes', exact: true }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Folders');
+    check(`C11-Width-${width}-editor-selection`, await rich(page).count() === 0 || !await rich(page).isVisible(), 'selecting a drawer folder from the editor returns to its filtered list and restores focus');
+    await page.getByRole('button').filter({ has: page.getByText('Responsive note', { exact: true }) }).click();
+    await rich(page).waitFor();
+  }
   const bounds = await page.getByRole('textbox', { name: 'Title', exact: true }).boundingBox();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   check(`C11-Width-${width}-layout`, !overflow && bounds.x >= 0 && bounds.x + bounds.width <= width, 'editor fits without horizontal overlap');

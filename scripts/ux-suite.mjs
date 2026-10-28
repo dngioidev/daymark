@@ -1230,12 +1230,13 @@ async function functional() {
   await tc('NO-10', 'New folder', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /^notes$/i).click();
-    await btn(page, /^\+?\s*folder$/i).click();
+    await btn(page, /^new folder$/i).click();
     await page.getByLabel('Folder name').fill('Recipes');
     await btn(page, /^create$/i).click();
-    const ok = await btn(page, /^recipes$/i).isVisible();
+    const ok = await page.getByRole('button', { name: 'Recipes, 0 notes', exact: true }).isVisible();
+    const noOverview = await page.getByText('Recipes overview', { exact: true }).count() === 0;
     await ctx.close();
-    expect(ok, 'folder chip missing');
+    expect(ok && noOverview, 'empty folder row missing or an overview note was created');
   });
 
   await tc('NO-11', 'Back to list (button and Android Back)', 'P412', async () => {

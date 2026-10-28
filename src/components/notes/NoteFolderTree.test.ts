@@ -19,3 +19,10 @@ it('minimizes to named folder icons with tooltips', () => {
   expect(html).toContain('title="Tech"');
   expect(html).toContain('sr-only');
 });
+
+it('uses singular and plural counts in folder row names', () => {
+  const nodes = [{ ...tree[0], ownCount: 1, totalCount: 1, children: [] }, ...tree];
+  const html = renderToStaticMarkup(React.createElement(NoteFolderTree, { tree: nodes, selectedPath: 'all', onSelect: vi.fn(), onFolderAction: vi.fn() }));
+  expect(html).toContain('aria-label="Tech, 1 note"');
+  expect(html).toContain('aria-label="Tech, 3 notes"');
+});

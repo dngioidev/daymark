@@ -334,3 +334,74 @@ it('does not combine a hidden desktop Back button with a display utility', () =>
   vi.stubGlobal('window', { innerWidth: 1440 });
   expect(find(render(), el => el.props['aria-label'] === 'Back to notes')!.props.className).toBe('hidden');
 });
+
+// Fix round 1 regressions.
+it('keeps search, creation and the selected notes list next to a minimized desktop tree', () => {
+  vi.stubGlobal('window', { innerWidth: 1440 });
+  find(render(), el => el.props['aria-label'] === 'Minimize folders')!.props.onClick();
+  const tree = render();
+  expect(find(tree, el => el.type === NoteFolderTree)?.props.minimized).toBe(true);
+  expect(find(tree, el => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(tree, el => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))).toBeDefined();
+  expect(find(tree, el => el.type === 'span' && el.props.children === 'Existing')).toBeDefined();
+  expect(find(tree, el => el.props['aria-label'] === 'Notes list')).toBeDefined();
+});
+it.each(['', 'all', 'Tech'])('filters the root, all and nested selections separately (%s)', path => {
+  const fixtures = [
+    { ...note, id: 'root', title: 'Root note', folder: ' / ' },
+    { ...note, id: 'tech', title: 'Tech note', folder: 'Tech' },
+    { ...note, id: 'java', title: 'Java note', folder: 'Tech/Java' },
+    { ...note, id: 'other', title: 'Other note', folder: 'Other' },
+  ];
+  const extra = { notes: fixtures };
+  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)(path);
+  const tree = render(false, extra);
+  const expected = path === '' ? ['Root note'] : path === 'Tech' ? ['Tech note', 'Java note'] : fixtures.map(n => n.title);
+  for (const item of fixtures) expect(!!find(tree, el => el.type === 'span' && el.props.children === item.title)).toBe(expected.includes(item.title));
+  expect(expected).toContain(find(tree, el => el.props.id === 'note-title')?.props.value);
+});
+it('deleting a top-level folder selects only the resulting root notes and marks the confirmation dangerous', async () => {
+  const other = { ...note, id: 'other', title: 'Other note', folder: 'Other' };
+  const extra = { notes: [note, other] };
+  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onFolderAction as (action: string, path: string) => void)('delete', 'Work');
+  await Promise.resolve();
+  expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
+  const tree = render(false, { notes: update.mock.calls.at(-1)![0] });
+  expect(find(tree, el => el.type === NoteFolderTree)?.props.selectedPath).toBe('');
+  expect(find(tree, el => el.type === 'span' && el.props.children === 'Other note')).toBeUndefined();
+  expect(find(tree, el => el.type === 'span' && el.props.children === 'Existing')).toBeDefined();
+});
+it.each([true, false])('selecting a drawer folder returns an open editor to its list (compact=%s)', compact => {
+  vi.stubGlobal('window', { innerWidth: 900 });
+  const first = render(compact);
+  find(first, el => el.type === 'button' && find(el.props.children as React.ReactNode, child => child.type === 'span' && child.props.children === 'Existing') !== undefined)!.props.onClick();
+  const editor = render(compact);
+  find(editor, el => el.props['aria-label'] === 'Folders')!.props.onClick();
+  (find(render(compact), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
+  const tree = render(compact);
+  const search = find(tree, el => el.props.id === 'notes-search');
+  expect(search).toBeDefined();
+  if (!compact) {
+    expect(find(tree, el => el.props['aria-label'] === 'Notes navigation')!.props.className).not.toContain('hidden');
+  }
+});
+it('restores the Notes heading on the compact list', () => {
+  expect(find(render(true), el => el.type === 'h1' && el.props.children === 'Notes')).toBeDefined();
+});
+it('ignores a folder self-drop but refuses a descendant drop', () => {
+  const drop = find(render(), el => el.type === NoteFolderTree)!.props.onDropFolder as (path: string, parent: string) => void;
+  drop('Work', ' work ');
+  expect(feedback.toast).not.toHaveBeenCalled();
+  expect(update).not.toHaveBeenCalled();
+  drop('Work', 'Work/Java');
+  expect(feedback.toast).toHaveBeenCalledWith('A folder cannot move inside itself.', { tone: 'error' });
+  expect(update).not.toHaveBeenCalled();
+});
+
+it('leaves focus mode when a drawer folder selection returns to the list', () => {
+  vi.stubGlobal('window', { innerWidth: 900 });
+  find(render(), el => el.props['aria-label'] === 'Focus mode')!.props.onClick();
+  find(render(), el => el.props['aria-label'] === 'Folders')!.props.onClick();
+  (find(render(), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
+  expect(find(render(), el => el.props.id === 'notes-search')).toBeDefined();
+});
