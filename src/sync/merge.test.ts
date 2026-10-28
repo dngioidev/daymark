@@ -279,6 +279,50 @@ describe('mergeStandaloneNote', () => {
     expect(r.extraNotes).toBeUndefined();
   });
 
+  it.each([['rename', 'Code/Java'], ['move', 'Projects/Java'], ['delete-folder', 'Tech']])('merges %s with an independent content edit in either direction', (_action, folder) => {
+    const base = { ...note('original', 'Streams'), folder: 'Tech/Java' };
+    const relocated = { ...base, folder, updatedAt: '2026-10-22T00:00:00Z' };
+    const edited = { ...base, content: 'phone edit', updatedAt: '2026-10-21T00:00:00Z' };
+    for (const [ours, theirs] of [[relocated, edited], [edited, relocated]]) {
+      const result = mergeStandaloneNote(base, ours, theirs);
+      expect(result.value).toMatchObject({ folder, content: 'phone edit', updatedAt: relocated.updatedAt });
+      expect(result.extraNotes).toBeUndefined();
+      expect(result.conflicts).toEqual([]);
+    }
+  });
+
+  it.each([
+    ['2026-10-22T00:00:00Z', '2026-10-21T00:00:00Z', 'Code'],
+    ['2026-10-21T00:00:00Z', '2026-10-22T00:00:00Z', 'Projects'],
+    ['2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z', 'Projects'],
+  ])('resolves competing folders by timestamps, incoming on ties (%s, %s)', (oursAt, theirsAt, folder) => {
+    const base = note('original');
+    const result = mergeStandaloneNote(base, { ...base, folder: 'Code', updatedAt: oursAt }, { ...base, folder: 'Projects', updatedAt: theirsAt });
+    expect(result.value?.folder).toBe(folder);
+    expect(result.extraNotes).toBeUndefined();
+  });
+
+  it('merges independent metadata and resolves competing metadata by the newer timestamp', () => {
+    const base = note('original');
+    const result = mergeStandaloneNote(base,
+      { ...base, title: 'Desktop', pinned: true, updatedAt: '2026-10-22T00:00:00Z' },
+      { ...base, title: 'Phone', tags: ['java'], updatedAt: '2026-10-21T00:00:00Z' });
+    expect(result.value).toMatchObject({ title: 'Desktop', tags: ['java'], pinned: true });
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('combines a title rename with a content edit', () => {
+    const base = note('original');
+    const result = mergeStandaloneNote(base, { ...base, title: 'Streams' }, { ...base, content: 'edited' });
+    expect(result.value).toMatchObject({ title: 'Streams', content: 'edited' });
+    expect(result.extraNotes).toBeUndefined();
+  });
+
+  it('keeps no-base conflict and incoming metadata behavior unchanged', () => {
+    expect(mergeStandaloneNote(null, note('ours'), note('theirs'), () => 'copy').extraNotes?.[0].content).toBe('theirs');
+    expect(mergeStandaloneNote(null, { ...note('same', 'Ours'), updatedAt: '2026-10-23' }, note('same', 'Incoming')).value?.title).toBe('Incoming');
+  });
+
   it('applies a delete from one side', () => {
     expect(mergeStandaloneNote(note('v1'), note('v1'), null).value).toBeNull();
   });

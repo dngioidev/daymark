@@ -4,6 +4,7 @@ import { pairKey, type NoteIndex } from './noteRelated';
 
 // NUL cannot be a folder name. The sentinel is a filter value, never note data.
 export const ROOT_FOLDER = '\0root';
+export const OWN_FOLDER_PREFIX = '\0own:';
 
 export interface GraphNode { id: string; title: string; folder: string; tags: string[]; degree: number }
 export interface GraphEdge { a: string; b: string; kind: 'link' | 'tag' | 'suggested'; terms?: string[] }
@@ -24,7 +25,9 @@ export function defaultGraphScope(noteCount: number, selectedFolder: string | 'a
 
 /** Pure projection. No persistence, serialization or mutations of the source vault. */
 export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed: Set<string>, options: GraphOptions, suggestions: readonly GraphEdge[] = []) {
-  let visible = notes.filter(note => (options.folderPaths === null || options.folderPaths.some(path => path === ROOT_FOLDER ? normalizeFolderPath(note.folder) === '' : folderMatches(note, path))) &&
+  let visible = notes.filter(note => (options.folderPaths === null || options.folderPaths.some(path => path === ROOT_FOLDER ? normalizeFolderPath(note.folder) === '' : path.startsWith(OWN_FOLDER_PREFIX)
+    ? normalizeFolderPath(note.folder).toLowerCase() === normalizeFolderPath(path.slice(OWN_FOLDER_PREFIX.length)).toLowerCase()
+    : folderMatches(note, path))) &&
     (!options.tag || note.tags.includes(options.tag)));
   const ids = new Set(visible.map(note => note.id));
   const pairs = new Map<string, GraphEdge>();

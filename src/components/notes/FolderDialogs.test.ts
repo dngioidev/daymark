@@ -29,3 +29,7 @@ it.each([['Tech/Java', 'In Tech'], ['Tech', 'At the top level']])('rename contex
   // Render the actual description through the Dialog boundary used by this form.
   expect(html).toContain(`>${description}<`);
 });
+it.each([['Tech/Java', 'In Tech'], ['Tech', 'At the top level']])('move context for %s names its parent', (path, description) => {
+  const html = renderToStaticMarkup(React.createElement(FolderDialogs, { action: 'move', path, tree: [], onClose: vi.fn(), onSubmit: vi.fn() }));
+  expect(html).toContain(`>${description}<`);
+});

@@ -11,6 +11,12 @@ const graph = (options: Partial<GraphOptions> = {}, source = notes, dismissed = 
   const suggestions = source.flatMap(note => suggestRelated(index, note.id, { dismissed }).map(s => ({ a: note.id, b: s.noteId, kind: 'suggested' as const, terms: s.sharedTerms })));
   return buildGraph(source, index, dismissed, { ...opts, ...options }, suggestions);
 };
+it('matches own-folder sentinels exactly with canonical case and spelling', () => {
+  const source = [note('tech', { folder: ' TECH ' }), note('java', { folder: 'Tech/Java' }), note('streams', { folder: 'Tech/Java/Streams' }), note('python', { folder: 'Tech/Python' })];
+  expect(graph({ folderPaths: ['\0own:Tech', 'Tech/Python'] }, source).nodes.map(n => n.id)).toEqual(['tech', 'python']);
+  expect(graph({ folderPaths: ['\0own:Tech', '\0own: tech / java ', 'Tech/Python'] }, source).nodes.map(n => n.id)).toEqual(['tech', 'java', 'python']);
+  expect(graph({ folderPaths: [] }, source).nodes).toEqual([]);
+});
 describe('graph projection never edits notes', () => {
   it('selects exact root independently and defaults a selected root correctly above 300', () => {
     expect(graph({ folderPaths: [ROOT_FOLDER] }).nodes.map(n => n.id)).toEqual(['orphan']);

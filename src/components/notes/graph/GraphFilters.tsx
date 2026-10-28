@@ -1,17 +1,19 @@
 import React, { useEffect, useRef } from 'react';
 import type { FolderNode } from '../../../utils/noteFolders';
 import { normalizeFolderPath } from '../../../utils/noteFolders';
-import { ROOT_FOLDER, type GraphOptions } from '../../../utils/graphData';
+import { OWN_FOLDER_PREFIX, ROOT_FOLDER, type GraphOptions } from '../../../utils/graphData';
 
 const key = (path: string) => normalizeFolderPath(path).toLowerCase();
 const under = (path: string, parent: string) => !parent || key(path) === key(parent) || key(path).startsWith(key(parent) + '/');
+const selected = (path: string, paths: string[] | null) => paths === null || paths.some(parent => parent.startsWith(OWN_FOLDER_PREFIX)
+  ? key(path) === key(parent.slice(OWN_FOLDER_PREFIX.length)) : parent !== ROOT_FOLDER && under(path, parent));
 export function GraphFilters({ tree, tags, options, onChange, activeNoteId }: {
   tree: FolderNode[]; tags: string[]; options: GraphOptions; onChange(options: GraphOptions): void; activeNoteId?: string;
 }) {
   const patch = (value: Partial<GraphOptions>) => onChange({ ...options, ...value });
   const allInput = useRef<HTMLInputElement>(null);
   const paths = options.folderPaths;
-  const allChecked = paths === null || (paths.includes(ROOT_FOLDER) && flatten(tree).every(path => paths.some(parent => under(path, parent))));
+  const allChecked = paths === null || (paths.includes(ROOT_FOLDER) && flatten(tree).every(path => selected(path, paths)));
   const allMixed = !allChecked && !!paths?.length;
   useEffect(() => { if (allInput.current) allInput.current.indeterminate = allMixed; }, [allMixed]);
   return <div className="p-3 space-y-3">
@@ -34,18 +36,22 @@ export function GraphFilters({ tree, tags, options, onChange, activeNoteId }: {
 }
 function Folder({ node, tree, options, patch }: { node: FolderNode; tree: FolderNode[]; options: GraphOptions; patch(value: Partial<GraphOptions>): void }) {
     const input = useRef<HTMLInputElement>(null);
-    const checked = options.folderPaths === null || options.folderPaths.some(path => under(node.path, path));
-    const mixed = !checked && !!options.folderPaths?.some(path => under(path, node.path));
+    const subtree = flatten([node]);
+    const checked = subtree.every(path => selected(path, options.folderPaths));
+    const mixed = !checked && subtree.some(path => selected(path, options.folderPaths));
     useEffect(() => { if (input.current) input.current.indeterminate = mixed; }, [mixed]);
     return <li>
       <label className="flex items-center gap-2 min-h-9"><input ref={input} type="checkbox" data-folder-path={node.path} aria-label={`${node.name}, ${node.totalCount} ${node.totalCount === 1 ? 'note' : 'notes'}${node.path.includes('/') ? `, in ${node.path.split('/').slice(0, -1).join('/')}` : ''}`} aria-checked={mixed ? 'mixed' : checked} checked={checked} onChange={() => {
-        let paths = options.folderPaths;
-        if (paths === null) paths = [...flatten(tree), ROOT_FOLDER];
-        if (checked) {
-          // Expand an ancestor selection before subtracting this branch.
-          const expanded = [...flatten(tree), ROOT_FOLDER].filter(path => path === ROOT_FOLDER ? paths!.includes(ROOT_FOLDER) : paths!.some(parent => under(path, parent)) && !under(path, node.path) && !under(node.path, path));
-          patch({ folderPaths: expanded });
-        } else patch({ folderPaths: [...paths.filter(path => !under(path, node.path)), node.path] });
+        const paths = options.folderPaths;
+        const all = flatten(tree);
+        // Expand to exact own-note selections before toggling a subtree.
+        const own = new Set(all.filter(path => under(path, node.path) ? !checked : selected(path, paths)));
+        const compact: string[] = paths === null || paths.includes(ROOT_FOLDER) ? [ROOT_FOLDER] : [];
+        for (const path of all) {
+          if (!own.has(path) || compact.some(parent => !parent.startsWith('\0') && under(path, parent))) continue;
+          compact.push(all.filter(child => under(child, path)).every(child => own.has(child)) ? path : OWN_FOLDER_PREFIX + path);
+        }
+        patch({ folderPaths: compact });
       }} /><span>{node.name}, {node.totalCount} {node.totalCount === 1 ? 'note' : 'notes'}</span></label>
       {node.children.length > 0 && <ul className="pl-4">{node.children.map(child => <Folder key={child.path} node={child} tree={tree} options={options} patch={patch} />)}</ul>}
     </li>;

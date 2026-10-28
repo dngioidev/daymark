@@ -373,6 +373,32 @@ try {
       label + ' retains every original note and its content after concurrent folder renames');
   }
 
+  // A folder rename and an offline content edit merge field by field.
+  for (const page of [laptop, phone]) await page.route('**/api/sync', route => route.abort());
+  const beforeOfflineEdit = await readNotes(phone);
+  const beforeFolderRename = await readNotes(laptop);
+  const raceAt = Date.now() + 2000;
+  const renamedForEdit = renameFolder(beforeFolderRename.notes, beforeFolderRename.meta, 'Tech', 'Code', new Date(raceAt).toISOString());
+  if (!renamedForEdit) throw new Error('rename versus edit fixture failed');
+  await writeNotes(laptop, renamedForEdit.notes, renamedForEdit.meta);
+  await writeNotes(phone, beforeOfflineEdit.notes.map(note => note.id === 'e2e-folder-a'
+    ? { ...note, content: 'Offline Streams edit', updatedAt: new Date(raceAt + 1000).toISOString() } : note), beforeOfflineEdit.meta);
+  await laptop.unroute('**/api/sync'); await syncNow(laptop);
+  await phone.unroute('**/api/sync'); await syncNow(phone);
+  await syncNow(laptop); await syncNow(phone);
+  for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
+    const local = await readNotes(page);
+    const edited = local.notes.filter(note => note.id === 'e2e-folder-a');
+    check(edited.length === 1 && edited[0].content === 'Offline Streams edit' && edited[0].folder === 'Code/JVM'
+      && local.notes.length === beforeOfflineEdit.notes.length
+      && !local.notes.some(note => note.title === 'e2e-folder-a (conflict copy)'),
+      label + ' keeps one edited note in the renamed folder without a conflict copy');
+    const paths = nodes => nodes.flatMap(node => [node.path, ...paths(node.children)]);
+    check(!paths(buildFolderTree(local.notes, local.meta)).some(path => /^tech(?:\/|$)/i.test(path))
+      && !local.meta.folders.some(folder => !folder.removed && /^tech(?:\/|$)/i.test(folder.path)),
+      label + ' does not resurrect the old folder after the offline content edit');
+  }
+
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });

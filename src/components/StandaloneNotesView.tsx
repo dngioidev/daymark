@@ -233,7 +233,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     },
   };
 
-  const createNote = (folder = selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder, title = 'Untitled', content = '', navigate = true) => {
+  const createNote = (folder = selectedFolder === 'all' ? '' : selectedFolder, title = 'Untitled', content = '', navigate = true) => {
     const now = new Date().toISOString();
     const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content, tags: [], createdAt: now, updatedAt: now, pinned: false };
     latestNotes.current = [note, ...latestNotes.current];
@@ -249,7 +249,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const createFromTemplate = (template: (typeof NOTE_TEMPLATES)[number]) => {
     const today = formatLocalDate();
-    const folder = template.folder ?? (selectedFolder === 'all' ? allFolders[0] || 'General' : selectedFolder);
+    const folder = template.folder ?? (selectedFolder === 'all' ? '' : selectedFolder);
     const title = template.title(today);
     const content = template.body(today);
     if (selectedFolder !== 'all' && selectedFolder !== folder) setSelectedFolder(folder);

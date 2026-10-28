@@ -174,6 +174,26 @@ export function mergeStandaloneNote(
   theirs: StandaloneNote | null,
   conflictId: () => string = () => `note-conflict-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 ): MergeResult<StandaloneNote> {
+  if (base && ours && theirs) {
+    const newer = timestamp(ours.updatedAt) > timestamp(theirs.updatedAt) ? ours : theirs;
+    const value = { ...ours };
+    const mergeField = <K extends keyof StandaloneNote>(field: K) => {
+      value[field] = sameValue(ours[field], theirs[field]) || sameValue(base[field], theirs[field])
+        ? ours[field]
+        : sameValue(base[field], ours[field]) ? theirs[field]
+        : field === 'content' ? ours[field] : newer[field];
+    };
+    for (const field of new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)] as (keyof StandaloneNote)[])) mergeField(field);
+    value.updatedAt = newer.updatedAt;
+    const contentConflict = !sameValue(ours.content, theirs.content) && !sameValue(base.content, ours.content) && !sameValue(base.content, theirs.content);
+    if (!contentConflict) return { value, conflicts: [] };
+    const copy: StandaloneNote = { ...theirs, id: conflictId(), title: `${theirs.title} (conflict copy)` };
+    return {
+      value,
+      extraNotes: [copy],
+      conflicts: [`Note "${theirs.title}" was edited on two devices; the other version was saved as "${copy.title}"`],
+    };
+  }
   const r = pick3(base, ours, theirs);
   if (r.kind === 'value') return { value: r.value, conflicts: [] };
   const o = ours as StandaloneNote;

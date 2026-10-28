@@ -125,10 +125,17 @@ it('returns to the list from focus mode with Back to notes', () => {
   expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
 });
 
-it('creates Blank in the current folder without changing existing notes', () => {
+it('creates Blank at the top level from All without changing existing notes', () => {
   const menu = find(render(), (el) => el.type === Menu && (el.props.items as MenuItem[]).some((item) => item.label === 'Blank'));
   menu!.props.items.find((item) => item.label === 'Blank')!.onSelect();
-  expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: 'Work', content: '' }), note]);
+  expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: '', content: '' }), note]);
+});
+
+it.each(['all', '', 'Work'])('creates a new note in the selected destination (%s)', selected => {
+  const extra = { notes: [{ ...note, folder: 'Archive/2019' }, { ...note, id: 'work' }] };
+  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)(selected);
+  find(render(false, extra), el => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))!.props.onClick();
+  expect(update.mock.calls[0][0][0]).toMatchObject({ title: 'Untitled', folder: selected === 'all' ? '' : selected });
 });
 
 it('toggles focus on an App signal change, with no local dot shortcut', () => {
