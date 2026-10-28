@@ -5,9 +5,18 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { StandaloneNotesView } from './StandaloneNotesView';
 import { EMPTY_NOTE_META, type StandaloneNote, type NoteMeta } from '../types/daymark';
 import { FeedbackHost, dismissToast } from './ui/feedback';
+import { loadPanePrefs, savePanePrefs } from '../utils/notesPanes';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const fixture: StandaloneNote[] = ['a', 'b', 'c'].map((id, i) => ({ id, title: `Java ${id}`, folder: '', content: 'Java streams collectors pipeline', tags: [], createdAt: '', updatedAt: `2026-10-${id === 'c' ? '09' : 10 + i}`, pinned: id === 'c' }));
 let cleanup: (() => void) | undefined;
+it('Notes pane actions retain graph preferences saved after Notes mounted', async () => {
+  vi.stubGlobal('innerWidth', 1440); savePanePrefs({ tree: 'open', related: 'open', graphFilters: 'open', graphDetail: 'open' });
+  const host = document.createElement('div'); const root = createRoot(host); cleanup = () => root.unmount();
+  await act(async () => root.render(React.createElement(StandaloneNotesView, { notes: fixture, onUpdateNotes: () => {} })));
+  savePanePrefs({ ...loadPanePrefs(), graphFilters: 'min', graphDetail: 'min' });
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Minimize folders"]')!.click());
+  expect(loadPanePrefs()).toMatchObject({ tree: 'min', graphFilters: 'min', graphDetail: 'min' });
+});
 afterEach(async () => { await act(async () => { dismissToast(); cleanup?.(); }); cleanup = undefined; localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it.each(['detail', 'list'])('Graph replaces panes without saving; %s Link chooses one owner; dismiss supports Undo; phone has no switch', async path => {
   await import('./notes/graph/GraphView');

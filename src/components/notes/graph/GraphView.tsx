@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { StandaloneNote } from '../../../types/daymark';
 import type { FolderNode } from '../../../utils/noteFolders';
 import type { NoteIndex } from '../../../utils/noteRelated';
 import { buildGraph, defaultGraphScope, type GraphEdge, type GraphOptions } from '../../../utils/graphData';
 import { createLayout } from '../../../utils/graphLayout';
+import { scheduleGraphSuggestions, type SuggestionProgress } from '../../../utils/graphSuggestions';
 import { loadPanePrefs, savePanePrefs } from '../../../utils/notesPanes';
 import { GraphFilters } from './GraphFilters';
 import { GraphDetail, ConnectionActions } from './GraphDetail';
@@ -17,6 +18,7 @@ export interface GraphViewProps {
 type Camera = { x: number; y: number; zoom: number };
 type Point = { x: number; y: number };
 const button = 'min-h-11 min-w-11 px-2 border border-stone-300 dark:border-stone-700 rounded hover:bg-stone-100 dark:hover:bg-stone-800';
+const NO_DISMISSALS = new Set<string>();
 
 export default function GraphView(props: GraphViewProps) {
   const [options, setOptions] = useState<GraphOptions>(() => ({ ...defaultGraphScope(props.notes.length, props.selectedFolder), showSuggestions: true, showTags: false }));
@@ -26,22 +28,55 @@ export default function GraphView(props: GraphViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null), surface = useRef<HTMLDivElement>(null), list = useRef<HTMLDivElement>(null);
   const camera = useRef<Camera>({ x: 0, y: 0, zoom: 1 }), hovered = useRef<string | undefined>(undefined);
   const invalidate = useRef<() => void>(() => {});
-  const graph = useMemo(() => buildGraph(props.notes, props.index, props.dismissed, options), [props.notes, props.index, props.dismissed, options]);
-  const layout = useMemo(() => createLayout(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
+  const [suggestions, setSuggestions] = useState<SuggestionProgress & { notes: StandaloneNote[]; index: NoteIndex; dismissed: Set<string> }>(() => ({ edges: [], pending: true, completed: 0, batchMs: 0, notes: props.notes, index: props.index, dismissed: props.dismissed }));
+  useEffect(() => {
+    const identity = { notes: props.notes, index: props.index, dismissed: props.dismissed };
+    setSuggestions({ ...identity, edges: [], pending: true, completed: 0, batchMs: 0 });
+    // Scoring still yields every 12ms. Publish at most four progressive graph
+    // snapshots: rebuilding the accessible list for every idle callback causes
+    // a render backlog on large vaults even when scoring itself is inexpensive.
+    const stride = Math.max(1, Math.ceil(props.notes.length / 4));
+    let published = 0;
+    return scheduleGraphSuggestions(props.notes, props.index, props.dismissed, progress => {
+      if (progress.pending && progress.completed - published < stride) return;
+      published = progress.completed; setSuggestions({ ...identity, ...progress });
+    });
+  }, [props.notes, props.index, props.dismissed]);
+  const currentSuggestions = suggestions.notes === props.notes && suggestions.index === props.index && suggestions.dismissed === props.dismissed;
+  const structuralOptions = useMemo(() => ({ ...options, query: undefined }), [options.folderPaths, options.tag, options.showTags, options.showSuggestions, options.showOrphans, options.local]);
+  const baseGraph = useMemo(() => buildGraph(props.notes, props.index, NO_DISMISSALS, { folderPaths: options.folderPaths, tag: options.tag, showTags: options.showTags, showSuggestions: false, showOrphans: true }), [props.notes, props.index, options.folderPaths, options.tag, options.showTags]);
+  // Suggestions only draw over these stable positions. They never reseed or add
+  // spring forces. Include filtered orphans so newly connected nodes already
+  // have a position when their progressive suggestions arrive.
+  const layout = useMemo(() => createLayout(baseGraph.nodes, baseGraph.edges), [baseGraph]);
+  const graph = useMemo(() => buildGraph(props.notes, props.index, props.dismissed, structuralOptions, currentSuggestions ? suggestions.edges : []), [props.notes, props.index, props.dismissed, structuralOptions, currentSuggestions, suggestions.edges]);
+  const matches = useMemo(() => {
+    const query = options.query?.trim().toLocaleLowerCase();
+    return new Set(graph.nodes.filter(node => query && `${node.title} ${node.folder} ${node.tags.join(' ')}`.toLocaleLowerCase().includes(query)).map(node => node.id));
+  }, [graph.nodes, options.query]);
+  const matchesRef = useRef(matches); matchesRef.current = matches;
+  // The accessible list follows the canvas at transition priority, so a folder
+  // toggle commits the filtered graph first and the list never blocks it.
+  const searching = !!options.query?.trim();
+  const listInput = useDeferredValue(useMemo(() => ({ nodes: graph.nodes, edges: graph.edges, matches: searching ? matches : undefined }), [graph.nodes, graph.edges, searching, matches]));
+  useEffect(() => { invalidate.current(); }, [matches]);
+  const localUnavailable = !!options.local && !graph.nodes.some(node => node.id === options.local!.noteId);
   const byId = useMemo(() => new Map(graph.nodes.map(node => [node.id, node])), [graph.nodes]);
   const allById = useMemo(() => new Map(props.notes.map(note => [note.id, note])), [props.notes]);
   const tags = useMemo(() => [...new Set(props.notes.flatMap(note => note.tags))].sort(), [props.notes]);
-  const chooseEndpoints = (a: string, b: string) => {
-    const from = selectedId === a || selectedId === b ? selectedId :
-      (allById.get(a)?.updatedAt ?? '') >= (allById.get(b)?.updatedAt ?? '') ? a : b;
-    return { from, to: from === a ? b : a };
-  };
-  const actions = {
-    onOpenNote: props.onOpenNote,
-    onLink: (a: string, b: string) => { const { from, to } = chooseEndpoints(a, b); props.onLink(from, to); setSelectedEdge(null); },
-    onDismiss: (a: string, b: string) => { props.onDismiss(a, b); setSelectedEdge(null); },
-    linkTarget: (a: string, b: string) => byId.get(chooseEndpoints(a, b).to),
-  };
+  const actions = useMemo(() => {
+    const chooseEndpoints = (a: string, b: string) => {
+      const from = selectedId === a || selectedId === b ? selectedId :
+        (allById.get(a)?.updatedAt ?? '') >= (allById.get(b)?.updatedAt ?? '') ? a : b;
+      return { from, to: from === a ? b : a };
+    };
+    return {
+      onOpenNote: props.onOpenNote,
+      onLink: (a: string, b: string) => { const { from, to } = chooseEndpoints(a, b); props.onLink(from, to); setSelectedEdge(null); },
+      onDismiss: (a: string, b: string) => { props.onDismiss(a, b); setSelectedEdge(null); },
+      linkTarget: (a: string, b: string) => byId.get(chooseEndpoints(a, b).to),
+    };
+  }, [selectedId, allById, byId, props.onOpenNote, props.onLink, props.onDismiss]);
   const visibleEdge = selectedEdge && graph.edges.find(edge => edge.kind === 'suggested' &&
     ((edge.a === selectedEdge.a && edge.b === selectedEdge.b) || (edge.a === selectedEdge.b && edge.b === selectedEdge.a)));
   const filterMin = (prefs.graphFilters ?? (window.innerWidth < 1100 ? 'min' : 'open')) === 'min';
@@ -51,7 +86,7 @@ export default function GraphView(props: GraphViewProps) {
     const next = { ...loadPanePrefs(), [field]: minimized ? 'open' as const : 'min' as const };
     setPrefs(next); savePanePrefs(next);
   };
-  useEffect(() => { if (listView) list.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, [listView]);
+  useEffect(() => { if (listView) list.current?.querySelector<HTMLButtonElement>('[data-node-id] button')?.focus(); }, [listView]);
 
   useEffect(() => {
     const el = canvas.current, wrapper = surface.current;
@@ -85,7 +120,7 @@ export default function GraphView(props: GraphViewProps) {
         const p = layout.positions.get(node.id)!;
         const x = p.x * c.zoom + width / 2 + c.x, y = p.y * c.zoom + height / 2 + c.y;
         if (x < -60 || y < -20 || x > width + 60 || y > height + 20) continue;
-        const selected = node.id === selectedId, match = graph.matches.has(node.id), near = node.id === hover || !!neighbours.get(hover ?? '')?.has(node.id);
+        const selected = node.id === selectedId, match = matchesRef.current.has(node.id), near = node.id === hover || !!neighbours.get(hover ?? '')?.has(node.id);
         const radius = selected ? 10 : Math.min(8, 3 + Math.sqrt(node.degree));
         ctx.globalAlpha = hover && !near && !selected ? .25 : 1;
         ctx.fillStyle = selected || match ? amber : fg;
@@ -169,8 +204,11 @@ export default function GraphView(props: GraphViewProps) {
         <button type="button" className={button} aria-label="Zoom out" onClick={() => zoomAt(.8)}>−</button>
         <button type="button" className={button} onClick={() => { camera.current = { x: 0, y: 0, zoom: Math.min(1, 500 / Math.max(500, Math.sqrt(graph.nodes.length) * 40)) }; invalidate.current(); }}>Reset view</button>
         <span className="text-xs" role="status">{graph.nodes.length} notes · {graph.edges.length} connections</span>
+        {options.query?.trim() && <span className="text-xs" role="status">{matches.size} matching notes</span>}
+        {(!currentSuggestions || suggestions.pending) && <span className="text-xs text-stone-600 dark:text-stone-400" role="status">Finding suggestions…</span>}
       </div>
       <p className="px-3 text-xs">Solid: links · Faint: tags · Dashed amber: suggestions</p>
+      {localUnavailable && <div className="p-3" role="status">Local note is missing or outside these filters. <button type="button" className={button} onClick={() => setOptions({ ...options, local: undefined })}>Switch to Whole vault</button></div>}
       <div ref={surface} className={`relative flex-1 min-h-0 ${listView ? 'hidden' : ''}`}>
         <canvas ref={canvas} role="img" aria-label={`Knowledge graph: ${graph.nodes.length} notes, ${graph.edges.length} connections. Use List view for keyboard actions.`} className="absolute inset-0 w-full h-full touch-none bg-white dark:bg-stone-950 text-amber-700 dark:text-amber-400 border-stone-700 dark:border-stone-300"
           onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY }); drag.current = { x: e.clientX, y: e.clientY, moved: false }; pinch.current = 0; }}
@@ -194,10 +232,10 @@ export default function GraphView(props: GraphViewProps) {
           onPointerCancel={e => { pointers.current.delete(e.pointerId); drag.current = null; }}
           onPointerLeave={() => { hovered.current = undefined; invalidate.current(); }}
           onDoubleClick={e => { const id = nodeAt(world(e.clientX, e.clientY)); if (id) props.onOpenNote(id); }} />
-        {graph.nodes.length === 0 && <p className="absolute inset-0 flex items-center justify-center pointer-events-none">No notes match these filters.</p>}
+        {graph.nodes.length === 0 && !localUnavailable && <p className="absolute inset-0 flex items-center justify-center pointer-events-none">No notes match these filters.</p>}
       </div>
       {visibleEdge && <div className="p-3 border-t" role="group" aria-label="Selected suggestion"><p>{byId.get(visibleEdge.a)?.title} ↔ {byId.get(visibleEdge.b)?.title}</p><ConnectionActions {...actions} a={visibleEdge.a} b={visibleEdge.b} target={byId.get(visibleEdge.b)!} /></div>}
-      <div ref={list} className={listView ? 'p-3 overflow-y-auto flex-1 min-h-0' : 'sr-only focus-within:not-sr-only focus-within:p-3 focus-within:overflow-y-auto'}><GraphList nodes={graph.nodes} edges={graph.edges} {...actions} /></div>
+      <div ref={list} className={listView ? 'p-3 overflow-y-auto flex-1 min-h-0' : 'sr-only'}><GraphList nodes={listInput.nodes} edges={listInput.edges} matches={listInput.matches} {...actions} tabIndex={listView ? 0 : -1} /></div>
     </div>
     <aside aria-label="Graph detail" className={`${detailMin ? 'w-12' : 'w-56'} shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
       <button type="button" className={`${button} w-full`} aria-label={`${detailMin ? 'Expand' : 'Minimize'} graph detail`} aria-expanded={!detailMin} onClick={() => togglePane('graphDetail')}>{detailMin ? '<' : 'Detail >'}</button>

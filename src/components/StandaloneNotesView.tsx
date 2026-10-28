@@ -162,7 +162,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const editedMinutes = activeNote ? Math.max(0, Math.floor((now - new Date(activeNote.updatedAt).getTime()) / 60_000)) : 0;
   const editedLabel = editedMinutes < 1 ? 'just now' : editedMinutes < 60 ? `${editedMinutes} min ago` : activeNote ? formatNoteDate(activeNote.updatedAt) : '';
   const words = activeNote ? wordCount(activeNote.content) : 0;
-  const related = useRelatedNotes(notes, activeNote?.id ?? '', noteMeta.dismissed);
+  // The graph replaces the Related panel and builds its own index; do not rebuild a second one meanwhile.
+  const related = useRelatedNotes(notes, activeNote?.id ?? '', noteMeta.dismissed, !graphActive);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
   const overlayOpen = !drawers && layout.overlay && !overlayDismissed;
@@ -225,7 +226,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     onOpen: (id: string) => { setSelectedNoteId(id); setSelectedFolder('all'); setPane('editor'); setRelatedOpen(false); },
     minimized: relatedMinimized,
     onToggleMinimized: () => {
-      const next = { ...prefs, related: relatedMinimized ? 'open' as const : 'min' as const };
+      const next = { ...loadPanePrefs(), related: relatedMinimized ? 'open' as const : 'min' as const };
       setOverlayDismissed(false); setPrefs(next); savePanePrefs(next);
     },
   };
@@ -364,7 +365,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  const list = (
+  // Rows format dates and extract snippets for every note. The graph hides this
+  // list, so do not build it on every render while the graph is active.
+  const list = graphActive ? null : (
     <div className="dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
       <div className="shrink-0 p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
         <div className="relative">
@@ -592,7 +595,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             {!drawers && <aside aria-label="Folder navigation" className={`${treeMinimized ? 'w-14' : 'w-56'} shrink-0 overflow-y-auto border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>
               <button type="button" aria-label={treeMinimized ? 'Expand folders' : 'Minimize folders'} title={treeMinimized ? 'Expand folders' : 'Minimize folders'} className="min-h-11 w-full text-stone-700 dark:text-stone-200" onClick={() => {
                 if (treeMinimized && prefs.tree === 'open') { setDrawer(true); return; }
-                const next = { ...prefs, tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
+                const next = { ...loadPanePrefs(), tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
               }}>{treeMinimized ? '>' : '< Folders'}</button>
               {folderTree}
             </aside>}

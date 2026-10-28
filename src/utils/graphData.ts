@@ -1,6 +1,9 @@
 import type { StandaloneNote } from '../types/daymark';
-import { folderMatches } from './noteFolders';
-import { pairKey, suggestRelated, type NoteIndex } from './noteRelated';
+import { folderMatches, normalizeFolderPath } from './noteFolders';
+import { pairKey, type NoteIndex } from './noteRelated';
+
+// NUL cannot be a folder name. The sentinel is a filter value, never note data.
+export const ROOT_FOLDER = '\0root';
 
 export interface GraphNode { id: string; title: string; folder: string; tags: string[]; degree: number }
 export interface GraphEdge { a: string; b: string; kind: 'link' | 'tag' | 'suggested'; terms?: string[] }
@@ -16,12 +19,12 @@ export interface GraphOptions {
 export type GraphData = ReturnType<typeof buildGraph>;
 
 export function defaultGraphScope(noteCount: number, selectedFolder: string | 'all'): { folderPaths: string[] | null; showOrphans: boolean } {
-  return { folderPaths: noteCount <= 300 || selectedFolder === 'all' ? null : [selectedFolder], showOrphans: noteCount <= 300 };
+  return { folderPaths: noteCount <= 300 || selectedFolder === 'all' ? null : [selectedFolder === '' ? ROOT_FOLDER : selectedFolder], showOrphans: noteCount <= 300 };
 }
 
 /** Pure projection. No persistence, serialization or mutations of the source vault. */
-export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed: Set<string>, options: GraphOptions) {
-  let visible = notes.filter(note => (options.folderPaths === null || options.folderPaths.some(path => folderMatches(note, path))) &&
+export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed: Set<string>, options: GraphOptions, suggestions: readonly GraphEdge[] = []) {
+  let visible = notes.filter(note => (options.folderPaths === null || options.folderPaths.some(path => path === ROOT_FOLDER ? normalizeFolderPath(note.folder) === '' : folderMatches(note, path))) &&
     (!options.tag || note.tags.includes(options.tag)));
   const ids = new Set(visible.map(note => note.id));
   const pairs = new Map<string, GraphEdge>();
@@ -33,9 +36,7 @@ export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed:
     if (!previous || priority[edge.kind] > priority[previous.kind]) pairs.set(key, edge);
   };
   for (const note of visible) for (const id of index.notes.get(note.id)?.outgoing ?? []) put({ a: note.id, b: id, kind: 'link' });
-  if (options.showSuggestions) for (const note of visible) {
-    for (const suggestion of suggestRelated(index, note.id, { dismissed })) put({ a: note.id, b: suggestion.noteId, kind: 'suggested', terms: suggestion.sharedTerms });
-  }
+  if (options.showSuggestions) for (const edge of suggestions) if (!dismissed.has(pairKey(edge.a, edge.b))) put(edge);
   if (options.showTags) {
     // A spanning hub uses k-1 edges per tag rather than k*(k-1)/2. Every line
     // still connects two real notes sharing the tag (no synthetic note IDs).

@@ -32,3 +32,17 @@ it('computes at idle after 800ms, retains suggestions while editing, excludes li
   expect(idle).toHaveBeenCalledOnce();
   await act(async () => root.unmount());
 });
+it('schedules no index rebuild while disabled (the knowledge graph replaces the Related panel)', async () => {
+  vi.useFakeTimers();
+  const idle = vi.fn((cb: () => void) => window.setTimeout(cb, 1));
+  vi.stubGlobal('requestIdleCallback', idle); vi.stubGlobal('cancelIdleCallback', window.clearTimeout);
+  const host = document.createElement('div'); const root = createRoot(host);
+  let result!: ReturnType<typeof useRelatedNotes>;
+  function Probe({ enabled }: { enabled: boolean }) { result = useRelatedNotes(notes, 'a', [], enabled); return null; }
+  const notes = [note('a'), note('b')];
+  await act(async () => root.render(React.createElement(Probe, { enabled: false })));
+  await act(async () => vi.advanceTimersByTime(2000)); expect(idle).not.toHaveBeenCalled(); expect(result.suggestions).toEqual([]);
+  await act(async () => root.render(React.createElement(Probe, { enabled: true })));
+  await act(async () => vi.advanceTimersByTime(801)); expect(result.suggestions.map(s => s.noteId)).toEqual(['b']);
+  await act(async () => root.unmount());
+});

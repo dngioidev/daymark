@@ -1,10 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { GraphNode, GraphEdge } from '../../../utils/graphData';
 import { ConnectionActions, type GraphActions } from './GraphDetail';
 
+/** Rows rendered at once. A 1,000-note vault would otherwise mount and
+ * reconcile thousands of list elements for every filter change. */
+export const GRAPH_LIST_PAGE = 100;
+
 /** Native buttons provide the same actions through Tab/Shift+Tab and Enter.
- * Adjacency is prepared once, not rescanned for each node in a large vault. */
-export function GraphList({ nodes, edges, ...actions }: { nodes: GraphNode[]; edges: GraphEdge[] } & GraphActions) {
+ * Adjacency is prepared once, not rescanned for each node in a large vault.
+ * Large graphs show a window of rows; every visible node stays reachable by
+ * keyboard through the Previous/Next page buttons or by narrowing with search
+ * (`matches`, when given, limits the rows to the search results). */
+export const GraphList = React.memo(function GraphList({ nodes, edges, matches, tabIndex = 0, ...actions }: { nodes: GraphNode[]; edges: GraphEdge[]; matches?: Set<string> } & GraphActions) {
   const { byId, adjacent } = useMemo(() => {
     const byId = new Map(nodes.map(node => [node.id, node]));
     const adjacent = new Map<string, GraphEdge[]>();
@@ -14,15 +21,26 @@ export function GraphList({ nodes, edges, ...actions }: { nodes: GraphNode[]; ed
     }
     return { byId, adjacent };
   }, [nodes, edges]);
+  const rows = useMemo(() => matches ? nodes.filter(node => matches.has(node.id)) : nodes, [nodes, matches]);
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(rows.length / GRAPH_LIST_PAGE));
+  const current = Math.min(page, pages - 1), first = current * GRAPH_LIST_PAGE;
+  const windowed = rows.slice(first, first + GRAPH_LIST_PAGE);
+  const noun = matches ? 'matching notes' : 'notes';
   return <section aria-label="Graph nodes"><h2 className="font-bold">Visible notes and connections</h2>
-    {nodes.length === 0 && <p>No notes match these filters.</p>}
-    <ul className="space-y-4">{nodes.map(node => <li key={node.id} className="border-b border-stone-300 dark:border-stone-700 pb-3">
+    {nodes.length === 0 ? <p>No notes match these filters.</p> : matches && rows.length === 0 ? <p>No notes match this search.</p> : null}
+    {rows.length > GRAPH_LIST_PAGE && <div className="flex flex-wrap items-center gap-2 py-2">
+      <p role="status" className="text-sm">Showing {first + 1}–{first + windowed.length} of {rows.length} {noun}; use search or filters to narrow.</p>
+      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous {GRAPH_LIST_PAGE} notes</button>
+      <button type="button" tabIndex={tabIndex} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next {GRAPH_LIST_PAGE} notes</button>
+    </div>}
+    <ul className="space-y-4">{windowed.map(node => <li key={node.id} data-node-id={node.id} className="border-b border-stone-300 dark:border-stone-700 pb-3">
       <h3 className="font-semibold">{node.title}</h3><p>{node.folder || 'Root'}</p>
-      <button type="button" className="min-h-11 underline" onClick={() => actions.onOpenNote(node.id)}>Open note: {node.title}</button>
+      <button type="button" tabIndex={tabIndex} className="min-h-11 underline" onClick={() => actions.onOpenNote(node.id)}>Open note: {node.title}</button>
       <ul>{(adjacent.get(node.id) ?? []).map(edge => {
         const target = byId.get(edge.a === node.id ? edge.b : edge.a)!;
-        return <li key={`${target.id}-${edge.kind}`} className="pl-3"><span>{edge.kind}: {target.title}</span>{edge.kind === 'suggested' && <ConnectionActions {...actions} a={edge.a} b={edge.b} target={target} />}</li>;
+        return <li key={`${target.id}-${edge.kind}`} data-target-id={target.id} data-edge-kind={edge.kind} className="pl-3"><span>{edge.kind}: {target.title}</span>{edge.kind === 'suggested' && <ConnectionActions {...actions} tabIndex={tabIndex} a={edge.a} b={edge.b} target={target} />}</li>;
       })}</ul>
     </li>)}</ul>
   </section>;
-}
+});

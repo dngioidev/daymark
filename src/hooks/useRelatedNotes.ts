@@ -4,11 +4,13 @@ import { buildNoteIndex, linksOf, pairKey, suggestRelated, type NoteIndex, type 
 
 export type RelatedNoteSuggestion = RelatedSuggestion & { note: StandaloneNote };
 
-/** Only build the text index after typing stops. Keep the previous snapshot while waiting. */
-export function useRelatedNotes(notes: StandaloneNote[], noteId: string, dismissed: DismissedPair[]) {
+/** Only build the text index after typing stops. Keep the previous snapshot while waiting.
+ * `enabled = false` (e.g. while the knowledge graph replaces the editor) schedules no rebuild. */
+export function useRelatedNotes(notes: StandaloneNote[], noteId: string, dismissed: DismissedPair[], enabled = true) {
   const [snapshot, setSnapshot] = useState<{ index: NoteIndex; notes: StandaloneNote[] } | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     let idle: number | undefined;
     const timer = setTimeout(() => {
@@ -23,7 +25,7 @@ export function useRelatedNotes(notes: StandaloneNote[], noteId: string, dismiss
         else window.clearTimeout(idle);
       }
     };
-  }, [notes, refreshVersion]);
+  }, [notes, refreshVersion, enabled]);
   // This memo never runs for body keystrokes until the idle snapshot changes.
   return useMemo(() => {
     const hiddenKeys = new Set(dismissed.filter(pair => !pair.restored).map(pair => pair.key));

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { FolderNode } from '../../../utils/noteFolders';
 import { normalizeFolderPath } from '../../../utils/noteFolders';
-import type { GraphOptions } from '../../../utils/graphData';
+import { ROOT_FOLDER, type GraphOptions } from '../../../utils/graphData';
 
 const key = (path: string) => normalizeFolderPath(path).toLowerCase();
 const under = (path: string, parent: string) => !parent || key(path) === key(parent) || key(path).startsWith(key(parent) + '/');
@@ -9,10 +9,19 @@ export function GraphFilters({ tree, tags, options, onChange, activeNoteId }: {
   tree: FolderNode[]; tags: string[]; options: GraphOptions; onChange(options: GraphOptions): void; activeNoteId?: string;
 }) {
   const patch = (value: Partial<GraphOptions>) => onChange({ ...options, ...value });
+  const allInput = useRef<HTMLInputElement>(null);
+  const paths = options.folderPaths;
+  const allChecked = paths === null || (paths.includes(ROOT_FOLDER) && flatten(tree).every(path => paths.some(parent => under(path, parent))));
+  const allMixed = !allChecked && !!paths?.length;
+  useEffect(() => { if (allInput.current) allInput.current.indeterminate = allMixed; }, [allMixed]);
   return <div className="p-3 space-y-3">
     <label className="block">Search graph<input type="search" value={options.query ?? ''} onChange={e => patch({ query: e.target.value })} className="block w-full min-h-11 px-2 border rounded bg-transparent" /></label>
     <fieldset><legend className="font-semibold">Folders</legend>
-      <label className="flex items-center min-h-9 gap-2"><input type="checkbox" checked={options.folderPaths === null} onChange={e => patch({ folderPaths: e.target.checked ? null : [] })} />All folders</label>
+      <label className="flex items-center min-h-9 gap-2"><input ref={allInput} type="checkbox" aria-checked={allMixed ? 'mixed' : allChecked} checked={allChecked} onChange={e => patch({ folderPaths: e.target.checked ? null : [] })} />All folders</label>
+      <label className="flex items-center min-h-9 gap-2"><input type="checkbox" aria-label="Root (no folder)" checked={options.folderPaths === null || options.folderPaths.includes(ROOT_FOLDER)} onChange={e => {
+        const paths = options.folderPaths ?? [...flatten(tree), ROOT_FOLDER];
+        patch({ folderPaths: e.target.checked ? [...paths, ROOT_FOLDER] : paths.filter(path => path !== ROOT_FOLDER) });
+      }} />Root (no folder)</label>
       <ul>{tree.map(node => <Folder key={node.path} node={node} tree={tree} options={options} patch={patch} />)}</ul>
     </fieldset>
     <label className="block">Tag<select className="block w-full min-h-11 bg-white dark:bg-stone-900 border rounded" value={options.tag ?? ''} onChange={e => patch({ tag: e.target.value || undefined })}><option value="">All tags</option>{tags.map(tag => <option key={tag}>{tag}</option>)}</select></label>
@@ -29,15 +38,15 @@ function Folder({ node, tree, options, patch }: { node: FolderNode; tree: Folder
     const mixed = !checked && !!options.folderPaths?.some(path => under(path, node.path));
     useEffect(() => { if (input.current) input.current.indeterminate = mixed; }, [mixed]);
     return <li>
-      <label className="flex items-center gap-2 min-h-9"><input ref={input} type="checkbox" aria-label={node.path} aria-checked={mixed ? 'mixed' : checked} checked={checked} onChange={() => {
+      <label className="flex items-center gap-2 min-h-9"><input ref={input} type="checkbox" data-folder-path={node.path} aria-label={`${node.name}, ${node.totalCount} ${node.totalCount === 1 ? 'note' : 'notes'}${node.path.includes('/') ? `, in ${node.path.split('/').slice(0, -1).join('/')}` : ''}`} aria-checked={mixed ? 'mixed' : checked} checked={checked} onChange={() => {
         let paths = options.folderPaths;
-        if (paths === null) paths = [...flatten(tree), ''];
+        if (paths === null) paths = [...flatten(tree), ROOT_FOLDER];
         if (checked) {
           // Expand an ancestor selection before subtracting this branch.
-          const expanded = flatten(tree).filter(path => paths!.some(parent => under(path, parent)) && !under(path, node.path) && !under(node.path, path));
+          const expanded = [...flatten(tree), ROOT_FOLDER].filter(path => path === ROOT_FOLDER ? paths!.includes(ROOT_FOLDER) : paths!.some(parent => under(path, parent)) && !under(path, node.path) && !under(node.path, path));
           patch({ folderPaths: expanded });
         } else patch({ folderPaths: [...paths.filter(path => !under(path, node.path)), node.path] });
-      }} />{node.name} <span className="text-xs">{node.totalCount}</span></label>
+      }} /><span>{node.name}, {node.totalCount} {node.totalCount === 1 ? 'note' : 'notes'}</span></label>
       {node.children.length > 0 && <ul className="pl-4">{node.children.map(child => <Folder key={child.path} node={child} tree={tree} options={options} patch={patch} />)}</ul>}
     </li>;
 }

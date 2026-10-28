@@ -1,13 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { StandaloneNote } from '../types/daymark';
-import { buildNoteIndex, pairKey } from './noteRelated';
-import { buildGraph, defaultGraphScope, type GraphOptions } from './graphData';
+import { buildNoteIndex, pairKey, suggestRelated } from './noteRelated';
+import { buildGraph, defaultGraphScope, ROOT_FOLDER, type GraphOptions } from './graphData';
 
 const note = (id: string, patch: Partial<StandaloneNote> = {}): StandaloneNote => ({ id, title: id, content: '', folder: '', tags: [], createdAt: '', updatedAt: '', ...patch });
 const notes = [note('a', { folder: 'Tech', content: '[[b]]' }), note('b', { folder: 'Tech/Java', content: '[[c]]' }), note('c', { folder: 'Other' }), note('orphan')];
 const opts: GraphOptions = { folderPaths: null, showTags: false, showSuggestions: false, showOrphans: true };
-const graph = (options: Partial<GraphOptions> = {}, source = notes, dismissed = new Set<string>()) => buildGraph(source, buildNoteIndex(source), dismissed, { ...opts, ...options });
+const graph = (options: Partial<GraphOptions> = {}, source = notes, dismissed = new Set<string>()) => {
+  const index = buildNoteIndex(source);
+  const suggestions = source.flatMap(note => suggestRelated(index, note.id, { dismissed }).map(s => ({ a: note.id, b: s.noteId, kind: 'suggested' as const, terms: s.sharedTerms })));
+  return buildGraph(source, index, dismissed, { ...opts, ...options }, suggestions);
+};
 describe('graph projection never edits notes', () => {
+  it('selects exact root independently and defaults a selected root correctly above 300', () => {
+    expect(graph({ folderPaths: [ROOT_FOLDER] }).nodes.map(n => n.id)).toEqual(['orphan']);
+    expect(graph({ folderPaths: [ROOT_FOLDER, 'Tech'] }).nodes.map(n => n.id)).toEqual(['a', 'b', 'orphan']);
+    expect(defaultGraphScope(301, '')).toEqual({ folderPaths: [ROOT_FOLDER], showOrphans: false });
+    expect(graph({ folderPaths: defaultGraphScope(301, 'Tech').folderPaths }).nodes.map(n => n.id)).toEqual(['a', 'b']);
+  });
   it('includes descendants and drops edges to hidden notes', () => {
     const before = JSON.stringify(notes);
     const result = graph({ folderPaths: ['Tech'] });
