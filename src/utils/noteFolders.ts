@@ -77,7 +77,7 @@ export function renameFolder(notes: StandaloneNote[], meta: NoteMeta, fromPath: 
   const from = normalizeFolderPath(fromPath);
   const to = normalizeFolderPath(toPath);
   const fromKey = pathKey(from);
-  if (!from || !to || containsPath(pathKey(to), fromKey)) return null;
+  if (!from || !to || from === to || (pathKey(to) !== fromKey && containsPath(pathKey(to), fromKey))) return null;
   const underSource = (path: string) => containsPath(pathKey(path), fromKey);
   const spellings = new Map<string, string>();
   // Existing destination folders get their spelling before the moved subtree.
@@ -86,15 +86,24 @@ export function renameFolder(notes: StandaloneNote[], meta: NoteMeta, fromPath: 
   const rewrite = (path: string) => canonicalPath(to + normalizeFolderPath(path).slice(from.length), spellings);
   const nextNotes = notes.map(note => underSource(note.folder) ? { ...note, folder: rewrite(note.folder), updatedAt: nowIso } : note);
   const folders = new Map<string, NoteFolder>();
+  const put = (folder: NoteFolder) => {
+    const key = pathKey(folder.path);
+    const existing = folders.get(key);
+    const at = Date.parse(folder.updatedAt) || 0;
+    const previousAt = existing ? Date.parse(existing.updatedAt) || 0 : 0;
+    // Keep newer recreations; a live destination wins a same-operation collision.
+    if (!existing || at > previousAt || (at === previousAt && existing.removed && !folder.removed)) folders.set(key, folder);
+  };
+  const tombstones: NoteFolder[] = [];
   for (const folder of meta.folders) {
     const moved = underSource(folder.path);
     const next = moved ? { ...folder, path: rewrite(folder.path), updatedAt: nowIso } : folder;
-    const key = pathKey(next.path);
-    const existing = folders.get(key);
-    // A live folder wins over a tombstone when subtrees merge.
-    if (!existing || (existing.removed && !next.removed)) folders.set(key, next);
-    else if (moved && !next.removed) folders.set(key, { ...existing, updatedAt: nowIso });
+    put(next);
+    if (moved && pathKey(next.path) !== pathKey(folder.path)) {
+      tombstones.push({ path: folder.path, removed: true, updatedAt: nowIso });
+    }
   }
+  for (const tombstone of tombstones) put(tombstone);
   return { notes: nextNotes, meta: { ...meta, folders: [...folders.values()] } };
 }
 

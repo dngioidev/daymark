@@ -57,7 +57,8 @@ describe('note folders', () => {
     expect(result.notes.map(n => n.folder)).toEqual(['Dev/Java/x', 'Techno', 'Dev']);
     expect(result.notes[0]).toEqual({ ...notes[0], folder: 'Dev/Java/x', updatedAt: now });
     expect(result.notes[1]).toBe(notes[1]);
-    expect(result.meta.folders.map(f => f.path)).toEqual(['Dev', 'Dev/Java', 'Dev/Empty', 'Other']);
+    expect(result.meta.folders.filter(f => !f.removed).map(f => f.path)).toEqual(['Dev', 'Dev/Java', 'Dev/Empty', 'Other']);
+    expect(result.meta.folders.filter(f => f.removed)).toEqual(['Tech', 'Tech/Java', 'Tech/Empty'].map(path => ({ path, removed: true, updatedAt: now })));
     expect(result.meta.folders[1].updatedAt).toBe(now);
     expect(result.meta.dismissed).toBe(data.dismissed);
     expect({ notes, data }).toEqual(snapshot);
@@ -67,21 +68,42 @@ describe('note folders', () => {
     const notes = [note('a', 'Tech/Java'), note('b', 'dev/java'), note('c', 'dev')];
     const result = renameFolder(notes, meta('Tech', 'Tech/Java', 'dev', 'dev/java'), 'Tech', 'Dev', now)!;
     expect(result.notes.map(n => [n.id, n.folder])).toEqual([['a', 'dev/java'], ['b', 'dev/java'], ['c', 'dev']]);
-    expect(result.meta.folders.map(f => f.path).sort()).toEqual(['dev', 'dev/java']);
+    expect(result.meta.folders.filter(f => !f.removed).map(f => f.path).sort()).toEqual(['dev', 'dev/java']);
+    expect(result.meta.folders.filter(f => f.removed).map(f => f.path).sort()).toEqual(['Tech', 'Tech/Java']);
     expect(result.notes[1]).toBe(notes[1]);
   });
 
-  it.each(['Tech/Java', 'tech/java/x', 'TECH'])('rejects renaming Tech to %s', target => {
+  it.each(['Tech/Java', 'tech/java/x', 'Tech'])('rejects renaming Tech to %s', target => {
     expect(renameFolder([note('a', 'Tech')], meta('Tech'), 'Tech', target, now)).toBeNull();
   });
 
   it('moves a folder under another folder or back to root via rename semantics', () => {
     const notes = [note('a', 'Tech/Java/x')];
-    const result = moveFolder(notes, meta('Tech/Java'), 'Tech/Java', 'Work', now)!;
+    const result = moveFolder(notes, meta('Tech/Java', 'Tech/Java/Empty'), 'Tech/Java', 'Work', now)!;
     expect(result.notes[0].folder).toBe('Work/Java/x');
     expect(result.meta.folders[0].path).toBe('Work/Java');
+    expect(result.meta.folders).toContainEqual({ path: 'Tech/Java', removed: true, updatedAt: now });
+    expect(result.meta.folders).toContainEqual({ path: 'Tech/Java/Empty', removed: true, updatedAt: now });
+    expect(result.meta.folders).toContainEqual({ path: 'Work/Java/Empty', updatedAt: now });
     expect(moveFolder(result.notes, result.meta, 'Work/Java', '', now)!.notes[0].folder).toBe('Java/x');
     expect(moveFolder(notes, meta(), 'Tech', 'Tech/Java', now)).toBeNull();
+  });
+
+  it('renames casing without tombstoning the same folder key or its descendants', () => {
+    const result = renameFolder([note('a', 'Tech/Java')], meta('Tech', 'Tech/Java'), 'Tech', 'TECH', now)!;
+    expect(result).not.toBeNull();
+    expect(result.meta.folders).toEqual([{ path: 'TECH', updatedAt: now }, { path: 'TECH/Java', updatedAt: now }]);
+    expect(result.notes[0].folder).toBe('TECH/Java');
+  });
+
+  it('keeps a newer live collision when a moved subtree tombstones its old paths', () => {
+    const newer = '2026-10-28T09:00:00.000Z';
+    const data = meta('Tech/Java', 'Tech/Java/Java', 'Tech');
+    data.folders[2].updatedAt = newer;
+    const result = renameFolder([], data, 'Tech/Java', 'Tech', now)!;
+    expect(result.meta.folders.find(f => f.path === 'Tech')).toEqual(data.folders[2]);
+    expect(result.meta.folders.find(f => f.path === 'Tech/Java')).toEqual({ path: 'Tech/Java', updatedAt: now });
+    expect(result.meta.folders).toContainEqual({ path: 'Tech/Java/Java', updatedAt: now, removed: true });
   });
 
   it('deletes a subtree by moving all notes to its parent and tombstoning folders', () => {

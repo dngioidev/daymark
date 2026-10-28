@@ -307,7 +307,7 @@ try {
   }
 
   // Cycle 11: use shared domain edits until the folder controls arrive in later tasks.
-  const { createFolder, renameFolder } = await tsImport('../src/utils/noteFolders.ts', import.meta.url);
+  const { buildFolderTree, createFolder, renameFolder } = await tsImport('../src/utils/noteFolders.ts', import.meta.url);
   const readNotes = page => page.evaluate(async () => {
     const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
     try {
@@ -361,6 +361,13 @@ try {
   check(stable(afterA.meta) === stable(afterB.meta) && stable(sortedNotes(afterA)) === stable(sortedNotes(afterB)),
     'concurrent folder renames converge on identical metadata and notes');
   for (const [local, label] of [[afterA, 'laptop'], [afterB, 'phone']]) {
+    const treePaths = nodes => nodes.flatMap(node => [node.path, ...treePaths(node.children)]);
+    check(!local.meta.folders.some(f => f.path.toLowerCase() === 'tech/java' && !f.removed)
+      && !treePaths(buildFolderTree(local.notes, local.meta)).some(path => path.toLowerCase() === 'tech/java'),
+      label + ' omits the old Tech/Java folder from the live list and tree, including empty folders');
+    check(local.notes.filter(n => n.id.startsWith('e2e-folder-')).length === 2
+      && local.notes.filter(n => n.id.startsWith('e2e-folder-')).every(n => n.folder === 'Tech/JVM'),
+      label + ' keeps both renamed notes in the incoming destination Tech/JVM');
     check(idsBeforeRename.every(id => local.notes.some(n => n.id === id))
       && local.notes.filter(n => n.id.startsWith('e2e-folder-')).every(n => n.content === 'Keep this note'),
       label + ' retains every original note and its content after concurrent folder renames');

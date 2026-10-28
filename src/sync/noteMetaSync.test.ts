@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { NoteMeta } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
-import { canonicalJson, mergeEntity } from './merge';
+import { buildFolderTree, createFolder, renameFolder, uneditedRecoveredNoteMeta } from '../utils/noteFolders';
+import { canonicalJson, mergeEntity, mergeNoteMeta } from './merge';
 import { applySyncOutcome, collectChanges, fromEntities, syncOnce, SyncState, toEntities } from './syncClient';
 import { SyncRequest } from './protocol';
 
@@ -24,10 +24,34 @@ describe('NoteMeta merge', () => {
     expect(merge(meta, newer, older)).toEqual(newer);
     expect(merge(meta, newer, { ...older, folders: [{ ...older.folders[0], updatedAt: '2026-10-28T10:00:00Z' }] })).toMatchObject({ folders: [{ removed: true }] });
   });
-  it('retains both rename destinations and newest source tombstone', () => {
-    const a = { folders: [{ path: 'Tech/Java', updatedAt: early, removed: true }, { path: 'A', updatedAt: early }], dismissed: [] };
-    const b = { folders: [{ path: 'Tech/Java', updatedAt: late, removed: true }, { path: 'B', updatedAt: late }], dismissed: [] };
-    expect(merge(meta, a, b)).toEqual({ folders: [b.folders[0], a.folders[1], b.folders[1]], dismissed: [] });
+  it('syncs a real rename without resurrecting the old empty folder', () => {
+    const renamed = renameFolder([], meta, 'Tech/Java', 'Tech/Kotlin', late)!.meta;
+    const merged = mergeNoteMeta(meta, meta, renamed).value!;
+    expect(merged.folders.filter(f => !f.removed).map(f => f.path)).toEqual(['Tech/Kotlin']);
+    expect(merged.folders).toContainEqual({ path: 'Tech/Java', updatedAt: late, removed: true });
+    expect(buildFolderTree([], merged)[0].children.map(f => f.path)).toEqual(['Tech/Kotlin']);
+  });
+  it('converges real concurrent renames with one tombstone per source and both destinations', () => {
+    const base = createFolder(meta, 'Tech/Java/Empty', early);
+    const a = renameFolder([], base, 'Tech/Java', 'Tech/Kotlin', late)!.meta;
+    const newest = '2026-10-28T10:00:00Z';
+    const b = renameFolder([], base, 'Tech/Java', 'Tech/JVM', newest)!.meta;
+    const ab = mergeNoteMeta(base, a, b).value!;
+    const ba = mergeNoteMeta(base, b, a).value!;
+    expect([...ab.folders].sort((a, b) => a.path.localeCompare(b.path))).toEqual([...ba.folders].sort((a, b) => a.path.localeCompare(b.path)));
+    for (const path of ['Tech/Java', 'Tech/Java/Empty']) {
+      expect(ab.folders.filter(f => f.path.toLowerCase() === path.toLowerCase())).toEqual([{ path, removed: true, updatedAt: newest }]);
+    }
+    expect(ab.folders.filter(f => !f.removed).map(f => f.path).sort()).toEqual(['Tech/JVM', 'Tech/JVM/Empty', 'Tech/Kotlin', 'Tech/Kotlin/Empty']);
+  });
+  it('restores a renamed source recreated later without allowing an older tombstone to remove it', () => {
+    const renamed = renameFolder([], meta, 'Tech/Java', 'Tech/Kotlin', late)!.meta;
+    const restored = createFolder(renamed, 'tech/java', '2026-10-28T10:00:00Z');
+    for (const [ours, theirs] of [[renamed, restored], [restored, renamed]]) {
+      const merged = mergeNoteMeta(renamed, ours, theirs).value!;
+      expect(merged.folders.find(f => f.path.toLowerCase() === 'tech/java')).toEqual({ path: 'Tech/Java', updatedAt: '2026-10-28T10:00:00Z' });
+      expect(buildFolderTree([], merged)[0].children.map(f => f.path)).toEqual(['Tech/Java', 'Tech/Kotlin']);
+    }
   });
   it('honours whole deletion only against unchanged data', () => {
     expect(merge(meta, meta, null)).toBeNull();
