@@ -142,6 +142,25 @@ export interface StandaloneNote {
   pinned?: boolean;
 }
 
+export interface NoteFolder {
+  path: string;
+  updatedAt: string;
+  removed?: boolean;
+}
+
+export interface DismissedPair {
+  key: string; // The two note ids sorted and joined by '|'
+  at: string;
+  restored?: boolean;
+}
+
+export interface NoteMeta {
+  folders: NoteFolder[];
+  dismissed: DismissedPair[];
+}
+
+export const EMPTY_NOTE_META: NoteMeta = { folders: [], dismissed: [] };
+
 export interface AgingThresholds {
   attentionDays: number; // default 3
   criticalDays: number; // default 7
