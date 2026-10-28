@@ -28,10 +28,11 @@ import { NoteFolderTree, type FolderAction } from './notes/NoteFolderTree';
 import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
 import { useRelatedNotes } from '../hooks/useRelatedNotes';
-import { addRelatedLink, canLinkToTitle, pairKey } from '../utils/noteRelated';
+import { addRelatedLink, buildNoteIndex, canLinkToTitle, pairKey } from '../utils/noteRelated';
 import { RelatedPanel, RelatedOverlay } from './notes/RelatedPanel';
 import { RelatedSheet } from './notes/RelatedSheet';
 const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
+const GraphView = React.lazy(() => import('./notes/graph/GraphView'));
 
 interface StandaloneNotesViewProps {
   notes: StandaloneNote[];
@@ -58,9 +59,20 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('rich');
+  const [notesView, setNotesView] = useState<'list' | 'graph'>('list');
   const [folderDialog, setFolderDialog] = useState<{ action: FolderAction; path: string } | null>(null);
   const [prefs, setPrefs] = useState(loadPanePrefs);
   const [width, setWidth] = useState(typeof window === 'undefined' ? 1440 : window.innerWidth ?? 1440);
+  const graphActive = !compact && width >= 768 && notesView === 'graph';
+  const graphIndex = useMemo(() => graphActive ? buildNoteIndex(notes) : null, [graphActive, notes]);
+  const graphDismissed = useMemo(() => {
+    const latest = new Map<string, NoteMeta['dismissed'][number]>();
+    for (const pair of noteMeta.dismissed) {
+      const previous = latest.get(pair.key);
+      if (!previous || pair.at >= previous.at) latest.set(pair.key, pair);
+    }
+    return new Set([...latest.values()].filter(pair => !pair.restored).map(pair => pair.key));
+  }, [noteMeta.dismissed]);
   const [drawer, setDrawer] = useState(false);
   const listFoldersRef = useRef<HTMLButtonElement>(null);
   const latestMeta = useRef(noteMeta);
@@ -112,6 +124,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     setSelectedFolder('all');
     setSearchQuery('');
     setPane('editor');
+    setNotesView('list');
     onOpenNoteConsumed?.();
   }, [openNoteId, notes, onOpenNoteConsumed]);
 
@@ -177,31 +190,36 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     latestMeta.current = next;
     onUpdateNoteMeta?.(next);
   };
+  const linkNotes = (sourceId: string, targetId: string) => {
+    const source = latestNotes.current.find(note => note.id === sourceId);
+    const target = latestNotes.current.find(note => note.id === targetId);
+    if (!source || !target) {
+      showToast('That note no longer exists. Suggestions are refreshing.', { tone: 'info' });
+      related.refresh(); return;
+    }
+    if (source.id === target.id || !canLinkToTitle(target.title)) return;
+    if (!graphActive && source.id === activeNote?.id && viewMode === 'rich') {
+      if (!richEditorRef.current) { showToast('The editor is still loading, try again', { tone: 'info' }); return; }
+      richEditorRef.current.appendRelatedLink(target.title);
+    } else {
+      const content = addRelatedLink(source.content, target.title);
+      if (content === source.content) return;
+      latestNotes.current = latestNotes.current.map(note => note.id === sourceId ? { ...note, content, updatedAt: new Date().toISOString() } : note);
+      onUpdateNotes(latestNotes.current);
+    }
+  };
+  const dismissPair = (a: string, b: string) => {
+    setPairDismissed(a, b, false);
+    showToast('Suggestion hidden.', { action: { label: 'Undo', onClick: () => setPairDismissed(a, b, true) } });
+  };
   const relatedProps = {
     ...related,
     onLink: (id: string) => {
-      const target = latestNotes.current.find(note => note.id === id);
-      if (!target) {
-        showToast('That note no longer exists. Suggestions are refreshing.', { tone: 'info' });
-        related.refresh(); return;
-      }
-      if (!activeNote || target.id === activeNote.id || !canLinkToTitle(target.title)) return;
-      if (viewMode === 'rich') {
-        if (!richEditorRef.current) { showToast('The editor is still loading, try again', { tone: 'info' }); return; }
-        richEditorRef.current.appendRelatedLink(target.title);
-      }
-      else {
-        const source = latestNotes.current.find(note => note.id === activeNote.id);
-        if (!source) return;
-        const content = addRelatedLink(source.content, target.title);
-        if (content !== source.content) updateActive({ content });
-      }
+      if (activeNote) linkNotes(activeNote.id, id);
     },
     onDismiss: (id: string) => {
       if (!activeNote) return;
-      const sourceId = activeNote.id;
-      setPairDismissed(sourceId, id, false);
-      showToast('Suggestion hidden.', { action: { label: 'Undo', onClick: () => setPairDismissed(sourceId, id, true) } });
+      dismissPair(activeNote.id, id);
     },
     onRestore: (id: string) => { if (activeNote) setPairDismissed(activeNote.id, id, true); },
     onOpen: (id: string) => { setSelectedNoteId(id); setSelectedFolder('all'); setPane('editor'); setRelatedOpen(false); },
@@ -553,12 +571,22 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   return (
     <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
+      {!compact && width >= 768 && <header aria-label="Notes view" className="shrink-0 flex items-center justify-between gap-3 text-[var(--dm-page-fg)]">
+        <h1 className="font-semibold truncate">{graphActive ? 'Knowledge graph' : 'Notes'}</h1>
+        <div role="group" aria-label="Notes presentation" className="flex gap-1 rounded-lg bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 p-1 border border-stone-200 dark:border-stone-700">
+          <button type="button" className="min-h-11 px-3 rounded aria-pressed:bg-stone-200 dark:aria-pressed:bg-stone-700" aria-pressed={!graphActive} onClick={() => setNotesView('list')}>List</button>
+          <button type="button" className="min-h-11 px-3 rounded aria-pressed:bg-stone-200 dark:aria-pressed:bg-stone-700" aria-pressed={graphActive} onClick={() => { setFocusMode(false); setNotesView('graph'); }}>Graph</button>
+        </div>
+      </header>}
       {compact && pane === 'list' && <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1>}
-      {drawers && (pane === 'list' || !activeNote) && <div className="shrink-0 flex items-center gap-2"><button ref={listFoldersRef} type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button></div>}
+      {!graphActive && drawers && (pane === 'list' || !activeNote) && <div className="shrink-0 flex items-center gap-2"><button ref={listFoldersRef} type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button></div>}
       {drawer && <Dialog isOpen title="Folders" variant="sheet" onClose={() => setDrawer(false)}><div className="p-3">{folderTree}<button type="button" className={buttonClass.secondary} onClick={() => folderAction('new', selectedFolder === 'all' ? '' : selectedFolder)}>New folder</button></div></Dialog>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
-      {compact ? (pane === 'list' ? list : editor) : (
+      {graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
+        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder={selectedFolder} activeNoteId={activeNote?.id}
+          onOpenNote={id => { relatedProps.onOpen(id); setNotesView('list'); }} onLink={linkNotes} onDismiss={dismissPair} />
+      </Suspense> : compact ? (pane === 'list' ? list : editor) : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">
           {!focusMode && <div role="group" aria-label="Notes navigation" className={`shrink-0 min-h-0 gap-2 ${drawers ? (pane === 'editor' ? 'hidden' : 'flex w-full') : 'flex'}`}>
             {!drawers && <aside aria-label="Folder navigation" className={`${treeMinimized ? 'w-14' : 'w-56'} shrink-0 overflow-y-auto border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>

@@ -1,4 +1,4 @@
-export interface PanePrefs { tree: 'open' | 'min'; related: 'open' | 'min' | undefined }
+export interface PanePrefs { tree: 'open' | 'min'; related: 'open' | 'min' | undefined; graphFilters?: 'open' | 'min'; graphDetail?: 'open' | 'min' }
 export const MIN_EDITOR_WIDTH = 480;
 // Match SideRail, the folder/list/Related panes, and the notes wrapper's CSS.
 export const NOTES_WIDTHS = { rail: 168, railMin: 64, tree: 224, strip: 56, list: 256, related: 256,
@@ -22,12 +22,16 @@ const KEY = 'daymark_notes_panes';
 export function loadPanePrefs(): PanePrefs {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (value && ['open', 'min'].includes(value.tree) && (value.related === undefined || ['open', 'min'].includes(value.related))) return { tree: value.tree, related: value.related };
+    if (value && ['open', 'min'].includes(value.tree) && (value.related === undefined || ['open', 'min'].includes(value.related))) return {
+      tree: value.tree, related: value.related,
+      ...(['open', 'min'].includes(value.graphFilters) ? { graphFilters: value.graphFilters } : {}),
+      ...(['open', 'min'].includes(value.graphDetail) ? { graphDetail: value.graphDetail } : {}),
+    };
   } catch { /* Device storage is optional. */ }
   return { tree: 'open', related: undefined };
 }
 export function savePanePrefs(prefs: PanePrefs): void {
-  try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* Retain the in-memory preference. */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ ...loadPanePrefs(), ...prefs })); } catch { /* Retain the in-memory preference. */ }
 }
 export function paneMode(width: number): 'full' | 'compactRelated' | 'drawers' {
   return width >= 1280 ? 'full' : width >= 1100 ? 'compactRelated' : 'drawers';

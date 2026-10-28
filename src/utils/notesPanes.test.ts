@@ -3,6 +3,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { loadPanePrefs, savePanePrefs, paneMode, notesEditorWidth, relatedPaneLayout, MIN_EDITOR_WIDTH } from './notesPanes';
 
 afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
+it('persists graph panels without losing existing Notes preferences', () => {
+  savePanePrefs({ tree: 'min', related: 'open', graphFilters: 'min', graphDetail: 'open' });
+  expect(loadPanePrefs()).toEqual({ tree: 'min', related: 'open', graphFilters: 'min', graphDetail: 'open' });
+});
 it.each([[390, 'drawers'], [799, 'drawers'], [800, 'drawers'], [1099, 'drawers'], [1100, 'compactRelated'], [1279, 'compactRelated'], [1280, 'full'], [1440, 'full']])('paneMode(%s) is %s', (width, mode) => {
   expect(paneMode(Number(width))).toBe(mode);
 });

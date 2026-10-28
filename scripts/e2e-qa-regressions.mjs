@@ -6,6 +6,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedVault } from './helpers/server-session.mjs';
 import { cycle10Qa } from './helpers/cycle-10-qa.mjs';
+import { knowledgeGraphQa } from './helpers/knowledge-graph-qa.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -1777,6 +1778,7 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   }
 });
 
+await knowledgeGraphQa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, png });
 await cycle10Qa({ run, fresh, check, TODAY, day, doc, task, readDocs });
 
 console.log(`\n${results.filter((r) => !r.ok).length} failed / ${results.length} checks`);
