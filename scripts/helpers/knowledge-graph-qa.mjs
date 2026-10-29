@@ -16,7 +16,7 @@ export async function knowledgeGraphQa({ run, fresh, check, settingsOpen, settin
     const notes = [note('a', { folder: 'Tech', pinned: true, updatedAt: '2026-10-01' }), note('b'), note('c'), note('orphan', { folder: 'Other', content: '', tags: [] }), note('root', { folder: '', content: '', tags: [] })];
     const { page, errors } = await fresh({ notes });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await navigate(page); await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await navigate(page); await page.getByRole('radio', { name: 'Graph', exact: true }).click();
     const canvas = page.getByRole('img', { name: /^Knowledge graph:/ });
     await canvas.waitFor();
     check('C11-Graph-readonly', JSON.stringify(await readNotes(page)) === JSON.stringify(notes), 'opening graph leaves note objects and Markdown byte-identical');
@@ -87,7 +87,7 @@ export async function knowledgeGraphQa({ run, fresh, check, settingsOpen, settin
     const notes = source.map((note, i) => ({ ...note, createdAt: '2026-10-01', updatedAt: '2026-10-02', folder: i % 2 ? 'Research/Topics' : 'Archive', content: note.content + `\n[[${source[(i + 1) % 1000].title}]]\n[[${source[(i + 17) % 1000].title}]]` }));
     const { page } = await fresh({ notes });
     await navigate(page);
-    const start = performance.now(); await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    const start = performance.now(); await page.getByRole('radio', { name: 'Graph', exact: true }).click();
     // A vault over 300 notes opens scoped to the current folder (the open note's folder); include every folder so all 1,000 notes display.
     const scope = page.getByRole('complementary', { name: 'Graph filters', exact: true });
     await scope.getByRole('checkbox').first().waitFor();
@@ -118,6 +118,6 @@ export async function knowledgeGraphQa({ run, fresh, check, settingsOpen, settin
   await run('C11-Graph-phone', async () => {
     const { page } = await fresh({ mobile: true, notes: [note('a')] });
     await page.getByRole('navigation').getByRole('button', { name: 'Notes', exact: true }).click();
-    check('C11-Graph-phone', await page.getByRole('button', { name: 'Graph', exact: true }).count() === 0 && await page.locator('canvas').count() === 0, '390px phone has no Graph switch or canvas');
+    check('C11-Graph-phone', await page.getByRole('radio', { name: 'Graph', exact: true }).count() === 0 && await page.locator('canvas').count() === 0, '390px phone has no Graph switch or canvas');
   });
 }

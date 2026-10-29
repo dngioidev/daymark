@@ -75,7 +75,7 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
           <Plus className="w-3.5 h-3.5" aria-hidden="true" />{!collapsed && <>New task <kbd className="text-[12px] font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd></>}
         </RailButton>
         <div className="shrink-0 flex min-w-0 items-center">
-          <RailButton side={side} tooltip="Search" type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Search className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
+          <RailButton side={side} tooltip={isMac ? 'Search (⌘ Shift F)' : 'Search (Ctrl Shift F)'} type="button" onClick={onOpenSearch} aria-label={isMac ? 'Search (⌘ Shift F)' : 'Search (Ctrl Shift F)'} aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Search className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
           <RailButton side={side} tooltip="Settings" type="button" aria-label="Settings" data-rail-part="settings" onClick={onOpenSettings} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Settings className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
         </div>
       </div>

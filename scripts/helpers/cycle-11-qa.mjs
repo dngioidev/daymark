@@ -90,7 +90,7 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await panel.getByRole('region', { name: 'Linked notes', exact: true }).getByRole('button', { name: /^Java [be]$/ }).waitFor();
     check('C11-Keyboard-link', await link.count() === suggestionsBefore - 1, 'Link works from the keyboard and the linked note leaves Suggested', `${suggestionsBefore} -> ${await link.count()}`);
     // Graph: switch with the keyboard, use List view and dismiss a suggestion by keyboard.
-    const graph = page.getByRole('button', { name: 'Graph', exact: true });
+    const graph = page.getByRole('radio', { name: 'Graph', exact: true });
     await graph.focus(); await press('Enter');
     await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
     const listView = page.getByRole('button', { name: 'List view', exact: true });
@@ -137,7 +137,8 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
     const minTree = await axeOn(page, ['aside[aria-label="Folder navigation"]']);
     check(`C11-Axe-${theme}-tree-min`, minTree.length === 0, `minimized folder strip has no axe findings (${theme})`, minTree.join(' ; '));
-    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Expand folders', exact: true }).click();
+    await page.getByRole('radio', { name: 'Graph', exact: true }).click();
     await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
     await page.getByRole('button', { name: 'List view', exact: true }).click();
     await page.locator('[aria-label="Graph nodes"] [data-node-id]').first().waitFor();

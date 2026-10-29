@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
+import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
 
 const require = createRequire(import.meta.url);
 // A step that fails mid-test can leave a waitForEvent promise behind; don't let it kill the run
@@ -47,6 +48,8 @@ const ENVS = {
   P390: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   P412: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   T768: { viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  D900: { viewport: { width: 900, height: 900 } },
+  D1100: { viewport: { width: 1100, height: 900 } },
   D1024: { viewport: { width: 1024, height: 768 } },
   D800: { viewport: { width: 800, height: 900 } },
   D1280: { viewport: { width: 1280, height: 800 } },
@@ -73,6 +76,7 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
   await resetServerVault(ctx, origin, session.accessToken);
   const page = await ctx.newPage();
   if (start === 'sample') await seedSample(page, origin);
+  if (start === 'cycle-12') await seedVault(page, origin, { notes: responsiveNotesFixture(), docs: [] });
   if (start === 'cycle-7') {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -142,6 +146,11 @@ const visibleText = (page) => page.locator('body').innerText();
 // Cycle 12: one navigation tree. Note rows are the tree's note items; folders are treeitems with a data-folder-path.
 const noteRows = (page) => page.getByRole('tree', { name: 'Notes', exact: true }).locator('[role=treeitem][data-note-id]');
 const folderRowOf = (page, name) => page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: new RegExp(`^${name}, folder, \\d+ notes?`) });
+async function ensureNotesColumn(page) {
+  const tree = page.getByRole('tree', { name: 'Notes', exact: true });
+  if (!await tree.isVisible()) await page.getByRole('group', { name: 'Note editor', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
+  await tree.waitFor();
+}
 // Select a folder row in the tree and make sure it is expanded so its notes show.
 async function openFolder(page, name) {
   const row = folderRowOf(page, name).first();
@@ -545,7 +554,9 @@ async function functional() {
       await btn(page, /^calendar$/i).click();
       expect(/last 7 days/i.test(await visibleText(page)), `${env}: calendar not shown`);
       await btn(page, /^notes$/i).click();
+      await ensureNotesColumn(page);
       expect(await btn(page, /^new folder$/i).isVisible(), `${env}: notes not shown`);
+      if (await dialog(page, 'Notes').isVisible()) await page.keyboard.press('Escape');
       await openSettings(page);
       expect(await isOpenDialog(page, 'Settings'), `${env}: settings not shown`);
       await ctx.close();
@@ -566,6 +577,7 @@ async function functional() {
       await dialog(page, 'Settings').getByRole('button', { name: 'Close', exact: true }).click();
       expect(await page.locator('.dm-side-rail').getAttribute('data-side') === 'right', 'right choice did not move the rail');
       await btn(page, /^notes$/i).click();
+      await ensureNotesColumn(page);
       await page.getByRole('treeitem', { name: /weekly sprint sync/i }).first().click();
       await btn(page, /^focus mode$/i).click();
       await page.locator('.dm-side-rail').waitFor({ state: 'hidden' });
@@ -1116,7 +1128,7 @@ async function functional() {
   });
 
   // ---- NO
-  await tc('NO-01', 'Notes list: pinned first, plain previews', 'P412', async () => {
+  await tc('NO-01', 'Notes tree: pinned group and title-only rows', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     const items = await noteRows(page).allInnerTexts();
@@ -1132,14 +1144,14 @@ async function functional() {
     await page.getByLabel('Search notes').fill('sprint');
     await page.waitForTimeout(300);
     // The open note that does not match stays visible but dimmed, so count matches only.
-    const one = new Set(await noteRows(page).evaluateAll((rows) => rows.filter((row) => !row.classList.contains('opacity-50')).map((row) => row.dataset.noteId))).size;
+    const one = new Set(await noteRows(page).evaluateAll((rows) => rows.filter((row) => !row.classList.contains('opacity-70')).map((row) => row.dataset.noteId))).size;
     await page.getByLabel('Search notes').fill('zzzz');
     const none = /no notes match/i.test(await visibleText(page));
     await ctx.close();
     expect(one === 1 && none, `results ${one}, empty message ${none}`);
   });
 
-  await tc('NO-03', 'Folder chips', 'P412', async () => {
+  await tc('NO-03', 'Folder tree expansion', 'P412', async () => {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await openFolder(page, 'Meetings');
@@ -1162,7 +1174,7 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await btn(page, /^new note$/i).click();
-    await page.getByLabel('Title').fill('Persisted note');
+    await page.getByLabel('Title', { exact: true }).fill('Persisted note');
     await page.getByRole('textbox', { name: 'Note rich text', exact: true }).fill('Body text');
     await page.getByRole('button', { name: 'Markdown', exact: true }).click();
     expect(await page.getByLabel('Note text (Markdown)', { exact: true }).inputValue() === 'Body text', 'body not saved as Markdown');
@@ -1221,7 +1233,7 @@ async function functional() {
     }
   });
 
-  await tc('NO-08', 'Pin moves a note to the top', 'D1440', async () => {
+  await tc('NO-08', 'Pin adds a copy to the top group', 'D1440', async () => {
     const { ctx, page } = await open('D1440');
     await btn(page, /^notes$/i).click();
     await page.getByText('Q4 Reading List & Research Papers').first().click();
@@ -1271,6 +1283,16 @@ async function functional() {
     expect(list, 'list not shown');
     expect(box.width >= 44, 'back button below 44 px');
   });
+
+  for (const [env, width] of [['D1440', 1440], ['D1280', 1280], ['D1100', 1100], ['D900', 900], ['P390', 390]]) {
+    for (const scheme of ['light', 'dark']) await tc('NO-12-' + width + '-' + scheme, 'Responsive Notes column, strip, drawer and switch', env, async () => {
+      const { ctx, page } = await open(env, { scheme, start: 'cycle-12' });
+      try {
+        await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
+        await notesResponsiveScenario({ page, width, axe: AXE, verify: (name, ok, detail = '') => expect(ok, name + ': ' + detail) });
+      } finally { await ctx.close(); }
+    });
+  }
 
   // ---- SY: browser sync is automatic; address/password forms belong to native.
   await tc('SY-01', 'Account view replaces the connection form', 'P412', async () => {

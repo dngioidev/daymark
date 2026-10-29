@@ -26,6 +26,8 @@ function setAppInert(inert: boolean) {
 
 interface DialogProps {
   isOpen: boolean;
+  /** Stable return target for drawers whose opener can be temporarily unmounted. */
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
   onClose: () => void;
   title: React.ReactNode;
   /** Short line under the title. */
@@ -36,7 +38,7 @@ interface DialogProps {
   children: React.ReactNode;
   /** Sticky action row at the bottom. */
   footer?: React.ReactNode;
-  variant?: 'center' | 'sheet' | 'fullscreen-mobile';
+  variant?: 'center' | 'sheet' | 'fullscreen-mobile' | 'drawer';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Fixed settings shell; tab content owns scrolling. */
   fixedSettingsSize?: boolean;
@@ -50,6 +52,7 @@ const SIZES = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 's
 
 export const Dialog: React.FC<DialogProps> = ({
   isOpen,
+  returnFocusRef,
   onClose,
   title,
   description,
@@ -72,7 +75,7 @@ export const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const panel = panelRef.current!;
-    const opener = document.activeElement as HTMLElement | null;
+    const opener = returnFocusRef?.current ?? document.activeElement as HTMLElement | null;
     stack.push(panel);
     setAppInert(true);
 
@@ -113,12 +116,12 @@ export const Dialog: React.FC<DialogProps> = ({
   if (!isOpen) return null;
 
   const layout =
-    variant === 'sheet'
+    variant === 'drawer' ? 'items-stretch !justify-start' : variant === 'sheet'
       ? 'items-end sm:items-center'
       : variant === 'fullscreen-mobile'
         ? 'items-stretch sm:items-center sm:p-4'
         : 'items-center p-4';
-  const panelShape = fixedSettingsSize
+  const panelShape = variant === 'drawer' ? 'h-dvh !w-80 !max-w-[calc(100vw-2rem)]' : fixedSettingsSize
     ? 'h-dvh sm:w-[min(760px,calc(100vw-2rem))] sm:h-[min(560px,calc(100vh-2rem))] sm:rounded-xl pb-[env(safe-area-inset-bottom)] sm:pb-0'
     :
     variant === 'sheet'

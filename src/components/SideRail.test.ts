@@ -76,7 +76,7 @@ describe('desktop side rail', () => {
         collapsed ? 'Notes' : 'notes', collapsed ? 'Backlog' : 'backlog',
       ]);
       expect(nav.querySelectorAll('[aria-current]')).toHaveLength(1);
-      for (const [button, label] of [[search, 'Search'], [settings!, 'Settings']] as const) {
+      for (const [button, label] of [[search, 'Search (Ctrl Shift F)'], [settings!, 'Settings']] as const) {
         flushSync(() => button.focus());
         expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(label);
         flushSync(() => button.click());
@@ -130,4 +130,15 @@ describe('desktop side rail', () => {
     expect(app).toContain('onFocusModeChange={setFocusNotes}');
     expect(app).toContain('side={resolveMenuSide(settings.appearance)}');
   });
+});
+
+it('uses the Mac shortcut hint in the Search tooltip and accessible name', () => {
+  const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  try {
+    flushSync(() => root.render(React.createElement(SideRail, props)));
+    const search = host.querySelector<HTMLButtonElement>('[aria-label="Search (⌘ Shift F)"]')!;
+    expect(search).not.toBeNull(); flushSync(() => search.focus());
+    expect(document.querySelector('[role=tooltip]')?.textContent).toBe('Search (⌘ Shift F)');
+  } finally { flushSync(() => root.unmount()); host.remove(); platform.mockRestore(); }
 });

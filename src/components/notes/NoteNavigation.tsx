@@ -14,7 +14,7 @@ export interface NoteNavigationProps {
   onSelectFolder(path: string): void; onNewNote(): void; templateItems?: MenuItem[];
   onNewFolder(): void; onFolderAction(action: FolderAction, path: string): void;
   onDropNote?(noteId: string, folderPath: string): void; onDropFolder?(path: string, newParentPath: string): void;
-  dragEnabled: boolean; compact?: boolean; viewSwitch?: React.ReactNode;
+  dragEnabled: boolean; compact?: boolean; viewSwitch?: React.ReactNode; focusSearch?: React.RefObject<boolean>;
 }
 const folderKey = (path: string) => normalizeFolderPath(path).toLowerCase();
 const isItem = (row: NoteTreeRow) => row.kind === 'folder' || row.kind === 'note';
@@ -35,6 +35,10 @@ export function NoteNavigation(props: NoteNavigationProps) {
   const [touch, setTouch] = useState(false);
   const dragEnabled = props.dragEnabled && !compact && !touch;
   const container = useRef<HTMLDivElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (props.focusSearch?.current) { searchInput.current?.focus(); props.focusSearch.current = false; }
+  }, [props.focusSearch]);
   const elements = useRef(new Map<string, HTMLDivElement>());
   const requestFocus = useRef(false);
   const itemIndices = rows.flatMap((row, i) => isItem(row) ? [i] : []);
@@ -142,7 +146,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
       aria-current={current ? 'true' : undefined} aria-setsize={positions.get(index)?.size} aria-posinset={positions.get(index)?.position}
       data-note-id={row.kind === 'note' ? row.noteId : undefined} data-folder-path={folder ? row.path : undefined}
       tabIndex={index === effectiveFocus ? 0 : -1} title={note ? noteTooltip(note) : folder ? row.path : undefined} style={style}
-      className={`flex min-w-0 items-center gap-1 rounded px-2 cursor-pointer text-sm text-stone-800 dark:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stone-500 ${selected ? 'bg-stone-200 dark:bg-stone-700' : current ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-100 dark:hover:bg-stone-800'} ${row.kind === 'note' && row.dimmed ? 'opacity-50' : ''}`}
+      className={`flex min-w-0 items-center gap-1 rounded px-2 cursor-pointer text-sm text-stone-800 dark:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stone-500 ${selected ? 'bg-stone-200 dark:bg-stone-700' : current ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-100 dark:hover:bg-stone-800'} ${row.kind === 'note' && row.dimmed ? 'opacity-70' : ''}`}
       onFocus={event => { if (event.target === event.currentTarget) setFocusKey(key); }} onKeyDown={event => keyDown(event, index)}
       onClick={() => { setFocusKey(key); activate(row); }}
       onPointerDown={event => setTouch(event.pointerType === 'touch' || event.pointerType === 'pen')}
@@ -156,11 +160,11 @@ export function NoteNavigation(props: NoteNavigationProps) {
       </> : <><span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
     </div>;
   };
-  return <div className="flex flex-1 min-h-0 min-w-0 flex-col rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+  return <div data-notes-column className="flex flex-1 min-h-0 min-w-0 flex-col rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
     <div className="shrink-0 p-2 space-y-2">
-      <div className="relative flex items-center gap-1"><Search size={14} className="absolute left-2 text-stone-500" /><label htmlFor="notes-search" className="sr-only">Search notes</label><input id="notes-search" type="search" placeholder="Search notes" value={query} onChange={event => props.onQueryChange(event.target.value)} className="min-w-0 w-full min-h-11 sm:min-h-9 pl-7 pr-8 rounded-lg bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700" />{query && <button type="button" aria-label="Clear search" className={`absolute right-0 w-11 sm:w-8 ${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'}`} onClick={() => props.onQueryChange('')}><X size={14} /></button>}</div>
-      <div role="status" aria-live="polite" className="text-xs text-stone-500">{query.trim() ? `${matchCount} ${matchCount === 1 ? 'note matches' : 'notes match'}` : ''}</div>
-      <div className="flex flex-wrap items-center gap-1 text-xs"><div className="inline-flex"><button type="button" onClick={props.onNewNote} className={`inline-flex items-center ${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded-l bg-stone-200 dark:bg-stone-700`}><Plus size={14} /> New note</button><Menu sheetTitle="Note templates" items={props.templateItems ?? []} trigger={trigger => <button type="button" {...trigger} aria-label="Note templates" className={`${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded-r bg-stone-200 dark:bg-stone-700`}><ChevronDown size={14} /></button>} /></div><button type="button" aria-label="New folder" className={`${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded hover:bg-stone-100 dark:hover:bg-stone-800`} onClick={props.onNewFolder}>New folder</button>{props.viewSwitch}</div>
+      <div className="relative flex items-center gap-1"><Search size={14} className="absolute left-2 text-stone-500" /><label htmlFor="notes-search" className="sr-only">Search notes</label><input id="notes-search" ref={searchInput} type="search" placeholder="Search notes" value={query} onChange={event => props.onQueryChange(event.target.value)} className={`min-w-0 w-full ${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} pl-7 pr-8 rounded-lg bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700`} />{query && <button type="button" aria-label="Clear search" className={`absolute right-0 ${compact ? 'w-11 min-h-11' : 'w-11 sm:w-8 min-h-11 sm:min-h-9'}`} onClick={() => props.onQueryChange('')}><X size={14} /></button>}</div>
+      <div role="status" aria-live="polite" className="text-xs text-stone-600 dark:text-stone-400">{query.trim() ? `${matchCount} ${matchCount === 1 ? 'note matches' : 'notes match'}` : ''}</div>
+      <div className="flex items-center gap-1 text-xs"><div className="inline-flex"><button type="button" onClick={props.onNewNote} className={`inline-flex items-center ${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded-l bg-stone-200 dark:bg-stone-700`}><Plus size={14} /> New note</button><Menu sheetTitle="Note templates" items={props.templateItems ?? []} trigger={trigger => <button type="button" {...trigger} aria-label="Note templates" className={`${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded-r bg-stone-200 dark:bg-stone-700`}><ChevronDown size={14} /></button>} /></div><button type="button" aria-label="New folder" className={`${compact ? 'min-h-11' : 'min-h-11 sm:min-h-9'} px-1 rounded hover:bg-stone-100 dark:hover:bg-stone-800`} onClick={props.onNewFolder}>New folder</button>{props.viewSwitch}</div>
     </div>
     {modelRows.filter(row => row.kind === 'status').map(row => <p key={visibleRowKey(row)} className="px-2 text-xs text-stone-600 dark:text-stone-400">{row.text}</p>)}
     <div ref={container} onScroll={windowing.onScroll} onBlur={event => {

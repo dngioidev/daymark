@@ -29,7 +29,7 @@ it('filters in place, highlights titles, announces the count and keeps the open 
   const p = base(); p.query = 'Root'; const el = parse(p);
   expect(el.querySelector('[role=status]')?.textContent).toBe('1 note matches');
   expect(el.querySelector('mark')?.textContent).toBe('Root');
-  expect(el.querySelector('[aria-selected=true]')?.className).toContain('opacity-50');
+  expect(el.querySelector('[aria-selected=true]')?.className).toContain('opacity-70');
   expect(el.querySelector('[aria-label="Clear search"]')).not.toBeNull();
   expect(parse({ ...p, query: 'private' }).querySelector('[data-note-id=two]')?.textContent).toContain('private');
 });
@@ -118,10 +118,11 @@ it.each(['Shift+F10', 'ContextMenu'])('opens a folder actions menu using %s with
 });
 it.each([false, true])('provides phone-height controls and correctly sized folder actions (compact=%s)', compact => {
   const el = parse({ ...base(), compact, query: 'Java' });
-  const controls = [el.querySelector('[aria-label="Clear search"]')!, el.querySelector('[aria-label="New folder"]')!, el.querySelector('[aria-label="Note templates"]')!, [...el.querySelectorAll('button')].find(button => button.textContent?.includes('New note'))!];
+  const controls = [el.querySelector('#notes-search')!, el.querySelector('[aria-label="Clear search"]')!, el.querySelector('[aria-label="New folder"]')!, el.querySelector('[aria-label="Note templates"]')!, [...el.querySelectorAll('button')].find(button => button.textContent?.includes('New note'))!];
   for (const control of controls) {
     expect(control.classList.contains('min-h-11')).toBe(true);
     if (!compact) expect(control.classList.contains('sm:min-h-9')).toBe(true);
+    else expect(control.classList.contains('sm:min-h-9')).toBe(false);
   }
   const menu = el.querySelector('[aria-label="Actions for Tech"]')!;
   expect(menu.classList.contains(compact ? 'w-11' : 'w-7')).toBe(true);
@@ -160,4 +161,11 @@ it('makes the mounted open note the tree tab stop on entry and after leaving', (
   expect(host.querySelector('[role=treeitem][tabindex="0"]')?.getAttribute('data-note-id')).toBe('one');
   act(() => root!.render(React.createElement(NoteNavigation, { ...p, openNoteId: 'missing' })));
   expect(host.querySelector('[role=treeitem][tabindex="0"]')?.getAttribute('aria-label')).toBe('Java, pinned');
+});
+
+it('keeps Clear search 44px wide in explicit compact mode even above the small breakpoint', () => {
+  const el = parse({ ...base(), compact: true, query: 'Java' });
+  const clear = el.querySelector('[aria-label="Clear search"]')!;
+  expect(clear.classList.contains('w-11')).toBe(true);
+  expect(clear.classList.contains('sm:w-8')).toBe(false);
 });

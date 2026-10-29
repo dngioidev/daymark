@@ -8,6 +8,7 @@ import { signIn, resetServerVault, seedVault } from './helpers/server-session.mj
 import { cycle10Qa } from './helpers/cycle-10-qa.mjs';
 import { knowledgeGraphQa } from './helpers/knowledge-graph-qa.mjs';
 import { cycle11Qa } from './helpers/cycle-11-qa.mjs';
+import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -1173,15 +1174,22 @@ const note = (id, content, title = `Browser note ${id}`) => ({
 });
 const rich = (page) => page.getByRole('textbox', { name: 'Note rich text', exact: true });
 // Open a note from the navigation tree, expanding collapsed folders until its row appears.
-const openListNote = async (page, title) => {
+// In the 768-1099px drawer layout the navigation opens from the editor's Notes button.
+const ensureTree = async (page) => {
   const tree = page.getByRole('tree', { name: 'Notes', exact: true });
+  if (!await tree.count()) await page.locator('main').getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await tree.waitFor();
+  return tree;
+};
+const openListNote = async (page, title) => {
+  const tree = await ensureTree(page);
   const row = tree.getByRole('treeitem').filter({ has: page.getByText(title, { exact: true }) }).first();
   for (let i = 0; i < 6 && !await row.isVisible(); i++) await tree.locator('[role=treeitem][aria-expanded=false]').first().click();
   await row.click();
 };
 const openNote = async (page, title) => {
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
-  await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem').filter({ has: page.getByText(title, { exact: true }) }).first().click();
+  await (await ensureTree(page)).getByRole('treeitem').filter({ has: page.getByText(title, { exact: true }) }).first().click();
   await rich(page).waitFor();
 };
 const savedNote = (page, id, predicate, arg) => persisted(page, 'notes',
@@ -1669,12 +1677,7 @@ await run('C11-Folders', async () => {
       if (await row.getAttribute('aria-expanded') === 'false') await row.click();
     }
   };
-  // The minimized strip still uses the legacy icon buttons: "<Leaf>, <n> notes[, in <parent>]".
-  const stripRow = path => {
-    const parts = path.split('/'), where = parts.length > 1 ? `, in ${parts.slice(0, -1).join('/')}` : '';
-    return page.getByRole('button', { name: new RegExp(`^${parts.at(-1)}, \\d+ notes?${where}$`) });
-  };
-  const noteList = page.getByRole('region', { name: 'Notes list', exact: true });
+  const stripRow = path => page.getByRole('button', { name: 'Open folder ' + path, exact: true });
   const levelOf = async title => Number(await noteRow(title).getAttribute('aria-level'));
   await reveal('Tech/Java');
   check('C11-Folders-root-only', await levelOf('Root note') === 1 && await levelOf('Java notes') === 3 && (await noteRow('Inbox notes').count() === 0 || await levelOf('Inbox notes') === 2), 'a root note is a top-level row; nested and other-folder notes are not');
@@ -1746,16 +1749,16 @@ await run('C11-Folders', async () => {
   await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
   const strip = page.getByRole('complementary', { name: 'Folder navigation', exact: true });
   const stripBounds = await strip.boundingBox();
-  const listBounds = await noteList.boundingBox();
-  check('C11-Folders-min-list', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).isVisible() && await noteList.getByRole('button', { name: 'New note', exact: true }).isVisible() && listBounds.x >= stripBounds.x + stripBounds.width && Math.abs(stripBounds.width - 56) <= 1, 'minimizing only the tree leaves search, creation and a notes list beside the 56px strip');
-  await stripRow('Engineering').click();
-  await reveal('Engineering');
-  check('C11-Folders-strip-select', await stripRow('Engineering').getAttribute('aria-current') === 'true' && await folderRow('Engineering').getAttribute('aria-current') === 'true' && await noteRow('Java notes').isVisible() && await noteRow('Inbox notes').isVisible(), 'folder strip icon selects its folder as the current one in the tree');
+  check('C11-Folders-min-strip', await tree.count() === 0 && await strip.getByRole('button', { name: 'Search notes', exact: true }).isVisible() && await strip.getByRole('button', { name: 'New note', exact: true }).isVisible() && Math.abs(stripBounds.width - 56) <= 1, 'minimizing replaces the column with a 56px shortcut strip');
+  await stripRow('Engineering').click(); await reveal('Engineering');
+  check('C11-Folders-strip-select', await folderRow('Engineering').getAttribute('aria-current') === 'true' && await noteRow('Java notes').isVisible() && await noteRow('Inbox notes').isVisible(), 'folder shortcut expands the column with that folder current');
+  await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
   await page.getByRole('button', { name: 'Expand folders', exact: true }).waitFor();
-  check('C11-Folders-prefs', await stripRow('Engineering').isVisible(), 'minimized folder strip survives reload with accessible icons');
-  check('C11-Folders-persist-list', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).isVisible() && await noteList.getByRole('button', { name: 'New note', exact: true }).isVisible() && await noteRow('Root note').isVisible(), 'reloaded minimized state keeps search, New note and the notes list');
+  check('C11-Folders-prefs', await stripRow('Engineering').isVisible() && await tree.count() === 0, 'minimized shortcut strip survives reload');
+  await strip.getByRole('button', { name: 'Search notes', exact: true }).click();
+  check('C11-Folders-persist-search', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).evaluate(el => el === document.activeElement) && await page.getByRole('button', { name: 'New note', exact: true }).isVisible() && await noteRow('Root note').isVisible(), 'strip Search restores the one column, focuses search and keeps all notes reachable');
   check('C11-Folders-errors', errors.length === 0, 'folder operations have no browser errors', errors.join(' | '));
 });
 
@@ -1766,31 +1769,24 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   if (width >= 1100) {
     await page.getByRole('button', { name: /^(Minimize|Expand) folders$/ }).waitFor();
     check(`C11-Width-${width}-tree`, await page.getByRole('treeitem', { name: 'Tech, folder, 1 note', exact: true }).isVisible(), 'desktop tree stays reachable');
-  } else {
-    const opener = page.getByRole('button', { name: 'Folders', exact: true });
+  } else if (width >= 768) {
+    const opener = page.getByRole('group', { name: 'Note editor', exact: true }).getByRole('button', { name: 'Notes', exact: true });
     await opener.click();
-    const drawer = page.getByRole('dialog', { name: 'Folders', exact: true });
-    await drawer.getByRole('button', { name: 'Tech, 1 note', exact: true }).waitFor();
-    if (width === 390) {
-      const heights = await drawer.locator('button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
-      check('C11-Width-390-rows', heights.every(height => height >= 44), 'phone folder rows and actions have 44px targets', JSON.stringify(heights));
-    }
+    const drawer = page.getByRole('dialog', { name: 'Notes', exact: true });
+    await drawer.getByRole('treeitem', { name: 'Tech, folder, 1 note', exact: true }).waitFor();
     await page.keyboard.press('Escape');
-    check(`C11-Width-${width}-escape`, await opener.evaluate(el => el === document.activeElement), 'Escape closes the drawer and restores focus');
+    check('C11-Width-' + width + '-escape', await opener.evaluate(el => el === document.activeElement), 'Escape closes Notes drawer and restores focus');
     await opener.click();
-    await drawer.getByRole('button', { name: 'Tech, 1 note', exact: true }).click();
-    check(`C11-Width-${width}-selection`, await drawer.count() === 0 && await opener.evaluate(el => el === document.activeElement), 'folder selection closes the drawer and restores focus');
+    await drawer.getByRole('treeitem', { name: 'Tech, folder, 1 note', exact: true }).click();
+    check('C11-Width-' + width + '-folder', await drawer.isVisible(), 'folder activation keeps the Notes drawer open');
+  } else {
+    const heights = await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
+    check('C11-Width-390-rows', heights.length > 0 && heights.every(height => height >= 44), 'phone tree rows have 44px targets', JSON.stringify(heights));
   }
-  await openListNote(page, 'Responsive note');
-  await rich(page).waitFor();
-  if (width < 1100) {
-    await page.getByRole('button', { name: 'Folders', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Folders', exact: true }).getByRole('button', { name: 'Tech, 1 note', exact: true }).click();
-    await page.getByRole('searchbox', { name: 'Search notes', exact: true }).waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Folders');
-    check(`C11-Width-${width}-editor-selection`, await rich(page).count() === 0 || !await rich(page).isVisible(), 'selecting a drawer folder from the editor returns to its filtered list and restores focus');
-    await openListNote(page, 'Responsive note');
-    await rich(page).waitFor();
+  await openListNote(page, 'Responsive note'); await rich(page).waitFor();
+  if (width >= 768 && width < 1100) {
+    const opener = page.getByRole('group', { name: 'Note editor', exact: true }).getByRole('button', { name: 'Notes', exact: true });
+    check('C11-Width-' + width + '-selection', await page.getByRole('dialog', { name: 'Notes', exact: true }).count() === 0 && await opener.evaluate(el => el === document.activeElement), 'opening a note closes the drawer and returns focus to Notes');
   }
   const bounds = await page.getByRole('textbox', { name: 'Title', exact: true }).boundingBox();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
@@ -1803,9 +1799,9 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   await settingsClose(page);
   await themeSaved(page, 'dark');
   await page.screenshot({ path: path.join(outDir, `notes-${width}-dark.png`) });
-  if (width < 1100) {
-    await page.getByRole('button', { name: 'Folders', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Folders', exact: true }).waitFor();
+  if (width >= 768 && width < 1100) {
+    await page.getByRole('group', { name: 'Note editor', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Notes', exact: true }).waitFor();
     await page.screenshot({ path: path.join(outDir, `folders-${width}-dark.png`) });
   }
 });
@@ -1834,7 +1830,7 @@ await run('C12-Navigation', async () => {
   await tech.click(); await tree.getByRole('treeitem', { name: 'Java note', exact: true }).click();
   check('C12-Navigation-open', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Java note', 'tree note opens in the editor');
   await search.fill('Root'); await tree.getByRole('treeitem', { name: 'Root note', exact: true }).waitFor();
-  check('C12-Navigation-search', await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1 && await tree.locator('[aria-selected="true"]').evaluate(el => getComputedStyle(el).opacity === '0.5') && await tree.locator('mark').innerText() === 'Root', 'search filters in place, highlights and announces one match while keeping the open note dimmed');
+  check('C12-Navigation-search', await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1 && await tree.locator('[aria-selected="true"]').evaluate(el => getComputedStyle(el).opacity === '0.7') && await tree.locator('mark').innerText() === 'Root', 'search filters in place, highlights and announces one match while keeping the open note dimmed');
   await page.getByRole('button', { name: 'Clear search', exact: true }).click();
   await tech.focus(); await page.keyboard.press('Home'); await page.keyboard.press('End');
   check('C12-Navigation-end', await tree.getByRole('treeitem', { name: 'Root note', exact: true }).evaluate(el => el === document.activeElement), 'End reaches the last note');
@@ -1892,6 +1888,19 @@ await run('C12-Performance', async () => {
   started = performance.now(); await page.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('Load 123'); await tree.getByRole('treeitem', { name: 'Load 123', exact: true }).waitFor();
   check('C12-Performance-search', performance.now() - started < 1000 && await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1, 'filter 1,000 notes in under 1,000ms', String(Math.round(performance.now() - started)) + 'ms');
   check('C12-Performance-errors', errors.length === 0, 'large vault has no browser errors', errors.join(' | '));
+});
+
+for (const width of [1440, 1280, 1100, 900, 390]) for (const theme of ['light', 'dark']) await run('C12-Responsive-' + width + '-' + theme, async () => {
+  const { page, errors } = await fresh({ notes: responsiveNotesFixture(), mobile: width < 768 });
+  await page.setViewportSize({ width, height: 900 });
+  if (theme === 'dark') {
+    await settingsOpen(page); await settingsBox(page).getByRole('button', { name: /Dark$/ }).click();
+    await settingsClose(page); await themeSaved(page, 'dark');
+  }
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
+  await notesResponsiveScenario({ page, width, axe: fs.readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8'),
+    verify: (name, ok, detail = '') => check('C12-Responsive-' + width + '-' + theme + '-' + name, ok, name, detail) });
+  check('C12-Responsive-' + width + '-' + theme + '-errors', errors.length === 0, 'no browser errors', errors.join(' | '));
 });
 
 await knowledgeGraphQa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, png });

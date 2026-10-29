@@ -27,7 +27,9 @@ vi.mock('../native/backButton', () => ({ useBackHandler: vi.fn() }));
 vi.mock('./MarkdownPreview', () => ({ MarkdownPreview: () => React.createElement('p', null, 'Preview') }));
 import { StandaloneNotesView } from './StandaloneNotesView';
 import { Menu, type MenuItem } from './ui/Menu';
-import { NoteFolderTree } from './notes/NoteFolderTree';
+import { NotesStrip } from './notes/NotesStrip';
+import { NotesDrawer } from './notes/NotesDrawer';
+import { PhoneNotes } from './notes/PhoneNotes';
 import { NoteNavigation } from './notes/NoteNavigation';
 import { FolderPicker } from './notes/FolderPicker';
 import { FolderDialogs } from './notes/FolderDialogs';
@@ -91,6 +93,10 @@ function find(element: React.ReactNode, predicate: (el: React.ReactElement<Recor
   }
   if (!React.isValidElement<Record<string, unknown>>(element)) return;
   if (predicate(element)) return element as React.ReactElement<TestProps>;
+  if (element.type === PhoneNotes) {
+    return find(element.props.navigation as React.ReactNode, predicate)
+      ?? (element.props.pane === 'editor' ? find(element.props.editor as React.ReactNode, predicate) : undefined);
+  }
   for (const child of React.Children.toArray(element.props.children as React.ReactNode)) {
     const match = find(child, predicate);
     if (match) return match;
@@ -171,14 +177,15 @@ it('opens a requested note in the compact editor', () => {
   expect(find(tree, (el) => el.props.id === 'note-title')?.props.value).toBe('Chosen');
 });
 
-it('ignores focus signals on compact screens without jumping from the list to the editor', () => {
-  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
-  render(true, { focusToggleSignal: 0 });
+it.each([true, false])('ignores focus signals on phone screens without jumping to the editor (compact=%s)', compact => {
+  vi.stubGlobal('window', { innerWidth: 390, setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  render(compact, { focusToggleSignal: 0 });
   hooks.effects.forEach((effect) => effect());
-  render(true, { focusToggleSignal: 1 });
+  render(compact, { focusToggleSignal: 1 });
   hooks.effects.forEach((effect) => effect());
-  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
-  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.props.id === 'note-title')).toBeUndefined();
+  expect(find(render(compact, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
+  expect(find(render(compact, { focusToggleSignal: 1 }), (el) => el.props.id === 'note-title')).toBeUndefined();
 });
 
 it.each([false, true])('consumes a note-open request once (compact=%s)', (compact) => {
@@ -362,12 +369,12 @@ it('does not combine a hidden desktop Back button with a display utility', () =>
 });
 
 // Fix round 1 regressions.
-it('keeps the existing strip next to the new navigation when minimized', () => {
+it('replaces the whole navigation with the minimized strip', () => {
   vi.stubGlobal('window', { innerWidth: 1440 });
   find(render(), el => el.props['aria-label'] === 'Minimize folders')!.props.onClick();
   const tree = render();
-  expect(find(tree, el => el.type === NoteFolderTree)?.props.minimized).toBe(true);
-  expect(find(tree, el => el.type === NoteNavigation)).toBeDefined();
+  expect(find(tree, el => el.type === NotesStrip)).toBeDefined();
+  expect(find(tree, el => el.type === NoteNavigation)).toBeUndefined();
 });
 
 it.each(['', 'Tech'])('keeps every note available when the current folder changes (%s)', path => {
@@ -387,19 +394,13 @@ it('deleting a top-level folder keeps all resulting notes and marks the confirma
   expect(find(tree, el => el.type === NoteNavigation)?.props.currentFolder).toBe('');
   expect(find(tree, el => el.type === NoteNavigation)?.props.notes).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'other', folder: 'Other' }), expect.objectContaining({ id: note.id, folder: '' })]));
 });
-it.each([true, false])('selecting a drawer folder returns an open editor to its list (compact=%s)', compact => {
+it('drawer folder selection changes the creation folder and keeps the column open', () => {
   vi.stubGlobal('window', { innerWidth: 900 });
-  const first = render(compact);
-  (find(first, el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
-  const editor = render(compact);
-  find(editor, el => el.props['aria-label'] === 'Folders')!.props.onClick();
-  (find(render(compact), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
-  const tree = render(compact);
-  const search = find(tree, el => el.type === NoteNavigation);
-  expect(search).toBeDefined();
-  if (!compact) {
-    expect(find(tree, el => el.props['aria-label'] === 'Notes navigation')!.props.className).not.toContain('hidden');
-  }
+  find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick();
+  (find(render(), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Work');
+  expect(find(render(), el => el.type === NotesDrawer)).toBeDefined();
+  expect(find(render(), el => el.type === NoteNavigation)?.props.currentFolder).toBe('Work');
+  expect(find(render(), el => el.props.id === 'note-title')?.props.value).toBe('Existing');
 });
 it('restores the Notes heading on the compact list', () => {
   expect(find(render(true), el => el.type === 'h1' && el.props.children === 'Notes')).toBeDefined();
@@ -414,12 +415,13 @@ it('ignores a folder self-drop but refuses a descendant drop', () => {
   expect(update).not.toHaveBeenCalled();
 });
 
-it('leaves focus mode when a drawer folder selection returns to the list', () => {
+it('can open a note from the Notes drawer while in focus mode', () => {
   vi.stubGlobal('window', { innerWidth: 900 });
   find(render(), el => el.props['aria-label'] === 'Focus mode')!.props.onClick();
-  find(render(), el => el.props['aria-label'] === 'Folders')!.props.onClick();
-  (find(render(), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
-  expect(find(render(), el => el.type === NoteNavigation)).toBeDefined();
+  find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick();
+  (find(render(), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  expect(find(render(), el => el.type === NotesDrawer)).toBeUndefined();
+  expect(find(render(), el => el.props.id === 'note-title')?.props.value).toBe('Existing');
 });
 
 it('opens a tree note into its folder, expands ancestors, and creates there without saving on render', () => {
@@ -468,4 +470,12 @@ it('reveals the fallback note after the active note disappears during sync', () 
   expect(nav.props.currentFolder).toBe('Archive/2026');
   expect(nav.props.expanded).toEqual(new Set(['work', 'archive', 'archive/2026']));
   expect(update).not.toHaveBeenCalled();
+});
+
+it('removes the desktop header row and places the presentation switch in navigation', () => {
+  const tree = render();
+  expect(find(tree, el => el.type === 'header' && el.props['aria-label'] === 'Notes view')).toBeUndefined();
+  expect(find(tree, el => el.type === 'h1')).toBeUndefined();
+  const nav = find(tree, el => el.type === NoteNavigation)!;
+  expect(nav.props.viewSwitch).toBeDefined();
 });

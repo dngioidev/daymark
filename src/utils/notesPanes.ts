@@ -1,13 +1,13 @@
 export interface PanePrefs { tree: 'open' | 'min'; related: 'open' | 'min' | undefined; graphFilters?: 'open' | 'min'; graphDetail?: 'open' | 'min' }
 export const MIN_EDITOR_WIDTH = 480;
-// Expanded navigation is one column. Keep the legacy strip + list budget until Task 4.
-export const NOTES_WIDTHS = { rail: 168, railMin: 64, tree: 288, strip: 56, list: 256, related: 256,
-  padding: 64, compactPadding: 32, paneGap: 12, navigationGap: 8, maxContent: 1800 };
+// One navigation column, or its shortcut strip; no companion list.
+export const NOTES_WIDTHS = { rail: 168, railMin: 64, tree: 288, strip: 56, related: 256,
+  padding: 64, compactPadding: 32, paneGap: 12, maxContent: 1800 };
 
 export function notesEditorWidth(windowWidth: number, panes: { railCollapsed: boolean; tree: 'open' | 'min'; related: 'open' | 'min' }): number {
   const w = NOTES_WIDTHS;
   return Math.min(windowWidth - (panes.railCollapsed ? w.railMin : w.rail), w.maxContent)
-    - (panes.tree === 'open' ? w.tree : w.strip + w.list + w.navigationGap) - (panes.related === 'open' ? w.related : w.strip)
+    - (panes.tree === 'open' ? w.tree : w.strip) - (panes.related === 'open' ? w.related : w.strip)
     - (windowWidth >= 1280 ? w.padding : w.compactPadding) - 2 * w.paneGap;
 }
 

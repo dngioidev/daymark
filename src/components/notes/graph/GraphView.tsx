@@ -9,10 +9,12 @@ import { scheduleGraphSuggestions, type SuggestionProgress } from '../../../util
 import { loadPanePrefs, savePanePrefs } from '../../../utils/notesPanes';
 import { GraphFilters } from './GraphFilters';
 import { GraphDetail, ConnectionActions } from './GraphDetail';
+import { ViewSwitch, type ViewSwitchProps } from '../ViewSwitch';
 import { GraphList } from './GraphList';
 
 export interface GraphViewProps {
   notes: StandaloneNote[]; index: NoteIndex; dismissed: Set<string>; folderTree: FolderNode[];
+  onViewChange?: ViewSwitchProps['onChange']; focusViewSwitch?: React.RefObject<boolean>;
   selectedFolder: string | 'all'; activeNoteId?: string;
   onOpenNote(id: string): void; onLink(fromId: string, toId: string): void; onDismiss(a: string, b: string): void;
 }
@@ -202,7 +204,8 @@ export default function GraphView(props: GraphViewProps) {
       {!filterMin && <GraphFilters tree={props.folderTree} tags={tags} options={options} onChange={setOptions} activeNoteId={selectedId ?? props.activeNoteId} />}
     </aside>
     <div className="flex-1 flex flex-col min-w-0 min-h-0 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950 overflow-hidden">
-      <div className="flex flex-wrap gap-1 p-2 items-center">
+      <div role="toolbar" aria-label="Graph controls" className="flex flex-wrap gap-1 p-2 items-center">
+        {props.onViewChange && <ViewSwitch value="graph" focusOnMount={props.focusViewSwitch} onChange={props.onViewChange} />}
         <button type="button" className={button} aria-label="List view" aria-pressed={listView} onClick={() => setListView(!listView)}>List view</button>
         <button type="button" className={button} aria-label="Zoom in" onClick={() => zoomAt(1.25)}><Plus size={16} aria-hidden="true" className="mx-auto" /></button>
         <button type="button" className={button} aria-label="Zoom out" onClick={() => zoomAt(.8)}><Minus size={16} aria-hidden="true" className="mx-auto" /></button>

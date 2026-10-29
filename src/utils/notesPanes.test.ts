@@ -27,7 +27,7 @@ it('survives unavailable storage', () => {
 for (const width of [1280, 1366, 1440, 1600, 1920]) for (const railCollapsed of [false, true]) for (const tree of ['open', 'min'] as const) {
   it(`budgets ${width}px with rail ${railCollapsed ? 'strip' : 'open'} and tree ${tree}`, () => {
     const available = Math.min(width - (railCollapsed ? 64 : 168), 1800);
-    const expected = available - (tree === 'open' ? 288 : 320) - 256 - 64 - 24;
+    const expected = available - (tree === 'open' ? 288 : 56) - 256 - 64 - 24;
     expect(notesEditorWidth(width, { railCollapsed, tree, related: 'open' })).toBe(expected);
     expect(notesEditorWidth(width, { railCollapsed, tree, related: 'min' })).toBe(expected + 200);
     const layout = relatedPaneLayout(width, railCollapsed, { tree, related: undefined });
@@ -72,4 +72,8 @@ it('uses the reclaimed list width for the editor on a 1440px desktop', () => {
 it('keeps the existing minimized-strip path within the editor budget at 1100px', () => {
   const layout = relatedPaneLayout(1100, false, { tree: 'min', related: undefined });
   expect(notesEditorWidth(1100, { railCollapsed: false, tree: layout.tree, related: layout.related })).toBeGreaterThanOrEqual(480);
+});
+
+it('reclaims the entire navigation column when minimized', () => {
+  expect(notesEditorWidth(1280, { railCollapsed: false, tree: 'min', related: 'open' })).toBe(712);
 });
