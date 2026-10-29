@@ -1,5 +1,5 @@
 {
- "ranAt": "2026-10-29T10:44:16.328Z",
+ "ranAt": "2026-10-29T11:02:40.890Z",
  "results": [
   {
    "id": "LAY-habits-P390-light",
@@ -7,7 +7,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 2485
+   "ms": 2696
   },
   {
    "id": "LAY-habits-P390-dark",
@@ -15,7 +15,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 2706
+   "ms": 2857
   },
   {
    "id": "LAY-habits-D1440-light",
@@ -23,7 +23,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2486
+   "ms": 2558
   },
   {
    "id": "LAY-habits-D1440-dark",
@@ -31,7 +31,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2923
+   "ms": 2833
   },
   {
    "id": "LAY-habits-D1920-light",
@@ -39,7 +39,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2667
+   "ms": 2742
   },
   {
    "id": "LAY-habits-D1920-dark",
@@ -47,7 +47,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2815
+   "ms": 3155
   },
   {
    "id": "LAY-D1440",
@@ -55,7 +55,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2325
+   "ms": 2502
   },
   {
    "id": "LAY-D1920",
@@ -63,7 +63,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2334
+   "ms": 2305
   },
   {
    "id": "LAY-P412",
@@ -71,7 +71,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2081
+   "ms": 2127
   },
   {
    "id": "GL-01",
@@ -79,7 +79,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2575
+   "ms": 2598
   },
   {
    "id": "GL-02",
@@ -87,7 +87,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2567
+   "ms": 2529
   },
   {
    "id": "GL-03",
@@ -95,7 +95,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2197
+   "ms": 2178
   },
   {
    "id": "GL-04",
@@ -103,7 +103,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3496
+   "ms": 3599
   },
   {
    "id": "GL-05",
@@ -111,7 +111,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4021
+   "ms": 4475
   },
   {
    "id": "GL-07",
@@ -119,7 +119,7 @@
    "env": "P412",
    "status": "pass",
    "details": "visible ~4 s, above nav, dismissible",
-   "ms": 6597
+   "ms": 6754
   },
   {
    "id": "NAV-01",
@@ -127,7 +127,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3692
+   "ms": 4694
   },
   {
    "id": "NAV-13",
@@ -135,7 +135,7 @@
    "env": "360x740+320x740",
    "status": "pass",
    "details": "",
-   "ms": 4557
+   "ms": 4423
   },
   {
    "id": "NAV-02",
@@ -143,7 +143,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2370
+   "ms": 2355
   },
   {
    "id": "NAV-03",
@@ -151,7 +151,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2306
+   "ms": 2336
   },
   {
    "id": "NAV-04",
@@ -159,7 +159,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2076
+   "ms": 2300
   },
   {
    "id": "NAV-05",
@@ -167,7 +167,7 @@
    "env": "D1024+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4583
+   "ms": 5077
   },
   {
    "id": "NAV-10",
@@ -175,7 +175,7 @@
    "env": "D800+D1280",
    "status": "pass",
    "details": "",
-   "ms": 5243
+   "ms": 5643
   },
   {
    "id": "NAV-12",
@@ -183,7 +183,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3662
+   "ms": 3693
   },
   {
    "id": "NAV-06",
@@ -191,7 +191,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2527
+   "ms": 2653
   },
   {
    "id": "NAV-07",
@@ -199,7 +199,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4665
+   "ms": 4779
   },
   {
    "id": "NAV-08",
@@ -207,7 +207,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2457
+   "ms": 2600
   },
   {
    "id": "NAV-09",
@@ -215,7 +215,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2615
+   "ms": 2649
   },
   {
    "id": "NAV-11",
@@ -223,7 +223,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4453
+   "ms": 4725
   },
   {
    "id": "TD-01",
@@ -231,7 +231,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2227
+   "ms": 2210
   },
   {
    "id": "TD-02",
@@ -239,7 +239,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2147
+   "ms": 2173
   },
   {
    "id": "TD-03",
@@ -247,7 +247,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4694
+   "ms": 4286
   },
   {
    "id": "TD-04",
@@ -255,7 +255,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2271
+   "ms": 2234
   },
   {
    "id": "TD-05",
@@ -263,7 +263,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2316
+   "ms": 2268
   },
   {
    "id": "TD-06",
@@ -271,7 +271,7 @@
    "env": "P360+P412",
    "status": "pass",
    "details": "",
-   "ms": 4799
+   "ms": 4734
   },
   {
    "id": "TD-07",
@@ -279,7 +279,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2534
+   "ms": 2649
   },
   {
    "id": "TD-08",
@@ -287,7 +287,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2483
+   "ms": 2476
   },
   {
    "id": "TD-09",
@@ -295,7 +295,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2314
+   "ms": 2385
   },
   {
    "id": "TD-10",
@@ -303,7 +303,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1988
+   "ms": 2239
   },
   {
    "id": "TK-01",
@@ -311,7 +311,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2184
+   "ms": 2135
   },
   {
    "id": "TK-02",
@@ -319,7 +319,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2045
+   "ms": 2254
   },
   {
    "id": "TK-03",
@@ -327,7 +327,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2119
+   "ms": 2111
   },
   {
    "id": "TK-04",
@@ -335,7 +335,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3633
+   "ms": 3569
   },
   {
    "id": "TK-05",
@@ -343,7 +343,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2222
+   "ms": 2166
   },
   {
    "id": "TK-06",
@@ -351,7 +351,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2279
+   "ms": 2298
   },
   {
    "id": "TK-07",
@@ -359,7 +359,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2370
+   "ms": 2257
   },
   {
    "id": "TK-08",
@@ -367,7 +367,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2345
+   "ms": 2201
   },
   {
    "id": "TK-09",
@@ -375,7 +375,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1915
+   "ms": 2104
   },
   {
    "id": "TK-10",
@@ -383,7 +383,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 1983
+   "ms": 2649
   },
   {
    "id": "TK-11",
@@ -391,7 +391,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2026
+   "ms": 2186
   },
   {
    "id": "TK-12",
@@ -399,7 +399,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2325
+   "ms": 2335
   },
   {
    "id": "TK-13",
@@ -407,7 +407,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2099
+   "ms": 2781
   },
   {
    "id": "TK-14",
@@ -415,7 +415,7 @@
    "env": "P360",
    "status": "pass",
    "details": "",
-   "ms": 2742
+   "ms": 2847
   },
   {
    "id": "QC-01",
@@ -423,7 +423,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2226
+   "ms": 2045
   },
   {
    "id": "QC-02",
@@ -431,7 +431,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2601
+   "ms": 2597
   },
   {
    "id": "QC-03",
@@ -439,7 +439,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2307
+   "ms": 2191
   },
   {
    "id": "QC-04",
@@ -447,7 +447,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2792
+   "ms": 2734
   },
   {
    "id": "QC-05",
@@ -455,7 +455,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2238
+   "ms": 2331
   },
   {
    "id": "HI-05",
@@ -463,7 +463,7 @@
    "env": "P390+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5362
+   "ms": 5312
   },
   {
    "id": "HI-01",
@@ -471,7 +471,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4287
+   "ms": 5000
   },
   {
    "id": "HI-02",
@@ -479,7 +479,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2328
+   "ms": 2204
   },
   {
    "id": "HI-03",
@@ -487,7 +487,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2343
+   "ms": 2178
   },
   {
    "id": "HI-04",
@@ -495,7 +495,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2287
+   "ms": 2176
   },
   {
    "id": "NO-01",
@@ -503,7 +503,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2246
+   "ms": 2157
   },
   {
    "id": "NO-02",
@@ -511,7 +511,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2269
+   "ms": 2091
   },
   {
    "id": "NO-03",
@@ -519,7 +519,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2393
+   "ms": 2053
   },
   {
    "id": "NO-04",
@@ -527,7 +527,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2419
+   "ms": 2392
   },
   {
    "id": "NO-05",
@@ -535,7 +535,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4302
+   "ms": 3958
   },
   {
    "id": "NO-06",
@@ -543,7 +543,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5380
+   "ms": 5193
   },
   {
    "id": "NO-07",
@@ -551,7 +551,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5446
+   "ms": 5147
   },
   {
    "id": "NO-08",
@@ -559,7 +559,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2521
+   "ms": 2382
   },
   {
    "id": "NO-09",
@@ -567,7 +567,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2437
+   "ms": 2430
   },
   {
    "id": "NO-10",
@@ -575,7 +575,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2266
+   "ms": 2325
   },
   {
    "id": "NO-11",
@@ -583,7 +583,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2370
+   "ms": 2241
   },
   {
    "id": "NO-12-1440-light",
@@ -591,7 +591,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4356
+   "ms": 4241
   },
   {
    "id": "NO-12-1440-dark",
@@ -599,7 +599,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4484
+   "ms": 4414
   },
   {
    "id": "NO-12-1280-light",
@@ -607,7 +607,7 @@
    "env": "D1280",
    "status": "pass",
    "details": "",
-   "ms": 4544
+   "ms": 4336
   },
   {
    "id": "NO-12-1280-dark",
@@ -615,7 +615,7 @@
    "env": "D1280",
    "status": "pass",
    "details": "",
-   "ms": 4530
+   "ms": 4167
   },
   {
    "id": "NO-12-1100-light",
@@ -623,7 +623,7 @@
    "env": "D1100",
    "status": "pass",
    "details": "",
-   "ms": 4444
+   "ms": 4195
   },
   {
    "id": "NO-12-1100-dark",
@@ -631,7 +631,7 @@
    "env": "D1100",
    "status": "pass",
    "details": "",
-   "ms": 4476
+   "ms": 4343
   },
   {
    "id": "NO-12-900-light",
@@ -639,7 +639,7 @@
    "env": "D900",
    "status": "pass",
    "details": "",
-   "ms": 4048
+   "ms": 3949
   },
   {
    "id": "NO-12-900-dark",
@@ -647,7 +647,7 @@
    "env": "D900",
    "status": "pass",
    "details": "",
-   "ms": 4394
+   "ms": 3758
   },
   {
    "id": "NO-12-390-light",
@@ -655,7 +655,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 3385
+   "ms": 3250
   },
   {
    "id": "NO-12-390-dark",
@@ -663,7 +663,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 3649
+   "ms": 3460
   },
   {
    "id": "SY-01",
@@ -671,7 +671,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2245
+   "ms": 2228
   },
   {
    "id": "SY-02",
@@ -679,7 +679,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2374
+   "ms": 2627
   },
   {
    "id": "SY-03",
@@ -687,7 +687,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2558
+   "ms": 2555
   },
   {
    "id": "SY-04",
@@ -695,7 +695,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2934
+   "ms": 2422
   },
   {
    "id": "SY-05",
@@ -703,7 +703,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2904
+   "ms": 2674
   },
   {
    "id": "SY-06",
@@ -711,7 +711,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2894
+   "ms": 2687
   },
   {
    "id": "SY-07",
@@ -719,7 +719,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 5982
+   "ms": 5822
   },
   {
    "id": "SY-08",
@@ -727,7 +727,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3288
+   "ms": 3099
   },
   {
    "id": "SE-01",
@@ -735,7 +735,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5773
+   "ms": 5621
   },
   {
    "id": "SE-02",
@@ -743,7 +743,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2557
+   "ms": 2358
   },
   {
    "id": "SE-03",
@@ -751,7 +751,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2603
+   "ms": 2179
   },
   {
    "id": "SE-04",
@@ -759,7 +759,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3142
+   "ms": 2346
   },
   {
    "id": "SE-05",
@@ -767,7 +767,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2858
+   "ms": 2497
   },
   {
    "id": "SE-06",
@@ -775,7 +775,7 @@
    "env": "D1440+P412",
    "status": "pass",
    "details": "",
-   "ms": 4967
+   "ms": 4607
   },
   {
    "id": "SE-07",
@@ -783,7 +783,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2728
+   "ms": 2703
   },
   {
    "id": "SE-08",
@@ -791,7 +791,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2546
+   "ms": 2264
   },
   {
    "id": "SE-09",
@@ -799,7 +799,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3036
+   "ms": 2822
   },
   {
    "id": "AX-06",
@@ -807,7 +807,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4711
+   "ms": 5018
   },
   {
    "id": "AX-07",
@@ -815,7 +815,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2237
+   "ms": 2208
   },
   {
    "id": "GL-09",

@@ -36,7 +36,7 @@ it('wipes leftover vault before showing sign-in and keeps pending logout when of
   expect([...values.keys()]).toEqual(['unrelated']);
 });
 
-async function sessionPage(response: Response | Error, cookie = 'other=1; daymark_signed_in=1') {
+async function sessionPage(response: Response | Error, cookie = 'other=1; daymark_signed_in=1', where = { pathname: '/signin.html', href: 'http://localhost/signin.html' }) {
   vi.resetModules();
   const broadcast = vi.fn();
   vi.stubGlobal('BroadcastChannel', class {
@@ -45,7 +45,7 @@ async function sessionPage(response: Response | Error, cookie = 'other=1; daymar
   });
   vi.stubGlobal('document', { cookie });
   const replace = vi.fn();
-  vi.stubGlobal('location', { replace });
+  vi.stubGlobal('location', { replace, ...where });
   const values = new Map([['daymark_notes_v1', 'unsent edit']]);
   vi.stubGlobal('localStorage', {
     get length() { return values.size; }, key: (i: number) => [...values.keys()][i],
@@ -67,6 +67,12 @@ async function sessionPage(response: Response | Error, cookie = 'other=1; daymar
   const { prepareSignIn } = await import('./startup');
   return { prepareSignIn, values, broadcast, deleteDatabase, replace, request };
 }
+
+it('returns to the original deep link after silently restoring the session', async () => {
+  const page = await sessionPage(new Response('{}'), undefined, { pathname: '/', href: 'http://localhost/?action=capture' });
+  await page.prepareSignIn();
+  expect(page.replace).toHaveBeenCalledWith('http://localhost/?action=capture');
+});
 
 it('redirects a valid session without wiping or broadcasting to signed-in app tabs', async () => {
   const page = await sessionPage(new Response('{}'));

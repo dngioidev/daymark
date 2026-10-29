@@ -22,7 +22,8 @@ export async function prepareSignIn(): Promise<SignInStartup> {
       return 'offline';
     }
     if (response.ok) {
-      location.replace('/');
+      // The gate can serve this page for any deep link (e.g. /?action=capture) when a refresh rotation races the navigation
+      location.replace(location.pathname === '/signin.html' ? '/' : location.href);
       return 'redirecting';
     }
     // Only an authoritative rejection establishes that cleanup is safe.

@@ -47,16 +47,20 @@ Numbers are from full runs of each suite on this branch, one at a time.
 | Check | Observed result |
 | :--- | :--- |
 | TypeScript / `npm run lint` | Clean |
-| Vitest (`--maxWorkers=2`) | 123 files, 1,457 passed, 1 skipped |
+| Vitest (`--maxWorkers=2`) | 127 files, 1,494 passed, 1 skipped |
 | `npm run test:helpers` | 23 of 23 passed |
 | `npm run build` | Built |
 | `npm run build:site` | Built |
 | `npm run validate:ai` | All checks passed, 0 failures |
-| `npm run test:qa` | 817 checks, 0 failed |
+| `npm run test:qa` | 822 checks, 0 failed |
 | `node scripts/ux-suite.mjs` | 103 passed, 0 failed (includes the accessibility scans) |
 | `npm run test:sync` | 32 checks passed |
-| `npm run test:e2e` | All checks passed |
+| `npm run test:e2e` | All checks passed (8 runs in a row after the fix below) |
 | `npm run android:build -- --test` | Build successful, Kotlin unit tests passed |
+
+## Also fixed
+
+- Opening an installed-app shortcut such as New task while the sign-in session was being renewed could land on the home page instead of the shortcut's target. The renewal now returns to the page you asked for.
 
 ## Known limits
 
