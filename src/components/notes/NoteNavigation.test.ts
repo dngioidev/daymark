@@ -9,7 +9,7 @@ const note = (id: string, title: string, folder = '', extra = {}): StandaloneNot
 const base = (): NoteNavigationProps => ({ notes: [note('one', 'Java', 'Tech/Java', { pinned: true }), note('two', 'Root')], meta: { folders: [], dismissed: [] }, expanded: new Set(['tech', 'tech/java']), currentFolder: 'Tech', query: '', openNoteId: 'one', onExpandedChange: vi.fn(), onQueryChange: vi.fn(), onOpenNote: vi.fn(), onSelectFolder: vi.fn(), onNewNote: vi.fn(), onNewFolder: vi.fn(), onFolderAction: vi.fn(), dragEnabled: true });
 const parse = (props = base()) => { const el = document.createElement('div'); el.innerHTML = renderToStaticMarkup(React.createElement(NoteNavigation, props)); return el; };
 let root: Root | undefined; let host: HTMLDivElement;
-afterEach(() => { if (root) act(() => root!.unmount()); root = undefined; host?.remove(); });
+afterEach(() => { if (root) act(() => root!.unmount()); root = undefined; host?.remove(); vi.unstubAllGlobals(); });
 function mount(props = base()) { host = document.createElement('div'); document.body.append(host); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; root = createRoot(host); act(() => root!.render(React.createElement(NoteNavigation, props))); return props; }
 function key(el: Element, key: string) { act(() => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))); }
 it('orders search, creation and one accessible tree with title-only note rows and pinned copies', () => {
@@ -27,7 +27,7 @@ it('orders search, creation and one accessible tree with title-only note rows an
 });
 it('filters in place, highlights titles, announces the count and keeps the open note dimmed', () => {
   const p = base(); p.query = 'Root'; const el = parse(p);
-  expect(el.querySelector('[role=status]')?.textContent).toBe('1 notes match');
+  expect(el.querySelector('[role=status]')?.textContent).toBe('1 note matches');
   expect(el.querySelector('mark')?.textContent).toBe('Root');
   expect(el.querySelector('[aria-selected=true]')?.className).toContain('opacity-50');
   expect(el.querySelector('[aria-label="Clear search"]')).not.toBeNull();
@@ -89,4 +89,75 @@ it('search expansion is temporary even when a filtered folder is activated', () 
   const folder = host.querySelector('[data-folder-path="Tech/Java"]')!;
   key(folder, 'Enter'); expect(p.onSelectFolder).toHaveBeenCalledWith('Tech/Java');
   expect(p.onExpandedChange).not.toHaveBeenCalled();
+});
+
+it.each(['Home', 'ArrowUp', 'End', 'ArrowDown'])('does not steal search focus after a same-row %s move', boundaryKey => {
+  const p = mount();
+  const rows = host.querySelectorAll<HTMLElement>('[role=treeitem]');
+  const row = boundaryKey === 'Home' || boundaryKey === 'ArrowUp' ? rows[0] : rows[rows.length - 1];
+  act(() => row.focus()); key(row, boundaryKey);
+  const search = host.querySelector<HTMLInputElement>('#notes-search')!;
+  act(() => search.focus());
+  act(() => root!.render(React.createElement(NoteNavigation, { ...p, query: 'Root' })));
+  expect(document.activeElement).toBe(search);
+});
+it.each(['Shift+F10', 'ContextMenu'])('opens a folder actions menu using %s without traversing children', shortcut => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.stubGlobal('requestAnimationFrame', () => 1); vi.stubGlobal('cancelAnimationFrame', () => {});
+  const p = mount(); const folder = host.querySelector<HTMLElement>('[data-folder-path="Tech"]')!;
+  expect(folder.getAttribute('aria-description')).toBe('Shift+F10 or Menu key opens actions');
+  expect(folder.getAttribute('aria-keyshortcuts')).toBe('Shift+F10 ContextMenu');
+  act(() => folder.focus());
+  // Plain F10 should keep its usual browser meaning.
+  key(folder, 'F10'); expect(document.querySelector('[role=menu]')).toBeNull();
+  act(() => folder.dispatchEvent(new KeyboardEvent('keydown', { key: shortcut === 'Shift+F10' ? 'F10' : 'ContextMenu', shiftKey: shortcut === 'Shift+F10', bubbles: true, cancelable: true })));
+  expect(folder.querySelector('[aria-haspopup=menu]')?.getAttribute('aria-expanded')).toBe('true');
+  const rename = [...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(item => item.textContent === 'Rename folder')!;
+  expect(rename).toBeDefined(); act(() => rename.click());
+  expect(p.onFolderAction).toHaveBeenCalledWith('rename', 'Tech');
+});
+it.each([false, true])('provides phone-height controls and correctly sized folder actions (compact=%s)', compact => {
+  const el = parse({ ...base(), compact, query: 'Java' });
+  const controls = [el.querySelector('[aria-label="Clear search"]')!, el.querySelector('[aria-label="New folder"]')!, el.querySelector('[aria-label="Note templates"]')!, [...el.querySelectorAll('button')].find(button => button.textContent?.includes('New note'))!];
+  for (const control of controls) {
+    expect(control.classList.contains('min-h-11')).toBe(true);
+    if (!compact) expect(control.classList.contains('sm:min-h-9')).toBe(true);
+  }
+  const menu = el.querySelector('[aria-label="Actions for Tech"]')!;
+  expect(menu.classList.contains(compact ? 'w-11' : 'w-7')).toBe(true);
+  if (compact) {
+    expect(menu.classList.contains('h-11')).toBe(true);
+    for (const row of el.querySelectorAll<HTMLElement>('[role=treeitem]')) expect(row.style.height).toBe('44px');
+  }
+});
+it('keeps one polite status mounted while its singular and plural text changes', () => {
+  const p = mount(); const status = host.querySelector('[role=status]'); expect(status).not.toBeNull();
+  expect(status?.textContent).toBe('');
+  act(() => root!.render(React.createElement(NoteNavigation, { ...p, query: 'Root' })));
+  expect(host.querySelector('[role=status]')).toBe(status); expect(status?.textContent).toBe('1 note matches');
+  act(() => root!.render(React.createElement(NoteNavigation, { ...p, query: 'private' })));
+  expect(status?.textContent).toBe('2 notes match');
+  act(() => root!.render(React.createElement(NoteNavigation, p)));
+  expect(host.querySelector('[role=status]')).toBe(status); expect(status?.textContent).toBe('');
+});
+it('groups pinned items by name and keeps empty-state text outside the tree', () => {
+  const el = parse(); const group = el.querySelector('[role=tree] [role=group][aria-label=Pinned]');
+  expect(group).not.toBeNull(); expect(group!.querySelector('[aria-label="Java, pinned"]')).not.toBeNull();
+  const empty = parse({ ...base(), notes: [] });
+  expect(empty.textContent).toContain('No notes yet. Create a note.');
+  expect(empty.querySelector('[role=tree]')?.textContent).not.toContain('No notes');
+  const search = parse({ ...base(), query: 'absent' });
+  expect(search.textContent).toContain('No notes match “absent”');
+  expect(search.querySelector('[role=tree]')?.textContent).not.toContain('No notes');
+});
+it('makes the mounted open note the tree tab stop on entry and after leaving', () => {
+  const p = mount();
+  expect(host.querySelector('[role=treeitem][tabindex="0"]')?.getAttribute('data-note-id')).toBe('one');
+  const other = host.querySelector<HTMLElement>('[data-note-id=two]')!;
+  act(() => other.focus());
+  expect(other.tabIndex).toBe(0);
+  act(() => host.querySelector<HTMLInputElement>('#notes-search')!.focus());
+  expect(host.querySelector('[role=treeitem][tabindex="0"]')?.getAttribute('data-note-id')).toBe('one');
+  act(() => root!.render(React.createElement(NoteNavigation, { ...p, openNoteId: 'missing' })));
+  expect(host.querySelector('[role=treeitem][tabindex="0"]')?.getAttribute('aria-label')).toBe('Java, pinned');
 });

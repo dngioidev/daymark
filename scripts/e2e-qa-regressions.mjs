@@ -1834,7 +1834,7 @@ await run('C12-Navigation', async () => {
   await tech.click(); await tree.getByRole('treeitem', { name: 'Java note', exact: true }).click();
   check('C12-Navigation-open', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Java note', 'tree note opens in the editor');
   await search.fill('Root'); await tree.getByRole('treeitem', { name: 'Root note', exact: true }).waitFor();
-  check('C12-Navigation-search', await page.getByRole('status').filter({ hasText: /^1 notes match$/ }).count() === 1 && await tree.locator('[aria-selected="true"]').evaluate(el => getComputedStyle(el).opacity === '0.5') && await tree.locator('mark').innerText() === 'Root', 'search filters in place, highlights and announces one match while keeping the open note dimmed');
+  check('C12-Navigation-search', await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1 && await tree.locator('[aria-selected="true"]').evaluate(el => getComputedStyle(el).opacity === '0.5') && await tree.locator('mark').innerText() === 'Root', 'search filters in place, highlights and announces one match while keeping the open note dimmed');
   await page.getByRole('button', { name: 'Clear search', exact: true }).click();
   await tech.focus(); await page.keyboard.press('Home'); await page.keyboard.press('End');
   check('C12-Navigation-end', await tree.getByRole('treeitem', { name: 'Root note', exact: true }).evaluate(el => el === document.activeElement), 'End reaches the last note');
@@ -1890,7 +1890,7 @@ await run('C12-Performance', async () => {
   await page.keyboard.press('End'); await page.keyboard.press('Enter');
   check('C12-Performance-end', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Load 999', 'End and Enter open a note beyond the first window');
   started = performance.now(); await page.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('Load 123'); await tree.getByRole('treeitem', { name: 'Load 123', exact: true }).waitFor();
-  check('C12-Performance-search', performance.now() - started < 1000 && await page.getByRole('status').filter({ hasText: /^1 notes match$/ }).count() === 1, 'filter 1,000 notes in under 1,000ms', String(Math.round(performance.now() - started)) + 'ms');
+  check('C12-Performance-search', performance.now() - started < 1000 && await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1, 'filter 1,000 notes in under 1,000ms', String(Math.round(performance.now() - started)) + 'ms');
   check('C12-Performance-errors', errors.length === 0, 'large vault has no browser errors', errors.join(' | '));
 });
 

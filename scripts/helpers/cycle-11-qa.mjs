@@ -60,16 +60,15 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await page.setViewportSize({ width: 1600, height: 900 });
     await navigate(page);
     const press = async (key, times = 1) => { for (let i = 0; i < times; i++) await page.keyboard.press(key); };
-    // Folder tree: focus a folder row, Enter selects it and toggles it, the actions menu opens with Enter and Escape closes it.
+    // Folder tree: focus a folder row, Enter selects it and toggles it, Shift+F10 opens its actions and Escape closes them.
     const tree = page.getByRole('tree', { name: 'Notes', exact: true });
     const inbox = tree.getByRole('treeitem', { name: 'Inbox, folder, 1 note', exact: true });
     const wasExpanded = await inbox.getAttribute('aria-expanded');
     await inbox.focus(); await press('Enter');
     if (await inbox.getAttribute('aria-expanded') !== 'true') await press('Enter');
     check('C11-Keyboard-folder', wasExpanded !== null && await inbox.getAttribute('aria-current') === 'true' && await tree.getByRole('treeitem', { name: 'Garden c', exact: true }).isVisible(), 'Enter on a focused folder row selects it and shows its notes');
-    await press('Tab'); // the row's expand/actions controls follow the row
     const actions = page.getByRole('button', { name: 'Actions for Inbox', exact: true });
-    await actions.focus(); await press('Enter');
+    await inbox.focus(); await press('Shift+F10');
     const rename = page.getByRole('menuitem', { name: 'Rename folder', exact: true });
     await rename.waitFor();
     await press('Escape');
