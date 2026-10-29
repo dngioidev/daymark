@@ -10,7 +10,7 @@ Canonical map of key source directories, modules, and component responsibilities
 | `src/utils/backlogHistory.ts` | Logic | Unions history without losing park/pick markers, preserving causal order across client clock skew. |
 | `src/components/backlog/BacklogView.tsx` | UI | Grouped undated ideas with capture, editing, ordering, delete/Undo and pick-date controls. |
 | `src/components/MoveToSectionDialog.tsx`, `src/utils/taskActions.ts` | UI / Logic | Same-day section moves preserving task identity and history; snapshot Undo refuses after newer edits. |
-| `src/components/SideRail.tsx` | UI | Desktop six-part navigation, sync/capture/search controls, configurable side and Notes focus visibility. |
+| `src/components/SideRail.tsx` | UI | Desktop five-part navigation, Title sync/capture/search/settings controls, configurable side and Notes focus visibility. |
 | `src/utils/railPreference.ts` | Device preference | Safe local persistence of the 168px/64px desktop rail choice; not part of synced settings. |
 | `src/components/settings/HelpTab.tsx`, `src/utils/guideData.ts` | UI / Content | Offline Web/Mobile help from canonical `docs/guide/*.md` through Vite raw imports. |
 | `scripts/helpers/guide-format.mjs`, `scripts/helpers/guide.mjs` | Tooling | Shared guide parsing, validation, and site Guide generation. |

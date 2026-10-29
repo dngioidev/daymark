@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -23,7 +25,7 @@ describe('desktop side rail', () => {
     doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed: true, onToggleCollapsed: vi.fn() }));
     const nav = doc.querySelector('nav')!;
     expect(nav.classList.contains('w-[64px]')).toBe(true);
-    expect(nav.children).toHaveLength(6);
+    expect(nav.children).toHaveLength(5);
     for (const label of ['Expand menu', 'Today 3 tasks need attention', 'Calendar', 'Notes', 'Backlog', 'Settings', 'New task', 'Search (Ctrl Shift F)', 'Sync: Synced. Open sync settings']) {
       expect(nav.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
     }
@@ -32,18 +34,58 @@ describe('desktop side rail', () => {
     expect(nav.textContent).not.toContain(props.todayLabel);
     expect(nav.querySelector('kbd')).toBeNull();
   });
-  it('has six equal parts, active page, alert badge and accessible actions', () => {
+  it('has five equal parts, active page, alert badge and accessible actions', () => {
     const doc = document.createElement('div');
     doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, props));
     const nav = doc.querySelector('nav[aria-label="Main"]')!;
-    expect(Array.from(nav.children).map(el => el.getAttribute('data-rail-part'))).toEqual(['title', 'today', 'calendar', 'notes', 'backlog', 'settings']);
-    expect(nav.getAttribute('style')).toContain('grid-template-rows:repeat(6, minmax(0, 1fr))');
+    expect(Array.from(nav.children).map(el => el.getAttribute('data-rail-part'))).toEqual(['title', 'today', 'calendar', 'notes', 'backlog']);
+    expect(nav.getAttribute('style')).toContain('grid-template-rows:repeat(5, 1fr)');
     expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(nav.querySelector('[aria-current="page"]')!.textContent).toContain('Notes');
     expect(nav.querySelector('[aria-label="3 tasks need attention"]')!.textContent).toBe('3');
     expect(nav.querySelector('[aria-label="Sync: Synced. Open sync settings"]')).not.toBeNull();
     expect(nav.querySelector('[aria-keyshortcuts="Control+K Meta+K"]')!.textContent).toContain('New task');
     expect(nav.textContent).toContain(props.todayLabel);
+  });
+  it.each([
+    { collapsed: false, side: 'left' as const },
+    { collapsed: false, side: 'right' as const },
+    { collapsed: true, side: 'left' as const },
+    { collapsed: true, side: 'right' as const },
+  ])('keeps named Title actions before pages, with tooltips and callbacks ($side, collapsed=$collapsed)', ({ collapsed, side }) => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const calls: string[] = [];
+    try {
+      flushSync(() => root.render(React.createElement(SideRail, {
+        ...props, collapsed, side,
+        onOpenSearch: () => calls.push('search'), onOpenSettings: () => calls.push('settings'),
+      })));
+      const nav = container.querySelector('nav')!;
+      const title = nav.querySelector('[data-rail-part="title"]')!;
+      const search = title.querySelector<HTMLButtonElement>('button[aria-label="Search (Ctrl Shift F)"]')!;
+      const settings = title.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
+      expect(search).not.toBeNull();
+      expect(settings).not.toBeNull();
+      expect(settings!.hasAttribute('aria-current')).toBe(false);
+      expect(Array.from(nav.querySelectorAll('button')).map(button => button.getAttribute('aria-label') ?? button.dataset.railPart)).toEqual([
+        collapsed ? 'Expand menu' : 'Minimize menu', 'Sync: Synced. Open sync settings',
+        collapsed ? 'New task' : 'New task Ctrl K', 'Search (Ctrl Shift F)', 'Settings',
+        collapsed ? 'Today 3 tasks need attention' : 'today', collapsed ? 'Calendar' : 'calendar',
+        collapsed ? 'Notes' : 'notes', collapsed ? 'Backlog' : 'backlog',
+      ]);
+      expect(nav.querySelectorAll('[aria-current]')).toHaveLength(1);
+      for (const [button, label] of [[search, 'Search'], [settings!, 'Settings']] as const) {
+        flushSync(() => button.focus());
+        expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(label);
+        flushSync(() => button.click());
+      }
+      expect(calls).toEqual(['search', 'settings']);
+    } finally {
+      flushSync(() => root.unmount());
+      container.remove();
+    }
   });
   it('moves to the right without reversing reading order and disappears when hidden', () => {
     expect(renderToStaticMarkup(React.createElement(SideRail, { ...props, side: 'right' }))).toContain('order-last');

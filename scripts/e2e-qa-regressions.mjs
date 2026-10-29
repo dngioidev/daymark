@@ -1327,8 +1327,8 @@ await run('R1', async () => {
       return { rail: r.width, content: m.width, overlap: Math.min(r.right, m.right) - Math.max(r.left, m.left), rows: [...rail.children].map(el => el.getBoundingClientRect().height), overflow: document.documentElement.scrollWidth - innerWidth };
     });
     let layout = await measure();
-    check(`R1-${width}-left`, layout.rail === 168 && layout.content >= width - 169 && layout.overlap <= 1 && layout.overflow <= 1 && Math.max(...layout.rows) - Math.min(...layout.rows) <= 1,
-      'six equal rail parts leave all remaining width for content without overlap', JSON.stringify(layout));
+    check(`R1-${width}-left`, layout.rail === 168 && layout.content >= width - 169 && layout.overlap <= 1 && layout.overflow <= 1 && layout.rows.length === 5 && Math.max(...layout.rows) - Math.min(...layout.rows) <= 1,
+      'five equal rail parts leave all remaining width for content without overlap', JSON.stringify(layout));
     console.log(`Rail ${width}px viewport: ${layout.content}px content area (168px rail).`);
     await settingsOpen(page);
     await settingsBox(page).getByRole('button', { name: 'Right', exact: true }).click();

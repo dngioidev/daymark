@@ -42,7 +42,7 @@ function RailButton({ tooltip, side, children, ...props }: React.ButtonHTMLAttri
   </>;
 }
 
-/** Six equal destinations stay available in either width. */
+/** Five equal parts stay available in either width. */
 export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOpenQuickCapture, onOpenSearch, onOpenSettings, onOpenSync, syncStatus, carriedAlertCount, todayLabel, side, collapsed, onToggleCollapsed, hidden }) => {
   if (hidden) return null;
   const sync = SYNC_LABELS[syncStatus];
@@ -62,9 +62,9 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
     </RailButton>
   );
   return (
-    <nav aria-label="Main" data-side={side} data-collapsed={collapsed} style={{ gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}
+    <nav aria-label="Main" data-side={side} data-collapsed={collapsed} style={{ gridTemplateRows: 'repeat(5, 1fr)' }}
       className={`dm-side-rail sticky top-0 z-40 grid h-dvh ${collapsed ? 'w-[64px]' : 'w-[168px]'} shrink-0 self-start bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] backdrop-blur-md ${side === 'right' ? 'order-last border-l' : 'border-r'} border-stone-200 dark:border-stone-800`}>
-      <div data-rail-part="title" className="min-h-0 flex flex-col justify-start overflow-y-auto px-2 py-1 text-center">
+      <div data-rail-part="title" className={`min-h-0 flex flex-col justify-start overflow-y-auto py-1 text-center ${collapsed ? 'px-0 [scrollbar-width:thin]' : 'px-2'}`}>
         <RailButton side={side} type="button" aria-label={toggleLabel} aria-expanded={!collapsed} tooltip={toggleLabel} onClick={onToggleCollapsed} className="shrink-0 inline-flex min-h-8 items-center justify-center rounded-md hover:bg-stone-500/10"><ToggleIcon className="w-5 h-5" aria-hidden="true" /></RailButton>
         {!collapsed && <span className="shrink-0 font-bold tracking-tight text-base leading-5">Daymark</span>}
         {!collapsed && <span className="shrink-0 text-[12px] leading-4 truncate" title={todayLabel}>{todayLabel}</span>}
@@ -74,13 +74,15 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
         <RailButton side={side} tooltip={collapsed ? 'New task (Ctrl K / ⌘K)' : undefined} type="button" onClick={onOpenQuickCapture} aria-label={collapsed ? 'New task' : `New task ${isMac ? '⌘K' : 'Ctrl K'}`} aria-keyshortcuts="Control+K Meta+K" className={`shrink-0 mt-1 inline-flex items-center justify-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-7'} rounded-lg bg-accent text-accent-fg text-[12px] font-semibold hover:brightness-95`}>
           <Plus className="w-3.5 h-3.5" aria-hidden="true" />{!collapsed && <>New task <kbd className="text-[12px] font-sans">{isMac ? '⌘K' : 'Ctrl K'}</kbd></>}
         </RailButton>
-        <RailButton side={side} tooltip={collapsed ? 'Search (Ctrl Shift F / ⌘ Shift F)' : undefined} type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className={`shrink-0 inline-flex items-center justify-center gap-1 ${collapsed ? 'min-h-8' : 'min-h-[24px]'} text-[12px] hover:underline`}><Search className="w-3 h-3" aria-hidden="true" />{!collapsed && 'Search'}</RailButton>
+        <div className="shrink-0 flex min-w-0 items-center">
+          <RailButton side={side} tooltip="Search" type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Search className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
+          <RailButton side={side} tooltip="Settings" type="button" aria-label="Settings" data-rail-part="settings" onClick={onOpenSettings} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Settings className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
+        </div>
       </div>
       {page('today', <Calendar className="w-5 h-5" aria-hidden="true" />, 'Today')}
       {page('calendar', <CalendarDays className="w-5 h-5" aria-hidden="true" />, 'Calendar')}
       {page('notes', <FolderOpen className="w-5 h-5" aria-hidden="true" />, 'Notes')}
       {page('backlog', <Archive className="w-5 h-5" aria-hidden="true" />, 'Backlog')}
-      <RailButton side={side} tooltip={collapsed ? 'Settings' : undefined} type="button" aria-label="Settings" data-rail-part="settings" onClick={onOpenSettings} className={part}><Settings className="w-5 h-5" aria-hidden="true" />{!collapsed && <span>Settings</span>}</RailButton>
     </nav>
   );
 };

@@ -3,7 +3,7 @@ title: Appearance
 order: 11
 ---
 ## Web
-Open Settings and choose Appearance to adjust the theme, text size and colours. Changes preview immediately through the existing settings controls. Choose colours with enough contrast to keep labels and tasks readable. The header colours also apply to the desktop side menu, so inspect that menu when changing them.
+Open Settings using the icon next to Search in the desktop side menu Title part, then choose Appearance to adjust the theme, text size and colours. Changes preview immediately through the existing settings controls. Choose colours with enough contrast to keep labels and tasks readable. The header colours also apply to the desktop side menu, so inspect that menu when changing them.
 
 Menu side selects Left or Right for the desktop rail. Use Minimize menu at the top of the rail to keep just the icons and give your content more room. Hover over or focus an icon to see its label; use Expand menu to restore the full menu. This choice is remembered on this device and does not sync to your other devices. Notes focus mode hides the rail temporarily, then restores its previous size and side. Background photos are selected on this device; use dim and blur controls to make text comfortable to read over them. Check both light and dark appearances after a substantial change. Synced preferences can follow you, while the photo files remain local to each device.
 ## Mobile

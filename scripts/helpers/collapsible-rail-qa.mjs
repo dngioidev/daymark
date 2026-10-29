@@ -37,14 +37,14 @@ export async function collapsibleRailQa({ run, fresh, check, TODAY, doc, task, r
         const r = el.getBoundingClientRect(), m = document.querySelector('main').getBoundingClientRect();
         return { width: r.width, content: m.width, overlap: Math.max(0, Math.min(r.right, m.right) - Math.max(r.left, m.left)), overflow: document.documentElement.scrollWidth - innerWidth, parts: el.children.length };
       });
-      check(id, expanded.width === 168 && layout.width === 64 && layout.content - expanded.content === 104 && layout.overlap <= 1 && layout.overflow <= 1 && layout.parts === 6, 'minimized rail reclaims 104 physical pixels without overlap', JSON.stringify({ expanded, layout }));
-      for (const label of ['Expand menu', 'Sync:', 'New task', 'Search (Ctrl Shift F)']) {
+      check(id, expanded.width === 168 && layout.width === 64 && layout.content - expanded.content === 104 && layout.overlap <= 1 && layout.overflow <= 1 && layout.parts === 5, 'minimized rail reclaims 104 physical pixels without overlap', JSON.stringify({ expanded, layout }));
+      for (const label of ['Expand menu', 'Sync:', 'New task', 'Search (Ctrl Shift F)', 'Settings']) {
         await rail.getByRole('button', { name: 'Today', exact: true }).focus();
         const button = rail.getByRole('button', { name: label === 'Sync:' ? /^Sync:/ : label, exact: label !== 'Sync:' });
         await button.focus();
-        const target = await button.evaluate(el => { const r = el.getBoundingClientRect(); return { y: r.y, bottom: r.bottom, w: r.width, h: r.height, focus: document.activeElement === el }; });
+        const target = await button.evaluate(el => { const r = el.getBoundingClientRect(), title = el.closest('[data-rail-part="title"]').getBoundingClientRect(); return { y: r.y, bottom: r.bottom, w: r.width, h: r.height, focus: document.activeElement === el, contained: r.left >= title.left && r.right <= title.right, hit: el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) }; });
         const tooltip = page.getByRole('tooltip');
-        check(id, target.focus && target.y >= 0 && target.bottom <= 480 && target.w >= 24 && target.h >= 24 && await tooltip.isVisible(), `${label} stays reachable with a keyboard tooltip in a short window`, JSON.stringify(target));
+        check(id, target.focus && target.contained && target.hit && target.y >= 0 && target.bottom <= 480 && target.w >= 24 && target.h >= 24 && await tooltip.isVisible(), `${label} stays reachable with a keyboard tooltip in a short window`, JSON.stringify(target));
         await page.keyboard.press('Escape');
         check(id, await tooltip.count() === 0 && await button.evaluate(el => document.activeElement === el), 'Escape dismisses the tooltip without moving focus');
       }
