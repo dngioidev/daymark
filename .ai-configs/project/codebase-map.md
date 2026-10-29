@@ -59,14 +59,14 @@ daymark/
 | `src/components/ui/Menu.tsx` | UI | Dropdown menu that closes on outside tap/Esc, keyboard navigable. |
 | `src/components/ui/feedback.tsx` | UI | In-app `confirmDialog`/`alertDialog` and `showToast` (with Undo); mount `<FeedbackHost />` once. |
 | `src/utils/dateFormat.ts` | Logic | The UI's date vocabulary: Today/Yesterday/Tomorrow, "Fri 16 Oct", long dates, ages. No ISO dates on screen. |
-| `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, checklist counts, pinned-first sorting. |
+| `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, pinned-first sorting and last-edited date labels. |
 | `src/components/TodayView.tsx` | UI | Full-width daily notebook with visual, split and Markdown modes, collapsible sections and progress/planned-day sidebar. |
 | `src/components/StandaloneNotesView.tsx` | UI | Notes page: one navigation column (`NoteNavigation`), editor and Related panel, templates, word count and focus mode; no page header row. Owns pane modes (`paneMode`), the wide/minimised-strip/drawer/phone switch and folder/dismissal writes. |
 | `src/components/notes/NoteNavigation.tsx`, `useNoteNavigationState.ts`, `useTreeWindow.ts` | UI / Hook | The single Notes column: search, New note / New folder / List \| Graph switch, then a windowed tree of folders with notes inside (Pinned group, unfiled notes after top-level folders, in-place search, current folder, drag and drop, arrow/Home/End/Enter and Shift+F10 keys). |
 | `src/utils/noteTree.ts` | Logic | `buildNoteTreeRows`, `defaultExpanded` and `ancestorPaths`: flatten folders and notes into tree rows, with search matches and the dimmed open note. |
 | `src/components/notes/NotesStrip.tsx`, `NotesDrawer.tsx`, `PhoneNotes.tsx`, `ViewSwitch.tsx` | UI | Minimised strip (Search, New note, New folder, up to 8 folders plus +N), drawer for windows of 768-1099px, phone column-then-editor flow with Back, and the List \| Graph switch. |
 | `src/utils/noteFolders.ts` | Logic | Folder paths (`Tech/Java`), tree building with counts, normalisation, rename/move/delete rewrites, `folderMatches`; empty folders live in `notemeta`. |
-| `src/components/notes/NoteFolderTree.tsx`, `FolderDialogs.tsx`, `FolderPicker.tsx` | UI | Nested folder tree with actions and drag and drop, New/Rename/Move dialogs and the phone Move to folder picker. |
+| `src/components/notes/FolderDialogs.tsx`, `FolderPicker.tsx`, `folderActions.ts` | UI / Types | New/Rename/Move dialogs, the phone Move to folder picker, and shared folder action types. Folder navigation lives in `NoteNavigation`. |
 | `src/utils/notesPanes.ts` | Logic | Per-device pane preferences (folder tree, Related, graph filter/detail) and the width-driven pane layout (`inline`, `overlay`, `drawers`). |
 | `src/utils/noteRelated.ts`, `src/hooks/useRelatedNotes.ts` | Logic | On-device relatedness engine (shared-term scoring, `NoteIndex`, `pairKey`, safe wiki-link writes) and the hook that scores the active note. |
 | `src/components/notes/RelatedPanel.tsx`, `RelatedSheet.tsx` | UI | Related panel (Link / Not related, Linked, Hidden suggestions), overlay drawer and phone sheet. |

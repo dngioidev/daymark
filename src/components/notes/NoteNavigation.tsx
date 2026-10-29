@@ -4,7 +4,7 @@ import type { NoteMeta, StandaloneNote } from '../../types/daymark';
 import { buildNoteTreeRows, noteTooltip, visibleRowKey, type NoteTreeRow } from '../../utils/noteTree';
 import { normalizeFolderPath } from '../../utils/noteFolders';
 import { Menu, type MenuItem } from '../ui/Menu';
-import type { FolderAction } from './NoteFolderTree';
+import type { FolderAction } from './folderActions';
 import { notesControlHeight } from './controlHeight';
 import { useTreeWindow } from './useTreeWindow';
 
@@ -15,6 +15,7 @@ export interface NoteNavigationProps {
   onSelectFolder(path: string): void; onNewNote(): void; templateItems?: MenuItem[];
   onNewFolder(): void; onFolderAction(action: FolderAction, path: string): void;
   onDropNote?(noteId: string, folderPath: string): void; onDropFolder?(path: string, newParentPath: string): void;
+  focusFolder?: { path: string };
   dragEnabled: boolean; compact?: boolean; viewSwitch?: React.ReactNode; focusSearch?: React.RefObject<boolean>;
 }
 const folderKey = (path: string) => normalizeFolderPath(path).toLowerCase();
@@ -74,6 +75,31 @@ export function NoteNavigation(props: NoteNavigationProps) {
     requestFocus.current = !element || document.activeElement !== element;
     setFocusKey(key);
   };
+  const lastFolderFocus = useRef<typeof props.focusFolder>(undefined);
+  useEffect(() => {
+    if (!props.focusFolder || lastFolderFocus.current === props.focusFolder) return;
+    const parts = folderKey(props.focusFolder.path).split('/').filter(Boolean);
+    let index = -1;
+    while (parts.length && index < 0) {
+      const path = parts.join('/');
+      index = rows.findIndex(row => row.kind === 'folder' && folderKey(row.path) === path);
+      parts.pop();
+    }
+    lastFolderFocus.current = props.focusFolder;
+    if (index < 0) index = itemIndices[0] ?? -1;
+    if (index >= 0) focus(index); else container.current?.focus({ preventScroll: true });
+    if (container.current?.closest('[role="dialog"]')) {
+      // Reopening a drawer schedules its modal autofocus in the next frame.
+      // Restore the owning row after that autofocus, using the committed row refs.
+      let secondFrame: number | undefined;
+      const firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => {
+          if (index >= 0 && container.current?.isConnected) focus(index);
+        });
+      });
+      return () => { cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); };
+    }
+  }, [props.focusFolder, keys]);
   const toggle = (row: Extract<NoteTreeRow, { kind: 'folder' }>) => {
     if (query.trim()) return; // Search forces paths open without changing the saved expansion.
     const next = new Set(expanded); const key = folderKey(row.path);
@@ -157,7 +183,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
       } : undefined} onDragEnd={dragEnabled ? () => setDragging(false) : undefined}
       onDragOver={dragEnabled && folder ? event => event.preventDefault() : undefined} onDrop={dragEnabled && folder ? event => drop(event, row.path) : undefined}>
       {folder ? <>{row.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Folder size={14} className="shrink-0" /><span className="truncate flex-1">{row.name}</span><span aria-hidden="true" data-count={row.totalNotes} className="text-xs text-stone-500 after:content-[attr(data-count)]" />
-        <span onClick={event => event.stopPropagation()}><Menu sheetTitle={row.path} items={(['new', 'rename', 'move', 'delete'] as const).map(action => ({ label: action === 'new' ? 'New folder inside' : `${action[0].toUpperCase()}${action.slice(1)} folder`, onSelect: () => props.onFolderAction(action, row.path) }))} trigger={trigger => <button type="button" {...trigger} tabIndex={-1} aria-label={`Actions for ${row.path}`} className={`${compact ? 'w-11 h-11' : 'w-7 h-8'} shrink-0 flex items-center justify-center`}><MoreHorizontal size={16} /></button>} /></span>
+        <span onClick={event => event.stopPropagation()}><Menu returnFocusTo={() => elements.current.get(key) ?? null} sheetTitle={row.path} items={(['new', 'rename', 'move', 'delete'] as const).map(action => ({ label: action === 'new' ? 'New folder inside' : `${action[0].toUpperCase()}${action.slice(1)} folder`, onSelect: () => props.onFolderAction(action, row.path) }))} trigger={trigger => <button type="button" {...trigger} tabIndex={-1} aria-label={`Actions for ${row.path}`} className={`${compact ? 'w-11 h-11' : 'w-7 h-8'} shrink-0 flex items-center justify-center`}><MoreHorizontal size={16} /></button>} /></span>
       </> : <><span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
     </div>;
   };
@@ -170,7 +196,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
     {modelRows.filter(row => row.kind === 'status').map(row => <p key={visibleRowKey(row)} className="px-2 text-xs text-stone-600 dark:text-stone-400">{row.text}</p>)}
     <div ref={container} onScroll={windowing.onScroll} onBlur={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { requestFocus.current = false; setFocusKey(''); }
-    }} className="flex-1 min-h-0 overflow-y-auto" role="tree" aria-label="Notes">
+    }} className="flex-1 min-h-0 overflow-y-auto" role="tree" aria-label="Notes" tabIndex={-1}>
       <div role="none" className="relative" style={windowing.virtual ? { height: windowing.totalHeight } : undefined}>{rows.some(row => row.kind === 'pinned-heading') && <div role="group" aria-label="Pinned" className={`before:content-[attr(aria-label)] before:flex before:items-center before:px-2 before:text-xs before:font-semibold before:text-stone-500 ${compact ? 'before:h-11' : 'before:h-8'}`}>{windowing.indices.filter(index => { const row = rows[index]; return row.kind === 'note' && row.group === 'pinned'; }).map(renderRow)}</div>}{windowing.indices.filter(index => { const row = rows[index]; return row.kind !== 'pinned-heading' && !(row.kind === 'note' && row.group === 'pinned'); }).map(renderRow)}</div>
     </div>
     {dragEnabled && dragging && <div role="group" aria-label="Move to top level" onDragOver={event => event.preventDefault()} onDrop={event => drop(event, '')} className="shrink-0 py-1 text-center text-xs border-t border-stone-300 dark:border-stone-700">Move to top level</div>}

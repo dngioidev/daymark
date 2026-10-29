@@ -53,9 +53,9 @@ it('strip replaces the whole column and exposes search, creation and eight folde
   expect(button('2 more folders', strip)?.textContent).toBe('+2');
   for (const name of ['Search notes', 'New note', 'New folder']) expect(button(name, strip)?.title).toBe(name);
   await click(button('New note', strip));
-  expect(save.mock.calls[0][0][0]).toMatchObject({ title: 'Untitled', folder: 'Tech/Java', content: '' });
+  expect(save.mock.calls[0][0][0]).toMatchObject({ title: 'Untitled', folder: '', content: '' });
   await click(button('New folder', strip));
-  expect(document.querySelector('[role=dialog]')?.textContent).toContain('In Tech/Java');
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain('At the top level');
   await click(button('Close', document.querySelector('[role=dialog]')!));
   await click(button('Search notes', strip));
   expect(document.activeElement?.id).toBe('notes-search');
@@ -95,6 +95,8 @@ it.each([{ width: 390, compact: false }, { width: 900, compact: true }])('phone 
   const tree = host.querySelector<HTMLElement>('[role=tree]')!;
   expect(host.querySelector('[role=radiogroup]')).toBeNull();
   expect(tree.querySelector('[draggable=true]')).toBeNull();
+  expect(tree.querySelector('[aria-selected=true]')).toBeNull();
+  expect(tree.querySelector('[data-folder-path="Tech/Java"]')?.getAttribute('aria-expanded')).toBe('true'); // first run reveals the shown note
   expect(row('First').style.height).toBe('44px');
   tree.scrollTop = 176;
   await act(async () => tree.dispatchEvent(new Event('scroll', { bubbles: true })));

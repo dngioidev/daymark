@@ -186,3 +186,30 @@ it.each([false, true])('shares fixed action heights including ViewSwitch (compac
     expect(control.parentElement!.classList.contains('items-center')).toBe(true);
   }
 });
+
+it.each(['Escape', 'select'])('returns folder menu focus to its treeitem after %s and preserves arrow navigation', closeWith => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.stubGlobal('requestAnimationFrame', () => 1); vi.stubGlobal('cancelAnimationFrame', () => {});
+  mount(); const folder = host.querySelector<HTMLElement>('[data-folder-path="Tech"]')!;
+  act(() => folder.focus());
+  act(() => folder.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true })));
+  const action = document.querySelector<HTMLButtonElement>('[role=menuitem]')!;
+  act(() => action.focus());
+  if (closeWith === 'Escape') key(action, 'Escape'); else act(() => action.click());
+  expect(document.activeElement).toBe(folder); expect(folder.tabIndex).toBe(0);
+  key(folder, 'ArrowDown'); expect(document.activeElement?.getAttribute('data-folder-path')).toBe('Tech/Java');
+  key(document.activeElement!, 'ArrowUp'); expect(document.activeElement).toBe(folder);
+});
+it.each(['Renamed', 'Archive/Tech'])('restores focus after a folder key changes to %s', path => {
+  const p = mount(); const folder = host.querySelector<HTMLElement>('[data-folder-path="Tech"]')!;
+  act(() => folder.focus());
+  const next = { ...p, notes: p.notes.map(n => ({ ...n, folder: n.folder.replace('Tech', path) })), expanded: new Set(path === 'Renamed' ? ['renamed', 'renamed/java'] : ['archive', 'archive/tech', 'archive/tech/java']), currentFolder: path, focusFolder: { path } };
+  act(() => root!.render(React.createElement(NoteNavigation, next)));
+  expect(document.activeElement?.getAttribute('data-folder-path')).toBe(path);
+  expect((document.activeElement as HTMLElement).tabIndex).toBe(0);
+});
+it.each(['Tech/Removed', 'Gone'])('restores a surviving ancestor or first row if requested folder %s no longer exists', path => {
+  const p = mount(); const search = host.querySelector<HTMLInputElement>('#notes-search')!; act(() => search.focus());
+  act(() => root!.render(React.createElement(NoteNavigation, { ...p, focusFolder: { path } })));
+  expect(document.activeElement?.getAttribute('aria-label')).toBe(path === 'Gone' ? 'Java, pinned' : 'Tech, folder, 1 note');
+});

@@ -132,7 +132,8 @@ it('returns to the list from focus mode with Back to notes', () => {
   expect(find(render(), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
-it('creates Blank in the open note folder without changing existing notes', () => {
+it('creates Blank in the explicitly opened note folder without changing existing notes', () => {
+  (find(render(), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
   const menu = find(render(), (el) => el.type === NoteNavigation);
   (menu!.props.templateItems as MenuItem[]).find((item) => item.label === 'Blank')!.onSelect();
   expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: 'Work', content: '' }), note]);
@@ -205,6 +206,7 @@ it.each([false, true])('consumes a note-open request once (compact=%s)', (compac
 });
 
 it('keeps the current folder and a matching search when creating a blank note', () => {
+  (find(render(), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Work');
   const input = find(render(), (el) => el.type === NoteNavigation)!;
   (input.props.onQueryChange as (q: string) => void)('untitled');
   (find(render(), el => el.type === NoteNavigation)!.props.onNewNote as () => void)();
@@ -303,7 +305,7 @@ it('creates an empty folder through metadata without an overview note', async ()
   (find(render(false, extra), el => el.type === NoteNavigation)!.props.onNewFolder as () => void)();
   const dialog = find(render(false, extra), el => el.type === FolderDialogs)!;
   await (dialog.props.onSubmit as (name: string) => Promise<void>)('Empty');
-  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Work/Empty' })] }));
+  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Empty' })] }));
   expect(update).toHaveBeenCalledOnce();
   expect(update).toHaveBeenCalledWith([note]);
 });
@@ -459,16 +461,16 @@ it('new folder is created inside the current folder and pinning feeds the tree',
   expect((next.props.notes as StandaloneNote[])[0].pinned).toBe(true);
 });
 
-it('reveals the fallback note after the active note disappears during sync', () => {
+it('does not implicitly open a fallback note when a note disappears during sync', () => {
   vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
   vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
   render();
   const other = { ...note, id: 'other', folder: 'Archive/2026' };
   render(false, { notes: [other] }); hooks.effects.forEach(effect => effect());
   const nav = find(render(false, { notes: [other] }), el => el.type === NoteNavigation)!;
-  expect(nav.props.openNoteId).toBe('other');
-  expect(nav.props.currentFolder).toBe('Archive/2026');
-  expect(nav.props.expanded).toEqual(new Set(['work', 'archive', 'archive/2026']));
+  expect(nav.props.openNoteId).toBeUndefined();
+  expect(nav.props.currentFolder).toBe('');
+  expect(nav.props.expanded).toEqual(new Set(['work']));
   expect(update).not.toHaveBeenCalled();
 });
 
@@ -478,4 +480,42 @@ it('removes the desktop header row and places the presentation switch in navigat
   expect(find(tree, el => el.type === 'h1')).toBeUndefined();
   const nav = find(tree, el => el.type === NoteNavigation)!;
   expect(nav.props.viewSwitch).toBeDefined();
+});
+
+it('opens the whole-vault graph with an explicitly opened unfiled note in a large vault', async () => {
+  const { defaultGraphScope, buildGraph } = await import('../utils/graphData');
+  const { buildNoteIndex } = await import('../utils/noteRelated');
+  const notes = Array.from({ length: 301 }, (_, i) => ({ ...note, id: `graph-${i}`, title: `Graph ${i}`, folder: i === 0 ? '' : 'Work', content: `[[Graph ${(i + 1) % 301}]]` }));
+  const extra = { notes };
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)('graph-0');
+  const nav = find(render(false, extra), el => el.type === NoteNavigation)!;
+  ((nav.props.viewSwitch as React.ReactElement<{ onChange(value: string): void }>).props.onChange)('graph');
+  const graph = find(render(false, extra), el => el.props.selectedFolder !== undefined)!;
+  expect(graph.props.selectedFolder).toBe('all');
+  const scope = defaultGraphScope(notes.length, graph.props.selectedFolder as string);
+  expect(scope).toEqual({ folderPaths: null, showOrphans: false });
+  expect(buildGraph(notes, buildNoteIndex(notes), new Set(), { ...scope, showSuggestions: false, showTags: false }).nodes).toHaveLength(301);
+});
+it.each([false, true])('creates at the top level before any explicit note opening (compact=%s)', compact => {
+  const tree = render(compact); const nav = find(tree, el => el.type === NoteNavigation)!;
+  expect(nav.props.openNoteId).toBeUndefined(); expect(nav.props.currentFolder).toBe('');
+  const html = renderToStaticMarkup(nav);
+  expect(html).not.toContain('aria-selected="true"');
+  if (!compact) expect(find(tree, el => el.props.id === 'note-title')?.props.value).toBe('Existing');
+  (nav.props.onNewNote as () => void)();
+  expect(update.mock.calls.at(-1)![0][0]).toMatchObject({ title: 'Untitled', folder: '' });
+});
+it('reveals the path of the shown fallback note without making its folder current', () => {
+  const deep = { ...note, folder: 'Tech/Java' };
+  const nav = find(render(false, { notes: [deep] }), el => el.type === NoteNavigation)!;
+  expect([...(nav.props.expanded as Set<string>)].map(p => p.toLowerCase())).toContain('tech/java');
+  expect(nav.props.currentFolder).toBe('');
+});
+it.each(['rename', 'move'])('requests focus on the updated folder after %s', async action => {
+  const nav = find(render(), el => el.type === NoteNavigation)!;
+  (nav.props.onFolderAction as (action: string, path: string) => void)(action, 'Work');
+  const dialog = find(render(), el => el.type === FolderDialogs)!;
+  await (dialog.props.onSubmit as (value: string) => Promise<void>)(action === 'rename' ? 'Renamed' : 'Archive');
+  const next = find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.type === NoteNavigation)!;
+  expect(next.props.focusFolder).toEqual({ path: action === 'rename' ? 'Renamed' : 'Archive/Work' });
 });

@@ -24,7 +24,7 @@ import { buildFolderTree, createFolder as createEmptyFolder, renameFolder, moveF
 import { loadPanePrefs, savePanePrefs, MIN_EDITOR_WIDTH } from '../utils/notesPanes';
 import { NoteNavigation } from './notes/NoteNavigation';
 import { useNoteNavigationState } from './notes/useNoteNavigationState';
-import type { FolderAction } from './notes/NoteFolderTree';
+import type { FolderAction } from './notes/folderActions';
 import { ViewSwitch } from './notes/ViewSwitch';
 import { NotesStrip } from './notes/NotesStrip';
 import { NotesDrawer } from './notes/NotesDrawer';
@@ -60,14 +60,16 @@ type ViewMode = 'rich' | 'markdown';
 /** Notes: one navigation tree and a rich editor backed by Markdown. */
 export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
-  const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
+  const [selectedNoteId, setSelectedNoteId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const activeNote = notes.find((n) => n.id === selectedNoteId) || sorted[0] || null;
-  const { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder } = useNoteNavigationState(notes, activeNote?.id ?? '');
+  const selectedNote = notes.find((n) => n.id === selectedNoteId);
+  const activeNote = selectedNote || sorted[0] || null;
+  const { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder } = useNoteNavigationState(notes, selectedNote?.id ?? '', activeNote?.id ?? '');
   const [viewMode, setViewMode] = useState<ViewMode>('rich');
   const [notesView, setNotesView] = useState<'list' | 'graph'>('list');
   const focusViewSwitch = useRef(false);
   const [folderDialog, setFolderDialog] = useState<{ action: FolderAction; path: string } | null>(null);
+  const [folderFocus, setFolderFocus] = useState<{ path: string }>();
   const { phone, mode, drawers, layout, treeMinimized, prefs, setPrefs } = useNotesLayout(compact, railCollapsed);
   const graphActive = !phone && notesView === 'graph';
   const graphIndex = useMemo(() => graphActive ? buildNoteIndex(notes) : null, [graphActive, notes]);
@@ -246,7 +248,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     const before = notes;
     const remaining = notes.filter((n) => n.id !== note.id);
     onUpdateNotes(remaining);
-    setSelectedNoteId(sortNotes(remaining)[0]?.id || '');
+    setSelectedNoteId('');
     setPane('list');
     showToast(`Deleted “${note.title}”`, { action: { label: 'Undo', onClick: () => onUpdateNotes(before) } });
   };
@@ -274,6 +276,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       setCurrentFolder('');
     } } });
   };
+  const finishFolderDialog = (path: string) => {
+    setFolderDialog(null); setFolderFocus({ path });
+    if (drawers && !phone) setDrawer(true);
+  };
   const changeFolder = async (action: FolderAction, path: string, value = '') => {
     if (action === 'move' && normalizeFolderPath(path).toLowerCase() === normalizeFolderPath(value).toLowerCase()) return;
     const current = latestNotes.current;
@@ -284,19 +290,19 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       if (!name || name.includes('/')) return;
       const destination = normalizeFolderPath(path ? path + '/' + name : name);
       applyFolderChange(current, createEmptyFolder(meta, destination, nowIso), 'Folder created.');
-      revealFolder(destination); setFolderDialog(null); return;
+      revealFolder(destination); finishFolderDialog(destination); return;
     }
     if (action === 'delete') {
       const count = current.filter(note => folderMatches(note, path)).length;
       if (!await confirmDialog({ title: 'Delete folder?', message: deleteFolderMessage(path, count), confirmLabel: 'Delete', danger: true })) return;
       const result = deleteFolder(latestNotes.current, latestMeta.current, path, new Date().toISOString());
       applyFolderChange(result.notes, result.meta, 'Folder deleted.');
-      revealFolder(path.split('/').slice(0, -1).join('/')); return;
+      revealFolder(path.split('/').slice(0, -1).join('/')); setFolderFocus({ path: path.split('/').slice(0, -1).join('/') }); return;
     }
     if (action === 'rename' && (!value.trim() || value.includes('/'))) return;
     const parent = path.split('/').slice(0, -1).join('/');
     const destination = normalizeFolderPath(action === 'move' ? [value, path.split('/').at(-1)].filter(Boolean).join('/') : [parent, value].filter(Boolean).join('/'));
-    if (destination === path) { setFolderDialog(null); return; }
+    if (destination === path) { finishFolderDialog(path); return; }
     if (destination.toLowerCase().startsWith(path.toLowerCase() + '/')) {
       showToast('A folder cannot move inside itself.', { tone: 'error' }); return;
     }
@@ -310,11 +316,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       : renameFolder(latestNotes.current, latestMeta.current, path, destination, new Date().toISOString());
     if (!result) return;
     applyFolderChange(result.notes, result.meta, 'Folder updated.');
-    revealFolder(destination); setFolderDialog(null);
+    revealFolder(destination); finishFolderDialog(destination);
   };
   const folderAction = (action: FolderAction, path: string) => {
     if (action === 'delete') void changeFolder(action, path);
-    else { setDrawer(false); setFolderDialog({ action, path }); }
+    else { setFolderFocus(undefined); setDrawer(false); setFolderDialog({ action, path }); }
   };
   const moveNoteTo = (id: string, path: string) => {
     const source = latestNotes.current.find(note => note.id === id);
@@ -336,6 +342,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     focusViewSwitch.current = keyboard; setFocusMode(false); setDrawer(value === 'list' && drawers); setNotesView(value);
   };
   const expandColumn = (search = false) => {
+    setFolderFocus(undefined); // An explicit strip action supersedes a previous dialog return request.
     focusSearch.current = search;
     const next = { ...loadPanePrefs(), tree: 'open' as const }; setPrefs(next); savePanePrefs(next);
     if (treeMinimized && prefs.tree === 'open') setDrawer(true);
@@ -343,8 +350,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  const list = graphActive ? null : <NoteNavigation notes={notes} meta={noteMeta} openNoteId={activeNote?.id}
-    currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded}
+  const list = graphActive ? null : <NoteNavigation notes={notes} meta={noteMeta} openNoteId={selectedNote?.id}
+    focusFolder={folderDialog ? undefined : folderFocus} currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded}
     query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
     onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}
     templateItems={NOTE_TEMPLATES.map(template => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
@@ -473,10 +480,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
       {phone && pane === 'list' && (compact ? <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
       {drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
-      {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
+      {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
       {graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
-        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder={currentFolder} activeNoteId={activeNote?.id}
+        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder="all" activeNoteId={activeNote?.id}
           onViewChange={changeNotesView} focusViewSwitch={focusViewSwitch} onOpenNote={id => { relatedProps.onOpen(id); setNotesView('list'); }} onLink={linkNotes} onDismiss={dismissPair} />
       </Suspense> : phone ? <PhoneNotes pane={pane} navigation={list} editor={editor} /> : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">

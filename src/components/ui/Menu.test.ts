@@ -76,3 +76,21 @@ it('closes a desktop outside pointerdown without restoring trigger focus or bloc
   act(() => underneath.click());
   expect(onUnderlyingClick).toHaveBeenCalledTimes(1);
 });
+
+it.each(['Escape', 'select'])('keeps default trigger focus restoration on %s', closeWith => {
+  const trigger = openMenu(); const action = document.querySelector<HTMLElement>('[role=menuitem]')!;
+  act(() => action.focus());
+  if (closeWith === 'Escape') act(() => action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  else act(() => action.click());
+  expect(document.activeElement).toBe(trigger);
+});
+it('allows an opener to override the menu focus return target', () => {
+  act(() => root.render(React.createElement(Menu, {
+    returnFocusTo: () => underneath,
+    trigger: props => React.createElement('button', props, 'Open menu'),
+    items: [{ label: 'Action', onSelect: vi.fn() }],
+  })));
+  openMenu(); const action = document.querySelector<HTMLElement>('[role=menuitem]')!;
+  act(() => action.focus()); act(() => action.click());
+  expect(document.activeElement).toBe(underneath);
+});

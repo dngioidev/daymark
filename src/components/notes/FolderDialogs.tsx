@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { FolderNode } from '../../utils/noteFolders';
 import { Dialog, buttonClass } from '../ui/Dialog';
 import { flattenFolders } from './FolderPicker';
-import type { FolderAction } from './NoteFolderTree';
+import type { FolderAction } from './folderActions';
 export function deleteFolderMessage(path: string, count: number): string {
   return `${count} ${count === 1 ? 'note moves' : 'notes move'} to ${path.split('/').slice(0, -1).join('/') || 'Notes'}. No notes are deleted. Subfolders are removed too.`;
 }

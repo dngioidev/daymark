@@ -3,7 +3,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import axe from 'axe-core';
 import { expect, it, vi } from 'vitest';
-import { NoteFolderTree } from './NoteFolderTree';
+import { NoteNavigation } from './NoteNavigation';
 import { RelatedPanel, type RelatedPanelProps } from './RelatedPanel';
 import { GraphFilters } from './graph/GraphFilters';
 import GraphView from './graph/GraphView';
@@ -28,8 +28,13 @@ async function violations(element: React.ReactElement) {
     return [...mismatches, ...result.violations.map(v => `${v.id}: ${v.nodes.map(n => n.html).join(' | ')}`)];
   } finally { await act(async () => root.unmount()); host.remove(); }
 }
-it.each([false, true])('folder tree accessible names contain their visible text (minimized=%s)', async minimized => {
-  expect(await violations(React.createElement(NoteFolderTree, { tree, selectedPath: 'Tech/Java', onSelect: vi.fn(), onFolderAction: vi.fn(), minimized }))).toEqual([]);
+it.each([false, true])('note navigation accessible names contain visible text (compact=%s)', async compact => {
+  expect(await violations(React.createElement(NoteNavigation, {
+    notes: [note('Java note', 'Tech/Java')], meta: { folders: [], dismissed: [] }, currentFolder: 'Tech/Java',
+    expanded: new Set(['tech', 'tech/java']), query: '', openNoteId: 'Java note', compact, dragEnabled: !compact,
+    onExpandedChange: vi.fn(), onQueryChange: vi.fn(), onOpenNote: vi.fn(), onSelectFolder: vi.fn(),
+    onNewNote: vi.fn(), onNewFolder: vi.fn(), onFolderAction: vi.fn(),
+  }))).toEqual([]);
 });
 it.each([false, true])('Related toggle names contain their visible text (minimized=%s, empty=%s)', async minimized => {
   expect(await violations(React.createElement(RelatedPanel, { ...related, minimized }))).toEqual([]);

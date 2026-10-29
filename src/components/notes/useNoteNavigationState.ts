@@ -4,10 +4,10 @@ import { ancestorPaths, defaultExpanded } from '../../utils/noteTree';
 import { loadNoteExpansion, saveNoteExpansion } from '../../utils/notesPanes';
 
 /** Navigation preferences never mutate or persist vault notes. */
-export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: string) {
-  const openFolder = notes.find(note => note.id === openNoteId)?.folder ?? '';
-  const [currentFolder, setCurrentFolder] = useState(openFolder);
-  const [expanded, updateExpanded] = useState(() => loadNoteExpansion() ?? defaultExpanded(notes, openNoteId));
+export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: string, shownNoteId = openNoteId) {
+  const openFolder = notes.find(note => note.id === openNoteId)?.folder;
+  const [currentFolder, setCurrentFolder] = useState(openFolder ?? '');
+  const [expanded, updateExpanded] = useState(() => loadNoteExpansion() ?? defaultExpanded(notes, openNoteId || shownNoteId));
   const setExpanded = (next: Set<string>) => { updateExpanded(next); saveNoteExpansion(next); };
   const revealFolder = (folder: string) => {
     setCurrentFolder(folder);
@@ -17,6 +17,6 @@ export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: stri
       const next = new Set([...previous, ...paths]); saveNoteExpansion(next); return next;
     });
   };
-  useEffect(() => { revealFolder(openFolder); }, [openNoteId, openFolder]);
+  useEffect(() => { if (openFolder !== undefined) revealFolder(openFolder); }, [openNoteId, openFolder]);
   return { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder };
 }

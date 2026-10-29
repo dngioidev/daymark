@@ -19,13 +19,6 @@ export function notePreview(content: string, maxLength = 160): string {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-/** Done/total checklist items in a note, or null when it has none. */
-export function noteChecklist(content: string): { done: number; total: number } | null {
-  const items = content.match(/^\s*[-*+]\s+\[[ xX]\]/gm);
-  if (!items) return null;
-  return { done: items.filter((i) => /\[[xX]\]/.test(i)).length, total: items.length };
-}
-
 /** Pinned notes first, then most recently edited. */
 export function sortNotes(notes: StandaloneNote[]): StandaloneNote[] {
   return [...notes].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt));

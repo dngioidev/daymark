@@ -41,7 +41,7 @@ Mockup approved by the user ("yess it good, need to be like this"): `.superpower
 **Tree rows.** Folder row: chevron, folder icon, name, note count, ⋯ menu (New folder inside, Rename, Move, Delete — exactly the existing actions). Note row: title only (an untitled note shows "Untitled"), indented under its folder. The open note's row is highlighted. Hover, long-press or focus shows the note's last-edited date (tooltip/title); the old snippet, folder label and checklist progress are no longer shown in the row.
 
 My calls (please check):
-- **Order inside a folder:** subfolders first, then notes, each A–Z (case-insensitive, numeric-aware, fixed locale). Notes without a folder are listed at the bottom under a quiet "Notes without a folder" heading.
+- **Order inside a folder:** subfolders first, then notes, each A–Z (case-insensitive, numeric-aware, fixed locale). Notes without a folder are listed at the bottom under a quiet "Notes without a folder" heading (superseded below).
 - **Pinned:** pinned notes get a "Pinned" group at the very top of the tree (flat list of titles) **and** stay in their folder with a small pin icon. Unpinning removes them from the group.
 - **Where a new note or folder goes:** into the **current folder**: the folder most recently clicked, defaulting to the open note's folder, defaulting to the top level. The current folder is shown with a subtle highlight; templates that name a folder still use that folder. This replaces "All notes" / "Notes (top level)" rows: the tree itself is "all notes".
 - **Opening:** clicking a note opens it in the editor and expands the path to it; opening a note from elsewhere (link, Related, graph, search result, a new note) expands and scrolls the tree to it.
@@ -57,7 +57,7 @@ My calls (please check):
 - Narrow windows (800–1100px): the column opens as a drawer from a "Notes" button in the editor header (replacing the "Folders" button); it closes on selecting a note, and Escape closes it, focus returns to the button.
 - **Phone (<768px):** the column is the Notes screen (same order, 44px rows, ⋯ menu per folder); tapping a note opens it full screen; Back returns to the column; the folder line in the note header still moves it.
 
-**Graph:** the List | Graph switch stays in the note header; the graph filter keeps its own folder tree.
+**Graph:** the List | Graph switch stays in the note header (superseded below); the graph filter keeps its own folder tree.
 
 ## Additions after the user's feedback (approved direction; my picks marked)
 
@@ -76,7 +76,7 @@ My calls (please check):
 ## Calls made after the builder check (mine; please check)
 
 - **Current folder:** it changes when you click a folder row or open a note by any route (tree, link, Related, graph, search, new note); it becomes that folder / that note's folder. New note and New folder land in the current folder; with nothing opened yet they go to the top level.
-- **Drag and drop targets:** a note can be dropped on a folder row, or on the "Notes without a folder" heading (which is the top-level drop zone, shown even when empty while a drag is active); not on the "Pinned" group. The non-drag paths (Move to folder picker, folder Move dialog) cover every destination including the top level.
+- **Drag and drop targets:** a note can be dropped on a folder row, or on the "Notes without a folder" heading (which is the top-level drop zone, shown even when empty while a drag is active) (superseded below); not on the "Pinned" group. The non-drag paths (Move to folder picker, folder Move dialog) cover every destination including the top level.
 - **Minimised strip and drawer:** the strip's Search icon expands the column and focuses the search box; its New note icon creates a note in the current folder with the default template; New folder opens the new-folder dialog; folder icons are the top-level folders (at most 8, then "+N") and open the expanded column with that folder current. The narrow-window drawer keeps its search text and expanded folders while the Notes page stays mounted, and closes on selecting a note or Escape.
 - **Search details:** matching is exactly the existing search (title, body and tags, case-insensitive); only highlighting and snippets are new. A body-only match shows one snippet around its first match (about 60 characters each side). The dimmed open note keeps its ancestors expanded and is not counted in "N notes match".
 - **Pinned and counts:** the Pinned group is hidden while searching (matches show in the tree with their pin icon); a pinned note is counted once in folder counts and once in "N notes match"; the Pinned group is A–Z (there is no pin time).

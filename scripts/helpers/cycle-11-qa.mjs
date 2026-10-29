@@ -67,13 +67,16 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await inbox.focus(); await press('Enter');
     if (await inbox.getAttribute('aria-expanded') !== 'true') await press('Enter');
     check('C11-Keyboard-folder', wasExpanded !== null && await inbox.getAttribute('aria-current') === 'true' && await tree.getByRole('treeitem', { name: 'Garden c', exact: true }).isVisible(), 'Enter on a focused folder row selects it and shows its notes');
-    const actions = page.getByRole('button', { name: 'Actions for Inbox', exact: true });
     await inbox.focus(); await press('Shift+F10');
     const rename = page.getByRole('menuitem', { name: 'Rename folder', exact: true });
     await rename.waitFor();
     await press('Escape');
     await rename.waitFor({ state: 'detached' });
-    check('C11-Keyboard-menu', await actions.evaluate(el => el === document.activeElement), 'Escape closes the folder menu and returns focus to its button');
+    check('C11-Keyboard-menu', await inbox.evaluate(el => el === document.activeElement), 'Escape closes the folder menu and returns focus to the folder row');
+    await press('ArrowDown');
+    check('C11-Keyboard-menu-arrows', await tree.getByRole('treeitem', { name: 'Garden c', exact: true }).evaluate(el => el === document.activeElement), 'ArrowDown still walks the tree after closing folder actions');
+    await press('ArrowUp');
+    check('C11-Keyboard-menu-return', await inbox.evaluate(el => el === document.activeElement), 'ArrowUp returns to the folder row');
     // Related panel: open a Java note from the list, then Link by keyboard.
     // Keyboard only: expand every collapsed folder with ArrowRight, then open the note with Enter.
     for (let i = 0; i < 6; i++) {

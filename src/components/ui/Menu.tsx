@@ -36,9 +36,11 @@ interface MenuProps {
   heading?: string;
   sheetTitle?: string;
   className?: string;
+  /** Resolve a stable owning control, such as a roving tree row, on close. */
+  returnFocusTo?: () => HTMLElement | null;
 }
 
-export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', heading, sheetTitle, className = '' }) => {
+export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', heading, sheetTitle, className = '', returnFocusTo }) => {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(false);
   const [position, setPosition] = useState<React.CSSProperties>({});
@@ -50,7 +52,7 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items, align = 'left', head
 
   const close = () => {
     setOpen(false);
-    triggerRef.current?.focus({ preventScroll: true });
+    (returnFocusTo ? returnFocusTo() : triggerRef.current)?.focus({ preventScroll: true });
   };
   useBackHandler(() => { close(); return true; }, open);
 
