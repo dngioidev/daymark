@@ -226,7 +226,7 @@ try {
   await syncNow(laptop);
   await syncNow(phone);
   await phone.getByRole('button', { name: 'Notes', exact: true }).first().click();
-  await phone.getByRole('button').filter({ has: phone.getByText('Synced field photo', { exact: true }) }).click();
+  await phone.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: 'Synced field photo', exact: true }).click();
   await decodedPicture(phone);
   check(await phone.locator('.ProseMirror img[src]:not(.ProseMirror-separator)').isVisible(), 'phone decodes the picture pasted on the laptop after both devices sync');
   await phone.getByRole('button', { name: 'Markdown', exact: true }).click();

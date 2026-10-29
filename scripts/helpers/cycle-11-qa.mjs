@@ -37,7 +37,7 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await settingsOpen(page);
     await settingsBox(page).getByRole('tab', { name: 'Help', exact: true }).click();
     for (const [topic, web, mobile] of [
-      ['Notes', ['Related panel', 'Hidden suggestions', 'Graph', 'Root (no folder)'], ['Move to folder', 'Related button', 'Hidden suggestions']],
+      ['Notes', ['Related panel', 'Hidden suggestions', 'Graph', 'Minimize folders', 'List | Graph'], ['Move to folder', 'Related button', 'Hidden suggestions']],
       ['Shortcuts and gestures', ['List view'], ['List view']],
       ['Sync and the server', ['Tech/Java'], ['Not related']],
       ['Backups', ['Daymark/Notes/Tech/Java'], []],

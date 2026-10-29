@@ -161,7 +161,45 @@ const cycle11Graph = then((page) => page.emulateMedia({ reducedMotion: 'reduce' 
   await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
   await page.getByText('Finding suggestions…').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
 });
+// Cycle 12: one Notes navigation column. Same sample vault as cycle 11 with one pinned note.
+const cycle12Vault = (today) => {
+  const vault = cycle11Vault(today);
+  vault.notes = vault.notes.map((n) => (n.id === 'c11-roadmap' ? { ...n, pinned: true } : n));
+  return vault;
+};
+const cycle12Open = (title) => then(click('button', /^notes$/i), async (page) => {
+  // Folders start collapsed unless they contain the open note: expand Tech, then Java.
+  for (const folder of ['Tech', 'Java']) {
+    const row = page.getByRole('treeitem', { name: new RegExp(`^${folder}, folder`) }).first();
+    if (await row.getAttribute('aria-expanded') === 'false') await row.click();
+  }
+  await page.getByRole('treeitem', { name: new RegExp(`^${title}`) }).first().click();
+  await page.getByRole('textbox', { name: 'Note rich text', exact: true }).waitFor();
+  const related = page.getByRole('complementary', { name: 'Related panel', exact: true });
+  if (await related.count()) await related.getByRole('button', { name: 'Link', exact: true }).first().waitFor({ timeout: 10000 }).catch(() => {});
+});
+const cycle12Graph = then(click('button', /^notes$/i), async (page) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('radiogroup', { name: 'Notes presentation' }).getByText('Graph', { exact: true }).click();
+  await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
+  await page.getByText('Finding suggestions…').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+});
 const SHOTS = [
+  { name: 'notes-column', viewport: 'wide', cycles: ['cycle-12'], prepare: cycle12Open('Java collectors') },
+  { name: 'notes-search', viewport: 'wide', cycles: ['cycle-12'], prepare: then(cycle12Open('Java collectors'), async (page) => {
+    await page.getByRole('searchbox', { name: 'Search notes' }).fill('stream');
+    await page.getByText(/notes? match/).waitFor();
+  }) },
+  { name: 'notes-strip', viewport: 'wide', cycles: ['cycle-12'], prepare: then(cycle12Open('Java collectors'), click('button', /^minimize folders$/i)) },
+  { name: 'notes-drawer', viewport: 'narrow', cycles: ['cycle-12'], prepare: then(click('button', /^notes$/i), async (page) => {
+    const drawer = page.getByRole('dialog');
+    if (!await drawer.count()) await page.getByRole('button', { name: 'Notes', exact: true }).last().click();
+    await page.getByRole('tree', { name: 'Notes' }).waitFor();
+  }) },
+  { name: 'notes-graph', viewport: 'wide', cycles: ['cycle-12'], prepare: cycle12Graph },
+  { name: 'rail-settings', viewport: 'desktop', cycles: ['cycle-12'], prepare: loadSample },
+  { name: 'phone-notes-column', viewport: 'android', cycles: ['cycle-12'], prepare: then(click('button', /^notes$/i), (page) => page.getByRole('tree', { name: 'Notes' }).waitFor()) },
+  { name: 'phone-header-settings', viewport: 'android', cycles: ['cycle-12'], prepare: loadSample },
   { name: 'notes-three-pane', viewport: 'wide', cycles: ['cycle-11'], prepare: cycle11Note('Java collectors') },
   { name: 'notes-minimized', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Note('Java collectors'), click('button', /^minimize folders$/i), click('button', /^minimize related$/i)) },
   { name: 'notes-related', viewport: 'wide', cycles: ['cycle-11'], selector: 'aside[aria-label="Related panel"]', prepare: cycle11Note('Java collectors') },
@@ -364,6 +402,8 @@ try {
           { id: 'c10-unsorted', title: 'Learn to draw local birds', order: 2, createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` },
         ] };
         await seedVault(page, baseUrl, vault);
+      } else if (cycle === 'cycle-12') {
+        await seedVault(page, baseUrl, cycle12Vault(today));
       } else if (cycle === 'cycle-11') {
         await seedVault(page, baseUrl, cycle11Vault(today));
       } else if (cycle === 'cycle-9') {
