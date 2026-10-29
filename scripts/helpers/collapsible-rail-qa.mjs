@@ -56,7 +56,7 @@ export async function collapsibleRailQa({ run, fresh, check, TODAY, doc, task, r
     await page.setViewportSize({ width: 1440, height: 900 });
     await rail.getByRole('button', { name: 'Minimize menu', exact: true }).click();
     await rail.getByRole('button', { name: 'Notes', exact: true }).click();
-    await page.getByRole('button', { name: /Focus draft/ }).click();
+    await page.getByRole('treeitem', { name: /Focus draft/ }).click();
     await page.getByRole('button', { name: 'Focus mode', exact: true }).click();
     await rail.waitFor({ state: 'hidden' });
     check(`C101-${theme}-${size}`, await rail.count() === 0 && await page.locator('.ProseMirror').textContent() === note.content, 'Notes focus hides the rail and keeps content');

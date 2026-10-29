@@ -8,17 +8,18 @@ const AXE = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe
 export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, themeSaved }) {
   const navigate = page => page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
   const note = (id, patch = {}) => ({ id, title: `Java ${id}`, folder: 'Tech/Java', content: 'Java stream collectors pipeline processing', tags: ['java'], createdAt: '2026-10-01T08:00:00Z', updatedAt: '2026-10-02T08:00:00Z', ...patch });
-  const notesList = page => page.getByRole('region', { name: 'Notes list', exact: true });
 
   await run('C11-Export', async () => {
     const notes = [note('a'), note('b', { folder: 'Tech' }), note('c', { folder: 'Inbox/2026' }), note('d', { folder: '' })];
     const { page, errors } = await fresh({ notes });
     await navigate(page);
     // An empty folder is created through the real dialog and must also become a directory.
+    // New folder nests in the current folder; opening the top-level note makes that the top level.
+    await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: 'Java d', exact: true }).click();
     await page.getByRole('button', { name: 'New folder', exact: true }).first().click();
     await page.getByRole('textbox', { name: 'Folder name', exact: true }).fill('Drafts');
     await page.getByRole('dialog').getByRole('button', { name: /^(Create|Save|OK|New folder)$/ }).last().click();
-    await page.getByRole('button', { name: 'Drafts, 0 notes', exact: true }).waitFor();
+    await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: 'Drafts, folder, 0 notes', exact: true }).waitFor();
     await settingsOpen(page);
     await settingsBox(page).getByRole('tab', { name: 'Backup & restore', exact: true }).click();
     const [download] = await Promise.all([page.waitForEvent('download'), settingsBox(page).getByRole('button', { name: /Back up now/ }).click()]);
@@ -59,10 +60,13 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await page.setViewportSize({ width: 1600, height: 900 });
     await navigate(page);
     const press = async (key, times = 1) => { for (let i = 0; i < times; i++) await page.keyboard.press(key); };
-    // Folder tree: focus a folder row, Enter filters the list, the actions menu opens with Enter and Escape closes it.
-    const inbox = page.getByRole('button', { name: 'Inbox, 1 note', exact: true });
+    // Folder tree: focus a folder row, Enter selects it and toggles it, the actions menu opens with Enter and Escape closes it.
+    const tree = page.getByRole('tree', { name: 'Notes', exact: true });
+    const inbox = tree.getByRole('treeitem', { name: 'Inbox, folder, 1 note', exact: true });
+    const wasExpanded = await inbox.getAttribute('aria-expanded');
     await inbox.focus(); await press('Enter');
-    check('C11-Keyboard-folder', await notesList(page).getByText('Java a', { exact: true }).count() === 0 && await notesList(page).getByText('Garden c', { exact: true }).isVisible(), 'Enter on a focused folder row filters the list');
+    if (await inbox.getAttribute('aria-expanded') !== 'true') await press('Enter');
+    check('C11-Keyboard-folder', wasExpanded !== null && await inbox.getAttribute('aria-current') === 'true' && await tree.getByRole('treeitem', { name: 'Garden c', exact: true }).isVisible(), 'Enter on a focused folder row selects it and shows its notes');
     await press('Tab'); // the row's expand/actions controls follow the row
     const actions = page.getByRole('button', { name: 'Actions for Inbox', exact: true });
     await actions.focus(); await press('Enter');
@@ -72,8 +76,13 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await rename.waitFor({ state: 'detached' });
     check('C11-Keyboard-menu', await actions.evaluate(el => el === document.activeElement), 'Escape closes the folder menu and returns focus to its button');
     // Related panel: open a Java note from the list, then Link by keyboard.
-    await page.getByRole('button', { name: 'All notes', exact: true }).focus(); await press('Enter');
-    await notesList(page).getByRole('button').filter({ has: page.getByText('Java a', { exact: true }) }).focus(); await press('Enter');
+    // Keyboard only: expand every collapsed folder with ArrowRight, then open the note with Enter.
+    for (let i = 0; i < 6; i++) {
+      const collapsed = tree.locator('[role=treeitem][aria-expanded=false]').first();
+      if (!await collapsed.count()) break;
+      await collapsed.focus(); await press('ArrowRight');
+    }
+    await tree.getByRole('treeitem', { name: 'Java a', exact: true }).focus(); await press('Enter');
     const panel = page.getByRole('complementary', { name: 'Related panel', exact: true });
     const link = panel.getByRole('region', { name: 'Suggested notes', exact: true }).getByRole('button', { name: 'Link', exact: true });
     await link.first().waitFor();
@@ -119,7 +128,7 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await navigate(page);
     const tree = await axeOn(page, ['aside[aria-label="Folder navigation"]']);
     check(`C11-Axe-${theme}-tree`, tree.length === 0, `folder tree has no axe findings (${theme})`, tree.join(' ; '));
-    await notesList(page).getByRole('button').filter({ has: page.getByText('Java a', { exact: true }) }).click();
+    await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: 'Java a', exact: true }).click();
     await page.getByRole('complementary', { name: 'Related panel', exact: true }).getByRole('button', { name: 'Link', exact: true }).first().waitFor();
     const related = await axeOn(page, ['aside[aria-label="Related panel"]']);
     check(`C11-Axe-${theme}-related`, related.length === 0, `Related panel has no axe findings (${theme})`, related.join(' ; '));

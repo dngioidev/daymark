@@ -238,19 +238,59 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 21,
-    "14": 14,
-    "15": 4,
+    "12": 8,
+    "14": 11,
     "16": 1,
     "20": 1
    },
-   "smallTargets": [],
+   "smallTargets": [
+    {
+     "name": "New note",
+     "w": 73,
+     "h": 39
+    },
+    {
+     "name": "Note templates",
+     "w": 22,
+     "h": 36
+    },
+    {
+     "name": "New folder",
+     "w": 66,
+     "h": 36
+    },
+    {
+     "name": "Actions for Meetings",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Personal",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Technical",
+     "w": 28,
+     "h": 16
+    }
+   ],
    "unnamed": [],
    "truncated": [
     "Architecture Decision: Canonical Markdown & Task I"
    ],
    "unlabeledFields": [],
-   "axe": []
+   "axe": [
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": 1,
+     "samples": [
+      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+     ]
+    }
+   ]
   },
   {
    "env": "P412",
@@ -591,19 +631,68 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 21,
-    "14": 14,
-    "15": 4,
+    "12": 8,
+    "14": 11,
     "16": 1,
     "20": 1
    },
-   "smallTargets": [],
+   "smallTargets": [
+    {
+     "name": "New note",
+     "w": 73,
+     "h": 39
+    },
+    {
+     "name": "Note templates",
+     "w": 22,
+     "h": 36
+    },
+    {
+     "name": "New folder",
+     "w": 66,
+     "h": 36
+    },
+    {
+     "name": "Actions for Meetings",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Personal",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Technical",
+     "w": 28,
+     "h": 16
+    }
+   ],
    "unnamed": [],
    "truncated": [
     "Architecture Decision: Canonical Markdown & Task I"
    ],
    "unlabeledFields": [],
-   "axe": []
+   "axe": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 1,
+     "samples": [
+      "Element has insufficient color contrast of 3.65 (foreground color: #79716b, background color: #1c1917, font size: 9.0pt (12px), font weight: normal). Expected c @ .font-semibold"
+     ]
+    },
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": 1,
+     "samples": [
+      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+     ]
+    }
+   ]
   },
   {
    "env": "P412",
@@ -820,21 +909,51 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 22,
-    "14": 38,
+    "12": 11,
+    "14": 37,
     "16": 2,
     "21": 3,
     "25.2": 1,
     "12.6": 2
    },
-   "smallTargets": [],
+   "smallTargets": [
+    {
+     "name": "Note templates",
+     "w": 22,
+     "h": 36
+    },
+    {
+     "name": "Actions for Meetings",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Personal",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Technical",
+     "w": 28,
+     "h": 16
+    }
+   ],
    "unnamed": [],
    "truncated": [
-    "Architecture Decision: Canonical Markdown & Task I",
-    "Self-Hosted Sync Security Guidelines"
+    "Architecture Decision: Canonical Markdown & Task I"
    ],
    "unlabeledFields": [],
-   "axe": []
+   "axe": [
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": 1,
+     "samples": [
+      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+     ]
+    }
+   ]
   },
   {
    "env": "D1440",
@@ -1017,21 +1136,60 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 22,
-    "14": 38,
+    "12": 11,
+    "14": 37,
     "16": 2,
     "21": 3,
     "25.2": 1,
     "12.6": 2
    },
-   "smallTargets": [],
+   "smallTargets": [
+    {
+     "name": "Note templates",
+     "w": 22,
+     "h": 36
+    },
+    {
+     "name": "Actions for Meetings",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Personal",
+     "w": 28,
+     "h": 16
+    },
+    {
+     "name": "Actions for Technical",
+     "w": 28,
+     "h": 16
+    }
+   ],
    "unnamed": [],
    "truncated": [
-    "Architecture Decision: Canonical Markdown & Task I",
-    "Self-Hosted Sync Security Guidelines"
+    "Architecture Decision: Canonical Markdown & Task I"
    ],
    "unlabeledFields": [],
-   "axe": []
+   "axe": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 1,
+     "samples": [
+      "Element has insufficient color contrast of 3.65 (foreground color: #79716b, background color: #1c1917, font size: 9.0pt (12px), font weight: normal). Expected c @ .text-stone-500.font-semibold.text-xs"
+     ]
+    },
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": 1,
+     "samples": [
+      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+     ]
+    }
+   ]
   },
   {
    "env": "D1440",
@@ -1421,13 +1579,7 @@
    "env": "D1280",
    "screen": "notes",
    "overflowX": 0,
-   "offenders": [
-    "div.relative. (1329px)",
-    "button.shrink-0.min-h-11.min-w-11 (1329px)",
-    "svg.[object.SVGAnimatedString] (1313px)",
-    "rect.[object.SVGAnimatedString] (1311px)",
-    "circle.[object.SVGAnimatedString] (1304px)"
-   ],
+   "offenders": [],
    "container": 1112
   },
   {

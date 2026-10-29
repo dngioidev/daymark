@@ -88,6 +88,10 @@ export async function knowledgeGraphQa({ run, fresh, check, settingsOpen, settin
     const { page } = await fresh({ notes });
     await navigate(page);
     const start = performance.now(); await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    // A vault over 300 notes opens scoped to the current folder (the open note's folder); include every folder so all 1,000 notes display.
+    const scope = page.getByRole('complementary', { name: 'Graph filters', exact: true });
+    await scope.getByRole('checkbox').first().waitFor();
+    for (const box of await scope.getByRole('checkbox').all()) await box.check();
     const canvas = page.getByRole('img', { name: /^Knowledge graph: 1000 notes,/ }); await canvas.waitFor();
     const loadMs = performance.now() - start;
     const filters = page.getByRole('complementary', { name: 'Graph filters', exact: true });

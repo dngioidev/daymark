@@ -139,14 +139,22 @@ async function tc(id, title, env, fn) {
 const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 const btn = (page, re) => page.getByRole('button', { name: re });
 const visibleText = (page) => page.locator('body').innerText();
-// Note rows only: the folder tree (ul[aria-label]), the Related panel and the editor also contain list buttons.
-const noteRows = (page) => page.locator('main ul:not([aria-label]):not([aria-label="Note editor"] *):not(aside *):not([role="dialog"] *) > li > button');
-// Select a folder in the tree: inline on the compact phone list, otherwise in the tree pane or the Folders drawer.
+// Cycle 12: one navigation tree. Note rows are the tree's note items; folders are treeitems with a data-folder-path.
+const noteRows = (page) => page.getByRole('tree', { name: 'Notes', exact: true }).locator('[role=treeitem][data-note-id]');
+const folderRowOf = (page, name) => page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem', { name: new RegExp(`^${name}, folder, \\d+ notes?`) });
+// Select a folder row in the tree and make sure it is expanded so its notes show.
 async function openFolder(page, name) {
-  const row = page.getByRole('button', { name: new RegExp(`^${name}, \\d+ notes?`) });
-  if (!(await row.first().isVisible())) await page.getByRole('button', { name: 'Folders', exact: true }).first().click();
-  await row.first().click();
+  const row = folderRowOf(page, name).first();
+  await row.click();
+  if (await row.getAttribute('aria-expanded') === 'false') await row.click();
 }
+// Notes shown directly or nested under a folder row (tree rows are in document order, deeper level = inside).
+const folderNoteCount = (page, name) => folderRowOf(page, name).first().evaluate((row) => {
+  const all = [...row.parentElement.children]; const level = Number(row.getAttribute('aria-level'));
+  let n = 0;
+  for (const el of all.slice(all.indexOf(row) + 1)) { if (Number(el.getAttribute('aria-level') ?? 0) <= level) break; if (el.dataset.noteId) n++; }
+  return n;
+});
 const count = (loc) => loc.count();
 const taskCheckbox = (page, title) => page.getByRole('button', { name: `Mark "${title}" done` });
 const T1 = 'Investigate build pipeline failure';
@@ -558,7 +566,7 @@ async function functional() {
       await dialog(page, 'Settings').getByRole('button', { name: 'Close', exact: true }).click();
       expect(await page.locator('.dm-side-rail').getAttribute('data-side') === 'right', 'right choice did not move the rail');
       await btn(page, /^notes$/i).click();
-      await btn(page, /weekly sprint sync/i).click();
+      await page.getByRole('treeitem', { name: /weekly sprint sync/i }).first().click();
       await btn(page, /^focus mode$/i).click();
       await page.locator('.dm-side-rail').waitFor({ state: 'hidden' });
       expect(await page.locator('.dm-side-rail').count() === 0, 'Notes focus did not hide the rail');
@@ -579,7 +587,7 @@ async function functional() {
     await rail.getByRole('button', { name: 'Notes', exact: true }).focus();
     expect(await page.getByRole('tooltip').textContent() === 'Notes', 'keyboard label missing');
     await page.keyboard.press('Enter');
-    await btn(page, /weekly sprint sync/i).click();
+    await page.getByRole('treeitem', { name: /weekly sprint sync/i }).first().click();
     await btn(page, /^focus mode$/i).click();
     await rail.waitFor({ state: 'hidden' });
     expect(await rail.count() === 0, 'focus did not hide rail');
@@ -1122,7 +1130,9 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await page.getByLabel('Search notes').fill('sprint');
-    const one = await noteRows(page).count();
+    await page.waitForTimeout(300);
+    // The open note that does not match stays visible but dimmed, so count matches only.
+    const one = new Set(await noteRows(page).evaluateAll((rows) => rows.filter((row) => !row.classList.contains('opacity-50')).map((row) => row.dataset.noteId))).size;
     await page.getByLabel('Search notes').fill('zzzz');
     const none = /no notes match/i.test(await visibleText(page));
     await ctx.close();
@@ -1133,7 +1143,7 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await openFolder(page, 'Meetings');
-    const n = await noteRows(page).count();
+    const n = await folderNoteCount(page, 'Meetings');
     await ctx.close();
     expect(n === 1, `${n} notes in Meetings`);
   });
@@ -1169,7 +1179,7 @@ async function functional() {
     });
     await page.reload({ waitUntil: 'networkidle' });
     await btn(page, /^notes$/i).click();
-    await page.getByRole('button').filter({ has: page.getByText('Persisted note', { exact: true }) }).click();
+    await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem').filter({ has: page.getByText('Persisted note', { exact: true }) }).first().click();
     const ok = await page.getByRole('textbox', { name: 'Note rich text', exact: true }).innerText() === 'Body text';
     await ctx.close();
     expect(ok, 'note not persisted');
@@ -1216,9 +1226,11 @@ async function functional() {
     await btn(page, /^notes$/i).click();
     await page.getByText('Q4 Reading List & Research Papers').first().click();
     await btn(page, /pin note to the top/i).click();
-    const first = await noteRows(page).first().innerText();
+    // Pinned notes are listed first, under the Pinned heading above the folder tree.
+    const pinned = await noteRows(page).evaluateAll((rows) => rows.filter((row) => /, pinned$/.test(row.getAttribute('aria-label') ?? '')).map((row) => row.getAttribute('aria-label')));
+    const first = await noteRows(page).first().getAttribute('aria-label');
     await ctx.close();
-    expect(/q4 reading list/i.test(first), `first note "${first.split('\n')[0]}"`);
+    expect(/, pinned$/.test(first ?? '') && pinned.some((label) => /q4 reading list/i.test(label)), `first note "${first}", pinned ${JSON.stringify(pinned)}`);
   });
 
   await tc('NO-09', 'Delete note asks first, Undo restores (DS-02)', 'P412', async () => {
@@ -1241,7 +1253,7 @@ async function functional() {
     await btn(page, /^new folder$/i).click();
     await page.getByLabel('Folder name').fill('Recipes');
     await btn(page, /^create$/i).click();
-    const ok = await page.getByRole('button', { name: 'Recipes, 0 notes', exact: true }).isVisible();
+    const ok = await page.getByRole('treeitem', { name: 'Recipes, folder, 0 notes', exact: true }).isVisible();
     const noOverview = await page.getByText('Recipes overview', { exact: true }).count() === 0;
     await ctx.close();
     expect(ok && noOverview, 'empty folder row missing or an overview note was created');

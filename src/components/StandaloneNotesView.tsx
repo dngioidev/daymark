@@ -1,17 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import {
   ArrowLeft,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FilePlus,
   FileCode,
-  FolderPlus,
-  ListChecks,
   Maximize2,
   MoreHorizontal,
   Pin,
-  Search,
   Trash2,
 } from 'lucide-react';
 import { EMPTY_NOTE_META, type NoteMeta, type StandaloneNote } from '../types/daymark';
@@ -19,13 +15,15 @@ import { Menu } from './ui/Menu';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
 import { useBackHandler } from '../native/backButton';
-import { formatNoteDate, noteChecklist, notePreview, sortNotes } from '../utils/notes';
+import { formatNoteDate, sortNotes } from '../utils/notes';
 import { NOTE_TEMPLATES, wordCount } from '../utils/noteTemplates';
 import { formatLocalDate } from '../utils/clock';
 import type { RichNoteEditorHandle } from './notes/RichNoteEditor';
 
 import { buildFolderTree, createFolder as createEmptyFolder, renameFolder, moveFolder, deleteFolder, moveNote, folderMatches, normalizeFolderPath } from '../utils/noteFolders';
 import { loadPanePrefs, savePanePrefs, paneMode, relatedPaneLayout, MIN_EDITOR_WIDTH } from '../utils/notesPanes';
+import { NoteNavigation } from './notes/NoteNavigation';
+import { useNoteNavigationState } from './notes/useNoteNavigationState';
 import { NoteFolderTree, type FolderAction } from './notes/NoteFolderTree';
 import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
@@ -54,12 +52,13 @@ interface StandaloneNotesViewProps {
 
 type ViewMode = 'rich' | 'markdown';
 
-/** Notes: searchable list (pinned first) and a rich editor backed by Markdown. */
+/** Notes: one navigation tree and a rich editor backed by Markdown. */
 export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>(sorted[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState<string>('all');
+  const activeNote = notes.find((n) => n.id === selectedNoteId) || sorted[0] || null;
+  const { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder } = useNoteNavigationState(notes, activeNote?.id ?? '');
   const [viewMode, setViewMode] = useState<ViewMode>('rich');
   const [notesView, setNotesView] = useState<'list' | 'graph'>('list');
   const [folderDialog, setFolderDialog] = useState<{ action: FolderAction; path: string } | null>(null);
@@ -122,9 +121,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   useEffect(() => {
     if (!openNoteId || !notes.some((note) => note.id === openNoteId)) return;
-    setSelectedNoteId(openNoteId);
-    setSelectedFolder('all');
-    setSearchQuery('');
+    openNote(openNoteId);
     setPane('editor');
     setNotesView('list');
     onOpenNoteConsumed?.();
@@ -146,21 +143,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   // Android Back: editor -> list
   useBackHandler(() => (setFocusMode(false), setPane('list'), true), pane === 'editor');
 
-  const allFolders = useMemo(() => [...new Set(notes.map((n) => n.folder).filter(Boolean))].sort(), [notes]);
-  // The root row is distinct from All; folderMatches retains its empty-path domain semantics.
-  const inSelectedFolder = (note: StandaloneNote) => selectedFolder === 'all' ||
-    (selectedFolder === '' ? normalizeFolderPath(note.folder) === '' : folderMatches(note, selectedFolder));
-
-  const filteredNotes = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return sorted.filter(
-      (n) =>
-        inSelectedFolder(n) &&
-        (!q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)))
-    );
-  }, [sorted, selectedFolder, searchQuery]);
-
-  const activeNote = notes.find((n) => n.id === selectedNoteId && inSelectedFolder(n)) || filteredNotes[0] || null;
+  function openNote(id: string) {
+    const note = latestNotes.current.find(note => note.id === id);
+    if (!note) return;
+    setSelectedNoteId(id); revealFolder(note.folder); setPane('editor'); setDrawer(false);
+  }
   const editedMinutes = activeNote ? Math.max(0, Math.floor((now - new Date(activeNote.updatedAt).getTime()) / 60_000)) : 0;
   const editedLabel = editedMinutes < 1 ? 'just now' : editedMinutes < 60 ? `${editedMinutes} min ago` : activeNote ? formatNoteDate(activeNote.updatedAt) : '';
   const words = activeNote ? wordCount(activeNote.content) : 0;
@@ -225,7 +212,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       dismissPair(activeNote.id, id);
     },
     onRestore: (id: string) => { if (activeNote) setPairDismissed(activeNote.id, id, true); },
-    onOpen: (id: string) => { setSelectedNoteId(id); setSelectedFolder('all'); setPane('editor'); setRelatedOpen(false); },
+    onOpen: (id: string) => { openNote(id); setRelatedOpen(false); },
     minimized: relatedMinimized,
     onToggleMinimized: () => {
       const next = { ...loadPanePrefs(), related: relatedMinimized ? 'open' as const : 'min' as const };
@@ -233,13 +220,13 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     },
   };
 
-  const createNote = (folder = selectedFolder === 'all' ? '' : selectedFolder, title = 'Untitled', content = '', navigate = true) => {
+  const createNote = (folder = currentFolder, title = 'Untitled', content = '', navigate = true) => {
     const now = new Date().toISOString();
     const note: StandaloneNote = { id: `note-${Date.now()}`, title, folder, content, tags: [], createdAt: now, updatedAt: now, pinned: false };
     latestNotes.current = [note, ...latestNotes.current];
     onUpdateNotes(latestNotes.current);
     if (navigate) {
-      setSelectedNoteId(note.id);
+      openNote(note.id);
       setViewMode('rich');
       setPane('editor');
       focusTitle.current = true;
@@ -249,12 +236,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const createFromTemplate = (template: (typeof NOTE_TEMPLATES)[number]) => {
     const today = formatLocalDate();
-    const folder = template.folder ?? (selectedFolder === 'all' ? '' : selectedFolder);
+    const folder = template.folder ?? currentFolder;
     const title = template.title(today);
     const content = template.body(today);
-    if (selectedFolder !== 'all' && selectedFolder !== folder) setSelectedFolder(folder);
-    const q = searchQuery.trim().toLowerCase();
-    if (q && !title.toLowerCase().includes(q) && !content.toLowerCase().includes(q)) setSearchQuery('');
     createNote(folder, title, content);
   };
 
@@ -289,7 +273,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       ] };
       latestNotes.current = restored; latestMeta.current = restoredMeta;
       onUpdateNotes(restored); onUpdateNoteMeta?.(restoredMeta);
-      setSelectedFolder('all');
+      setCurrentFolder('');
     } } });
   };
   const changeFolder = async (action: FolderAction, path: string, value = '') => {
@@ -302,14 +286,14 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       if (!name || name.includes('/')) return;
       const destination = normalizeFolderPath(path ? path + '/' + name : name);
       applyFolderChange(current, createEmptyFolder(meta, destination, nowIso), 'Folder created.');
-      setSelectedFolder(destination); setFolderDialog(null); return;
+      revealFolder(destination); setFolderDialog(null); return;
     }
     if (action === 'delete') {
       const count = current.filter(note => folderMatches(note, path)).length;
       if (!await confirmDialog({ title: 'Delete folder?', message: deleteFolderMessage(path, count), confirmLabel: 'Delete', danger: true })) return;
       const result = deleteFolder(latestNotes.current, latestMeta.current, path, new Date().toISOString());
       applyFolderChange(result.notes, result.meta, 'Folder deleted.');
-      setSelectedFolder(path.split('/').slice(0, -1).join('/')); return;
+      revealFolder(path.split('/').slice(0, -1).join('/')); return;
     }
     if (action === 'rename' && (!value.trim() || value.includes('/'))) return;
     const parent = path.split('/').slice(0, -1).join('/');
@@ -328,7 +312,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       : renameFolder(latestNotes.current, latestMeta.current, path, destination, new Date().toISOString());
     if (!result) return;
     applyFolderChange(result.notes, result.meta, 'Folder updated.');
-    setSelectedFolder(destination); setFolderDialog(null);
+    revealFolder(destination); setFolderDialog(null);
   };
   const folderAction = (action: FolderAction, path: string) => {
     if (action === 'delete') void changeFolder(action, path);
@@ -341,13 +325,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     // Inferred folders must survive moving their last note, just like explicitly created folders.
     const meta = createEmptyFolder(latestMeta.current, source.folder, nowIso);
     applyFolderChange(moveNote(latestNotes.current, id, path, nowIso), meta, 'Note moved.');
-    setSelectedNoteId(id);
-    setSelectedFolder('all');
+    openNote(id);
   };
-  const folderTree = <NoteFolderTree tree={tree} selectedPath={selectedFolder} compact={compact}
+  const folderTree = <NoteFolderTree tree={tree} selectedPath={currentFolder} compact={compact}
     minimized={!drawers && !drawer && treeMinimized}
     onSelect={path => {
-      setSelectedFolder(path); setDrawer(false);
+      setCurrentFolder(path === 'all' ? '' : path); setDrawer(false);
       if (drawers) {
         setFocusMode(false);
         setPane('list');
@@ -359,105 +342,20 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const openLinkedNote = (noteTitle: string) => {
     const target = notes.find((n) => n.title.toLowerCase().trim() === noteTitle.toLowerCase().trim());
     if (target) {
-      setSelectedNoteId(target.id);
-      setSelectedFolder('all');
-      setPane('editor');
+      openNote(target.id);
     } else createNote(activeNote?.folder || 'General', noteTitle);
   };
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  // Rows format dates and extract snippets for every note. The graph hides this
-  // list, so do not build it on every render while the graph is active.
-  const list = graphActive ? null : (
-    <div className="dm-card flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
-      <div className="shrink-0 p-3 space-y-2 border-b border-stone-200 dark:border-stone-800">
-        <div className="relative">
-          <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <label htmlFor="notes-search" className="sr-only">
-            Search notes
-          </label>
-          <input
-            id="notes-search"
-            type="search"
-            placeholder="Search notes"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 min-h-11 sm:min-h-9 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800/80 border border-stone-300 dark:border-stone-700 rounded-lg placeholder:text-stone-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex">
-            <button type="button" onClick={() => createFromTemplate(NOTE_TEMPLATES[0])} className={`${buttonClass.primary} rounded-r-none px-2 sm:px-3`}>
-              <FilePlus className="w-4 h-4" /> New note
-            </button>
-            <Menu
-              sheetTitle="Note templates"
-              align="right"
-              items={NOTE_TEMPLATES.map((template) => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
-              trigger={(props) => (
-                <button type="button" {...props} aria-label="Note templates" className={`${buttonClass.primary} rounded-l-none border-l border-stone-500 px-2`}>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              )}
-            />
-          </div>
-          <button type="button" aria-label="New folder" onClick={() => folderAction('new', selectedFolder === 'all' ? '' : selectedFolder)} className={`${buttonClass.ghost} px-2`}>
-            <FolderPlus className="w-4 h-4" /> New folder
-          </button>
-        </div>
-        {compact && <div className="max-h-[35dvh] overflow-y-auto">{folderTree}</div>}
-
-      </div>
-
-      <ul className="flex-1 min-h-0 overflow-y-auto rounded-b-xl divide-y divide-stone-100 dark:divide-stone-800">
-        {filteredNotes.length > 0 ? (
-          filteredNotes.map((note) => {
-            const isSelected = note.id === activeNote?.id && !compact;
-            const checklist = noteChecklist(note.content);
-            const preview = notePreview(note.content.replace(new RegExp(`^#\\s+${note.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), ''));
-            return (
-              <li key={note.id}>
-                <button
-                  draggable={!compact}
-                  onDragStart={e => { e.dataTransfer.setData('application/daymark-note', note.id); e.dataTransfer.effectAllowed = 'move'; }}
-                  type="button"
-                  onClick={() => {
-                    setSelectedNoteId(note.id);
-                    setPane('editor');
-                  }}
-                  aria-current={isSelected ? 'true' : undefined}
-                  className={`w-full text-left px-3 py-2.5 ${
-                    isSelected ? 'bg-accent text-accent-fg' : 'hover:bg-stone-50 dark:hover:bg-stone-800/40'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className={`flex-1 min-w-0 font-semibold text-[15px] sm:text-sm truncate ${isSelected ? '' : 'text-stone-900 dark:text-stone-100'}`}>{note.title || 'Untitled'}</span>
-                    {note.pinned && <Pin className={`w-4 h-4 shrink-0 ${isSelected ? '' : 'text-amber-700 dark:text-amber-400'}`} role="img" aria-label="Pinned" />}
-                  </div>
-                  <div className={`mt-0.5 flex items-center gap-2 text-xs ${isSelected ? '' : 'text-stone-600 dark:text-stone-400'}`}>
-                    <span className="font-medium">{note.folder}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{formatNoteDate(note.updatedAt)}</span>
-                    {checklist && (
-                      <span className="inline-flex items-center gap-1">
-                        <ListChecks className="w-3.5 h-3.5" /> {checklist.done}/{checklist.total}
-                      </span>
-                    )}
-                  </div>
-                  {preview && <p className={`mt-1 text-sm line-clamp-2 ${isSelected ? '' : 'text-stone-600 dark:text-stone-400'}`}>{preview}</p>}
-                </button>
-              </li>
-            );
-          })
-        ) : (
-          <li className="p-8 text-center text-stone-600 dark:text-stone-400">
-            {notes.length === 0 ? 'No notes yet. Tap New note to write one.' : 'No notes match your search.'}
-          </li>
-        )}
-      </ul>
-    </div>
-  );
+  const list = graphActive ? null : <NoteNavigation notes={notes} meta={noteMeta} openNoteId={activeNote?.id}
+    currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded}
+    query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
+    onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}
+    templateItems={NOTE_TEMPLATES.map(template => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
+    onNewFolder={() => folderAction('new', currentFolder)} onFolderAction={folderAction}
+    onDropNote={moveNoteTo} onDropFolder={(path, parent) => { void changeFolder('move', path, parent); }}
+    compact={compact} dragEnabled={!compact} />;
 
   const editor = (
     <div className="dm-card flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
@@ -585,23 +483,23 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       </header>}
       {compact && pane === 'list' && <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1>}
       {!graphActive && drawers && (pane === 'list' || !activeNote) && <div className="shrink-0 flex items-center gap-2"><button ref={listFoldersRef} type="button" aria-label="Folders" onClick={() => setDrawer(true)} className={buttonClass.secondary}>Folders</button></div>}
-      {drawer && <Dialog isOpen title="Folders" variant="sheet" onClose={() => setDrawer(false)}><div className="p-3">{folderTree}<button type="button" className={buttonClass.secondary} onClick={() => folderAction('new', selectedFolder === 'all' ? '' : selectedFolder)}>New folder</button></div></Dialog>}
+      {drawer && <Dialog isOpen title="Folders" variant="sheet" onClose={() => setDrawer(false)}><div className="p-3">{folderTree}<button type="button" className={buttonClass.secondary} onClick={() => folderAction('new', currentFolder)}>New folder</button></div></Dialog>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
       {graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
-        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder={selectedFolder} activeNoteId={activeNote?.id}
+        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder={currentFolder} activeNoteId={activeNote?.id}
           onOpenNote={id => { relatedProps.onOpen(id); setNotesView('list'); }} onLink={linkNotes} onDismiss={dismissPair} />
       </Suspense> : compact ? (pane === 'list' ? list : editor) : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">
           {!focusMode && <div role="group" aria-label="Notes navigation" className={`shrink-0 min-h-0 gap-2 ${drawers ? (pane === 'editor' ? 'hidden' : 'flex w-full') : 'flex'}`}>
-            {!drawers && <aside aria-label="Folder navigation" className={`${treeMinimized ? 'w-14' : 'w-56'} shrink-0 overflow-y-auto border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>
+            {!drawers && <aside aria-label="Folder navigation" className={`${treeMinimized ? 'w-14 overflow-y-auto' : 'w-72'} shrink-0 min-h-0 flex flex-col border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1`}>
               <button type="button" aria-label={treeMinimized ? 'Expand folders' : 'Minimize folders'} title={treeMinimized ? 'Expand folders' : 'Minimize folders'} className="min-h-11 w-full text-stone-700 dark:text-stone-200" onClick={() => {
                 if (treeMinimized && prefs.tree === 'open') { setDrawer(true); return; }
                 const next = { ...loadPanePrefs(), tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
               }}>{treeMinimized ? <ChevronRight className="w-4 h-4 mx-auto" aria-hidden="true" /> : <span className="flex items-center justify-center gap-1"><ChevronLeft className="w-4 h-4" aria-hidden="true" />Folders</span>}</button>
-              {folderTree}
+              {treeMinimized ? folderTree : list}
             </aside>}
-            <section aria-label="Notes list" className={`${drawers ? 'w-full' : 'w-64'} min-h-0 flex flex-col`}>{list}</section>
+            {(drawers || treeMinimized) && <section aria-label="Notes list" className={`${drawers ? 'w-full' : 'w-64'} min-h-0 flex flex-col`}>{list}</section>}
           </div>}
           <div role="group" aria-label="Note editor" style={!drawers ? { minWidth: MIN_EDITOR_WIDTH } : undefined} className={`relative min-h-0 min-w-0 flex-1 flex-col ${drawers && pane === 'list' && !focusMode ? 'hidden' : 'flex'}`}>
             {editor}

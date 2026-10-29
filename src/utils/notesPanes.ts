@@ -1,14 +1,14 @@
 export interface PanePrefs { tree: 'open' | 'min'; related: 'open' | 'min' | undefined; graphFilters?: 'open' | 'min'; graphDetail?: 'open' | 'min' }
 export const MIN_EDITOR_WIDTH = 480;
-// Match SideRail, the folder/list/Related panes, and the notes wrapper's CSS.
-export const NOTES_WIDTHS = { rail: 168, railMin: 64, tree: 224, strip: 56, list: 256, related: 256,
+// Expanded navigation is one column. Keep the legacy strip + list budget until Task 4.
+export const NOTES_WIDTHS = { rail: 168, railMin: 64, tree: 288, strip: 56, list: 256, related: 256,
   padding: 64, compactPadding: 32, paneGap: 12, navigationGap: 8, maxContent: 1800 };
 
 export function notesEditorWidth(windowWidth: number, panes: { railCollapsed: boolean; tree: 'open' | 'min'; related: 'open' | 'min' }): number {
   const w = NOTES_WIDTHS;
   return Math.min(windowWidth - (panes.railCollapsed ? w.railMin : w.rail), w.maxContent)
-    - (panes.tree === 'open' ? w.tree : w.strip) - w.list - (panes.related === 'open' ? w.related : w.strip)
-    - (windowWidth >= 1280 ? w.padding : w.compactPadding) - w.navigationGap - 2 * w.paneGap;
+    - (panes.tree === 'open' ? w.tree : w.strip + w.list + w.navigationGap) - (panes.related === 'open' ? w.related : w.strip)
+    - (windowWidth >= 1280 ? w.padding : w.compactPadding) - 2 * w.paneGap;
 }
 
 export function relatedPaneLayout(width: number, railCollapsed: boolean, prefs: PanePrefs) {
@@ -35,4 +35,16 @@ export function savePanePrefs(prefs: PanePrefs): void {
 }
 export function paneMode(width: number): 'full' | 'compactRelated' | 'drawers' {
   return width >= 1280 ? 'full' : width >= 1100 ? 'compactRelated' : 'drawers';
+}
+
+const EXPANSION_KEY = 'daymark_notes_expanded';
+export function loadNoteExpansion(): Set<string> | undefined {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(EXPANSION_KEY) || 'null');
+    if (Array.isArray(value) && value.every(path => typeof path === 'string')) return new Set(value);
+  } catch { /* Device storage is optional. */ }
+  return undefined;
+}
+export function saveNoteExpansion(expanded: ReadonlySet<string>): void {
+  try { localStorage.setItem(EXPANSION_KEY, JSON.stringify([...expanded])); } catch { /* Keep in memory. */ }
 }

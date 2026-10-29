@@ -28,6 +28,7 @@ vi.mock('./MarkdownPreview', () => ({ MarkdownPreview: () => React.createElement
 import { StandaloneNotesView } from './StandaloneNotesView';
 import { Menu, type MenuItem } from './ui/Menu';
 import { NoteFolderTree } from './notes/NoteFolderTree';
+import { NoteNavigation } from './notes/NoteNavigation';
 import { FolderPicker } from './notes/FolderPicker';
 import { FolderDialogs } from './notes/FolderDialogs';
 import { RelatedPanel } from './notes/RelatedPanel';
@@ -104,17 +105,17 @@ it('provides a focus toggle and restores the list with the same button', () => {
   expect(focus).toBeDefined();
   focus!.props.onClick();
   tree = render();
-  expect(find(tree, (el) => el.props.id === 'notes-search')).toBeUndefined();
+  expect(find(tree, (el) => el.type === NoteNavigation)).toBeUndefined();
   expect(find(tree, (el) => el.props.noteId === note.id && el.props.markdown === note.content)).toBeDefined();
   find(tree, (el) => el.props['aria-label'] === 'Focus mode')!.props.onClick();
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
 it('creates a template note with its suggested folder, title and body', () => {
   const tree = render();
-  const menu = find(tree, (el) => el.type === Menu && (el.props.items as { label: string }[]).some((item) => item.label === 'Meeting'));
+  const menu = find(tree, (el) => el.type === NoteNavigation);
   expect(menu).toBeDefined();
-  menu!.props.items.find((item) => item.label === 'Meeting')!.onSelect();
+  (menu!.props.templateItems as MenuItem[]).find((item) => item.label === 'Meeting')!.onSelect();
   expect(update.mock.calls[0][0][0]).toMatchObject({ folder: 'Meetings', title: expect.stringContaining('Meeting'), content: expect.stringContaining('## Attendees') });
   expect(update.mock.calls[0][0][1]).toEqual(note);
 });
@@ -122,20 +123,20 @@ it('creates a template note with its suggested folder, title and body', () => {
 it('returns to the list from focus mode with Back to notes', () => {
   find(render(), (el) => el.props['aria-label'] === 'Focus mode')!.props.onClick();
   find(render(), (el) => el.props['aria-label'] === 'Back to notes')!.props.onClick();
-  expect(find(render(), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
-it('creates Blank at the top level from All without changing existing notes', () => {
-  const menu = find(render(), (el) => el.type === Menu && (el.props.items as MenuItem[]).some((item) => item.label === 'Blank'));
-  menu!.props.items.find((item) => item.label === 'Blank')!.onSelect();
-  expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: '', content: '' }), note]);
+it('creates Blank in the open note folder without changing existing notes', () => {
+  const menu = find(render(), (el) => el.type === NoteNavigation);
+  (menu!.props.templateItems as MenuItem[]).find((item) => item.label === 'Blank')!.onSelect();
+  expect(update.mock.calls[0][0]).toEqual([expect.objectContaining({ title: 'Untitled', folder: 'Work', content: '' }), note]);
 });
 
-it.each(['all', '', 'Work'])('creates a new note in the selected destination (%s)', selected => {
+it.each(['Archive/2019', '', 'Work'])('creates a new note in the selected destination (%s)', selected => {
   const extra = { notes: [{ ...note, folder: 'Archive/2019' }, { ...note, id: 'work' }] };
-  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)(selected);
-  find(render(false, extra), el => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))!.props.onClick();
-  expect(update.mock.calls[0][0][0]).toMatchObject({ title: 'Untitled', folder: selected === 'all' ? '' : selected });
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)(selected);
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onNewNote as () => void)();
+  expect(update.mock.calls[0][0][0]).toMatchObject({ title: 'Untitled', folder: selected });
 });
 
 it('toggles focus on an App signal change, with no local dot shortcut', () => {
@@ -146,17 +147,17 @@ it('toggles focus on an App signal change, with no local dot shortcut', () => {
   hooks.effects.forEach((effect) => effect());
   render(false, { focusToggleSignal: 1 });
   hooks.effects.forEach((effect) => effect());
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   hooks.effects.forEach((effect) => effect());
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   hooks.effects.forEach((effect) => effect());
   const listener = add.mock.calls.at(-1)![1];
   listener({ key: '.', ctrlKey: true, target: { tagName: 'BUTTON' }, preventDefault: vi.fn() });
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   listener({ key: 'Escape', target: { tagName: 'TEXTAREA' } });
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeUndefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   listener({ key: 'Escape', target: { tagName: 'BUTTON' } });
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
 it('opens a requested note in the compact editor', () => {
@@ -176,7 +177,7 @@ it('ignores focus signals on compact screens without jumping from the list to th
   hooks.effects.forEach((effect) => effect());
   render(true, { focusToggleSignal: 1 });
   hooks.effects.forEach((effect) => effect());
-  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
   expect(find(render(true, { focusToggleSignal: 1 }), (el) => el.props.id === 'note-title')).toBeUndefined();
 });
 
@@ -193,33 +194,31 @@ it.each([false, true])('consumes a note-open request once (compact=%s)', (compac
   render(compact, { onOpenNoteConsumed: consumed });
   hooks.effects.forEach((effect) => effect());
   expect(consumed).toHaveBeenCalledOnce();
-  expect(find(render(compact), (el) => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(compact), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
-it('keeps All and a matching search when creating a blank note', () => {
-  const input = find(render(), (el) => el.props.id === 'notes-search')!;
-  (input.props.onChange as (e: unknown) => void)({ target: { value: 'untitled' } });
-  find(render(), (el) => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))!.props.onClick();
+it('keeps the current folder and a matching search when creating a blank note', () => {
+  const input = find(render(), (el) => el.type === NoteNavigation)!;
+  (input.props.onQueryChange as (q: string) => void)('untitled');
+  (find(render(), el => el.type === NoteNavigation)!.props.onNewNote as () => void)();
   const next = render();
-  expect(find(next, (el) => el.type === NoteFolderTree)?.props.selectedPath).toBe('all');
-  expect(find(next, (el) => el.props.id === 'notes-search')?.props.value).toBe('untitled');
+  expect(find(next, (el) => el.type === NoteNavigation)?.props.currentFolder).toBe('Work');
+  expect(find(next, (el) => el.type === NoteNavigation)?.props.query).toBe('untitled');
 });
 
-it('switches a conflicting folder and clears a nonmatching search for templates', () => {
-  (find(render(), (el) => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
-  const input = find(render(), (el) => el.props.id === 'notes-search')!;
-  (input.props.onChange as (e: unknown) => void)({ target: { value: 'no-match' } });
-  const menu = find(render(), (el) => el.type === Menu && (el.props.items as MenuItem[]).some((item) => item.label === 'Meeting'))!;
-  menu.props.items.find((item) => item.label === 'Meeting')!.onSelect();
-  expect(find(render(), (el) => el.props.id === 'notes-search')?.props.value).toBe('');
-  expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.type === NoteFolderTree)?.props.selectedPath).toBe('Meetings');
+it('uses the template folder and preserves search with the open note reachable', () => {
+  (find(render(), (el) => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Work');
+  const input = find(render(), (el) => el.type === NoteNavigation)!;
+  (input.props.onQueryChange as (q: string) => void)('no-match');
+  const menu = find(render(), (el) => el.type === NoteNavigation)!;
+  (menu.props.templateItems as MenuItem[]).find((item) => item.label === 'Meeting')!.onSelect();
+  expect(find(render(), (el) => el.type === NoteNavigation)?.props.query).toBe('no-match');
+  expect(find(render(false, { notes: update.mock.calls[0][0] }), (el) => el.type === NoteNavigation)?.props.currentFolder).toBe('Meetings');
 });
 
 it('keeps compact rich editing bounded with a Markdown toggle', () => {
   const tree = render(true);
-  const listNote = find(tree, (el) => el.type === 'button' && el.props['aria-current'] === undefined && typeof el.props.onClick === 'function' && find(el.props.children as React.ReactNode, (child) => child.type === 'span' && child.props.children === 'Existing') !== undefined);
-  expect(listNote).toBeDefined();
-  listNote!.props.onClick();
+  (find(tree, el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
   const html = renderToStaticMarkup(render(true));
   expect(html).toContain('flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden');
   expect(html).toContain('flex min-w-0 items-center gap-1');
@@ -280,38 +279,38 @@ it('cleanup changes the Markdown textarea key while preserving note content', ()
   expect(before.key).not.toBe(after.key); expect(after.props.value).toBe(note.content);
 });
 
-it('selects descendants through the tree and provides the header picker', () => {
+it('folder selection sets the creation destination without filtering or changing the editor', () => {
   const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
   const extra = { notes: [note, child] };
-  const tree = find(render(false, extra), el => el.type === NoteFolderTree)!;
-  (tree.props.onSelect as (path: string) => void)('Tech');
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Tech');
   const next = render(false, extra);
-  expect(find(next, el => el.type === 'span' && el.props.children === 'Child')).toBeDefined();
-  expect(find(next, el => el.type === 'span' && el.props.children === 'Existing')).toBeUndefined();
+  expect(find(next, el => el.type === NoteNavigation)?.props.currentFolder).toBe('Tech');
+  expect(find(next, el => el.type === NoteNavigation)?.props.notes).toEqual([note, child]);
+  expect(find(next, el => el.props.id === 'note-title')?.props.value).toBe('Existing');
   expect(find(next, el => el.type === FolderPicker)).toBeDefined();
-  expect(find(next, el => el.props.role === 'group' && el.props['aria-label'] === 'Folders')).toBeUndefined();
 });
+
 it('creates an empty folder through metadata without an overview note', async () => {
   const onUpdateNoteMeta = vi.fn();
   const extra = { noteMeta: { folders: [], dismissed: [] }, onUpdateNoteMeta };
-  find(render(false, extra), el => el.props['aria-label'] === 'New folder')!.props.onClick();
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onNewFolder as () => void)();
   const dialog = find(render(false, extra), el => el.type === FolderDialogs)!;
   await (dialog.props.onSubmit as (name: string) => Promise<void>)('Empty');
-  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Empty' })] }));
+  expect(onUpdateNoteMeta).toHaveBeenCalledWith(expect.objectContaining({ folders: [expect.objectContaining({ path: 'Work/Empty' })] }));
   expect(update).toHaveBeenCalledOnce();
   expect(update).toHaveBeenCalledWith([note]);
 });
 
-it('keeps the moved note open when it was selected by a folder filter', () => {
+it('keeps the moved note open after opening it from the tree', () => {
   const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
   const extra = { notes: [note, child] };
-  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Tech');
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)('child');
   (find(render(false, extra), el => el.type === FolderPicker)!.props.onChange as (path: string) => void)('Work');
   expect(find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.props.id === 'note-title')?.props.value).toBe('Child');
 });
 
 it('keeps editing the active note when an edit no longer matches search', () => {
-  (find(render(), el => el.props.id === 'notes-search')!.props.onChange as (event: unknown) => void)({ target: { value: 'Existing' } });
+  (find(render(), el => el.type === NoteNavigation)!.props.onQueryChange as (q: string) => void)('Existing');
   (find(render(), el => el.props.id === 'note-title')!.props.onChange as (event: unknown) => void)({ target: { value: 'Renamed' } });
   expect(find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.props.id === 'note-title')?.props.value).toBe('Renamed');
 });
@@ -330,7 +329,7 @@ it('keeps Back to notes reachable throughout the drawer breakpoint', () => {
 });
 
 it('treats moving a folder to its current parent as a quiet no-op', () => {
-  const tree = find(render(), el => el.type === NoteFolderTree)!;
+  const tree = find(render(), el => el.type === NoteNavigation)!;
   (tree.props.onDropFolder as (path: string, parent: string) => void)('Work', '');
   expect(update).not.toHaveBeenCalled();
   expect(feedback.toast).not.toHaveBeenCalled();
@@ -339,7 +338,7 @@ it('confirms collision counts and cancels a merge without changing notes', async
   const other = { ...note, id: 'other', folder: 'Personal' };
   const extra = { notes: [note, other] };
   feedback.confirm.mockResolvedValueOnce(false);
-  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onFolderAction as (action: string, path: string) => void)('rename', 'Work');
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onFolderAction as (action: string, path: string) => void)('rename', 'Work');
   await (find(render(false, extra), el => el.type === FolderDialogs)!.props.onSubmit as (value: string) => Promise<void>)('Personal');
   expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Merge folders?', message: expect.stringMatching(/2 notes.*Personal/) }));
   expect(update).not.toHaveBeenCalled();
@@ -363,50 +362,40 @@ it('does not combine a hidden desktop Back button with a display utility', () =>
 });
 
 // Fix round 1 regressions.
-it('keeps search, creation and the selected notes list next to a minimized desktop tree', () => {
+it('keeps the existing strip next to the new navigation when minimized', () => {
   vi.stubGlobal('window', { innerWidth: 1440 });
   find(render(), el => el.props['aria-label'] === 'Minimize folders')!.props.onClick();
   const tree = render();
   expect(find(tree, el => el.type === NoteFolderTree)?.props.minimized).toBe(true);
-  expect(find(tree, el => el.props.id === 'notes-search')).toBeDefined();
-  expect(find(tree, el => el.type === 'button' && Array.isArray(el.props.children) && el.props.children.includes(' New note'))).toBeDefined();
-  expect(find(tree, el => el.type === 'span' && el.props.children === 'Existing')).toBeDefined();
-  expect(find(tree, el => el.props['aria-label'] === 'Notes list')).toBeDefined();
+  expect(find(tree, el => el.type === NoteNavigation)).toBeDefined();
 });
-it.each(['', 'all', 'Tech'])('filters the root, all and nested selections separately (%s)', path => {
-  const fixtures = [
-    { ...note, id: 'root', title: 'Root note', folder: ' / ' },
-    { ...note, id: 'tech', title: 'Tech note', folder: 'Tech' },
-    { ...note, id: 'java', title: 'Java note', folder: 'Tech/Java' },
-    { ...note, id: 'other', title: 'Other note', folder: 'Other' },
-  ];
+
+it.each(['', 'Tech'])('keeps every note available when the current folder changes (%s)', path => {
+  const fixtures = [{ ...note, id: 'root', folder: '' }, { ...note, id: 'java', folder: 'Tech/Java' }, note];
   const extra = { notes: fixtures };
-  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)(path);
-  const tree = render(false, extra);
-  const expected = path === '' ? ['Root note'] : path === 'Tech' ? ['Tech note', 'Java note'] : fixtures.map(n => n.title);
-  for (const item of fixtures) expect(!!find(tree, el => el.type === 'span' && el.props.children === item.title)).toBe(expected.includes(item.title));
-  expect(expected).toContain(find(tree, el => el.props.id === 'note-title')?.props.value);
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)(path);
+  expect(find(render(false, extra), el => el.type === NoteNavigation)?.props.notes).toEqual(fixtures);
+  expect(find(render(false, extra), el => el.type === NoteNavigation)?.props.currentFolder).toBe(path);
 });
-it('deleting a top-level folder selects only the resulting root notes and marks the confirmation dangerous', async () => {
+it('deleting a top-level folder keeps all resulting notes and marks the confirmation dangerous', async () => {
   const other = { ...note, id: 'other', title: 'Other note', folder: 'Other' };
   const extra = { notes: [note, other] };
-  (find(render(false, extra), el => el.type === NoteFolderTree)!.props.onFolderAction as (action: string, path: string) => void)('delete', 'Work');
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onFolderAction as (action: string, path: string) => void)('delete', 'Work');
   await Promise.resolve();
   expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
   const tree = render(false, { notes: update.mock.calls.at(-1)![0] });
-  expect(find(tree, el => el.type === NoteFolderTree)?.props.selectedPath).toBe('');
-  expect(find(tree, el => el.type === 'span' && el.props.children === 'Other note')).toBeUndefined();
-  expect(find(tree, el => el.type === 'span' && el.props.children === 'Existing')).toBeDefined();
+  expect(find(tree, el => el.type === NoteNavigation)?.props.currentFolder).toBe('');
+  expect(find(tree, el => el.type === NoteNavigation)?.props.notes).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'other', folder: 'Other' }), expect.objectContaining({ id: note.id, folder: '' })]));
 });
 it.each([true, false])('selecting a drawer folder returns an open editor to its list (compact=%s)', compact => {
   vi.stubGlobal('window', { innerWidth: 900 });
   const first = render(compact);
-  find(first, el => el.type === 'button' && find(el.props.children as React.ReactNode, child => child.type === 'span' && child.props.children === 'Existing') !== undefined)!.props.onClick();
+  (find(first, el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
   const editor = render(compact);
   find(editor, el => el.props['aria-label'] === 'Folders')!.props.onClick();
   (find(render(compact), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
   const tree = render(compact);
-  const search = find(tree, el => el.props.id === 'notes-search');
+  const search = find(tree, el => el.type === NoteNavigation);
   expect(search).toBeDefined();
   if (!compact) {
     expect(find(tree, el => el.props['aria-label'] === 'Notes navigation')!.props.className).not.toContain('hidden');
@@ -416,7 +405,7 @@ it('restores the Notes heading on the compact list', () => {
   expect(find(render(true), el => el.type === 'h1' && el.props.children === 'Notes')).toBeDefined();
 });
 it('ignores a folder self-drop but refuses a descendant drop', () => {
-  const drop = find(render(), el => el.type === NoteFolderTree)!.props.onDropFolder as (path: string, parent: string) => void;
+  const drop = find(render(), el => el.type === NoteNavigation)!.props.onDropFolder as (path: string, parent: string) => void;
   drop('Work', ' work ');
   expect(feedback.toast).not.toHaveBeenCalled();
   expect(update).not.toHaveBeenCalled();
@@ -430,5 +419,53 @@ it('leaves focus mode when a drawer folder selection returns to the list', () =>
   find(render(), el => el.props['aria-label'] === 'Focus mode')!.props.onClick();
   find(render(), el => el.props['aria-label'] === 'Folders')!.props.onClick();
   (find(render(), el => el.type === NoteFolderTree)!.props.onSelect as (path: string) => void)('Work');
-  expect(find(render(), el => el.props.id === 'notes-search')).toBeDefined();
+  expect(find(render(), el => el.type === NoteNavigation)).toBeDefined();
+});
+
+it('opens a tree note into its folder, expands ancestors, and creates there without saving on render', () => {
+  const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
+  const extra = { notes: [note, child] };
+  const navigation = () => find(render(false, extra), el => typeof el.type === 'function' && el.type.name === 'NoteNavigation')!;
+  expect(update).not.toHaveBeenCalled();
+  expect(navigation()).toBeDefined();
+  (navigation().props.onOpenNote as (id: string) => void)('child');
+  expect(navigation().props.currentFolder).toBe('Tech/Java');
+  expect(navigation().props.expanded).toEqual(new Set(['work', 'tech', 'tech/java']));
+  (navigation().props.onNewNote as () => void)();
+  expect(update.mock.calls.at(-1)![0][0].folder).toBe('Tech/Java');
+});
+it('wiki opening expands the path and search preserves the open note in navigation', () => {
+  const child = { ...note, id: 'child', title: 'Child', folder: 'Tech/Java' };
+  const extra = { notes: [note, child] };
+  (find(render(false, extra), el => el.props.noteId === note.id)!.props.onOpenLink as (title: string) => void)('Child');
+  const nav = find(render(false, extra), el => typeof el.type === 'function' && el.type.name === 'NoteNavigation')!;
+  expect(nav).toBeDefined(); expect(nav.props.currentFolder).toBe('Tech/Java');
+  expect(nav.props.expanded).toEqual(new Set(['work', 'tech', 'tech/java']));
+  (nav.props.onQueryChange as (q: string) => void)('absent');
+  const next = find(render(false, extra), el => typeof el.type === 'function' && el.type.name === 'NoteNavigation')!;
+  expect(next.props.openNoteId).toBe('child'); expect(next.props.query).toBe('absent');
+  expect(update).not.toHaveBeenCalled();
+});
+it('new folder is created inside the current folder and pinning feeds the tree', async () => {
+  const nav = () => find(render(), el => typeof el.type === 'function' && el.type.name === 'NoteNavigation')!;
+  expect(nav()).toBeDefined();
+  (nav().props.onSelectFolder as (path: string) => void)('Tech');
+  (nav().props.onNewFolder as () => void)();
+  expect(find(render(), el => el.type === FolderDialogs)?.props.path).toBe('Tech');
+  find(render(), el => el.props['aria-label'] === 'Pin note to the top')!.props.onClick();
+  const next = find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => typeof el.type === 'function' && el.type.name === 'NoteNavigation')!;
+  expect((next.props.notes as StandaloneNote[])[0].pinned).toBe(true);
+});
+
+it('reveals the fallback note after the active note disappears during sync', () => {
+  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  render();
+  const other = { ...note, id: 'other', folder: 'Archive/2026' };
+  render(false, { notes: [other] }); hooks.effects.forEach(effect => effect());
+  const nav = find(render(false, { notes: [other] }), el => el.type === NoteNavigation)!;
+  expect(nav.props.openNoteId).toBe('other');
+  expect(nav.props.currentFolder).toBe('Archive/2026');
+  expect(nav.props.expanded).toEqual(new Set(['work', 'archive', 'archive/2026']));
+  expect(update).not.toHaveBeenCalled();
 });
