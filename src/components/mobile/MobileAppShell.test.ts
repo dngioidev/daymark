@@ -29,13 +29,13 @@ function shellProps(): React.ComponentProps<typeof MobileAppShell> {
   };
 }
 
-it('makes Backlog reachable in the six-slot phone navigation and shows its content', () => {
+it('makes Backlog reachable in the five-slot phone navigation and shows its content', () => {
   const props = shellProps();
   const host = document.createElement('div');
   host.innerHTML = renderToStaticMarkup(React.createElement(MobileAppShell, props));
   const nav = host.querySelector('nav')!;
   expect([...nav.querySelectorAll('button')].map(b => b.getAttribute('aria-label') ?? b.textContent))
-    .toEqual(['Today', 'Calendar', 'New task', 'Backlog', 'Notes', 'Settings']);
+    .toEqual(['Today', 'Calendar', 'New task', 'Backlog', 'Notes']);
   expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Backlog');
   expect(host.querySelector('main h1')?.textContent).toBe('Backlog content');
   expect(host.querySelector('.dm-side-rail')).toBeNull();
@@ -58,4 +58,21 @@ it('routes Android Back from Backlog to Today before minimising the app', async 
   } finally {
     await act(async () => root.unmount()); host.remove(); platform.mockRestore(); vi.unstubAllGlobals();
   }
+});
+
+it('opens Settings from a 44px header icon and preserves the sync shortcut', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host), props = shellProps();
+  try {
+    await act(async () => root.render(React.createElement(MobileAppShell, props)));
+    const settings = host.querySelector<HTMLButtonElement>('header [aria-label="Settings"]')!;
+    expect(settings).not.toBeNull(); expect(settings.title).toBe('Settings');
+    expect(settings.classList.contains('w-[44px]')).toBe(true);
+    expect(settings.classList.contains('h-[44px]')).toBe(true);
+    act(() => settings.click()); expect(props.onOpenSettings).toHaveBeenLastCalledWith();
+    act(() => host.querySelector<HTMLButtonElement>('header [aria-label^="Sync:"]')!.click());
+    expect(props.onOpenSettings).toHaveBeenLastCalledWith('sync');
+    expect(host.querySelector('nav [aria-label="Settings"]')).toBeNull();
+  } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });

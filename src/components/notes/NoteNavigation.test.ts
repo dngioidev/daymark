@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
 import { NoteNavigation, type NoteNavigationProps } from './NoteNavigation';
+import { ViewSwitch } from './ViewSwitch';
 import type { StandaloneNote } from '../../types/daymark';
 const note = (id: string, title: string, folder = '', extra = {}): StandaloneNote => ({ id, title, folder, content: 'private body', tags: [], createdAt: '2026-10-29', updatedAt: '2026-10-29', ...extra });
 const base = (): NoteNavigationProps => ({ notes: [note('one', 'Java', 'Tech/Java', { pinned: true }), note('two', 'Root')], meta: { folders: [], dismissed: [] }, expanded: new Set(['tech', 'tech/java']), currentFolder: 'Tech', query: '', openNoteId: 'one', onExpandedChange: vi.fn(), onQueryChange: vi.fn(), onOpenNote: vi.fn(), onSelectFolder: vi.fn(), onNewNote: vi.fn(), onNewFolder: vi.fn(), onFolderAction: vi.fn(), dragEnabled: true });
@@ -120,9 +121,9 @@ it.each([false, true])('provides phone-height controls and correctly sized folde
   const el = parse({ ...base(), compact, query: 'Java' });
   const controls = [el.querySelector('#notes-search')!, el.querySelector('[aria-label="Clear search"]')!, el.querySelector('[aria-label="New folder"]')!, el.querySelector('[aria-label="Note templates"]')!, [...el.querySelectorAll('button')].find(button => button.textContent?.includes('New note'))!];
   for (const control of controls) {
-    expect(control.classList.contains('min-h-11')).toBe(true);
-    if (!compact) expect(control.classList.contains('sm:min-h-9')).toBe(true);
-    else expect(control.classList.contains('sm:min-h-9')).toBe(false);
+    expect(control.classList.contains('h-11')).toBe(true);
+    if (!compact) expect(control.classList.contains('sm:h-9')).toBe(true);
+    else expect(control.classList.contains('sm:h-9')).toBe(false);
   }
   const menu = el.querySelector('[aria-label="Actions for Tech"]')!;
   expect(menu.classList.contains(compact ? 'w-11' : 'w-7')).toBe(true);
@@ -168,4 +169,20 @@ it('keeps Clear search 44px wide in explicit compact mode even above the small b
   const clear = el.querySelector('[aria-label="Clear search"]')!;
   expect(clear.classList.contains('w-11')).toBe(true);
   expect(clear.classList.contains('sm:w-8')).toBe(false);
+});
+
+it.each([false, true])('shares fixed action heights including ViewSwitch (compact=%s)', compact => {
+  const el = parse({ ...base(), compact, query: 'Java', viewSwitch: React.createElement(ViewSwitch, { value: 'list', onChange: vi.fn(), compact }) });
+  const row = el.querySelector('[data-testid="notes-actions-row"]')!;
+  expect(row).not.toBeNull();
+  expect(row.classList.contains('items-center')).toBe(true);
+  const controls = [...row.querySelectorAll('button'), el.querySelector('[aria-label="Clear search"]')!];
+  expect(controls).toHaveLength(6);
+  for (const control of controls) {
+    expect(control.classList.contains('h-11')).toBe(true);
+    expect(control.classList.contains('sm:h-9')).toBe(!compact);
+    expect(control.classList.contains('items-center')).toBe(true);
+    expect(control.className).not.toMatch(/min-h-|py-/);
+    expect(control.parentElement!.classList.contains('items-center')).toBe(true);
+  }
 });

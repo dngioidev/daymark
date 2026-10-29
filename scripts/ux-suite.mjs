@@ -479,18 +479,20 @@ async function functional() {
   await tc('NAV-01', 'Bottom nav tabs', 'P412', async () => {
     const { ctx, page } = await open('P412');
     const nav = page.getByRole('navigation', { name: 'Main' });
-    expect(JSON.stringify(await nav.getByRole('button').evaluateAll(buttons => buttons.map(b => b.getAttribute('aria-label') || b.textContent))) === JSON.stringify(['Today', 'Calendar', 'New task', 'Backlog', 'Notes', 'Settings']), 'phone navigation order changed');
+    expect(JSON.stringify(await nav.getByRole('button').evaluateAll(buttons => buttons.map(b => b.getAttribute('aria-label') || b.textContent))) === JSON.stringify(['Today', 'Calendar', 'New task', 'Backlog', 'Notes']), 'phone navigation order changed');
     for (const [name, check] of [
       [/^calendar$/i, async () => /last 7 days/i.test(await visibleText(page))],
       [/^backlog$/i, async () => page.getByRole('heading', { name: 'Backlog', exact: true }).isVisible()],
       [/^notes$/i, async () => /new note/i.test(await visibleText(page))],
       [/^today$/i, async () => taskTitle(page, T1).isVisible()],
-      [/^settings$/i, async () => isOpenDialog(page, 'Settings')],
     ]) {
       await nav.getByRole('button', { name }).click();
       await page.waitForTimeout(300);
       expect(await check(), `tab ${name} did not open`);
     }
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click();
+    expect(await isOpenDialog(page, 'Settings'), 'header Settings did not open');
+    await dialog(page, 'Settings').getByRole('button', { name: 'Close', exact: true }).click();
     const sizes = await nav.evaluate((n) => [...n.querySelectorAll('button')].map((b) => Math.round(Math.min(b.offsetWidth, b.offsetHeight))));
     await ctx.close();
     expect(sizes.every((s) => s >= 44), `bottom nav target below 44 px: ${sizes.join(', ')}`);

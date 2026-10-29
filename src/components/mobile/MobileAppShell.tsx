@@ -116,7 +116,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
         setActiveTab(tab);
       })}
       aria-current={activeTab === tab ? 'page' : undefined}
-      className={`flex flex-col items-center justify-center gap-0.5 min-w-0 basis-0 min-h-12 rounded-lg text-xs font-medium ${tab === 'today' || tab === 'calendar' ? 'grow-[1.5]' : 'grow'} ${
+      className={`flex flex-col items-center justify-center gap-0.5 min-w-0 basis-0 min-h-12 rounded-lg text-xs font-medium grow ${
         activeTab === tab ? 'bg-accent text-accent-fg font-bold' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
       }`}
     >
@@ -154,8 +154,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       >
         <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-2 sticky top-0 z-30">
           <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
-          <span className="font-bold text-base tracking-tight mr-auto">Daymark</span>
-          <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" className="inline-flex items-center justify-center w-11 h-11 rounded-lg">
+          <span className="min-w-0 truncate font-bold text-base tracking-tight mr-auto">Daymark</span>
+          <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" className="inline-flex items-center justify-center shrink-0 w-11 h-11 rounded-lg">
             <Search className="w-5 h-5" />
           </button>
           {canInstall && (
@@ -167,10 +167,13 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             type="button"
             onClick={() => onOpenSettings('sync')}
             aria-label={`Sync: ${sync.label}. Open sync settings`}
-            className="inline-flex items-center gap-1.5 min-h-11 px-2 -mr-2 rounded-lg text-sm hover:underline underline-offset-4"
+            className="inline-flex min-w-0 items-center gap-1.5 min-h-11 px-2 rounded-lg text-sm hover:underline underline-offset-4"
           >
-            <span className={`w-2 h-2 rounded-full ${sync.dot}`} aria-hidden="true" />
-            {sync.label}
+            <span className={`shrink-0 w-2 h-2 rounded-full ${sync.dot}`} aria-hidden="true" />
+            <span className="truncate">{sync.label}</span>
+          </button>
+          <button type="button" onClick={() => onOpenSettings()} aria-label="Settings" title="Settings" className="inline-flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-lg">
+            <Settings className="w-5 h-5" />
           </button>
         </header>
 
@@ -234,7 +237,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             activeTab === 'notes' ? 'shrink-0' : frame ? 'sm:absolute fixed bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0'
           }`}
         >
-          {/* Balance the two tabs on the left against the three on the right so + stays centred. */}
+          {/* Two equal tabs on each side keep + centred. */}
           {tabButton('today', <Calendar className="w-5 h-5" />, 'Today')}
           {tabButton('calendar', <CalendarDays className="w-5 h-5" />, 'Calendar', () => {
             setActiveTab('calendar');
@@ -252,7 +255,6 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </button>
           {tabButton('backlog', <Inbox className="w-5 h-5" />, 'Backlog')}
           {tabButton('notes', <FolderOpen className="w-5 h-5" />, 'Notes')}
-          {tabButton('settings', <Settings className="w-5 h-5" />, 'Settings', () => onOpenSettings())}
         </nav>
       </div>
     </div>

@@ -21,6 +21,17 @@ export async function notesResponsiveScenario({ page, width, axe, verify }) {
     })).violations.map(v => ({ id: v.id, targets: v.nodes.map(n => n.target) })), selectors);
     verify(`axe-${state}`, violations.length === 0, JSON.stringify(violations));
   };
+  const actionGeometry = async () => {
+    await search().fill('Root');
+    const row = page.getByTestId('notes-actions-row');
+    const buttons = await row.locator('button').evaluateAll(elements => elements.filter(el => el.getClientRects().length).map(el => {
+      const r = el.getBoundingClientRect(); return { label: el.getAttribute('aria-label') || el.textContent, height: r.height, y: r.y };
+    }));
+    const clearHeight = await page.getByRole('button', { name: 'Clear search', exact: true }).evaluate(el => el.getBoundingClientRect().height);
+    const expected = width < 768 ? 44 : 36;
+    verify('action-heights', buttons.length === (width < 768 ? 3 : 5) && buttons.every(b => b.height === expected && Math.abs(b.y - buttons[0].y) < 1) && clearHeight === expected, JSON.stringify({ buttons, clearHeight, expected }));
+    await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  };
   if (width >= 768) {
     verify('no-header', await page.locator('header[aria-label="Notes view"]').count() === 0 && await page.locator('h1').count() === 1 && await page.locator('h1').innerText() === 'Notes');
     const pane = width < 1100 ? editor() : page.getByRole('group', { name: 'Notes navigation', exact: true });

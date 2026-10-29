@@ -164,3 +164,7 @@ New test files accompany these modules and the integration boundaries:
 | `src/utils/noteMarkdown.ts`, `src/utils/noteTextSerialization.ts` | Logic | Markdown/editor conversion, raw-block preservation and Markdown text serialisation. |
 | `src/components/notes/mermaidNode.tsx`, `src/components/notes/mermaidDiagram.tsx` | Editor / UI | Editable Mermaid code, lazy strict-mode diagram rendering and error fallback. |
 | `src/utils/vaultArchive.ts`, `src/utils/vaultStore.ts`, `src/components/SettingsModal.tsx` | Storage / UI | Picture backup/restore, ZIP relative links, storage usage and explicit unused-picture cleanup. |
+
+### Phone navigation (cycle 12 Task 4b)
+
+`MobileAppShell.tsx` has five bottom controls: Today, Calendar, New task (centred plus), Backlog and Notes. Settings is a 44 x 44 gear button in the top header; its callback opens general Settings, while the sync button continues to open the Sync tab. Notes action controls share `notes/controlHeight.ts`: 44px on phones/compact, 36px on desktop.

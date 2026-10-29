@@ -127,7 +127,7 @@ try {
   await page.getByText('Captured offline (e2e)').first().waitFor({ timeout: 10000 }).catch(() => {});
   check(await page.getByText('Captured offline (e2e)').first().isVisible().catch(() => false), 'offline capture survives offline reload');
   // Export works offline too (JSZip is a lazy chunk the service worker precaches)
-  await page.getByRole('button', { name: /^settings$/i }).click();
+  await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Backup & restore', exact: true }).click();
   const download = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
   await page.getByRole('button', { name: /back up now/i }).click();

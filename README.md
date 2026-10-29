@@ -62,6 +62,7 @@ services:
 
 - **Backlog:** park undated ideas with category labels, then pick today or a future day. They stay out of daily counts, rollover and old-task warnings until picked. Capture directly to Backlog or move open dated tasks there, with Undo.
 - **Desktop side menu:** Five equal parts (Title, Today, Calendar, Notes and Backlog) stay beside the full-width workspace. Search and Settings are small icon buttons in the Title part. Choose Left or Right in Appearance, or minimize the menu to icons for more room. The minimized choice stays on this device; Notes focus mode hides the menu.
+- **Phone navigation:** Today, Calendar, the centre New task plus button, Backlog and Notes fill the bottom bar. Open Settings with the gear icon in the top header.
 - **Move to section:** move an open or completed task to another section of its day, including a new section, while preserving its details and history.
 - **Your own look:** choose Light or Dark, header and text colours, text size, and up to five background photos with dim and blur. Photos stay on this device; appearance settings sync.
 - **Calendar:** plan future days, switch between month and week, and open any day to write. Week view shows seven full-width day rows with every task, two task columns on desktop and one on phones. Drag a task onto today or a future day on desktop.

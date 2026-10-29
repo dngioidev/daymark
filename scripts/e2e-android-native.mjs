@@ -129,7 +129,7 @@ try {
   check(prefs.includes(TITLE), 'snapshot for the widget was written natively');
 
   // Settings is reachable on a phone; add the widget from there
-  check(await clickButton(/^\s*settings\s*$/i), 'bottom bar has a Settings button');
+  check(await clickButton(/^\s*settings\s*$/i), 'phone header has a Settings button');
   await sleep(800);
   shot('native-3-settings-add-widget');
   check(await clickButton(/^\s*add widget/i), 'Add widget button is shown in the native app');

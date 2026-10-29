@@ -1459,10 +1459,16 @@ await run('C10-P8', async () => {
       const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
       return { buttons: [...n.querySelectorAll('button')].map(b => ({ ...rect(b), label: b.getAttribute('aria-label') || b.textContent, clipped: b.scrollWidth > b.clientWidth })), plus: rect(n.querySelector('[aria-label="New task"]')) };
     });
-    check(`C10-P8-${caseId}-navigation`, geometry.buttons.map(b => b.label).join('|') === 'Today|Calendar|New task|Backlog|Notes|Settings'
+    check(`C10-P8-${caseId}-navigation`, geometry.buttons.map(b => b.label).join('|') === 'Today|Calendar|New task|Backlog|Notes'
       && geometry.buttons.every(b => b.width >= 44 && b.height >= 44 && !b.clipped)
       && Math.abs(geometry.plus.x + geometry.plus.width / 2 - width / 2) <= 1,
     'phone navigation fits with 44px targets, complete labels and centred capture', JSON.stringify(geometry));
+    const headerSettings = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
+    const settingsGeometry = await headerSettings.evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, right: r.right, width: r.width, height: r.height }; });
+    check(`C10-P8-${caseId}-header-settings`, settingsGeometry.width === 44 && settingsGeometry.height === 44 && settingsGeometry.x >= 0 && settingsGeometry.right <= width, 'header Settings has a visible 44px target', JSON.stringify(settingsGeometry));
+    await headerSettings.click();
+    check(`C10-P8-${caseId}-settings-open`, await settingsBox(page).isVisible(), 'header Settings opens the settings dialog');
+    await settingsClose(page);
     console.log(`GEOMETRY ${width}: ${JSON.stringify(geometry)}`);
     const first = backlogRow('First phone idea');
     const pick = first.getByLabel('Pick a day');

@@ -9,7 +9,7 @@ Keyboard navigation follows the focused control. Tab moves between controls, Ent
 
 In Notes, the folder tree, the Related panel and the graph are reachable by keyboard: Tab moves between folder rows and their actions buttons, and Enter selects a folder. In the graph, choose List view for every note and connection as buttons, with Link and Not related for each suggestion; long lists are paged with Previous and Next buttons. The graph canvas also supports the mouse wheel for zoom and drag to pan.
 ## Mobile
-Use the bottom bar to switch between Today, Calendar, Backlog, Notes and Settings. The plus button opens New task. Tap task titles for details and the task menu for actions such as Move to section or Move to backlog. Use the visible controls when an action needs a precise destination or date.
+Use the bottom bar to switch between Today, Calendar, Backlog and Notes. The centre plus button opens New task. Open Settings with the gear icon in the top header. Tap task titles for details and the task menu for actions such as Move to section or Move to backlog. Use the visible controls when an action needs a precise destination or date.
 
 Android Back closes the current dialog or editor before leaving a page, and returns from Backlog to Today. Browser navigation can differ from the native app. On the website, tap a screenshot to enlarge it, swipe horizontally to browse, and use Close to return. Native pinch zoom remains available. A connected keyboard can use the web shortcuts where the current input context permits them.
 

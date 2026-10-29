@@ -306,7 +306,7 @@ const SHOTS = [
   { name: 'phone-calendar', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /^calendar$/i)) },
   { name: 'phone-notes', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /^notes$/i)) },
   { name: 'phone-note', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /^notes$/i), click('button', /weekly sprint sync/i)) },
-  { name: 'phone-settings', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /^settings$/i)) },
+  { name: 'phone-settings', viewport: 'android', cycles: ['cycle-5'], prepare: then(page => page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()) },
   { name: 'phone-settings-statuses', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /^settings$/i), click('tab', /statuses/i)) },
   { name: 'phone-sync', viewport: 'android', cycles: ['cycle-5'], prepare: then(click('button', /open sync settings/i)) },
   { name: 'desktop-today-light', viewport: 'desktop', cycles: ['cycle-5'], prepare: loadSample },
