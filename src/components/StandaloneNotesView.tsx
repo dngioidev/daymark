@@ -471,7 +471,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   return (
     <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
-      {phone && pane === 'list' && <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1>}
+      {phone && pane === 'list' && (compact ? <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
       {drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => setFolderDialog(null)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
