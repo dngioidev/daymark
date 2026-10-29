@@ -47,7 +47,7 @@ Numbers are from full runs of each suite on this branch, one at a time.
 | Check | Observed result |
 | :--- | :--- |
 | TypeScript / `npm run lint` | Clean |
-| Vitest (`--maxWorkers=2`) | 127 files, 1,494 passed, 1 skipped |
+| Vitest (`--maxWorkers=2`) | 128 files, 1,503 passed, 1 skipped |
 | `npm run test:helpers` | 23 of 23 passed |
 | `npm run build` | Built |
 | `npm run build:site` | Built |
@@ -71,4 +71,4 @@ Numbers are from full runs of each suite on this branch, one at a time.
 
 ## Next step
 
-Review the handoff, then request the release separately.
+Released as 1.9.0.
