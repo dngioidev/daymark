@@ -33,8 +33,9 @@ it('puts the same switch first in the graph toolbar and preserves the open note'
     button('List').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await import('./notes/graph/GraphView');
   });
-  const toolbar = host.querySelector('[role=toolbar][aria-label="Graph controls"]')!;
+  const toolbar = host.querySelector('[role=group][aria-label="Graph controls"]')!;
   expect(toolbar?.firstElementChild?.getAttribute('role')).toBe('radiogroup');
+  for (const radio of toolbar.querySelectorAll('[role=radio]')) { expect(radio.classList.contains('h-11')).toBe(true); expect(radio.classList.contains('sm:h-9')).toBe(false); }
   expect(button('Graph').getAttribute('aria-checked')).toBe('true');
   expect(document.activeElement).toBe(button('Graph'));
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })));
@@ -45,7 +46,7 @@ it('puts the same switch first in the graph toolbar and preserves the open note'
 
 it('strip replaces the whole column and exposes search, creation and eight folders plus overflow', async () => {
   const save = await mount(1440, false, Array.from({ length: 8 }, (_, i) => note(`Extra${i}`, `Other${i}`)));
-  await click(button('Minimize folders'));
+  await click(button('Minimize notes column'));
   expect(host.querySelector('[role=tree]')).toBeNull();
   expect(host.querySelector('[aria-label="Notes list"]')).toBeNull();
   const strip = host.querySelector('[aria-label="Notes shortcuts"]')!;
@@ -65,7 +66,7 @@ it('strip replaces the whole column and exposes search, creation and eight folde
   });
   await act(async () => button('Graph').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })));
   expect(document.activeElement).toBe(button('List'));
-  await click(button('Minimize folders'));
+  await click(button('Minimize notes column'));
   await click(button('Open folder Garden'));
   expect(host.querySelector('[data-folder-path="Garden"]')?.getAttribute('aria-current')).toBe('true');
 });
@@ -128,4 +129,20 @@ it('returns from Graph to the narrow Notes drawer with keyboard focus on List', 
   expect(document.activeElement).toBe(button('List'));
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   expect(document.activeElement).toBe(button('Notes', host));
+});
+
+it.each(['Back to notes', 'Notes'])('returns drawer focus to the activated %s control', async openerName => {
+  await mount(900); const opener = button(openerName, host); await click(opener);
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(document.activeElement).toBe(opener);
+});
+it('returns phone Back focus to the note row while preserving the list scroll', async () => {
+  await mount(390); const second = row('Second'); await click(second); await click(button('Back to notes'));
+  expect(document.activeElement).toBe(second); expect(second.tabIndex).toBe(0);
+});
+it('labels the minimization control as the Notes column and highlights the strip current folder', async () => {
+  await mount(1440); await click(row('Second'));
+  const minimize = button('Minimize notes column'); expect(minimize.textContent).toContain('Notes'); expect(minimize.title).toBe('Minimize notes column');
+  await click(minimize); const expand = button('Expand notes column'); expect(expand.title).toBe('Expand notes column');
+  const selected = host.querySelector('[aria-label="Notes shortcuts"] [aria-current=true]'); expect(selected?.getAttribute('data-folder-path')).toBe('Garden');
 });

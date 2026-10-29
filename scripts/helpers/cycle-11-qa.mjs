@@ -37,7 +37,7 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await settingsOpen(page);
     await settingsBox(page).getByRole('tab', { name: 'Help', exact: true }).click();
     for (const [topic, web, mobile] of [
-      ['Notes', ['Related panel', 'Hidden suggestions', 'Graph', 'Minimize folders', 'List | Graph'], ['Move to folder', 'Related button', 'Hidden suggestions']],
+      ['Notes', ['Related panel', 'Hidden suggestions', 'Graph', 'Minimize notes column', 'List | Graph'], ['Move to folder', 'Related button', 'Hidden suggestions']],
       ['Shortcuts and gestures', ['List view'], ['List view']],
       ['Sync and the server', ['Tech/Java'], ['Not related']],
       ['Backups', ['Daymark/Notes/Tech/Java'], []],
@@ -137,10 +137,10 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     await page.getByRole('button', { name: 'Minimize Related', exact: true }).click();
     const strip = await axeOn(page, ['aside[aria-label="Related minimized"]']);
     check(`C11-Axe-${theme}-related-min`, strip.length === 0, `minimized Related strip has no axe findings (${theme})`, strip.join(' ; '));
-    await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+    await page.getByRole('button', { name: 'Minimize notes column', exact: true }).click();
     const minTree = await axeOn(page, ['aside[aria-label="Folder navigation"]']);
     check(`C11-Axe-${theme}-tree-min`, minTree.length === 0, `minimized folder strip has no axe findings (${theme})`, minTree.join(' ; '));
-    await page.getByRole('button', { name: 'Expand folders', exact: true }).click();
+    await page.getByRole('button', { name: 'Expand notes column', exact: true }).click();
     await page.getByRole('radio', { name: 'Graph', exact: true }).click();
     await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
     await page.getByRole('button', { name: 'List view', exact: true }).click();

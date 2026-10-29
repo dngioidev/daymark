@@ -1144,10 +1144,11 @@ async function functional() {
     const { ctx, page } = await open('P412');
     await btn(page, /^notes$/i).click();
     await page.getByLabel('Search notes').fill('sprint');
-    await page.waitForTimeout(300);
+    await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).waitFor();
     // The open note that does not match stays visible but dimmed, so count matches only.
     const one = new Set(await noteRows(page).evaluateAll((rows) => rows.filter((row) => !row.classList.contains('opacity-70')).map((row) => row.dataset.noteId))).size;
     await page.getByLabel('Search notes').fill('zzzz');
+    await page.getByRole('status').filter({ hasText: /^0 notes match$/ }).waitFor();
     const none = /no notes match/i.test(await visibleText(page));
     await ctx.close();
     expect(one === 1 && none, `results ${one}, empty message ${none}`);
@@ -1243,8 +1244,10 @@ async function functional() {
     // Pinned notes are listed first, under the Pinned heading above the folder tree.
     const pinned = await noteRows(page).evaluateAll((rows) => rows.filter((row) => /, pinned$/.test(row.getAttribute('aria-label') ?? '')).map((row) => row.getAttribute('aria-label')));
     const first = await noteRows(page).first().getAttribute('aria-label');
+    const oneSelected = await page.getByRole('tree').locator('[aria-selected=true]').count() === 1;
+    const pinnedCurrent = await page.getByRole('group', { name: 'Pinned', exact: true }).locator('[data-note-id][aria-current=true]').count() === 1;
     await ctx.close();
-    expect(/, pinned$/.test(first ?? '') && pinned.some((label) => /q4 reading list/i.test(label)), `first note "${first}", pinned ${JSON.stringify(pinned)}`);
+    expect(oneSelected && pinnedCurrent && /, pinned$/.test(first ?? '') && pinned.some((label) => /q4 reading list/i.test(label)), `first note "${first}", pinned ${JSON.stringify(pinned)}`);
   });
 
   await tc('NO-09', 'Delete note asks first, Undo restores (DS-02)', 'P412', async () => {

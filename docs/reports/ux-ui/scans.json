@@ -8,7 +8,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 11,
     "16": 1,
     "20": 1
@@ -27,7 +27,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 16,
     "15": 4,
     "16": 3,
@@ -47,7 +47,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 24,
     "15": 4,
     "16": 5,
@@ -67,7 +67,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 14,
+    "12": 13,
     "14": 22,
     "15": 4,
     "16": 3,
@@ -97,7 +97,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 14,
+    "12": 13,
     "14": 26,
     "15": 4,
     "16": 3,
@@ -127,7 +127,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 15,
+    "12": 14,
     "14": 32,
     "15": 4,
     "16": 4,
@@ -147,7 +147,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 27,
     "15": 4,
     "16": 4,
@@ -167,7 +167,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 6,
     "16": 2,
     "20": 1
@@ -186,7 +186,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 24,
+    "12": 23,
     "14": 58,
     "16": 2,
     "18": 1,
@@ -219,7 +219,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 4,
     "16": 2,
     "24": 1
@@ -238,41 +238,16 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 8,
-    "14": 11,
+    "12": 6,
+    "14": 10,
     "16": 1,
     "20": 1
    },
    "smallTargets": [
     {
-     "name": "New note",
-     "w": 73,
-     "h": 39
-    },
-    {
      "name": "Note templates",
      "w": 22,
-     "h": 36
-    },
-    {
-     "name": "New folder",
-     "w": 66,
-     "h": 36
-    },
-    {
-     "name": "Actions for Meetings",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Personal",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Technical",
-     "w": 28,
-     "h": 16
+     "h": 44
     }
    ],
    "unnamed": [],
@@ -287,7 +262,7 @@
      "help": "All touch targets must be 24px large, or leave sufficient space",
      "nodes": 1,
      "samples": [
-      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+      "Target has insufficient size (22px by 44px, should be at least 24px by 24px) @ .rounded-r"
      ]
     }
    ]
@@ -300,8 +275,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 6,
-    "14": 11,
+    "12": 5,
+    "14": 10,
     "16": 1,
     "21": 2,
     "25.2": 1
@@ -330,8 +305,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 167,
-    "14": 303,
+    "12": 176,
+    "14": 323,
     "15": 4,
     "16": 9,
     "18": 3,
@@ -361,7 +336,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 31,
     "15": 4,
     "16": 7,
@@ -381,7 +356,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 20,
+    "12": 19,
     "14": 45,
     "15": 4,
     "16": 4,
@@ -401,7 +376,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 11,
     "16": 1,
     "20": 1
@@ -420,7 +395,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 16,
     "15": 4,
     "16": 3,
@@ -440,7 +415,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 24,
     "15": 4,
     "16": 5,
@@ -460,7 +435,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 14,
+    "12": 13,
     "14": 22,
     "15": 4,
     "16": 3,
@@ -490,7 +465,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 14,
+    "12": 13,
     "14": 26,
     "15": 4,
     "16": 3,
@@ -520,7 +495,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 15,
+    "12": 14,
     "14": 32,
     "15": 4,
     "16": 4,
@@ -540,7 +515,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 27,
     "15": 4,
     "16": 4,
@@ -560,7 +535,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 6,
     "16": 2,
     "20": 1
@@ -579,7 +554,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 24,
+    "12": 23,
     "14": 58,
     "16": 2,
     "18": 1,
@@ -612,7 +587,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 5,
+    "12": 4,
     "14": 4,
     "16": 2,
     "24": 1
@@ -631,41 +606,16 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 8,
-    "14": 11,
+    "12": 6,
+    "14": 10,
     "16": 1,
     "20": 1
    },
    "smallTargets": [
     {
-     "name": "New note",
-     "w": 73,
-     "h": 39
-    },
-    {
      "name": "Note templates",
      "w": 22,
-     "h": 36
-    },
-    {
-     "name": "New folder",
-     "w": 66,
-     "h": 36
-    },
-    {
-     "name": "Actions for Meetings",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Personal",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Technical",
-     "w": 28,
-     "h": 16
+     "h": 44
     }
    ],
    "unnamed": [],
@@ -675,21 +625,12 @@
    "unlabeledFields": [],
    "axe": [
     {
-     "id": "color-contrast",
-     "impact": "serious",
-     "help": "Elements must meet minimum color contrast ratio thresholds",
-     "nodes": 1,
-     "samples": [
-      "Element has insufficient color contrast of 3.65 (foreground color: #79716b, background color: #1c1917, font size: 9.0pt (12px), font weight: normal). Expected c @ .font-semibold"
-     ]
-    },
-    {
      "id": "target-size",
      "impact": "serious",
      "help": "All touch targets must be 24px large, or leave sufficient space",
      "nodes": 1,
      "samples": [
-      "Target has insufficient size (22px by 36px, should be at least 24px by 24px) @ .rounded-r"
+      "Target has insufficient size (22px by 44px, should be at least 24px by 24px) @ .rounded-r"
      ]
     }
    ]
@@ -702,8 +643,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 6,
-    "14": 11,
+    "12": 5,
+    "14": 10,
     "16": 1,
     "21": 2,
     "25.2": 1
@@ -732,8 +673,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 182,
-    "14": 333,
+    "12": 191,
+    "14": 353,
     "15": 4,
     "16": 9,
     "18": 3,
@@ -763,7 +704,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 13,
+    "12": 12,
     "14": 31,
     "15": 4,
     "16": 7,
@@ -783,7 +724,7 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 20,
+    "12": 19,
     "14": 45,
     "15": 4,
     "16": 4,
@@ -909,8 +850,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 11,
-    "14": 37,
+    "12": 12,
+    "14": 34,
     "16": 2,
     "21": 3,
     "25.2": 1,
@@ -921,21 +862,6 @@
      "name": "Note templates",
      "w": 22,
      "h": 36
-    },
-    {
-     "name": "Actions for Meetings",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Personal",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Technical",
-     "w": 28,
-     "h": 16
     }
    ],
    "unnamed": [],
@@ -963,8 +889,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 194,
-    "14": 366,
+    "12": 204,
+    "14": 386,
     "16": 10,
     "18": 6
    },
@@ -1136,8 +1062,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 11,
-    "14": 37,
+    "12": 12,
+    "14": 34,
     "16": 2,
     "21": 3,
     "25.2": 1,
@@ -1148,21 +1074,6 @@
      "name": "Note templates",
      "w": 22,
      "h": 36
-    },
-    {
-     "name": "Actions for Meetings",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Personal",
-     "w": 28,
-     "h": 16
-    },
-    {
-     "name": "Actions for Technical",
-     "w": 28,
-     "h": 16
     }
    ],
    "unnamed": [],
@@ -1171,15 +1082,6 @@
    ],
    "unlabeledFields": [],
    "axe": [
-    {
-     "id": "color-contrast",
-     "impact": "serious",
-     "help": "Elements must meet minimum color contrast ratio thresholds",
-     "nodes": 1,
-     "samples": [
-      "Element has insufficient color contrast of 3.65 (foreground color: #79716b, background color: #1c1917, font size: 9.0pt (12px), font weight: normal). Expected c @ .text-stone-500.font-semibold.text-xs"
-     ]
-    },
     {
      "id": "target-size",
      "impact": "serious",
@@ -1199,8 +1101,8 @@
    "overflowX": 0,
    "smallText": [],
    "sizes": {
-    "12": 203,
-    "14": 384,
+    "12": 213,
+    "14": 404,
     "16": 10,
     "18": 6
    },
@@ -1481,7 +1383,13 @@
    "env": "T768",
    "screen": "notes",
    "overflowX": 0,
-   "offenders": [],
+   "offenders": [
+    "div.relative. (813px)",
+    "button.shrink-0.min-h-11.min-w-11 (813px)",
+    "svg.[object.SVGAnimatedString] (797px)",
+    "rect.[object.SVGAnimatedString] (795px)",
+    "circle.[object.SVGAnimatedString] (788px)"
+   ],
    "container": 600
   },
   {

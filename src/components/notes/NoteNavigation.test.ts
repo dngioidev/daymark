@@ -19,7 +19,7 @@ it('orders search, creation and one accessible tree with title-only note rows an
   expect(html.indexOf('New folder')).toBeLessThan(html.indexOf('role="tree"'));
   expect(el.querySelector('[role=treeitem][aria-label="Java, folder, 1 note"]')?.getAttribute('aria-level')).toBe('2');
   expect(el.querySelector('[role=treeitem][aria-expanded=true]')).not.toBeNull();
-  expect(el.querySelectorAll('[role=treeitem][aria-selected=true]')).toHaveLength(2);
+  expect(el.querySelectorAll('[role=treeitem][aria-selected=true]')).toHaveLength(1);
   expect(el.querySelector('[role=treeitem][aria-label="Java, pinned"]')?.textContent).toBe('Java');
   expect(html).toContain('Pinned'); expect(el.querySelector('[aria-label=Pin]')).not.toBeNull();
   expect(html).not.toContain('private body'); expect(html).toContain('Last edited');
@@ -212,4 +212,46 @@ it.each(['Tech/Removed', 'Gone'])('restores a surviving ancestor or first row if
   const p = mount(); const search = host.querySelector<HTMLInputElement>('#notes-search')!; act(() => search.focus());
   act(() => root!.render(React.createElement(NoteNavigation, { ...p, focusFolder: { path } })));
   expect(document.activeElement?.getAttribute('aria-label')).toBe(path === 'Gone' ? 'Java, pinned' : 'Tech, folder, 1 note');
+});
+
+it('selects only the in-tree open note and exposes the pinned copy as current', () => {
+  const el = parse();
+  expect(el.querySelectorAll('[aria-selected=true]')).toHaveLength(1);
+  expect(el.querySelector('[role=group][aria-label=Pinned] [aria-current=true]')?.getAttribute('data-note-id')).toBe('one');
+  expect(el.querySelector('[role=group][aria-label=Pinned] [aria-selected]')).toBeNull();
+  for (const row of el.querySelectorAll('[data-note-id=one]')) expect(row.getAttribute('aria-description')).toBe(row.getAttribute('title'));
+});
+it.each(['dragend', 'drop'])('clears the drag strip on window %s after its source row is virtualized away', eventName => {
+  mount({ ...base(), notes: Array.from({ length: 1000 }, (_, i) => note(String(i), `Note ${i}`)), openNoteId: undefined });
+  const source = host.querySelector('[data-note-id="10"]')!;
+  const event = new Event('dragstart', { bubbles: true }); Object.defineProperty(event, 'dataTransfer', { value: { setData: vi.fn(), effectAllowed: '' } });
+  act(() => source.dispatchEvent(event)); expect(host.querySelector('[aria-label="Move to top level"]')).not.toBeNull();
+  const tree = host.querySelector<HTMLElement>('[role=tree]')!; tree.scrollTop = 30000;
+  act(() => tree.dispatchEvent(new Event('scroll', { bubbles: true }))); expect(source.isConnected).toBe(false);
+  vi.useFakeTimers();
+  try {
+    act(() => { window.dispatchEvent(new Event(eventName, { bubbles: true })); });
+    // Deferred: the strip's own drop handler must still be mounted for the rest of this event dispatch.
+    expect(host.querySelector('[aria-label="Move to top level"]')).not.toBeNull();
+    act(() => { vi.runAllTimers(); });
+  } finally { vi.useRealTimers(); }
+  expect(host.querySelector('[aria-label="Move to top level"]')).toBeNull();
+});
+it('keeps a deferred keyboard destination when removal of the old focused row emits blur', () => {
+  mount({ ...base(), notes: Array.from({ length: 1000 }, (_, i) => note(String(i), `Note ${i}`)), openNoteId: undefined });
+  const first = host.querySelector<HTMLElement>('[data-note-id="0"]')!; act(() => first.focus());
+  const remove = Node.prototype.removeChild;
+  const spy = vi.spyOn(Node.prototype, 'removeChild').mockImplementation(function<T extends Node>(this: Node, child: T): T {
+    if (Object.is(child, first)) first.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    return remove.call(this, child) as T;
+  });
+  try { key(first, 'End'); expect(document.activeElement?.getAttribute('data-note-id')).toBe('999'); }
+  finally { spy.mockRestore(); }
+});
+it('sizes the virtual pinned group to contain its complete rows and keeps compact Clear full width', () => {
+  const notes = Array.from({ length: 500 }, (_, i) => note(String(i), `Pinned ${i}`, '', { pinned: true }));
+  const el = parse({ ...base(), notes }); const group = el.querySelector<HTMLElement>('[role=group][aria-label=Pinned]')!;
+  expect(group.style.height).toBe('16032px'); expect(group.style.position).toBe('relative');
+  const compact = parse({ ...base(), compact: true, query: 'Java' }).querySelector('[aria-label="Clear search"]')!;
+  expect(compact.classList.contains('w-11')).toBe(true); expect(compact.className).not.toMatch(/sm:w-/);
 });

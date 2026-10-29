@@ -35,6 +35,12 @@ export function NoteNavigation(props: NoteNavigationProps) {
   const [focusKey, setFocusKey] = useState('');
   const [dragging, setDragging] = useState(false);
   const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    if (!dragging) return;
+    const finish = () => { window.setTimeout(() => setDragging(false), 0); }; // deferred so the target's own drop handler runs before the strip unmounts
+    window.addEventListener('dragend', finish, true); window.addEventListener('drop', finish, true);
+    return () => { window.removeEventListener('dragend', finish, true); window.removeEventListener('drop', finish, true); };
+  }, [dragging]);
   const dragEnabled = props.dragEnabled && !compact && !touch;
   const container = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -168,9 +174,9 @@ export function NoteNavigation(props: NoteNavigationProps) {
     const current = folder && folderKey(row.path) === folderKey(props.currentFolder);
     const name = folder ? `${row.name}, folder, ${row.totalNotes} ${row.totalNotes === 1 ? 'note' : 'notes'}` : `${row.title}${row.pinned ? ', pinned' : ''}`;
     return <div key={key} ref={el => { if (el) elements.current.set(key, el); else elements.current.delete(key); }} role="treeitem" aria-label={name}
-      aria-keyshortcuts={folder ? 'Shift+F10 ContextMenu' : undefined} aria-description={folder ? 'Shift+F10 or Menu key opens actions' : undefined}
-      aria-level={row.depth + 1} aria-expanded={folder ? row.expanded : undefined} aria-selected={folder ? undefined : selected}
-      aria-current={current ? 'true' : undefined} aria-setsize={positions.get(index)?.size} aria-posinset={positions.get(index)?.position}
+      aria-keyshortcuts={folder ? 'Shift+F10 ContextMenu' : undefined} aria-description={folder ? 'Shift+F10 or Menu key opens actions' : note ? noteTooltip(note) : undefined}
+      aria-level={row.depth + 1} aria-expanded={folder ? row.expanded : undefined} aria-selected={row.kind === 'note' && row.group === 'tree' ? selected : undefined}
+      aria-current={current || (row.kind === 'note' && row.group === 'pinned' && selected) ? 'true' : undefined} aria-setsize={positions.get(index)?.size} aria-posinset={positions.get(index)?.position}
       data-note-id={row.kind === 'note' ? row.noteId : undefined} data-folder-path={folder ? row.path : undefined}
       tabIndex={index === effectiveFocus ? 0 : -1} title={note ? noteTooltip(note) : folder ? row.path : undefined} style={style}
       className={`flex min-w-0 items-center gap-1 rounded px-2 cursor-pointer text-sm text-stone-800 dark:text-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-stone-500 ${selected ? 'bg-stone-200 dark:bg-stone-700' : current ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-100 dark:hover:bg-stone-800'} ${row.kind === 'note' && row.dimmed ? 'opacity-70' : ''}`}
@@ -195,9 +201,9 @@ export function NoteNavigation(props: NoteNavigationProps) {
     </div>
     {modelRows.filter(row => row.kind === 'status').map(row => <p key={visibleRowKey(row)} className="px-2 text-xs text-stone-600 dark:text-stone-400">{row.text}</p>)}
     <div ref={container} onScroll={windowing.onScroll} onBlur={event => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { requestFocus.current = false; setFocusKey(''); }
+      if (!requestFocus.current && !event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusKey('');
     }} className="flex-1 min-h-0 overflow-y-auto" role="tree" aria-label="Notes" tabIndex={-1}>
-      <div role="none" className="relative" style={windowing.virtual ? { height: windowing.totalHeight } : undefined}>{rows.some(row => row.kind === 'pinned-heading') && <div role="group" aria-label="Pinned" className={`before:content-[attr(aria-label)] before:flex before:items-center before:px-2 before:text-xs before:font-semibold before:text-stone-500 ${compact ? 'before:h-11' : 'before:h-8'}`}>{windowing.indices.filter(index => { const row = rows[index]; return row.kind === 'note' && row.group === 'pinned'; }).map(renderRow)}</div>}{windowing.indices.filter(index => { const row = rows[index]; return row.kind !== 'pinned-heading' && !(row.kind === 'note' && row.group === 'pinned'); }).map(renderRow)}</div>
+      <div role="none" className="relative" style={windowing.virtual ? { height: windowing.totalHeight } : undefined}>{rows.some(row => row.kind === 'pinned-heading') && <div role="group" aria-label="Pinned" style={windowing.virtual ? { position: 'relative', height: rows.filter(row => row.kind === 'pinned-heading' || (row.kind === 'note' && row.group === 'pinned')).length * rowHeight } : undefined} className={`before:content-[attr(aria-label)] before:flex before:items-center before:px-2 before:text-xs before:font-semibold before:text-stone-500 ${compact ? 'before:h-11' : 'before:h-8'}`}>{windowing.indices.filter(index => { const row = rows[index]; return row.kind === 'note' && row.group === 'pinned'; }).map(renderRow)}</div>}{windowing.indices.filter(index => { const row = rows[index]; return row.kind !== 'pinned-heading' && !(row.kind === 'note' && row.group === 'pinned'); }).map(renderRow)}</div>
     </div>
     {dragEnabled && dragging && <div role="group" aria-label="Move to top level" onDragOver={event => event.preventDefault()} onDrop={event => drop(event, '')} className="shrink-0 py-1 text-center text-xs border-t border-stone-300 dark:border-stone-700">Move to top level</div>}
   </div>;

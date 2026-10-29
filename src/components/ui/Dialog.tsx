@@ -75,7 +75,7 @@ export const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const panel = panelRef.current!;
-    const opener = returnFocusRef?.current ?? document.activeElement as HTMLElement | null;
+    const opener = document.activeElement as HTMLElement | null;
     stack.push(panel);
     setAppInert(true);
 
@@ -109,14 +109,14 @@ export const Dialog: React.FC<DialogProps> = ({
       document.removeEventListener('keydown', onKey, true);
       stack.splice(stack.indexOf(panel), 1);
       if (stack.length === 0) setAppInert(false);
-      opener?.focus?.();
+      (returnFocusRef?.current ?? opener)?.focus?.();
     };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const layout =
-    variant === 'drawer' ? 'items-stretch !justify-start' : variant === 'sheet'
+    variant === 'drawer' ? 'items-stretch justify-start!' : variant === 'sheet'
       ? 'items-end sm:items-center'
       : variant === 'fullscreen-mobile'
         ? 'items-stretch sm:items-center sm:p-4'

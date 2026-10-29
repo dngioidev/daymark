@@ -76,3 +76,19 @@ it('opens Settings from a 44px header icon and preserves the sync shortcut', asy
     expect(host.querySelector('nav [aria-label="Settings"]')).toBeNull();
   } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
+
+it('keeps install and title readable at narrow phone widths when the install prompt is available', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(React.createElement(MobileAppShell, shellProps())));
+    const prompt = new Event('beforeinstallprompt', { cancelable: true }); Object.assign(prompt, { prompt: vi.fn(async () => {}), userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+    act(() => window.dispatchEvent(prompt));
+    const install = host.querySelector<HTMLButtonElement>('header [aria-label="Install app"]')!;
+    expect(install).not.toBeNull(); expect(install.title).toBe('Install app');
+    expect(install.className).toContain('shrink-0'); expect(install.className).toContain('whitespace-nowrap'); expect(install.className).toContain('min-h-11');
+    expect(install.querySelector('[data-install-label]')?.className).toContain('hidden min-[360px]:inline');
+    expect(install.querySelector('svg')?.getAttribute('class')).toContain('min-[360px]:hidden');
+    expect(host.querySelector('[data-mobile-title]')?.className).toContain('min-w-[4.5rem]');
+  } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});

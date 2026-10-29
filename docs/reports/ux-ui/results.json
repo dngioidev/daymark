@@ -1,5 +1,5 @@
 {
- "ranAt": "2026-10-29T03:57:13.184Z",
+ "ranAt": "2026-10-29T10:44:16.328Z",
  "results": [
   {
    "id": "LAY-habits-P390-light",
@@ -7,7 +7,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 2682
+   "ms": 2485
   },
   {
    "id": "LAY-habits-P390-dark",
@@ -15,7 +15,7 @@
    "env": "P390",
    "status": "pass",
    "details": "",
-   "ms": 3006
+   "ms": 2706
   },
   {
    "id": "LAY-habits-D1440-light",
@@ -23,7 +23,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2785
+   "ms": 2486
   },
   {
    "id": "LAY-habits-D1440-dark",
@@ -31,7 +31,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2876
+   "ms": 2923
   },
   {
    "id": "LAY-habits-D1920-light",
@@ -39,7 +39,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2679
+   "ms": 2667
   },
   {
    "id": "LAY-habits-D1920-dark",
@@ -47,7 +47,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2962
+   "ms": 2815
   },
   {
    "id": "LAY-D1440",
@@ -55,7 +55,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2444
+   "ms": 2325
   },
   {
    "id": "LAY-D1920",
@@ -63,7 +63,7 @@
    "env": "D1920",
    "status": "pass",
    "details": "",
-   "ms": 2168
+   "ms": 2334
   },
   {
    "id": "LAY-P412",
@@ -71,7 +71,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2341
+   "ms": 2081
   },
   {
    "id": "GL-01",
@@ -79,7 +79,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2479
+   "ms": 2575
   },
   {
    "id": "GL-02",
@@ -87,7 +87,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2566
+   "ms": 2567
   },
   {
    "id": "GL-03",
@@ -95,7 +95,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2297
+   "ms": 2197
   },
   {
    "id": "GL-04",
@@ -103,7 +103,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3563
+   "ms": 3496
   },
   {
    "id": "GL-05",
@@ -111,7 +111,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4397
+   "ms": 4021
   },
   {
    "id": "GL-07",
@@ -119,7 +119,7 @@
    "env": "P412",
    "status": "pass",
    "details": "visible ~4 s, above nav, dismissible",
-   "ms": 6684
+   "ms": 6597
   },
   {
    "id": "NAV-01",
@@ -127,7 +127,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4096
+   "ms": 3692
   },
   {
    "id": "NAV-13",
@@ -135,7 +135,7 @@
    "env": "360x740+320x740",
    "status": "pass",
    "details": "",
-   "ms": 4293
+   "ms": 4557
   },
   {
    "id": "NAV-02",
@@ -143,7 +143,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2363
+   "ms": 2370
   },
   {
    "id": "NAV-03",
@@ -151,7 +151,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2356
+   "ms": 2306
   },
   {
    "id": "NAV-04",
@@ -159,7 +159,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2217
+   "ms": 2076
   },
   {
    "id": "NAV-05",
@@ -167,7 +167,7 @@
    "env": "D1024+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5275
+   "ms": 4583
   },
   {
    "id": "NAV-10",
@@ -175,7 +175,7 @@
    "env": "D800+D1280",
    "status": "pass",
    "details": "",
-   "ms": 5690
+   "ms": 5243
   },
   {
    "id": "NAV-12",
@@ -183,7 +183,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 3496
+   "ms": 3662
   },
   {
    "id": "NAV-06",
@@ -191,7 +191,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2574
+   "ms": 2527
   },
   {
    "id": "NAV-07",
@@ -199,7 +199,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 4816
+   "ms": 4665
   },
   {
    "id": "NAV-08",
@@ -207,7 +207,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2712
+   "ms": 2457
   },
   {
    "id": "NAV-09",
@@ -215,7 +215,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2695
+   "ms": 2615
   },
   {
    "id": "NAV-11",
@@ -223,7 +223,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4747
+   "ms": 4453
   },
   {
    "id": "TD-01",
@@ -231,7 +231,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2303
+   "ms": 2227
   },
   {
    "id": "TD-02",
@@ -239,7 +239,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2441
+   "ms": 2147
   },
   {
    "id": "TD-03",
@@ -247,7 +247,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4888
+   "ms": 4694
   },
   {
    "id": "TD-04",
@@ -255,7 +255,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2261
+   "ms": 2271
   },
   {
    "id": "TD-05",
@@ -263,7 +263,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2266
+   "ms": 2316
   },
   {
    "id": "TD-06",
@@ -271,7 +271,7 @@
    "env": "P360+P412",
    "status": "pass",
    "details": "",
-   "ms": 4815
+   "ms": 4799
   },
   {
    "id": "TD-07",
@@ -279,7 +279,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2727
+   "ms": 2534
   },
   {
    "id": "TD-08",
@@ -295,7 +295,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2152
+   "ms": 2314
   },
   {
    "id": "TD-10",
@@ -303,7 +303,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2117
+   "ms": 1988
   },
   {
    "id": "TK-01",
@@ -311,7 +311,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2196
+   "ms": 2184
   },
   {
    "id": "TK-02",
@@ -319,7 +319,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2275
+   "ms": 2045
   },
   {
    "id": "TK-03",
@@ -327,7 +327,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2107
+   "ms": 2119
   },
   {
    "id": "TK-04",
@@ -335,7 +335,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3838
+   "ms": 3633
   },
   {
    "id": "TK-05",
@@ -343,7 +343,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2402
+   "ms": 2222
   },
   {
    "id": "TK-06",
@@ -351,7 +351,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2331
+   "ms": 2279
   },
   {
    "id": "TK-07",
@@ -359,7 +359,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2420
+   "ms": 2370
   },
   {
    "id": "TK-08",
@@ -367,7 +367,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2419
+   "ms": 2345
   },
   {
    "id": "TK-09",
@@ -375,7 +375,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2480
+   "ms": 1915
   },
   {
    "id": "TK-10",
@@ -383,7 +383,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2340
+   "ms": 1983
   },
   {
    "id": "TK-11",
@@ -391,7 +391,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2254
+   "ms": 2026
   },
   {
    "id": "TK-12",
@@ -399,7 +399,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2332
+   "ms": 2325
   },
   {
    "id": "TK-13",
@@ -407,7 +407,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2124
+   "ms": 2099
   },
   {
    "id": "TK-14",
@@ -415,7 +415,7 @@
    "env": "P360",
    "status": "pass",
    "details": "",
-   "ms": 2726
+   "ms": 2742
   },
   {
    "id": "QC-01",
@@ -423,7 +423,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2335
+   "ms": 2226
   },
   {
    "id": "QC-02",
@@ -431,7 +431,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2733
+   "ms": 2601
   },
   {
    "id": "QC-03",
@@ -439,7 +439,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2042
+   "ms": 2307
   },
   {
    "id": "QC-04",
@@ -447,7 +447,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2974
+   "ms": 2792
   },
   {
    "id": "QC-05",
@@ -455,7 +455,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2539
+   "ms": 2238
   },
   {
    "id": "HI-05",
@@ -463,7 +463,7 @@
    "env": "P390+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5671
+   "ms": 5362
   },
   {
    "id": "HI-01",
@@ -471,7 +471,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 4723
+   "ms": 4287
   },
   {
    "id": "HI-02",
@@ -479,7 +479,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2500
+   "ms": 2328
   },
   {
    "id": "HI-03",
@@ -487,7 +487,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2335
+   "ms": 2343
   },
   {
    "id": "HI-04",
@@ -495,15 +495,15 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2318
+   "ms": 2287
   },
   {
    "id": "NO-01",
-   "title": "Notes list: pinned first, plain previews",
+   "title": "Notes tree: pinned group and title-only rows",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2341
+   "ms": 2246
   },
   {
    "id": "NO-02",
@@ -511,15 +511,15 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2573
+   "ms": 2269
   },
   {
    "id": "NO-03",
-   "title": "Folder chips",
+   "title": "Folder tree expansion",
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2372
+   "ms": 2393
   },
   {
    "id": "NO-04",
@@ -527,7 +527,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2489
+   "ms": 2419
   },
   {
    "id": "NO-05",
@@ -535,7 +535,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4192
+   "ms": 4302
   },
   {
    "id": "NO-06",
@@ -543,7 +543,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5328
+   "ms": 5380
   },
   {
    "id": "NO-07",
@@ -551,15 +551,15 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5375
+   "ms": 5446
   },
   {
    "id": "NO-08",
-   "title": "Pin moves a note to the top",
+   "title": "Pin adds a copy to the top group",
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2401
+   "ms": 2521
   },
   {
    "id": "NO-09",
@@ -567,7 +567,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2372
+   "ms": 2437
   },
   {
    "id": "NO-10",
@@ -575,7 +575,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2362
+   "ms": 2266
   },
   {
    "id": "NO-11",
@@ -583,7 +583,87 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2521
+   "ms": 2370
+  },
+  {
+   "id": "NO-12-1440-light",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4356
+  },
+  {
+   "id": "NO-12-1440-dark",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1440",
+   "status": "pass",
+   "details": "",
+   "ms": 4484
+  },
+  {
+   "id": "NO-12-1280-light",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1280",
+   "status": "pass",
+   "details": "",
+   "ms": 4544
+  },
+  {
+   "id": "NO-12-1280-dark",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1280",
+   "status": "pass",
+   "details": "",
+   "ms": 4530
+  },
+  {
+   "id": "NO-12-1100-light",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1100",
+   "status": "pass",
+   "details": "",
+   "ms": 4444
+  },
+  {
+   "id": "NO-12-1100-dark",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D1100",
+   "status": "pass",
+   "details": "",
+   "ms": 4476
+  },
+  {
+   "id": "NO-12-900-light",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D900",
+   "status": "pass",
+   "details": "",
+   "ms": 4048
+  },
+  {
+   "id": "NO-12-900-dark",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "D900",
+   "status": "pass",
+   "details": "",
+   "ms": 4394
+  },
+  {
+   "id": "NO-12-390-light",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "P390",
+   "status": "pass",
+   "details": "",
+   "ms": 3385
+  },
+  {
+   "id": "NO-12-390-dark",
+   "title": "Responsive Notes column, strip, drawer and switch",
+   "env": "P390",
+   "status": "pass",
+   "details": "",
+   "ms": 3649
   },
   {
    "id": "SY-01",
@@ -591,7 +671,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2243
+   "ms": 2245
   },
   {
    "id": "SY-02",
@@ -599,7 +679,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2241
+   "ms": 2374
   },
   {
    "id": "SY-03",
@@ -607,7 +687,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2479
+   "ms": 2558
   },
   {
    "id": "SY-04",
@@ -615,7 +695,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2418
+   "ms": 2934
   },
   {
    "id": "SY-05",
@@ -623,7 +703,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2629
+   "ms": 2904
   },
   {
    "id": "SY-06",
@@ -631,7 +711,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2884
+   "ms": 2894
   },
   {
    "id": "SY-07",
@@ -639,7 +719,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 5860
+   "ms": 5982
   },
   {
    "id": "SY-08",
@@ -647,7 +727,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3235
+   "ms": 3288
   },
   {
    "id": "SE-01",
@@ -655,7 +735,7 @@
    "env": "P412+D1440",
    "status": "pass",
    "details": "",
-   "ms": 5991
+   "ms": 5773
   },
   {
    "id": "SE-02",
@@ -663,7 +743,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2637
+   "ms": 2557
   },
   {
    "id": "SE-03",
@@ -671,7 +751,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2477
+   "ms": 2603
   },
   {
    "id": "SE-04",
@@ -679,7 +759,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 3016
+   "ms": 3142
   },
   {
    "id": "SE-05",
@@ -687,7 +767,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 2845
+   "ms": 2858
   },
   {
    "id": "SE-06",
@@ -695,7 +775,7 @@
    "env": "D1440+P412",
    "status": "pass",
    "details": "",
-   "ms": 5236
+   "ms": 4967
   },
   {
    "id": "SE-07",
@@ -703,7 +783,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2858
+   "ms": 2728
   },
   {
    "id": "SE-08",
@@ -711,7 +791,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2511
+   "ms": 2546
   },
   {
    "id": "SE-09",
@@ -719,7 +799,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2906
+   "ms": 3036
   },
   {
    "id": "AX-06",
@@ -727,7 +807,7 @@
    "env": "P412",
    "status": "pass",
    "details": "",
-   "ms": 4498
+   "ms": 4711
   },
   {
    "id": "AX-07",
@@ -735,7 +815,7 @@
    "env": "D1440",
    "status": "pass",
    "details": "",
-   "ms": 2457
+   "ms": 2237
   },
   {
    "id": "GL-09",

@@ -373,7 +373,7 @@ it('does not combine a hidden desktop Back button with a display utility', () =>
 // Fix round 1 regressions.
 it('replaces the whole navigation with the minimized strip', () => {
   vi.stubGlobal('window', { innerWidth: 1440 });
-  find(render(), el => el.props['aria-label'] === 'Minimize folders')!.props.onClick();
+  find(render(), el => el.props['aria-label'] === 'Minimize notes column')!.props.onClick();
   const tree = render();
   expect(find(tree, el => el.type === NotesStrip)).toBeDefined();
   expect(find(tree, el => el.type === NoteNavigation)).toBeUndefined();
@@ -398,7 +398,7 @@ it('deleting a top-level folder keeps all resulting notes and marks the confirma
 });
 it('drawer folder selection changes the creation folder and keeps the column open', () => {
   vi.stubGlobal('window', { innerWidth: 900 });
-  find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick();
+  (find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick as (event: unknown) => void)({ currentTarget: null });
   (find(render(), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Work');
   expect(find(render(), el => el.type === NotesDrawer)).toBeDefined();
   expect(find(render(), el => el.type === NoteNavigation)?.props.currentFolder).toBe('Work');
@@ -420,7 +420,7 @@ it('ignores a folder self-drop but refuses a descendant drop', () => {
 it('can open a note from the Notes drawer while in focus mode', () => {
   vi.stubGlobal('window', { innerWidth: 900 });
   find(render(), el => el.props['aria-label'] === 'Focus mode')!.props.onClick();
-  find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick();
+  (find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick as (event: unknown) => void)({ currentTarget: null });
   (find(render(), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
   expect(find(render(), el => el.type === NotesDrawer)).toBeUndefined();
   expect(find(render(), el => el.props.id === 'note-title')?.props.value).toBe('Existing');
@@ -470,7 +470,7 @@ it('does not implicitly open a fallback note when a note disappears during sync'
   const nav = find(render(false, { notes: [other] }), el => el.type === NoteNavigation)!;
   expect(nav.props.openNoteId).toBeUndefined();
   expect(nav.props.currentFolder).toBe('');
-  expect(nav.props.expanded).toEqual(new Set(['work']));
+  expect(nav.props.expanded).toEqual(new Set()); // The removed source folder is pruned.
   expect(update).not.toHaveBeenCalled();
 });
 

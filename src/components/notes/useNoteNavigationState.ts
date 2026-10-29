@@ -1,22 +1,26 @@
-﻿import { useEffect, useState } from 'react';
-import type { StandaloneNote } from '../../types/daymark';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { EMPTY_NOTE_META, type NoteMeta, type StandaloneNote } from '../../types/daymark';
 import { ancestorPaths, defaultExpanded } from '../../utils/noteTree';
+import { existingExpansionKeys, migrateNoteExpansion, pruneNoteExpansion } from '../../utils/noteExpansion';
 import { loadNoteExpansion, saveNoteExpansion } from '../../utils/notesPanes';
 
-/** Navigation preferences never mutate or persist vault notes. */
-export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: string, shownNoteId = openNoteId) {
+/** Device preferences persist after commit; all state updaters stay pure. */
+export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: string, shownNoteId = openNoteId, meta: NoteMeta = EMPTY_NOTE_META) {
   const openFolder = notes.find(note => note.id === openNoteId)?.folder;
+  const valid = useMemo(() => existingExpansionKeys(notes, meta), [notes, meta]);
   const [currentFolder, setCurrentFolder] = useState(openFolder ?? '');
-  const [expanded, updateExpanded] = useState(() => loadNoteExpansion() ?? defaultExpanded(notes, openNoteId || shownNoteId));
-  const setExpanded = (next: Set<string>) => { updateExpanded(next); saveNoteExpansion(next); };
+  const [rawExpanded, setExpanded] = useState(() => pruneNoteExpansion(loadNoteExpansion() ?? defaultExpanded(notes, openNoteId || shownNoteId), valid));
+  // Stale keys are hidden and not persisted, but kept in memory so Undo of a delete restores the folder expanded.
+  const expanded = useMemo(() => pruneNoteExpansion(rawExpanded, valid), [rawExpanded, valid]);
+  useEffect(() => { saveNoteExpansion(expanded); }, [expanded]);
   const revealFolder = (folder: string) => {
     setCurrentFolder(folder);
-    updateExpanded(previous => {
+    setExpanded(previous => {
       const paths = ancestorPaths(folder);
-      if (paths.every(path => previous.has(path))) return previous;
-      const next = new Set([...previous, ...paths]); saveNoteExpansion(next); return next;
+      return paths.every(path => previous.has(path)) ? previous : new Set([...previous, ...paths]);
     });
   };
+  const migrateFolderExpansion = (from: string, to?: string) => setExpanded(previous => migrateNoteExpansion(previous, from, to));
   useEffect(() => { if (openFolder !== undefined) revealFolder(openFolder); }, [openNoteId, openFolder]);
-  return { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder };
+  return { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder, migrateFolderExpansion };
 }

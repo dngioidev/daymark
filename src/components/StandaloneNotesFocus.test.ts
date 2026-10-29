@@ -37,6 +37,8 @@ it.each([[1440, 'rename'], [1440, 'move'], [900, 'rename'], [900, 'move']] as co
   await settleFrames();
   expect(document.activeElement?.getAttribute('data-folder-path')).toBe(action === 'rename' ? 'Renamed' : 'Archive/Work');
   expect((document.activeElement as HTMLElement).tabIndex).toBe(0);
+  const childPath = action === 'rename' ? 'Renamed/Child' : 'Archive/Work/Child';
+  expect(document.querySelector('[data-folder-path="' + childPath + '"]')?.getAttribute('aria-expanded')).toBe('true');
   const restored = document.activeElement;
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
   expect(document.activeElement?.getAttribute('role')).toBe('treeitem');

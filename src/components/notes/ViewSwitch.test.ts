@@ -29,3 +29,11 @@ it('announces presentation and supports one tab stop, click and wrapping arrow k
     expect(radios[1].getAttribute('aria-checked')).toBe('true');
   } finally { act(() => root.unmount()); host.remove(); }
 });
+
+it('uses a labelled group and gives the presentation switch the graph button height', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { ViewSwitch } = await import('./ViewSwitch');
+  const host = document.createElement('div'); host.innerHTML = renderToStaticMarkup(React.createElement(ViewSwitch, { value: 'graph', onChange: () => {}, size: 'toolbar' }));
+  for (const radio of host.querySelectorAll('[role=radio]')) expect(radio.className).toContain('h-11');
+  for (const radio of host.querySelectorAll('[role=radio]')) expect(radio.className).not.toContain('sm:h-9');
+});

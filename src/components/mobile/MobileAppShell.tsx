@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, CalendarDays, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
+import { Calendar, CalendarDays, Download, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
 import { AppSettings, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
@@ -152,25 +152,25 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           frame ? `sm:max-w-[430px] sm:h-[860px] ${activeTab === 'notes' ? 'sm:flex-initial' : 'sm:flex-none'} sm:border-4 sm:border-stone-800 sm:rounded-[40px] sm:overflow-hidden relative` : `max-w-2xl ${activeTab === 'notes' ? '' : 'min-h-screen'}`
         }`}
       >
-        <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-2 sticky top-0 z-30">
-          <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
-          <span className="min-w-0 truncate font-bold text-base tracking-tight mr-auto">Daymark</span>
+        <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-1 min-[480px]:gap-2 sticky top-0 z-30">
+          <span className="hidden min-[480px]:inline-block shrink-0 w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
+          <span data-mobile-title className="min-w-[4.5rem] shrink-0 truncate font-bold text-base tracking-tight mr-auto">Daymark</span>
           <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" className="inline-flex items-center justify-center shrink-0 w-11 h-11 rounded-lg">
             <Search className="w-5 h-5" />
           </button>
           {canInstall && (
-            <button type="button" onClick={install} className="min-h-9 px-3 rounded-lg bg-accent text-accent-fg text-sm font-semibold">
-              Install app
+            <button type="button" onClick={install} aria-label="Install app" title="Install app" className="shrink-0 inline-flex items-center justify-center min-w-11 min-h-11 whitespace-nowrap px-3 rounded-lg bg-accent text-accent-fg text-sm font-semibold">
+              <Download size={20} className="min-[360px]:hidden" aria-hidden="true" /><span data-install-label className="hidden min-[360px]:inline">Install app</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => onOpenSettings('sync')}
             aria-label={`Sync: ${sync.label}. Open sync settings`}
-            className="inline-flex min-w-0 items-center gap-1.5 min-h-11 px-2 rounded-lg text-sm hover:underline underline-offset-4"
+            className="inline-flex min-w-11 items-center gap-1.5 min-h-11 px-2 rounded-lg text-sm hover:underline underline-offset-4"
           >
             <span className={`shrink-0 w-2 h-2 rounded-full ${sync.dot}`} aria-hidden="true" />
-            <span className="truncate">{sync.label}</span>
+            <span className="truncate max-[359px]:sr-only">{sync.label}</span>
           </button>
           <button type="button" onClick={() => onOpenSettings()} aria-label="Settings" title="Settings" className="inline-flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-lg">
             <Settings className="w-5 h-5" />

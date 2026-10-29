@@ -1752,16 +1752,16 @@ await run('C11-Folders', async () => {
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await savedNote(page, 'folder-java', n => n.folder === 'Engineering/Java');
   check('C11-Folders-undo', true, 'Undo restores the subtree');
-  await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize notes column', exact: true }).click();
   const strip = page.getByRole('complementary', { name: 'Folder navigation', exact: true });
   const stripBounds = await strip.boundingBox();
   check('C11-Folders-min-strip', await tree.count() === 0 && await strip.getByRole('button', { name: 'Search notes', exact: true }).isVisible() && await strip.getByRole('button', { name: 'New note', exact: true }).isVisible() && Math.abs(stripBounds.width - 56) <= 1, 'minimizing replaces the column with a 56px shortcut strip');
   await stripRow('Engineering').click(); await reveal('Engineering');
   check('C11-Folders-strip-select', await folderRow('Engineering').getAttribute('aria-current') === 'true' && await noteRow('Java notes').isVisible() && await noteRow('Inbox notes').isVisible(), 'folder shortcut expands the column with that folder current');
-  await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize notes column', exact: true }).click();
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Notes', exact: true }).click();
-  await page.getByRole('button', { name: 'Expand folders', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Expand notes column', exact: true }).waitFor();
   check('C11-Folders-prefs', await stripRow('Engineering').isVisible() && await tree.count() === 0, 'minimized shortcut strip survives reload');
   await strip.getByRole('button', { name: 'Search notes', exact: true }).click();
   check('C11-Folders-persist-search', await page.getByRole('searchbox', { name: 'Search notes', exact: true }).evaluate(el => el === document.activeElement) && await page.getByRole('button', { name: 'New note', exact: true }).isVisible() && await noteRow('Root note').isVisible(), 'strip Search restores the one column, focuses search and keeps all notes reachable');
@@ -1773,7 +1773,7 @@ for (const width of [1440, 1200, 900, 390]) await run(`C11-Width-${width}`, asyn
   await page.setViewportSize({ width, height: 900 });
   await page.getByRole('button', { name: 'Notes', exact: true }).first().click();
   if (width >= 1100) {
-    await page.getByRole('button', { name: /^(Minimize|Expand) folders$/ }).waitFor();
+    await page.getByRole('button', { name: /^(Minimize|Expand) notes column$/ }).waitFor();
     check(`C11-Width-${width}-tree`, await page.getByRole('treeitem', { name: 'Tech, folder, 1 note', exact: true }).isVisible(), 'desktop tree stays reachable');
   } else if (width >= 768) {
     const opener = page.getByRole('group', { name: 'Note editor', exact: true }).getByRole('button', { name: 'Notes', exact: true });
@@ -1835,6 +1835,8 @@ await run('C12-Navigation', async () => {
   await tech.click(); check('C12-Navigation-collapse', await tree.getByRole('treeitem', { name: 'Java, folder, 1 note', exact: true }).count() === 0, 'collapsing parent hides nested folders and notes');
   await tech.click(); await tree.getByRole('treeitem', { name: 'Java note', exact: true }).click();
   check('C12-Navigation-open', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Java note', 'tree note opens in the editor');
+  await page.getByRole('button', { name: 'Pin note to the top', exact: true }).click();
+  check('C12-Navigation-pinned-selection', await tree.locator('[aria-selected=true]').count() === 1 && await tree.getByRole('group', { name: 'Pinned', exact: true }).locator('[aria-current=true]').count() === 1, 'only the folder copy is selected and the pinned copy announces current');
   await search.fill('Root'); await tree.getByRole('treeitem', { name: 'Root note', exact: true }).waitFor();
   check('C12-Navigation-search', await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1 && await tree.locator('[aria-selected="true"]').evaluate(el => getComputedStyle(el).opacity === '0.7') && await tree.locator('mark').innerText() === 'Root', 'search filters in place, highlights and announces one match while keeping the open note dimmed');
   await page.getByRole('button', { name: 'Clear search', exact: true }).click();
@@ -1881,7 +1883,7 @@ await run('C12-DragRename', async () => {
 });
 
 await run('C12-Performance', async () => {
-  const notes = Array.from({ length: 1000 }, (_, i) => c12Note('load-' + i, 'Load ' + i, 'Performance/Batch'));
+  const notes = Array.from({ length: 1000 }, (_, i) => c12Note('load-' + i, 'Load ' + i, 'Performance/Batch', 'Research notes record the design review and the evidence behind our decisions. We compared several approaches and documented migration costs, accessibility requirements and follow-up experiments. The content lookup token is vault-token-' + i + '. These paragraphs represent an ordinary working note rather than an empty fixture.'));
   const { page, errors } = await fresh({ notes });
   let started = performance.now(); await c12Open(page); await c12Tree(page).getByRole('treeitem', { name: 'Load 0', exact: true }).waitFor();
   check('C12-Performance-open', performance.now() - started < 5000, 'open a 1,000-note vault in under 5,000ms', String(Math.round(performance.now() - started)) + 'ms');
@@ -1891,9 +1893,30 @@ await run('C12-Performance', async () => {
   check('C12-Performance-expand', performance.now() - started < 2000 && await tree.getByRole('treeitem').count() < 80, 'expand all 1,000 notes in under 2,000ms with a bounded DOM', String(Math.round(performance.now() - started)) + 'ms');
   await page.keyboard.press('End'); await page.keyboard.press('Enter');
   check('C12-Performance-end', await page.getByRole('textbox', { name: 'Title', exact: true }).inputValue() === 'Load 999', 'End and Enter open a note beyond the first window');
-  started = performance.now(); await page.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('Load 123'); await tree.getByRole('treeitem', { name: 'Load 123', exact: true }).waitFor();
+  started = performance.now(); await page.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('vault-token-123'); await tree.getByRole('treeitem', { name: 'Load 123', exact: true }).waitFor();
   check('C12-Performance-search', performance.now() - started < 1000 && await page.getByRole('status').filter({ hasText: /^1 note matches$/ }).count() === 1, 'filter 1,000 notes in under 1,000ms', String(Math.round(performance.now() - started)) + 'ms');
   check('C12-Performance-errors', errors.length === 0, 'large vault has no browser errors', errors.join(' | '));
+});
+
+await run('C12-MobileInstall320', async () => {
+  const { page, errors } = await fresh({ mobile: true }); await page.setViewportSize({ width: 320, height: 844 });
+  await page.evaluate(() => {
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    Object.assign(event, { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+    window.dispatchEvent(event);
+  });
+  const install = page.getByRole('button', { name: 'Install app', exact: true }); await install.waitFor();
+  const geometry = await page.evaluate(() => {
+    const install = document.querySelector('header [aria-label="Install app"]');
+    const title = document.querySelector('[data-mobile-title]'); const bounds = install.getBoundingClientRect();
+    const label = install.querySelector('[data-install-label]');
+    const controls = [...install.closest('header').querySelectorAll('button')].map(button => button.getBoundingClientRect());
+    return { titleWidth: title.getBoundingClientRect().width, installWidth: bounds.width, installHeight: bounds.height,
+      labelHidden: getComputedStyle(label).display === 'none', fits: document.documentElement.scrollWidth <= 320,
+      targetsFit: controls.every(rect => rect.x >= 0 && rect.right <= 320 && rect.height >= 44) };
+  });
+  check('C12-MobileInstall320-geometry', geometry.fits && geometry.targetsFit && geometry.titleWidth >= 64 && geometry.installWidth >= 44 && geometry.installHeight >= 44 && geometry.labelHidden, '320px install prompt keeps a readable title and 44px icon controls without horizontal overflow', JSON.stringify(geometry));
+  check('C12-MobileInstall320-errors', errors.length === 0, 'install prompt has no browser errors', errors.join(' | '));
 });
 
 for (const width of [1440, 1280, 1100, 900, 390]) for (const theme of ['light', 'dark']) await run('C12-Responsive-' + width + '-' + theme, async () => {

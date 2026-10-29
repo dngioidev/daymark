@@ -42,10 +42,10 @@ export async function notesResponsiveScenario({ page, width, axe, verify }) {
     verify('list-switch', await radio('List').getAttribute('aria-checked') === 'true');
     await audit('column', ['[data-notes-column]']);
     await radio('List').focus(); await page.keyboard.press('ArrowRight');
-    await page.getByRole('toolbar', { name: 'Graph controls', exact: true }).waitFor();
+    await page.getByRole('group', { name: 'Graph controls', exact: true }).waitFor();
     verify('graph-switch', await radio('Graph').getAttribute('aria-checked') === 'true'
       && await radio('Graph').evaluate(el => el === document.activeElement)
-      && await page.getByRole('toolbar', { name: 'Graph controls', exact: true }).evaluate(el => el.firstElementChild?.getAttribute('role') === 'radiogroup'));
+      && await page.getByRole('group', { name: 'Graph controls', exact: true }).evaluate(el => el.firstElementChild?.getAttribute('role') === 'radiogroup'));
     await audit('graph-switch', ['[role=radiogroup]']);
     await page.keyboard.press('ArrowLeft');
     if (width < 1100 && !await tree().isVisible()) await opener().click();
@@ -70,7 +70,7 @@ export async function notesResponsiveScenario({ page, width, axe, verify }) {
       await radio('Graph').click(); await radio('List').waitFor(); await radio('List').click();
       verify('switch-keeps-note', await title().inputValue() === openedTitle);
       verify('editor-minimum', (await editor().boundingBox()).width >= 480);
-      await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+      await page.getByRole('button', { name: 'Minimize notes column', exact: true }).click();
       verify('strip-only', !await tree().isVisible() && await page.getByRole('region', { name: 'Notes list', exact: true }).count() === 0);
       const strip = page.getByRole('group', { name: 'Notes shortcuts', exact: true });
       verify('strip-folders', await strip.locator('[data-folder-path]').count() === 8 && await strip.getByRole('button', { name: '2 more folders', exact: true }).innerText() === '+2');
@@ -83,7 +83,7 @@ export async function notesResponsiveScenario({ page, width, axe, verify }) {
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
       await strip.getByRole('button', { name: 'Search notes', exact: true }).click();
       verify('strip-search-focus', await search().evaluate(el => el === document.activeElement));
-      await page.getByRole('button', { name: 'Minimize folders', exact: true }).click();
+      await page.getByRole('button', { name: 'Minimize notes column', exact: true }).click();
       await strip.getByRole('button', { name: 'Open folder Garden', exact: true }).click();
       verify('strip-current-folder', await tree().locator('[data-folder-path="Garden"]').getAttribute('aria-current') === 'true');
     }

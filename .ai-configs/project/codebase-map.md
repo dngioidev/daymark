@@ -2,6 +2,8 @@
 
 Canonical map of key source directories, modules, and component responsibilities.
 
+The desktop rail has five parts: its five direct children (Title, Today, Calendar, Notes, Backlog). The Title part contains Search and a nested Settings button marked `data-rail-part="settings"`; that button is a control inside Title, not a sixth rail part.
+
 ## Cycle 10 modules
 
 | File | Layer | Purpose |

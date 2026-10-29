@@ -42,9 +42,37 @@ export function noteTooltip(note: StandaloneNote, today?: string): string {
   return `Last edited ${formatNoteDate(note.updatedAt, today)}`;
 }
 
-/** Half-open UTF-16 ranges for rendering title highlights without parsing markup. */
-function matchRanges(text: string, query: string, firstOnly = false): [number, number][] {
+interface SearchField { lower: string; offsets?: [number, number][] }
+function searchField(text: string): SearchField {
   const lower = text.toLowerCase();
+  if (lower.length === text.length) return { lower };
+  // Cache original UTF-16 offsets as well: e.g. U+0130 lowercases to two units.
+  const offsets: [number, number][] = []; let index = 0;
+  for (const character of text) {
+    const end = index + character.length, units = character.toLowerCase().length;
+    for (let unit = 0; unit < units; unit++) offsets.push([index, end]);
+    index = end;
+  }
+  return { lower, offsets };
+}
+const searchCache = new WeakMap<StandaloneNote, { title: SearchField; content: SearchField; tags: string[] }>();
+function searchText(note: StandaloneNote) {
+  let value = searchCache.get(note);
+  if (!value) {
+    value = { title: searchField(note.title), content: searchField(note.content), tags: note.tags.map(tag => tag.toLowerCase()) };
+    searchCache.set(note, value);
+  }
+  return value;
+}
+/** Move a UTF-16 boundary outwards when it falls between a surrogate pair. */
+function snippetEdge(text: string, edge: number, direction: -1 | 1): number {
+  if (edge > 0 && edge < text.length && /[\uD800-\uDBFF]/.test(text[edge - 1]) && /[\uDC00-\uDFFF]/.test(text[edge])) return edge + direction;
+  return edge;
+}
+
+/** Half-open UTF-16 ranges for rendering title highlights without parsing markup. */
+function matchRanges(field: SearchField, query: string, firstOnly = false): [number, number][] {
+  const { lower, offsets } = field;
   const ranges: [number, number][] = [];
   let start = lower.indexOf(query);
   while (start !== -1) {
@@ -52,16 +80,7 @@ function matchRanges(text: string, query: string, firstOnly = false): [number, n
     if (firstOnly) break;
     start = lower.indexOf(query, start + query.length);
   }
-  if (!ranges.length || lower.length === text.length) return ranges;
-
-  // For example, İ lowercases to two code units. Map back before slicing the original.
-  const offsets: [number, number][] = [];
-  let index = 0;
-  for (const character of text) {
-    const end = index + character.length;
-    for (let unit = 0; unit < character.toLowerCase().length; unit++) offsets.push([index, end]);
-    index = end;
-  }
+  if (!ranges.length || !offsets) return ranges;
   return ranges.map(([from, to]) => [offsets[from][0], offsets[to - 1][1]]);
 }
 
@@ -74,7 +93,7 @@ export function buildNoteTreeRows(input: {
 }): { rows: NoteTreeRow[]; matchCount: number } {
   const { notes, meta, expanded, openNoteId } = input;
   const query = input.query.trim();
-  const q = input.query.toLowerCase().trim();
+  const q = query.toLowerCase();
   const rows: NoteTreeRow[] = [];
   const folders = buildFolderTree(notes, meta);
   const byFolder = new Map<string, StandaloneNote[]>();
@@ -89,9 +108,10 @@ export function buildNoteTreeRows(input: {
   for (const note of notes) {
     if (q) {
       // Keep the existing Notes search predicate: literal substrings in title, raw body or tags.
-      const titleMatch = matchRanges(note.title, q);
-      const bodyMatch = matchRanges(note.content, q, true)[0];
-      const tagMatch = note.tags.some(tag => tag.toLowerCase().includes(q));
+      const lower = searchText(note);
+      const titleMatch = matchRanges(lower.title, q);
+      const bodyMatch = matchRanges(lower.content, q, true)[0];
+      const tagMatch = lower.tags.some(tag => tag.includes(q));
       const matches = titleMatch.length > 0 || Boolean(bodyMatch) || tagMatch;
       if (matches) matchCount++;
       if (!matches && note.id !== openNoteId) continue;
@@ -102,9 +122,9 @@ export function buildNoteTreeRows(input: {
         const [bodyStart, bodyEnd] = bodyMatch;
         const collapse = (text: string) => text.replace(/\s+/g, ' ');
         row.snippet = {
-          before: collapse(note.content.slice(Math.max(0, bodyStart - 60), bodyStart)),
+          before: collapse(note.content.slice(snippetEdge(note.content, Math.max(0, bodyStart - 60), -1), bodyStart)),
           match: collapse(note.content.slice(bodyStart, bodyEnd)),
-          after: collapse(note.content.slice(bodyEnd, bodyEnd + 60)),
+          after: collapse(note.content.slice(bodyEnd, snippetEdge(note.content, Math.min(note.content.length, bodyEnd + 60), 1))),
         };
       }
       searchRows.set(note.id, row);

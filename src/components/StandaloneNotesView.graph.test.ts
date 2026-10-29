@@ -14,7 +14,7 @@ it('Notes pane actions retain graph preferences saved after Notes mounted', asyn
   const host = document.createElement('div'); const root = createRoot(host); cleanup = () => root.unmount();
   await act(async () => root.render(React.createElement(StandaloneNotesView, { notes: fixture, onUpdateNotes: () => {} })));
   savePanePrefs({ ...loadPanePrefs(), graphFilters: 'min', graphDetail: 'min' });
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Minimize folders"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Minimize notes column"]')!.click());
   expect(loadPanePrefs()).toMatchObject({ tree: 'min', graphFilters: 'min', graphDetail: 'min' });
 });
 afterEach(async () => { await act(async () => { dismissToast(); cleanup?.(); }); cleanup = undefined; localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
