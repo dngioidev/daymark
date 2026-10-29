@@ -12,7 +12,7 @@ This is an implementation and QA handoff for the next minor release. No release,
 - Moving things: drag a note onto a folder, or onto the Move to top level strip that appears while dragging. Phones keep Move to folder in the note.
 - Keyboard: arrow keys, Home, End and Enter move through the tree; Shift+F10 or the Menu key opens a folder's actions. Long vaults use a windowed tree.
 - No Notes header row. The page title row is removed; the List | Graph switch lives in the column.
-- Responsive column: wide windows show the column, editor and Related; Minimize folders shrinks the column to a strip (Search, New note, New folder, up to eight top-level folders and a +N button); windows from 768 to 1099 px open the column as a drawer from the Notes button; phones show the column, then the editor with Back.
+- Responsive column: wide windows show the column, editor and Related; Minimize notes column shrinks the column to a strip (Search, New note, New folder, up to eight top-level folders and a +N button); windows from 768 to 1099 px open the column as a drawer from the Notes button; phones show the column, then the editor with Back.
 - Side menu: five parts (Title, Today, Calendar, Notes, Backlog) with Settings as a small gear button in the Title part next to Search. On phones Settings is a gear in the top header and the bottom bar is Today, Calendar, New task, Backlog, Notes.
 - Guide, README, project knowledge and the website describe the new navigation.
 
@@ -37,7 +37,7 @@ Captured from a disposable sample vault with `node scripts/capture-screenshots.m
 2. Select a folder, then choose New note: it is created there. Type in Search and watch the tree filter.
 3. Drag a note onto a folder; drag again and drop it on Move to top level.
 4. Focus the tree and use the arrow keys, Home, End, Enter and Shift+F10.
-5. Narrow the window below 1100 px to get the drawer; use Minimize folders for the strip; try List | Graph.
+5. Narrow the window below 1100 px to get the drawer; use Minimize notes column for the strip; try List | Graph.
 6. On a phone width, open Notes from the bottom bar, pick a note, then use Back.
 
 ## Checks

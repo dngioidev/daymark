@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StandaloneNotesView } from './StandaloneNotesView';
 import type { StandaloneNote } from '../types/daymark';
 vi.mock('./notes/RichNoteEditor', () => ({ default: () => React.createElement('div', null, 'Editor') }));
+vi.mock('./notes/graph/GraphView', () => ({ default: ({ onViewChange }: { onViewChange(value: 'list'): void }) => React.createElement('button', { id: 'return-list', onClick: () => onViewChange('list') }, 'Return list') }));
 vi.mock('./ui/feedback', () => ({ showToast: vi.fn(), confirmDialog: vi.fn(async () => true) }));
 let root: Root; let host: HTMLDivElement; let frames: FrameRequestCallback[];
 beforeEach(() => {
@@ -45,4 +46,13 @@ it.each([[1440, 'rename'], [1440, 'move'], [900, 'rename'], [900, 'move']] as co
   expect(document.activeElement).not.toBe(restored);
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
   expect(document.activeElement).toBe(restored);
+  if (width === 900) {
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await click([...host.querySelectorAll<HTMLButtonElement>('button')].find(b => b.getAttribute('aria-label') === 'Notes')!);
+  } else {
+    await click(host.querySelector<HTMLButtonElement>('[role=radio][aria-checked=false]')!);
+    await click(host.querySelector<HTMLButtonElement>('#return-list')!);
+  }
+  await settleFrames();
+  expect(document.activeElement?.getAttribute('data-folder-path')).toBeNull();
 });

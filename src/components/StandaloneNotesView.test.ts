@@ -519,3 +519,37 @@ it.each(['rename', 'move'])('requests focus on the updated folder after %s', asy
   const next = find(render(false, { notes: update.mock.calls.at(-1)![0] }), el => el.type === NoteNavigation)!;
   expect(next.props.focusFolder).toEqual({ path: action === 'rename' ? 'Renamed' : 'Archive/Work' });
 });
+
+it.each(['wiki creation', 'unpin', 'sync reorder'])('keeps the implicitly shown editor stable through %s without selecting it', scenario => {
+  const a = { ...note, title: 'A', pinned: scenario === 'unpin', updatedAt: '2026-10-20T00:00:00Z' };
+  const c = { ...note, id: 'c', title: 'C', folder: 'Other', pinned: scenario === 'unpin', updatedAt: '2026-10-19T00:00:00Z' };
+  let notes = [a, c]; const initial = render(false, { notes });
+  expect(find(initial, el => el.props.noteId === a.id)).toBeDefined();
+  if (scenario === 'wiki creation') {
+    (find(initial, el => el.props.noteId === a.id)!.props.onCreateNote as (title: string) => string)('New idea');
+    notes = update.mock.calls.at(-1)![0];
+  } else if (scenario === 'unpin') {
+    find(initial, el => el.props['aria-label'] === 'Unpin note')!.props.onClick();
+    notes = update.mock.calls.at(-1)![0];
+  } else notes = [a, { ...c, updatedAt: '2026-10-29T23:00:00Z' }];
+  const next = render(false, { notes });
+  expect(find(next, el => !!el.props.noteId)?.props.noteId).toBe(a.id);
+  expect(find(next, el => el.props.id === 'note-title')?.props.value).toBe('A');
+  const nav = find(next, el => el.type === NoteNavigation)!;
+  expect(nav.props.openNoteId).toBeUndefined(); expect(nav.props.currentFolder).toBe('');
+  expect(renderToStaticMarkup(nav)).not.toContain('aria-selected="true"');
+  (nav.props.onNewNote as () => void)();
+  expect(update.mock.calls.at(-1)![0][0].folder).toBe('');
+});
+it('consumes folder focus requests and clears them on presentation changes and drawer opening', async () => {
+  const nav = () => find(render(), el => el.type === NoteNavigation)!;
+  (nav().props.onFolderAction as (action: string, path: string) => void)('rename', 'Work');
+  await (find(render(), el => el.type === FolderDialogs)!.props.onSubmit as (value: string) => Promise<void>)('Renamed');
+  expect(nav().props.focusFolder).toEqual({ path: 'Renamed' });
+  expect(nav().props.onFolderFocusConsumed).toEqual(expect.any(Function));
+  (nav().props.onFolderFocusConsumed as () => void)(); expect(nav().props.focusFolder).toBeUndefined();
+  (nav().props.onFolderAction as (action: string, path: string) => void)('rename', 'Work');
+  await (find(render(), el => el.type === FolderDialogs)!.props.onSubmit as (value: string) => Promise<void>)('Again');
+  const changeView = (nav().props.viewSwitch as React.ReactElement<{ onChange(value: string): void }>).props.onChange;
+  changeView('graph'); changeView('list'); expect(nav().props.focusFolder).toBeUndefined();
+});

@@ -255,3 +255,22 @@ it('sizes the virtual pinned group to contain its complete rows and keeps compac
   const compact = parse({ ...base(), compact: true, query: 'Java' }).querySelector('[aria-label="Clear search"]')!;
   expect(compact.classList.contains('w-11')).toBe(true); expect(compact.className).not.toMatch(/sm:w-/);
 });
+
+it('acknowledges a consumed folder-focus request so a remount does not replay it', () => {
+  const onFolderFocusConsumed = vi.fn(); mount({ ...base(), focusFolder: { path: 'Tech' }, onFolderFocusConsumed });
+  expect(onFolderFocusConsumed).toHaveBeenCalledOnce();
+  const search = host.querySelector<HTMLInputElement>('#notes-search')!; act(() => search.focus());
+  act(() => root!.render(React.createElement(NoteNavigation, { ...base(), onFolderFocusConsumed })));
+  expect(document.activeElement).toBe(search); expect(onFolderFocusConsumed).toHaveBeenCalledOnce();
+});
+it('cancels the deferred global drag cleanup when unmounted', () => {
+  vi.useFakeTimers();
+  try {
+    mount(); const source = host.querySelector('[data-note-id=two]')!;
+    const event = new Event('dragstart', { bubbles: true }); Object.defineProperty(event, 'dataTransfer', { value: { setData: vi.fn(), effectAllowed: '' } });
+    act(() => source.dispatchEvent(event)); act(() => window.dispatchEvent(new Event('dragend')));
+    expect(vi.getTimerCount()).toBe(1);
+    act(() => root!.unmount()); root = undefined;
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.clearAllTimers(); vi.useRealTimers(); }
+});

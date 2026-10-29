@@ -36,3 +36,26 @@ it('remembers folder expansion in memory while its only note is deleted so Undo 
   act(() => root!.render(React.createElement(Harness, {})));
   expect(api.expanded).toEqual(new Set(['work', 'work/deep', 'work/deep/child']));
 });
+
+it('retains deleted-note expansion through another folder toggle before Undo', async () => {
+  const { NoteNavigation } = await import('./NoteNavigation');
+  const original = [note('Work/Deep'), { ...note('Other'), id: 'two', title: 'Two' }];
+  localStorage.setItem('daymark_notes_expanded', JSON.stringify(['work', 'work/deep', 'other']));
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div'); root = createRoot(host);
+  function UndoHarness({ notes }: { notes: StandaloneNote[] }) {
+    api = useNoteNavigationState(notes, '');
+    return React.createElement(NoteNavigation, { notes, meta: EMPTY_NOTE_META, currentFolder: '', expanded: api.expanded,
+      onExpandedChange: api.setExpanded, onToggleExpanded: api.toggleExpanded, query: '', dragEnabled: false,
+      onQueryChange: vi.fn(), onOpenNote: vi.fn(), onSelectFolder: vi.fn(), onNewNote: vi.fn(), onNewFolder: vi.fn(), onFolderAction: vi.fn() });
+  }
+  act(() => root!.render(React.createElement(UndoHarness, { notes: original })));
+  act(() => root!.render(React.createElement(UndoHarness, { notes: [original[1]] })));
+  expect(api.expanded).toEqual(new Set(['other']));
+  act(() => host.querySelector<HTMLElement>('[data-folder-path=Other]')!.click());
+  expect(api.expanded).toEqual(new Set()); expect(prefs.loadNoteExpansion()).toEqual(new Set());
+  act(() => root!.render(React.createElement(UndoHarness, { notes: original })));
+  expect(api.expanded).toEqual(new Set(['work', 'work/deep']));
+  expect(host.querySelector('[data-note-id=one]')).not.toBeNull();
+  expect(prefs.loadNoteExpansion()).toEqual(new Set(['work', 'work/deep']));
+});

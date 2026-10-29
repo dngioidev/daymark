@@ -103,9 +103,12 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
     const focusedInList = await page.evaluate(() => !!document.activeElement?.closest('[aria-label="Graph nodes"]'));
     check('C11-Keyboard-graph-list', focusedInList, 'List view moves focus into the accessible node list');
     const dismissals = page.locator('[aria-label="Graph nodes"]').getByRole('button', { name: /^Not related to / });
+    await dismissals.first().waitFor({ timeout: 10000 }).catch(() => {});
     const before = await dismissals.count();
     await dismissals.first().focus(); await press('Enter');
     await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
+    // Suggestions are republished progressively off the render path, so give the list a moment to settle
+    for (let i = 0; i < 30 && await dismissals.count() >= before; i++) await page.waitForTimeout(100);
     check('C11-Keyboard-graph-dismiss', before > 0 && await dismissals.count() < before, 'Not related in the graph list works from the keyboard and offers Undo', `${before} -> ${await dismissals.count()}`);
     check('C11-Keyboard-errors', errors.length === 0, 'keyboard-only paths have no browser errors', errors.join(' | '));
   });

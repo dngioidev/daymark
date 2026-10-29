@@ -15,7 +15,8 @@ export interface NoteNavigationProps {
   onSelectFolder(path: string): void; onNewNote(): void; templateItems?: MenuItem[];
   onNewFolder(): void; onFolderAction(action: FolderAction, path: string): void;
   onDropNote?(noteId: string, folderPath: string): void; onDropFolder?(path: string, newParentPath: string): void;
-  focusFolder?: { path: string };
+  focusFolder?: { path: string }; onFolderFocusConsumed?(): void;
+  onToggleExpanded?(path: string, open: boolean): void;
   dragEnabled: boolean; compact?: boolean; viewSwitch?: React.ReactNode; focusSearch?: React.RefObject<boolean>;
 }
 const folderKey = (path: string) => normalizeFolderPath(path).toLowerCase();
@@ -37,9 +38,10 @@ export function NoteNavigation(props: NoteNavigationProps) {
   const [touch, setTouch] = useState(false);
   useEffect(() => {
     if (!dragging) return;
-    const finish = () => { window.setTimeout(() => setDragging(false), 0); }; // deferred so the target's own drop handler runs before the strip unmounts
+    let timeout: number | undefined;
+    const finish = () => { if (timeout !== undefined) window.clearTimeout(timeout); timeout = window.setTimeout(() => setDragging(false), 0); }; // deferred so the target's own drop handler runs before the strip unmounts
     window.addEventListener('dragend', finish, true); window.addEventListener('drop', finish, true);
-    return () => { window.removeEventListener('dragend', finish, true); window.removeEventListener('drop', finish, true); };
+    return () => { window.removeEventListener('dragend', finish, true); window.removeEventListener('drop', finish, true); if (timeout !== undefined) window.clearTimeout(timeout); };
   }, [dragging]);
   const dragEnabled = props.dragEnabled && !compact && !touch;
   const container = useRef<HTMLDivElement>(null);
@@ -100,14 +102,16 @@ export function NoteNavigation(props: NoteNavigationProps) {
       let secondFrame: number | undefined;
       const firstFrame = requestAnimationFrame(() => {
         secondFrame = requestAnimationFrame(() => {
-          if (index >= 0 && container.current?.isConnected) focus(index);
+          if (container.current?.isConnected) { if (index >= 0) focus(index); props.onFolderFocusConsumed?.(); }
         });
       });
       return () => { cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); };
     }
+    props.onFolderFocusConsumed?.();
   }, [props.focusFolder, keys]);
   const toggle = (row: Extract<NoteTreeRow, { kind: 'folder' }>) => {
     if (query.trim()) return; // Search forces paths open without changing the saved expansion.
+    if (props.onToggleExpanded) { props.onToggleExpanded(row.path, !row.expanded); return; }
     const next = new Set(expanded); const key = folderKey(row.path);
     if (row.expanded) next.delete(key); else next.add(key);
     props.onExpandedChange(next);

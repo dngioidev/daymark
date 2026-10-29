@@ -20,7 +20,12 @@ export function useNoteNavigationState(notes: StandaloneNote[], openNoteId: stri
       return paths.every(path => previous.has(path)) ? previous : new Set([...previous, ...paths]);
     });
   };
+  const toggleExpanded = (path: string, open: boolean) => setExpanded(previous => {
+    const next = new Set(previous); const key = ancestorPaths(path).at(-1) ?? '';
+    if (open) next.add(key); else next.delete(key);
+    return next;
+  });
   const migrateFolderExpansion = (from: string, to?: string) => setExpanded(previous => migrateNoteExpansion(previous, from, to));
   useEffect(() => { if (openFolder !== undefined) revealFolder(openFolder); }, [openNoteId, openFolder]);
-  return { currentFolder, setCurrentFolder, expanded, setExpanded, revealFolder, migrateFolderExpansion };
+  return { currentFolder, setCurrentFolder, expanded, setExpanded, toggleExpanded, revealFolder, migrateFolderExpansion };
 }

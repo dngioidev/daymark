@@ -190,7 +190,7 @@ const SHOTS = [
     await page.getByRole('searchbox', { name: 'Search notes' }).fill('stream');
     await page.getByText(/notes? match/).waitFor();
   }) },
-  { name: 'notes-strip', viewport: 'wide', cycles: ['cycle-12'], prepare: then(cycle12Open('Java collectors'), click('button', /^minimize folders$/i)) },
+  { name: 'notes-strip', viewport: 'wide', cycles: ['cycle-12'], prepare: then(cycle12Open('Java collectors'), click('button', /^minimize notes column$/i)) },
   { name: 'notes-drawer', viewport: 'narrow', cycles: ['cycle-12'], prepare: then(click('button', /^notes$/i), async (page) => {
     const drawer = page.getByRole('dialog');
     if (!await drawer.count()) await page.getByRole('button', { name: 'Notes', exact: true }).last().click();
@@ -201,7 +201,7 @@ const SHOTS = [
   { name: 'phone-notes-column', viewport: 'android', cycles: ['cycle-12'], prepare: then(click('button', /^notes$/i), (page) => page.getByRole('tree', { name: 'Notes' }).waitFor()) },
   { name: 'phone-header-settings', viewport: 'android', cycles: ['cycle-12'], prepare: loadSample },
   { name: 'notes-three-pane', viewport: 'wide', cycles: ['cycle-11'], prepare: cycle11Note('Java collectors') },
-  { name: 'notes-minimized', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Note('Java collectors'), click('button', /^minimize folders$/i), click('button', /^minimize related$/i)) },
+  { name: 'notes-minimized', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Note('Java collectors'), click('button', /^minimize notes column$/i), click('button', /^minimize related$/i)) },
   { name: 'notes-related', viewport: 'wide', cycles: ['cycle-11'], selector: 'aside[aria-label="Related panel"]', prepare: cycle11Note('Java collectors') },
   { name: 'notes-drawer', viewport: 'narrow', cycles: ['cycle-11'], prepare: then(click('button', /^notes$/i), click('button', /^folders$/i)) },
   { name: 'graph-folder-filter', viewport: 'wide', cycles: ['cycle-11'], prepare: then(cycle11Graph, (page) => page.getByRole('complementary', { name: 'Graph filters' }).getByLabel('Reading, 2 notes', { exact: true }).uncheck()) },
