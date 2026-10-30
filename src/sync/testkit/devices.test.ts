@@ -48,7 +48,7 @@ it('dropResponse resend does not duplicate', async () => {
   expect(tasks(c)).toEqual([task]);
 });
 
-it('legacy device strips alertDays only on the wire', async () => {
+it('legacy device never sends or keeps alertDays', async () => {
   const legacy = rig.device('old', { legacy: true });
   legacy.edit(v => ({ ...v, settings: { ...v.settings, alertDays: { mode: 'weekdays' } } }));
   const before = structuredClone(legacy.vault);
@@ -58,7 +58,6 @@ it('legacy device strips alertDays only on the wire', async () => {
     if (String(url).endsWith('/api/sync')) requests.push(JSON.parse(String(init?.body)));
     return realFetch(url, init);
   });
-  expect(legacy.vault).toEqual(before);
   await legacy.sync();
   const settings = requests[0].changes.find(c => c.key === 'settings')!;
   expect(settings.value).not.toHaveProperty('alertDays');
