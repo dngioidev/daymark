@@ -214,7 +214,15 @@ export interface ResolvedAppearance {
   warnings: { field: 'headerText' | 'pageText' | 'accent'; ratio: number }[];
 }
 
+export type CountingDays = 'all' | 'weekdays' | 'weekend';
+
+export interface AlertDaysSettings {
+  tasks: CountingDays;
+  habits: CountingDays;
+}
+
 export interface AppSettings {
+  alertDays?: AlertDaysSettings;
   appearance?: AppearanceSettings;
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;

@@ -50,7 +50,7 @@ it('dropResponse resend does not duplicate', async () => {
 
 it('legacy device never sends or keeps alertDays', async () => {
   const legacy = rig.device('old', { legacy: true });
-  legacy.edit(v => ({ ...v, settings: { ...v.settings, alertDays: { mode: 'weekdays' } } }));
+  legacy.edit(v => ({ ...v, settings: { ...v.settings, alertDays: { tasks: 'weekdays', habits: 'all' } } }));
   const before = structuredClone(legacy.vault);
   const requests: SyncRequest[] = [];
   const realFetch = globalThis.fetch;
@@ -67,7 +67,7 @@ it('legacy device never sends or keeps alertDays', async () => {
 
   const modern = rig.device('new');
   await modern.sync();
-  modern.edit(v => ({ ...v, settings: { ...v.settings, alertDays: { mode: 'all' } } }));
+  modern.edit(v => ({ ...v, settings: { ...v.settings, alertDays: { tasks: 'all', habits: 'all' } } }));
   await modern.sync();
   await legacy.sync();
   expect(legacy.vault.settings).not.toHaveProperty('alertDays');

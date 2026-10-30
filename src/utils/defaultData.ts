@@ -1,4 +1,5 @@
 import { parseHex } from './color';
+import { resolveAlertDays } from './alertDays';
 import { AppearanceSettings, AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -116,8 +117,12 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
   const filledAppearance = normalizeAppearance(settings.appearance);
   const appearance = JSON.stringify(filledAppearance) === JSON.stringify(settings.appearance)
     ? settings.appearance : filledAppearance;
-  return appearance === settings.appearance && defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
-    ? settings : { ...settings, statuses, defaultHeadings, appearance };
+  const filledAlertDays = 'alertDays' in settings ? resolveAlertDays(settings) : undefined;
+  const alertDays = filledAlertDays && (
+    filledAlertDays.tasks !== settings.alertDays?.tasks || filledAlertDays.habits !== settings.alertDays?.habits
+  ) ? filledAlertDays : settings.alertDays;
+  return alertDays === settings.alertDays && appearance === settings.appearance && defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
+    ? settings : { ...settings, statuses, defaultHeadings, appearance, ...(filledAlertDays ? { alertDays } : {}) };
 }
 
 /** Older clients omit newer fields; keep local values until explicitly sent. */

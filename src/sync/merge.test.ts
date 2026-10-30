@@ -3,6 +3,7 @@ import { DailyDocument, Habit, HabitDay, StandaloneNote, TaskItem } from '../typ
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import type { BacklogItem } from '../types/daymark';
 import { isBacklogEntityKey, mergeBacklog } from './merge';
+import type { SyncedSettings } from './merge';
 import {
   CONFLICT_SEPARATOR,
   canonicalJson,
@@ -349,7 +350,7 @@ describe('settings and helpers', () => {
 
   it('settings: a key missing on the incoming side is not a deletion', () => {
     const old = toSyncedSettings(DEFAULT_SETTINGS);
-    const base = { ...old, alertDays: { tasks: 'weekdays', habits: 'all' } };
+    const base: SyncedSettings = { ...old, alertDays: { tasks: 'weekdays', habits: 'all' } };
     const result = mergeSettings(base, base, old);
     expect(result.value).toHaveProperty('alertDays', { tasks: 'weekdays', habits: 'all' });
     expect(result.conflicts).toEqual([]);
@@ -367,9 +368,9 @@ describe('settings and helpers', () => {
   });
 
   it('settings: nested appearance colors and alert days merge independently', () => {
-    const base = { ...toSyncedSettings(DEFAULT_SETTINGS), alertDays: { tasks: 'all', habits: 'all' } };
-    const ours = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, accent: '#123456' } }, alertDays: { ...base.alertDays, tasks: 'weekdays' } };
-    const theirs = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, headerOpacity: 70 }, dark: { ...base.appearance!.dark, accent: '#abcdef' } }, alertDays: { ...base.alertDays, habits: 'weekdays' } };
+    const base = { ...toSyncedSettings(DEFAULT_SETTINGS), alertDays: { tasks: 'all', habits: 'all' } } satisfies SyncedSettings;
+    const ours: SyncedSettings = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, accent: '#123456' } }, alertDays: { ...base.alertDays, tasks: 'weekdays' } };
+    const theirs: SyncedSettings = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, headerOpacity: 70 }, dark: { ...base.appearance!.dark, accent: '#abcdef' } }, alertDays: { ...base.alertDays, habits: 'weekdays' } };
     const result = mergeSettings(base, ours, theirs);
     expect(result.value).toMatchObject({ appearance: { light: { accent: '#123456', headerOpacity: 70 }, dark: { accent: '#abcdef' } }, alertDays: { tasks: 'weekdays', habits: 'weekdays' } });
     expect(result.conflicts).toEqual([]);

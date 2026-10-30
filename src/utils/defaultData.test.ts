@@ -5,7 +5,7 @@ import type { AppSettings } from '../types/daymark';
 
 describe('mergeIncomingSettings', () => {
   it('keeps newer settings keys omitted by an older incoming copy through normalization', () => {
-    const local = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays', habits: 'all' } };
+    const local: AppSettings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays', habits: 'all' } };
     const incoming = { ...DEFAULT_SETTINGS, timeZone: 'Asia/Saigon' };
     const merged = mergeIncomingSettings(local, incoming);
     expect(normalizeSettings(merged)).toMatchObject({ alertDays: { tasks: 'weekdays', habits: 'all' }, timeZone: 'Asia/Saigon' });
@@ -34,6 +34,21 @@ describe('mergeIncomingSettings', () => {
 });
 
 describe('normalizeSettings', () => {
+  it('leaves alertDays absent on older settings', () => {
+    expect(DEFAULT_SETTINGS).not.toHaveProperty('alertDays');
+    expect(normalizeSettings({ ...DEFAULT_SETTINGS })).not.toHaveProperty('alertDays');
+  });
+  it('normalizes present alertDays without mutating imported settings', () => {
+    const settings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'bad', habits: 'weekend' } } as unknown as AppSettings;
+    expect(normalizeSettings(settings).alertDays).toEqual({ tasks: 'all', habits: 'weekend' });
+    expect(settings.alertDays).toEqual({ tasks: 'bad', habits: 'weekend' });
+    const partial = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' } } as AppSettings;
+    expect(normalizeSettings(partial).alertDays).toEqual({ tasks: 'weekdays', habits: 'all' });
+  });
+  it('preserves settings identity when alertDays needs no repair', () => {
+    const settings: AppSettings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays', habits: 'weekend' } };
+    expect(normalizeSettings(settings)).toBe(settings);
+  });
   it('fills missing and partial appearance, including older backup settings', () => {
     const { appearance: _appearance, ...older } = DEFAULT_SETTINGS;
     expect(normalizeSettings(older).appearance).toEqual(DEFAULT_APPEARANCE);
