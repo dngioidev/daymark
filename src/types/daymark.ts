@@ -222,7 +222,8 @@ export interface AlertDaysSettings {
 }
 
 export interface AppSettings {
-  alertDays?: AlertDaysSettings;
+  /** Partial on purpose: a click stores only the key it changed, so two devices changing different keys merge without loss. */
+  alertDays?: Partial<AlertDaysSettings>;
   appearance?: AppearanceSettings;
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;

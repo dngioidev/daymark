@@ -11,7 +11,8 @@ describe('instant settings validation and resets', () => {
   it('accepts defaults', () => expect(validateSettingsPatch(DEFAULT_SETTINGS)).toBeNull());
   it('resets alert choices with the aging tab without adding them to untouched settings', () => {
     const custom = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' as const, habits: 'weekend' as const } };
-    expect(resetTab('aging', custom).alertDays).toEqual({ tasks: 'all', habits: 'all' });
+    expect(resetTab('aging', custom)).not.toHaveProperty('alertDays');
+    expect(resetTab('aging', { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' } })).not.toHaveProperty('alertDays');
     expect(resetTab('aging', DEFAULT_SETTINGS)).not.toHaveProperty('alertDays');
     expect(resetTab('appearance', custom).alertDays).toEqual(custom.alertDays);
   });

@@ -3,7 +3,7 @@ import { HabitData } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { canonicalJson } from './merge';
-import { MAX_CHANGES_PER_SYNC, SyncRequest } from './protocol';
+import { MAX_CHANGES_PER_SYNC, MAX_SYNC_BATCH_BYTES, SyncRequest } from './protocol';
 import { applySyncOutcome, collectChanges, fromEntities, syncOnce, SyncState, toEntities, VaultData } from './syncClient';
 import { pickBacklogItem } from '../utils/backlog';
 
@@ -84,6 +84,41 @@ describe('large pending pushes', () => {
     expect(synced).toEqual(beforeState);
     expect(largeVault).toEqual(beforeVault);
     expect(collectChanges(toEntities(largeVault), synced)).toHaveLength(MAX_CHANGES_PER_SYNC + 1);
+  });
+});
+
+describe('batching by size', () => {
+  const bigNote = (id: string, size: number) => ({ id, title: id, content: 'x'.repeat(size), folder: '', tags: [], createdAt: '2026-10-24T09:00:00Z', updatedAt: '2026-10-24T09:00:00Z' });
+  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
+    bases: Object.fromEntries([...toEntities(vault)].map(([key, value]) => [key, canonicalJson(value)])) };
+  const echo = (calls: { body: SyncRequest; bytes: number }[]) => async (_url: string, init?: RequestInit) => {
+    const raw = String(init?.body);
+    const body = JSON.parse(raw) as SyncRequest;
+    calls.push({ body, bytes: new TextEncoder().encode(raw).length });
+    return Response.json({ rev: 10 + calls.length, conflicts: [], entities: body.changes.map(c => ({ key: c.key, value: c.value, rev: 10 + calls.length })) });
+  };
+
+  it('splits many large changes into requests under the byte budget and delivers each once', async () => {
+    const notes = Array.from({ length: 30 }, (_, i) => bigNote(`big-${i}`, 1024 * 1024));
+    const calls: { body: SyncRequest; bytes: number }[] = [];
+    const outcome = await syncOnce(echo(calls), { ...vault, notes }, synced, 'access');
+    expect(calls.length).toBeGreaterThan(3);
+    for (const call of calls) expect(call.bytes).toBeLessThanOrEqual(MAX_SYNC_BATCH_BYTES + 1024);
+    const keys = calls.flatMap(c => c.body.changes.map(change => change.key));
+    expect(keys.filter(k => k.startsWith('note:'))).toHaveLength(30);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(outcome.pushed).toBe(30);
+  });
+
+  it('sends a single change larger than the budget alone', async () => {
+    const notes = [bigNote('small-a', 10), bigNote('huge', MAX_SYNC_BATCH_BYTES + 1000), bigNote('small-b', 10)];
+    const calls: { body: SyncRequest; bytes: number }[] = [];
+    await syncOnce(echo(calls), { ...vault, notes }, synced, 'access');
+    const huge = calls.filter(c => c.body.changes.some(change => change.key === 'note:huge'));
+    expect(huge).toHaveLength(1);
+    expect(huge[0].body.changes).toHaveLength(1);
+    const keys = calls.flatMap(c => c.body.changes.map(change => change.key));
+    expect(keys.sort()).toEqual(['note:huge', 'note:small-a', 'note:small-b']);
   });
 });
 

@@ -454,20 +454,21 @@ try {
   check(await ageShown(laptop, '7 days old'), 'laptop shows the carried task as 7 days old with All week counting');
   check(await ageShown(phone, '7 days old'), 'phone shows the carried task as 7 days old with All week counting');
 
-  // Two devices change different settings (weekday counting, text size) while offline; both changes survive reconnect.
+  // Two devices change different alert-day choices (plus a text size) while offline; every change survives reconnect.
   await laptopCtx.setOffline(true);
   await phoneCtx.setOffline(true);
   await chooseDays(laptop, 'Task aging counts', 'Weekdays (Mon to Fri)');
+  await chooseDays(phone, 'Habit warnings count', 'Weekends (Sat and Sun)');
   await phone.getByRole('button', { name: 'Settings', exact: true }).first().click();
   await settingsDialog(phone).getByRole('tab', { name: 'Appearance', exact: true }).click();
   await settingsDialog(phone).getByRole('button', { name: 'L', exact: true }).click();
   await closeSettings(phone);
   await waitSettings(laptop, s => s?.alertDays?.tasks === 'weekdays');
-  await waitSettings(phone, s => s?.appearance?.textSize === 'l');
+  await waitSettings(phone, s => s?.alertDays?.habits === 'weekend' && s?.appearance?.textSize === 'l');
   const offlineLaptop = await idbSettings(laptop), offlinePhone = await idbSettings(phone);
-  check(offlineLaptop.alertDays?.tasks === 'weekdays' && offlineLaptop.appearance?.textSize !== 'l'
-    && offlinePhone.appearance?.textSize === 'l' && offlinePhone.alertDays?.tasks !== 'weekdays',
-    'each offline device holds only its own settings change before reconnect');
+  check(offlineLaptop.alertDays?.tasks === 'weekdays' && offlineLaptop.alertDays?.habits === undefined && offlineLaptop.appearance?.textSize !== 'l'
+    && offlinePhone.alertDays?.habits === 'weekend' && offlinePhone.alertDays?.tasks === undefined && offlinePhone.appearance?.textSize === 'l',
+    'each offline device holds only its own settings change before reconnect', JSON.stringify({ laptop: offlineLaptop.alertDays, phone: offlinePhone.alertDays }));
   await laptopCtx.setOffline(false);
   await syncNow(laptop);
   await phoneCtx.setOffline(false);
@@ -476,11 +477,13 @@ try {
   await syncNow(phone);
   for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
     const merged = await idbSettings(page);
-    check(merged?.alertDays?.tasks === 'weekdays' && merged?.appearance?.textSize === 'l',
-      `${label} keeps both offline settings changes after reconnect`, JSON.stringify({ alertDays: merged?.alertDays, textSize: merged?.appearance?.textSize }));
+    check(merged?.alertDays?.tasks === 'weekdays' && merged?.alertDays?.habits === 'weekend' && merged?.appearance?.textSize === 'l',
+      `${label} keeps all offline settings changes after reconnect`, JSON.stringify({ alertDays: merged?.alertDays, textSize: merged?.appearance?.textSize }));
     await openAgingTab(page);
     check(await alertGroup(page, 'Task aging counts').getByRole('radio', { name: 'Weekdays (Mon to Fri)', exact: true }).isChecked(),
       `${label} Settings shows Weekdays for Task aging counts`);
+    check(await alertGroup(page, 'Habit warnings count').getByRole('radio', { name: 'Weekends (Sat and Sun)', exact: true }).isChecked(),
+      `${label} Settings shows Weekends for Habit warnings count`);
     await closeSettings(page);
     check(await ageShown(page, '5 days old') && await page.getByText('7 days old', { exact: true }).count() === 0,
       `${label} counts the carried task as 5 days old once weekdays-only is chosen`);

@@ -1,6 +1,5 @@
 import { parseHex } from './color';
-import { resolveAlertDays } from './alertDays';
-import { AppearanceSettings, AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
+import { AlertDaysSettings, AppearanceSettings, AppSettings, DailyDocument, StandaloneNote, StatusDefinition } from '../types/daymark';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   theme: 'light', textSize: 'm', dim: 35, blur: 4, menuSide: 'left',
@@ -117,12 +116,22 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
   const filledAppearance = normalizeAppearance(settings.appearance);
   const appearance = JSON.stringify(filledAppearance) === JSON.stringify(settings.appearance)
     ? settings.appearance : filledAppearance;
-  const filledAlertDays = 'alertDays' in settings ? resolveAlertDays(settings) : undefined;
-  const alertDays = filledAlertDays && (
-    filledAlertDays.tasks !== settings.alertDays?.tasks || filledAlertDays.habits !== settings.alertDays?.habits
-  ) ? filledAlertDays : settings.alertDays;
+  // Only present, valid keys survive; a missing key stays missing so devices changing different keys never overwrite each other.
+  const rawAlertDays = settings.alertDays as Record<string, unknown> | undefined;
+  let alertDays = settings.alertDays;
+  if ('alertDays' in settings && rawAlertDays !== undefined) {
+    const kept: Partial<AlertDaysSettings> = {};
+    for (const key of ['tasks', 'habits'] as const) {
+      const value = rawAlertDays?.[key];
+      if (value === 'all' || value === 'weekdays' || value === 'weekend') kept[key] = value;
+    }
+    const unchanged = rawAlertDays !== null && typeof rawAlertDays === 'object' &&
+      Object.keys(rawAlertDays).length === Object.keys(kept).length &&
+      (Object.keys(kept) as (keyof AlertDaysSettings)[]).every(key => rawAlertDays[key] === kept[key]);
+    if (!unchanged) alertDays = kept;
+  }
   return alertDays === settings.alertDays && appearance === settings.appearance && defaultHeadings === settings.defaultHeadings && statuses.every((s, i) => s === settings.statuses[i])
-    ? settings : { ...settings, statuses, defaultHeadings, appearance, ...(filledAlertDays ? { alertDays } : {}) };
+    ? settings : { ...settings, statuses, defaultHeadings, appearance, ...('alertDays' in settings ? { alertDays } : {}) };
 }
 
 /** Older clients omit newer fields; keep local values until explicitly sent. */

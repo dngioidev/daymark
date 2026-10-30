@@ -50,3 +50,5 @@ export const REFRESH_COOKIE = 'daymark_refresh';
 export const SIGNED_IN_COOKIE = 'daymark_signed_in';
 
 export const MAX_CHANGES_PER_SYNC = 5000;
+/** Serialized-change budget per push request; the server rejects JSON bodies over 25 MB, so stay well under it. */
+export const MAX_SYNC_BATCH_BYTES = 8 * 1024 * 1024;

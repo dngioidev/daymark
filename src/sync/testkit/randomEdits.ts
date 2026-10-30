@@ -307,9 +307,10 @@ export function randomEdit(rng: () => number, device: Device, ledger: EditLedger
         // A legacy device cannot see or write alertDays.
         if (device.name === 'legacy') { v.settings.agingThresholds.criticalDays = 7 + serial; break; }
         const days = ['all', 'weekdays', 'weekend'] as const;
-        const current = v.settings.alertDays ?? { tasks: 'all' as const, habits: 'all' as const };
+        const current = v.settings.alertDays ?? {};
         const key = operation === 22 ? 'tasks' : 'habits';
-        v.settings.alertDays = { ...current, [key]: days[(days.indexOf(current[key]) + 1 + (serial % 2)) % 3] };
+        // Like the Settings UI, write only the changed key.
+        v.settings.alertDays = { ...current, [key]: days[(days.indexOf(current[key] ?? 'all') + 1 + (serial % 2)) % 3] };
         break;
       }
     }

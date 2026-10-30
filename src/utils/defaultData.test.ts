@@ -40,10 +40,15 @@ describe('normalizeSettings', () => {
   });
   it('normalizes present alertDays without mutating imported settings', () => {
     const settings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'bad', habits: 'weekend' } } as unknown as AppSettings;
-    expect(normalizeSettings(settings).alertDays).toEqual({ tasks: 'all', habits: 'weekend' });
+    const fixed = normalizeSettings(settings).alertDays;
+    expect(fixed).toEqual({ habits: 'weekend' });
+    expect(fixed).not.toHaveProperty('tasks');
     expect(settings.alertDays).toEqual({ tasks: 'bad', habits: 'weekend' });
-    const partial = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' } } as AppSettings;
-    expect(normalizeSettings(partial).alertDays).toEqual({ tasks: 'weekdays', habits: 'all' });
+  });
+  it('keeps a partial alertDays partial instead of writing the missing key', () => {
+    const partial: AppSettings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' } };
+    expect(normalizeSettings(partial)).toBe(partial);
+    expect(normalizeSettings(partial).alertDays).not.toHaveProperty('habits');
   });
   it('preserves settings identity when alertDays needs no repair', () => {
     const settings: AppSettings = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays', habits: 'weekend' } };

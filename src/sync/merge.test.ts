@@ -422,6 +422,24 @@ describe('settings and helpers', () => {
     expect(mergeSettings(base, old, old).value).toHaveProperty('alertDays', base.alertDays);
   });
 
+  describe('settings: each side adds a different alertDays key', () => {
+    const plain = toSyncedSettings(DEFAULT_SETTINGS);
+    const bases: [string, SyncedSettings][] = [
+      ['base absent', plain],
+      ['base {}', { ...plain, alertDays: {} }],
+      ["base {tasks:'all'}", { ...plain, alertDays: { tasks: 'all' } }],
+    ];
+    it.each(bases)('%s: both orders keep both keys with no conflict', (_name, base) => {
+      const withTasks: SyncedSettings = { ...base, alertDays: { ...base.alertDays, tasks: 'weekdays' } };
+      const withHabits: SyncedSettings = { ...base, alertDays: { ...base.alertDays, habits: 'weekend' } };
+      for (const [ours, theirs] of [[withTasks, withHabits], [withHabits, withTasks]]) {
+        const result = mergeSettings(base, ours, theirs);
+        expect(result.value?.alertDays).toEqual({ tasks: 'weekdays', habits: 'weekend' });
+        expect(result.conflicts).toEqual([]);
+      }
+    });
+  });
+
   it('settings: nested agingThresholds subfields merge independently', () => {
     const base = toSyncedSettings(DEFAULT_SETTINGS);
     const ours = { ...base, agingThresholds: { ...base.agingThresholds, criticalDays: 9 } };

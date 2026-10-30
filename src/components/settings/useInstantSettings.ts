@@ -22,11 +22,11 @@ export function resetTab(tab: SettingsTab, s: AppSettings): AppSettings {
   switch (tab) {
     case 'appearance': return { ...s, appearance: structuredClone(DEFAULT_APPEARANCE) };
     case 'lifecycle': return { ...s, statuses: structuredClone(DEFAULT_SETTINGS.statuses) };
-    case 'aging': return {
-      ...s,
-      agingThresholds: structuredClone(DEFAULT_SETTINGS.agingThresholds),
-      ...(s.alertDays ? { alertDays: { tasks: 'all', habits: 'all' } as const } : {}),
-    };
+    case 'aging': {
+      // Resetting removes alertDays entirely; an absent key resolves to all week.
+      const { alertDays: _alertDays, ...rest } = s;
+      return { ...rest, agingThresholds: structuredClone(DEFAULT_SETTINGS.agingThresholds) };
+    }
     case 'headings': return { ...s, defaultHeadings: [...DEFAULT_SETTINGS.defaultHeadings] };
     default: return s;
   }

@@ -482,7 +482,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {error && <p id={`aging-error-${key}`} role="alert" className={hint}>{error}</p>}
               </div>
             ))}
-            <AlertDaysChoices value={resolveAlertDays(draft)} onChange={(alertDays) => commit({ ...draft, alertDays })} />
+            <AlertDaysChoices value={resolveAlertDays(draft)} onChange={(key, days) => commit({ ...draft, alertDays: { ...draft.alertDays, [key]: days } })} />
           </>
         )}
 

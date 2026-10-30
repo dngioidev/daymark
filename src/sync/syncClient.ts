@@ -1,7 +1,7 @@
 import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
 import { AppSettings, NoteMeta, EMPTY_NOTE_META, BacklogData, DailyDocument, HabitData, HabitDay, StandaloneNote } from '../types/daymark';
 import { canonicalJson, isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
-import { MAX_CHANGES_PER_SYNC, SyncChange, SyncRequest, SyncResponse } from './protocol';
+import { MAX_CHANGES_PER_SYNC, MAX_SYNC_BATCH_BYTES, SyncChange, SyncRequest, SyncResponse } from './protocol';
 import { EMPTY_BACKLOG, reconcileBacklogVault, uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { dropStaleCarries } from '../utils/lifecycleEngine';
@@ -160,6 +160,21 @@ export interface SyncOutcome {
   received: number;
 }
 
+const encoder = new TextEncoder();
+
+/** Leading changes that fit the count and byte budgets; one change over the budget goes alone. */
+export function takeBatch(changes: SyncChange[], maxBytes: number = MAX_SYNC_BATCH_BYTES): SyncChange[] {
+  let bytes = 0;
+  let count = 0;
+  while (count < changes.length && count < MAX_CHANGES_PER_SYNC) {
+    const size = encoder.encode(JSON.stringify(changes[count])).length + 1;
+    if (count > 0 && bytes + size > maxBytes) break;
+    bytes += size;
+    count++;
+  }
+  return changes.slice(0, count);
+}
+
 /** Push local changes in bounded batches, receiving merged results and other devices' changes. */
 export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string, unsupportedFeatures: ReadonlySet<SyncFeature> | boolean = new Set()): Promise<SyncOutcome> {
   const unsupported = new Set<SyncFeature>(typeof unsupportedFeatures === 'boolean' ? unsupportedFeatures ? ['habits'] : [] : unsupportedFeatures);
@@ -181,7 +196,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
   const conflicts: string[] = [];
   let pushed = 0;
   for (;;) {
-    const batch = changes.slice(0, MAX_CHANGES_PER_SYNC);
+    const batch = takeBatch(changes);
     try {
       res = await send(batch);
       for (const e of res.entities) {

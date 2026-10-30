@@ -24,7 +24,7 @@ Every kind of data that syncs between devices was tested by simulating two or th
 | Habits and backlog items were merged as whole items. | Editing the name of a habit on one device and its details on another kept only one edit. They now merge field by field, and a field you cleared stays cleared. |
 | A device with a wrong clock far in the future won every conflict. | One mis-set phone could overwrite good changes from your other devices. Timestamps far in the future are no longer trusted. |
 | A far-future day stamp defeated a backlog undo. | Undoing a backlog pick could be silently reversed by a device with a bad clock. |
-| More than 5000 pending changes got a device permanently stuck. | A device that had been offline for a long time could never sync again. It now sends its changes in batches. |
+| More than 5000 pending changes got a device permanently stuck. | A device that had been offline for a long time could never sync again. It now sends its changes in batches, limited both by count and by size (about 8 MB per request, so a large pile of notes stays well under the server's 25 MB limit). A single change bigger than that is sent on its own. |
 | A damaged picture on the server was never repaired. | A broken picture stayed broken for every device. The server now notices damaged files and the next upload repairs them. The picture check also reuses earlier results, so it no longer re-reads every file on each poll. |
 | Merging a day renumbered task order. | The renumbering looked like fresh edits and could stop a deletion on another device from taking effect. Merging no longer invents order changes. |
 | Picking the same backlog item on two devices dropped its history. | The two copies of the task lost part of their history. Duplicate picks now keep it. |
@@ -48,13 +48,11 @@ Settings, Old-task warnings, has two new choices: **Task aging counts** and **Ha
 
 ## Compatibility with older versions
 
-Devices on 1.9.1 or earlier keep syncing with updated devices in both directions without losing data. The new alert-day setting is optional, an older device ignores it, and when an older device syncs back it does not erase or reset what an updated device wrote. A device without the setting counts all week. This is covered by tests that sync an old-format device against an updated one.
+Devices on 1.9.1 or earlier keep syncing with updated devices in both directions without losing data. The new alert-day setting is optional, an older device ignores it, and when an older device syncs back it does not erase or reset what an updated device wrote. A device without the setting counts all week. Choosing one counting group stores only that group, so two devices that change the two groups while offline keep both choices after they sync. This is covered by tests that sync an old-format device against an updated one.
 
 ## Known limitations
 
 - Background photos stay on the device where you chose them. They are not synced or backed up. A device with no photos shows a short hint to add the photo there too, and falls back to no photo without errors. The hint cannot tell whether you chose a photo elsewhere, so a device with no photos and None selected always shows it.
-- The sending device batches pending changes by count, not by size. Extremely large batches could still hit the server's 25 MB request limit.
-- Choosing one counting group also stores the other group's current value, so if two devices change the two groups at nearly the same time, the later change can also reset the other group on that setting.
 - A lost server response while a note is in a text conflict can, rarely, create a second conflict copy.
 
 ## Checks

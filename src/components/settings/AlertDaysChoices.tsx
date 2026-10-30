@@ -9,7 +9,8 @@ const options: { value: CountingDays; label: string }[] = [
 
 export function AlertDaysChoices({ value, onChange }: {
   value: AlertDaysSettings;
-  onChange: (next: AlertDaysSettings) => void;
+  /** Reports only the key the user changed, never the untouched one. */
+  onChange: (key: keyof AlertDaysSettings, next: CountingDays) => void;
 }) {
   return <>
     {([['tasks', 'Task aging counts'], ['habits', 'Habit warnings count']] as const).map(([key, label]) => (
@@ -19,7 +20,7 @@ export function AlertDaysChoices({ value, onChange }: {
           <label key={option.value} className="flex items-center gap-3 min-h-11 cursor-pointer text-stone-700 dark:text-stone-300">
             <input type="radio" name={`alert-days-${key}`} value={option.value}
               checked={value[key] === option.value}
-              onChange={() => onChange({ ...value, [key]: option.value })}
+              onChange={() => onChange(key, option.value)}
               className="w-5 h-5 accent-stone-700 dark:accent-stone-300" />
             {option.label}
           </label>

@@ -105,19 +105,20 @@ it('renders separate counting groups with All week selected without saving absen
   expect(settings).not.toHaveProperty('alertDays');
 });
 
-it.each([undefined, 'weekend'] as const)('saves task weekdays while preserving current habit choice %s', async (habits) => {
+it.each([undefined, 'weekend'] as const)('saves only the task key while preserving current habit choice %s', async (habits) => {
   const settings = structuredClone(DEFAULT_SETTINGS);
-  if (habits) settings.alertDays = { tasks: 'all', habits };
+  if (habits) settings.alertDays = { habits };
   const save = await mountAging(settings);
   await act(async () => radio(choiceGroup('Task aging counts'), 'weekdays').click());
   expect(save).toHaveBeenCalledTimes(1);
-  expect(save.mock.calls[0][0]).toEqual({ ...settings, alertDays: { tasks: 'weekdays', habits: habits ?? 'all' } });
+  expect(save.mock.calls[0][0]).toEqual({ ...settings, alertDays: habits ? { tasks: 'weekdays', habits } : { tasks: 'weekdays' } });
+  if (!habits) expect(save.mock.calls[0][0].alertDays).not.toHaveProperty('habits');
   expect(radio(choiceGroup('Task aging counts'), 'weekdays').checked).toBe(true);
   expect(radio(choiceGroup('Habit warnings count'), habits ?? 'all').checked).toBe(true);
 });
 
 it('saves habit weekends while preserving the task choice and other settings', async () => {
-  const settings: AppSettings = { ...structuredClone(DEFAULT_SETTINGS), alertDays: { tasks: 'weekdays', habits: 'all' } };
+  const settings: AppSettings = { ...structuredClone(DEFAULT_SETTINGS), alertDays: { tasks: 'weekdays' } };
   const save = await mountAging(settings);
   await act(async () => radio(choiceGroup('Habit warnings count'), 'weekend').click());
   expect(save.mock.calls[0][0]).toEqual({ ...settings, alertDays: { tasks: 'weekdays', habits: 'weekend' } });
