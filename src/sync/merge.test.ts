@@ -25,9 +25,10 @@ it('unions history when two devices independently pick the same new task (audit 
   const task: TaskItem = { id: 'picked', title: 'Picked', status: 'not-started', heading: 'Work', order: 1,
     createdDate: '2026-10-24', originalNoteDate: '2026-10-24', historyLog: [] };
   const base: DailyDocument = { date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T10:00:00Z' };
-  const side = (id: string): DailyDocument => ({ ...base, headings: [{ name: 'Work', items: [{ ...task, historyLog: [event(id)] }] }] });
+  const shared = event('pick-shared');
+  const side = (id: string): DailyDocument => ({ ...base, headings: [{ name: 'Work', items: [{ ...task, historyLog: [shared, event(id)] }] }] });
   const result = mergeDailyDocument(base, side('pick-a'), side('pick-b'));
-  expect(result.value?.headings[0].items[0].historyLog.map(e => e.id).sort()).toEqual(['pick-a', 'pick-b']);
+  expect(result.value?.headings[0].items[0].historyLog.map(e => e.id).sort()).toEqual(['pick-a', 'pick-b', 'pick-shared']); // the shared event is not duplicated
 });
 
 it('does not mistake automatic task renumbering for an edit defeating deletion (audit seeds 11, 12)', () => {

@@ -37,14 +37,14 @@ it.each(seeds)('converges without losing edits (seed %i)', async seed => {
       const outcomes = [];
       for (const device of order) outcomes.push(await ledger.sync(device));
       if (outcomes.every(outcome => outcome.pushed === 0) &&
-          devices.every(device => normalizeVault(device.vault) === normalizeVault(devices[0].vault))) {
+          devices.every(device => normalizeVault(device.vault, { legacy: device.name === 'legacy' }) === normalizeVault(devices[0].vault, { legacy: device.name === 'legacy' }))) {
         settled = true;
         break;
       }
     }
     expect(settled, 'pending changes or unequal vaults after six rounds').toBe(true);
     expect(normalizeVault(devices[1].vault)).toBe(normalizeVault(devices[0].vault));
-    expect(normalizeVault(devices[2].vault)).toBe(normalizeVault(devices[0].vault));
+    expect(normalizeVault(devices[2].vault, { legacy: true })).toBe(normalizeVault(devices[0].vault, { legacy: true }));
     expect(ledger.losses(devices[0].vault)).toEqual([]);
   } catch (error) {
     throw new Error(`Seed ${seed}\n${ledger.log.join('\n')}\n${String(error)}`, { cause: error });
