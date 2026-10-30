@@ -20,7 +20,7 @@ const data: HabitData = {
 };
 
 it('is closed by default with progress and the single missed-habit warning', () => {
-  const html = renderToStaticMarkup(React.createElement(HabitsBar, { data, date: today, today, onChange: vi.fn() }));
+  const html = renderToStaticMarkup(React.createElement(HabitsBar, { countingDays: 'all', data, date: today, today, onChange: vi.fn() }));
   expect(html).toContain('aria-expanded="false"');
   expect(html).toContain('2 of 5');
   expect(html).toContain('⚠ 1 missed 4 days');
@@ -29,14 +29,14 @@ it('is closed by default with progress and the single missed-habit warning', () 
 });
 
 it('offers adding a daily habit without a warning in the empty state', () => {
-  const html = renderToStaticMarkup(React.createElement(HabitsBar, { data: EMPTY_HABITS, date: today, today, onChange: vi.fn(), compact: true }));
+  const html = renderToStaticMarkup(React.createElement(HabitsBar, { countingDays: 'all', data: EMPTY_HABITS, date: today, today, onChange: vi.fn(), compact: true }));
   expect(html).toContain('Habits · Add a daily habit');
   expect(html).not.toContain('⚠');
 });
 
 it('summarizes multiple warning habits without attributing one missed duration to all', () => {
   const multiple = { ...data, habits: data.habits.map(habit => ({ ...habit, addedOn: '2026-10-20' })) };
-  const html = renderToStaticMarkup(React.createElement(HabitsBar, { data: multiple, date: today, today, onChange: vi.fn() }));
+  const html = renderToStaticMarkup(React.createElement(HabitsBar, { countingDays: 'all', data: multiple, date: today, today, onChange: vi.fn() }));
   expect(html).toContain('⚠ 3');
   expect(html).not.toContain('missed 4 days');
 });

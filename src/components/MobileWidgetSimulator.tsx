@@ -1,4 +1,3 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useState } from 'react';
 import {
   Smartphone,
@@ -11,7 +10,7 @@ import {
   Layers,
   ArrowRight,
 } from 'lucide-react';
-import { DailyDocument, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, DailyDocument, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, getAgingSeverity, getPreviousDate } from '../utils/lifecycleEngine';
 
 interface MobileWidgetSimulatorProps {

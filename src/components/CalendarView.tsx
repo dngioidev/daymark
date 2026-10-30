@@ -1,7 +1,6 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Check, ChevronLeft, ChevronRight, Circle, ExternalLink, MoreHorizontal, RotateCcw } from 'lucide-react';
-import { DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
@@ -14,7 +13,7 @@ import { HabitChecklist } from './habits/HabitChecklist';
 import { habitsForDay, setTick } from '../utils/habits';
 
 interface CalendarViewProps {
-  countingDays?: CountingDays;
+  countingDays: CountingDays;
   habits: HabitData;
   onHabitsChange: (next: HabitData) => void;
   initialView?: 'month' | 'week';
@@ -41,7 +40,7 @@ const countTasks = (doc?: DailyDocument) => {
 };
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  countingDays = 'all',
+  countingDays,
   habits,
   onHabitsChange,
   initialView = 'month',

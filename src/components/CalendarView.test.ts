@@ -14,6 +14,7 @@ const habits: HabitData = {
 };
 
 const calendarProps = {
+  countingDays: 'all' as const,
   dailyDocuments: [], selectedDate: '2026-10-20', simulatedToday: '2026-10-21',
   statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(), onMoveTask: vi.fn(),
   habits, onHabitsChange: vi.fn(),
@@ -50,7 +51,7 @@ it('renders enabled future cells, counts, notes, Planned and the existing panels
       originalNoteDate: '2026-10-25', heading: 'Work', order: 0, historyLog: [],
     }] }],
   };
-  const html = renderToStaticMarkup(React.createElement(CalendarView, {
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { countingDays: 'all',
     dailyDocuments: [doc], selectedDate: doc.date, simulatedToday: '2026-10-21',
     statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(),
     onMarkDoneOnDay: vi.fn(), onOpenDay: vi.fn(), onMoveTask: vi.fn(),
@@ -75,7 +76,7 @@ it('renders enabled future cells, counts, notes, Planned and the existing panels
 
 it.each([false, true])('preserves empty past-day wording with a stored document: %s', (stored) => {
   const date = '2026-10-13';
-  const html = renderToStaticMarkup(React.createElement(CalendarView, {
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { countingDays: 'all',
     dailyDocuments: stored ? [{ date, type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: [], notesContent: '  ' }] }] : [],
     selectedDate: date, simulatedToday: '2026-10-21', compact: true,
     statuses: DEFAULT_SETTINGS.statuses, onSelectDate: vi.fn(), onReopenTask: vi.fn(), onMoveTask: vi.fn(),

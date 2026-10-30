@@ -1,7 +1,6 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useMemo } from 'react';
 import { Check, Circle } from 'lucide-react';
-import type { CalendarCell, HabitData } from '../types/daymark';
+import type { CountingDays, CalendarCell, HabitData } from '../types/daymark';
 import { formatDayParts } from '../utils/dateFormat';
 import { daySummary, habitsForDay } from '../utils/habits';
 

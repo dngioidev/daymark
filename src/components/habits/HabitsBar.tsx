@@ -1,7 +1,6 @@
-import type { CountingDays } from '../../types/daymark';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { HabitData } from '../../types/daymark';
+import type { CountingDays, HabitData } from '../../types/daymark';
 import { daySummary, habitsForDay, setTick } from '../../utils/habits';
 import { formatDay } from '../../utils/dateFormat';
 import { loadHabitsOpen, saveHabitsOpen } from '../../utils/habitsOpen';
@@ -11,7 +10,7 @@ import { HabitChecklist } from './HabitChecklist';
 import { HabitEditor } from './HabitEditor';
 
 interface HabitsBarProps {
-  countingDays?: CountingDays;
+  countingDays: CountingDays;
   data: HabitData;
   date: string;
   today: string;
@@ -26,7 +25,7 @@ export function barLabel(summary: ReturnType<typeof daySummary>, date: string, t
   return date === today ? progress : `Habits · ${formatDay(date, today)} · ${progress}`;
 }
 
-export const HabitsBar: React.FC<HabitsBarProps> = ({ countingDays = 'all', data, date, today, onChange, compact = false, openSignal = 0 }) => {
+export const HabitsBar: React.FC<HabitsBarProps> = ({ countingDays, data, date, today, onChange, compact = false, openSignal = 0 }) => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const interacted = useRef(false);

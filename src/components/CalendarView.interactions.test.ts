@@ -45,7 +45,7 @@ const move = vi.fn(); const select = vi.fn(); const open = vi.fn();
 let compact = false; let fine = true;
 function render(overrides: Partial<React.ComponentProps<typeof CalendarView>> = {}) {
   hooks.index = 0;
-  return elements(CalendarView({ dailyDocuments: [doc], selectedDate: doc.date, simulatedToday: '2026-10-21',
+  return elements(CalendarView({ countingDays: 'all', dailyDocuments: [doc], selectedDate: doc.date, simulatedToday: '2026-10-21',
     statuses: DEFAULT_SETTINGS.statuses, onSelectDate: select, onReopenTask: vi.fn(),
     onMoveTask: move, onOpenDay: open, compact, habits: { habits: [], days: [] }, onHabitsChange: vi.fn(), ...overrides }) as React.ReactNode);
 }

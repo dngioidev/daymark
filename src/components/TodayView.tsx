@@ -1,4 +1,3 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -14,7 +13,7 @@ import {
   RotateCw,
   X,
 } from 'lucide-react';
-import { AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { applyMarkdownEdit, isClosedCopy, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
@@ -28,7 +27,7 @@ import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
 
 interface TodayViewProps {
-  countingDays?: CountingDays;
+  countingDays: CountingDays;
   habitsSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   allDocs: DailyDocument[];
@@ -84,7 +83,7 @@ function wrapSelection(el: HTMLTextAreaElement | null, value: string, before: st
 }
 
 export const TodayView: React.FC<TodayViewProps> = ({
-  countingDays = 'all',
+  countingDays,
   habitsSlot,
   compact = false,
   currentDocument,

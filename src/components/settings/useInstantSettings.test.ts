@@ -9,6 +9,12 @@ describe('instant settings validation and resets', () => {
     } })).toBe('"Urgent after" must be more than "Needs attention after".');
   });
   it('accepts defaults', () => expect(validateSettingsPatch(DEFAULT_SETTINGS)).toBeNull());
+  it('resets alert choices with the aging tab without adding them to untouched settings', () => {
+    const custom = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays' as const, habits: 'weekend' as const } };
+    expect(resetTab('aging', custom).alertDays).toEqual({ tasks: 'all', habits: 'all' });
+    expect(resetTab('aging', DEFAULT_SETTINGS)).not.toHaveProperty('alertDays');
+    expect(resetTab('appearance', custom).alertDays).toEqual(custom.alertDays);
+  });
   it.each([NaN, Infinity, 0, -1, 1.5, 31])('rejects invalid attention days %s', (attentionDays) => {
     expect(validateSettingsPatch({ ...DEFAULT_SETTINGS, agingThresholds: {
       ...DEFAULT_SETTINGS.agingThresholds, attentionDays,

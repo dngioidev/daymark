@@ -1,7 +1,6 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useState } from 'react';
 import { CalendarCheck, Check, RotateCcw, Trash2, X } from 'lucide-react';
-import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { Dialog, buttonClass } from './ui/Dialog';

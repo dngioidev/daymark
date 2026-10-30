@@ -26,7 +26,7 @@ vi.mock('../ui/feedback', () => ({ showToast: vi.fn(), confirmDialog: vi.fn() })
 beforeEach(() => { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.index = 0; hooks.refIndex = 0; });
 function bar(data: HabitData, date = '2026-10-24', openSignal = 3) {
   hooks.index = 0; hooks.refIndex = 0; hooks.effects = [];
-  return HabitsBar({ data, date, today: '2026-10-24', openSignal, onChange: vi.fn() }) as React.ReactElement;
+  return HabitsBar({ countingDays: 'all', data, date, today: '2026-10-24', openSignal, onChange: vi.fn() }) as React.ReactElement;
 }
 function walk(node: React.ReactNode, predicate: (element: React.ReactElement<Record<string, unknown>>) => boolean): React.ReactElement<Record<string, unknown>> | undefined {
   if (!React.isValidElement<Record<string, unknown>>(node)) return;

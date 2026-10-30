@@ -1,4 +1,3 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useState } from 'react';
 import {
   Smartphone,
@@ -15,7 +14,7 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { MobileWidgetSimulator } from './MobileWidgetSimulator';
-import { DailyDocument, StatusDefinition } from '../types/daymark';
+import { CountingDays, DailyDocument, StatusDefinition } from '../types/daymark';
 
 interface MobileCodeHubProps {
   countingDays?: CountingDays;

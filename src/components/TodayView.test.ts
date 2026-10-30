@@ -14,7 +14,7 @@ it('does not present a parked historical copy as completed work and preserves it
     id: 'parked-history', title: 'Parked historical idea', status: 'done', movedToBacklogDate: '2026-10-21', createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 0, historyLog: [],
   }] }] };
   const before = JSON.stringify(parked);
-  const html = renderToStaticMarkup(React.createElement(TodayView, {
+  const html = renderToStaticMarkup(React.createElement(TodayView, { countingDays: 'all',
     currentDocument: parked, allDocs: [parked], simulatedToday: '2026-10-21', statuses: DEFAULT_SETTINGS.statuses,
     agingThresholds: DEFAULT_SETTINGS.agingThresholds, defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
     onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(), onOpenHistoricalModal: vi.fn(),
@@ -49,7 +49,7 @@ it.each(sectionMoveCases)('offers section moves for $label at width $width', asy
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
   try {
-    await act(async () => root.render(React.createElement(TodayView, {
+    await act(async () => root.render(React.createElement(TodayView, { countingDays: 'all',
       currentDocument, allDocs: [currentDocument], simulatedToday: currentDocument.date,
       statuses: DEFAULT_SETTINGS.statuses, agingThresholds: DEFAULT_SETTINGS.agingThresholds,
       defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
@@ -104,7 +104,7 @@ it('excludes backlog-closed copies from the done count and Finished list', () =>
       createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 1, historyLog: [],
     }] }],
   };
-  const html = renderToStaticMarkup(React.createElement(TodayView, {
+  const html = renderToStaticMarkup(React.createElement(TodayView, { countingDays: 'all',
     currentDocument, allDocs: [currentDocument], simulatedToday: currentDocument.date,
     statuses: DEFAULT_SETTINGS.statuses, agingThresholds: DEFAULT_SETTINGS.agingThresholds,
     defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
@@ -131,7 +131,7 @@ it('renders the full-width list, accessible section toggle and fuller desktop si
     }] }],
   };
   currentDocument.headings = future.headings;
-  const html = renderToStaticMarkup(React.createElement(TodayView, {
+  const html = renderToStaticMarkup(React.createElement(TodayView, { countingDays: 'all',
     currentDocument, allDocs: [currentDocument, future], simulatedToday: '2026-10-21',
     statuses: DEFAULT_SETTINGS.statuses, agingThresholds: DEFAULT_SETTINGS.agingThresholds,
     defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,

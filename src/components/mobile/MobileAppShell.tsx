@@ -95,6 +95,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onTabChange: setActiveTab,
   onOpenSettings,
 }) => {
+  const alertDays = resolveAlertDays(settings);
   const isOnline = useOnlineStatus();
   const { canInstall, install } = usePwaInstall();
   const [frame, setFrame] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth >= 768);
@@ -186,7 +187,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
         <main className={`flex-1 text-stone-900 dark:text-stone-100 ${activeTab === 'notes' ? 'min-h-0 flex overflow-hidden p-2.5' : 'overflow-y-auto pb-24 p-3'}`}>
           {activeTab === 'today' && (
-            <TodayView countingDays={resolveAlertDays(settings).tasks}
+            <TodayView countingDays={alertDays.tasks}
               habitsSlot={habitsSlot}
               compact
               currentDocument={currentDocument}
@@ -209,7 +210,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           )}
 
           {activeTab === 'calendar' && (
-            <CalendarView countingDays={resolveAlertDays(settings).habits}
+            <CalendarView countingDays={alertDays.habits}
               habits={habits}
               onHabitsChange={onHabitsChange}
               compact

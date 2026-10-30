@@ -70,3 +70,13 @@ it('includes the selected task counting mode for native age recomputation', () =
   expect(buildWidgetSnapshot(doc, '2026-11-02', 'weekdays').tasks[0]).toMatchObject({ countingDays: 'weekdays' });
   expect(buildWidgetSnapshot(doc, '2026-11-02').tasks[0]).toMatchObject({ countingDays: 'all' });
 });
+
+it('uses createdDate when present and falls back to originalNoteDate when empty', () => {
+  const snapshot = buildWidgetSnapshot({ ...doc, headings: [{ name: 'Work', items: [
+    { ...task('created', 'in-progress'), createdDate: '2026-10-16', originalNoteDate: '2026-10-18' },
+    { ...task('fallback', 'in-progress'), createdDate: '', originalNoteDate: '2026-10-19' },
+  ] }] }, '2026-10-20');
+  expect(snapshot.tasks.map(t => [t.id, t.createdDate])).toEqual([
+    ['created', '2026-10-16'], ['fallback', '2026-10-19'],
+  ]);
+});

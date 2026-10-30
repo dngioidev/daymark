@@ -1,4 +1,3 @@
-import type { CountingDays } from '../types/daymark';
 import React, { useId, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -15,7 +14,7 @@ import {
   PanelRightOpen,
   Trash2,
 } from 'lucide-react';
-import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, formatFullDate, getAgingSeverity, getNextDate, getPreviousDate, isAlertDismissedForDate } from '../utils/lifecycleEngine';
 import { formatAge, formatDay } from '../utils/dateFormat';
 import { getMoveTaskDateError, getMoveToTomorrowDate, isClosedCopy, toggleTaskDone } from '../utils/taskActions';

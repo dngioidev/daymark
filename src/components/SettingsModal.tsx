@@ -10,6 +10,8 @@ import { Dialog, buttonClass } from './ui/Dialog';
 import { alertDialog, confirmDialog, showToast } from './ui/feedback';
 
 import { AppearanceTab } from './settings/AppearanceTab';
+import { AlertDaysChoices } from './settings/AlertDaysChoices';
+import { resolveAlertDays } from '../utils/alertDays';
 import { resetTab, useInstantSettings } from './settings/useInstantSettings';
 import { DEFAULT_APPEARANCE } from '../utils/defaultData';
 import { WidgetTab } from './settings/WidgetTab';
@@ -446,8 +448,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {activeTab === 'aging' && (
           <>
             <p className={hint}>
-              Tasks that keep moving to the next day get a warning so they don't drift forever. Age counts calendar days since the task was
-              created; changing its status doesn't reset it.
+              Tasks that keep moving to the next day get a warning so they don't drift forever. Choose which days count below.
+              Changing a choice updates existing ages and missed days. Warnings stay visible on days that don't count.
             </p>
             {(
               [
@@ -480,6 +482,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {error && <p id={`aging-error-${key}`} role="alert" className={hint}>{error}</p>}
               </div>
             ))}
+            <AlertDaysChoices value={resolveAlertDays(draft)} onChange={(alertDays) => commit({ ...draft, alertDays })} />
           </>
         )}
 
