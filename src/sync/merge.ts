@@ -130,7 +130,8 @@ function headingNotes(doc: DailyDocument | null): Map<string, string> {
 export function mergeDailyDocument(
   base: DailyDocument | null,
   ours: DailyDocument | null,
-  theirs: DailyDocument | null
+  theirs: DailyDocument | null,
+  now: number = Date.now()
 ): MergeResult<DailyDocument> {
   const whole = pick3(base, ours, theirs);
   if (whole.kind === 'value') return { value: whole.value, conflicts: [] };
@@ -164,7 +165,7 @@ export function mergeDailyDocument(
         // A cancellation after this removal restores the task even if the park response was lost.
         // Older cancellations must not override a later ordinary deletion.
         const restoredAfterRemoval = restored && Array.isArray(restored.historyLog) && restored.historyLog.some(event =>
-          isBacklogUndoEvent(event) && event.date === side.date && Date.parse(event.timestamp) >= Date.parse(side.updatedAt));
+          isBacklogUndoEvent(event) && event.date === side.date && trustedTime(event.timestamp, now) >= trustedTime(side.updatedAt, now));
         if (!restoredAfterRemoval) mergedTasks.delete(id);
       }
     }
@@ -211,7 +212,7 @@ export function mergeDailyDocument(
       ...tRest,
       headings,
       ...(removedTaskIds.length > 0 ? { removedTaskIds } : {}),
-      updatedAt: o.updatedAt > t.updatedAt ? o.updatedAt : t.updatedAt,
+      updatedAt: trustedTime(o.updatedAt, now) > trustedTime(t.updatedAt, now) ? o.updatedAt : t.updatedAt,
     },
     conflicts,
   };
@@ -473,7 +474,7 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
     return mergeHabitDay(base as HabitDay | null, ours as HabitDay | null, theirs as HabitDay | null, now);
   }
   if (key.startsWith('doc:')) {
-    return mergeDailyDocument(base as DailyDocument | null, ours as DailyDocument | null, theirs as DailyDocument | null);
+    return mergeDailyDocument(base as DailyDocument | null, ours as DailyDocument | null, theirs as DailyDocument | null, now);
   }
   if (key.startsWith('note:')) {
     return mergeStandaloneNote(base as StandaloneNote | null, ours as StandaloneNote | null, theirs as StandaloneNote | null, undefined, now);

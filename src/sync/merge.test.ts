@@ -156,6 +156,39 @@ const doc = (items: TaskItem[], notes = '', extra: Partial<DailyDocument> = {}):
 const ids = (d: DailyDocument | null) => d!.headings.flatMap((h) => h.items.map((t) => `${t.id}:${t.status}`));
 
 describe('mergeDailyDocument', () => {
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  const correct = '2026-10-30T11:00:00Z';
+  const future = '2027-10-30T11:00:00Z';
+
+  it.each([false, true])('restores a trusted backlog undo against a future removal (reversed=%s)', reversed => {
+    const removed = doc([], '', { removedTaskIds: ['a'], updatedAt: future });
+    const restored = doc([{ ...task('a'), historyLog: [{
+      id: 'hist-backlog-undo:park-a', action: 'moved', date: removed.date,
+      timestamp: correct, details: 'Undid move to backlog',
+    }] }], '', { updatedAt: correct });
+    const [ours, theirs] = reversed ? [restored, removed] : [removed, restored];
+    const merged = mergeEntity(`doc:${removed.date}`, null, ours, theirs, now).value as DailyDocument;
+    expect(ids(merged)).toEqual(['a:in-progress']);
+    expect(merged.headings[0].items[0].historyLog).toEqual(restored.headings[0].items[0].historyLog);
+    expect(merged.removedTaskIds).toBeUndefined();
+  });
+
+  it.each([false, true])('does not propagate a future aggregate timestamp through later merges (reversed=%s)', reversed => {
+    const skewed = doc([task('a')], 'From A', { updatedAt: future });
+    const trusted = doc([task('b')], 'From B', { updatedAt: correct });
+    const [ours, theirs] = reversed ? [trusted, skewed] : [skewed, trusted];
+    const merged = mergeEntity(`doc:${skewed.date}`, null, ours, theirs, now).value as DailyDocument;
+    expect(merged.updatedAt).toBe(correct);
+    expect(ids(merged).sort()).toEqual(['a:in-progress', 'b:in-progress']);
+    expect(merged.headings[0].notesContent).toContain('From A');
+    expect(merged.headings[0].notesContent).toContain('From B');
+    const later = doc([task('c')], 'Later journal', { updatedAt: '2026-10-30T11:30:00Z' });
+    const next = mergeEntity(`doc:${skewed.date}`, null, merged, later, now).value as DailyDocument;
+    expect(next.updatedAt).toBe(later.updatedAt);
+    expect(ids(next).sort()).toEqual(['a:in-progress', 'b:in-progress', 'c:in-progress']);
+    expect(next.headings[0].notesContent).toContain('Later journal');
+  });
+
   it('unions tombstones from both devices', () => {
     const base = doc([task('a'), task('b'), task('c')]);
     const ours = doc([task('b'), task('c')], '', { removedTaskIds: ['a'] });
