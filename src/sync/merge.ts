@@ -1,5 +1,6 @@
 import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory';
+import { trustedTime } from './clock';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -220,10 +221,11 @@ export function mergeStandaloneNote(
   base: StandaloneNote | null,
   ours: StandaloneNote | null,
   theirs: StandaloneNote | null,
-  conflictId: () => string = () => `note-conflict-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  conflictId: () => string = () => `note-conflict-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  now: number = Date.now()
 ): MergeResult<StandaloneNote> {
   if (base && ours && theirs) {
-    const newer = timestamp(ours.updatedAt) > timestamp(theirs.updatedAt) ? ours : theirs;
+    const newer = trustedTime(ours.updatedAt, now) > trustedTime(theirs.updatedAt, now) ? ours : theirs;
     const value = { ...ours };
     const mergeField = <K extends keyof StandaloneNote>(field: K) => {
       value[field] = sameValue(ours[field], theirs[field]) || sameValue(base[field], theirs[field])
@@ -319,16 +321,12 @@ export function mergeSettings(
     `Settings field "${path}" was changed on two devices; kept the latest change`) };
 }
 
-const timestamp = (value: string): number => {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? -Infinity : parsed;
-};
-
 /** Missing individual habits are retained; whole-entity deletions use three-way equality. */
 export function mergeHabitList(
   base: { habits: Habit[] } | null,
   ours: { habits: Habit[] } | null,
-  theirs: { habits: Habit[] } | null
+  theirs: { habits: Habit[] } | null,
+  now: number = Date.now()
 ): MergeResult<{ habits: Habit[] }> {
   if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
     return { value: null, conflicts: [] };
@@ -357,7 +355,7 @@ export function mergeHabitList(
       const { updatedAt: mineAt, ...mineFields } = mine;
       const { updatedAt: incomingAt, ...incomingFields } = incoming;
       const { updatedAt: _baseAt, ...baseFields } = b.get(id) ?? mine;
-      const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
+      const newerWins = trustedTime(mineAt, now) > trustedTime(incomingAt, now) ? 'mine' : 'incoming';
       const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, newerWins, { absentMeans: 'cleared' });
       habits.push({ ...merged.value, updatedAt: newerWins === 'mine' ? mineAt : incomingAt });
       if (merged.conflicts.length) conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
@@ -367,14 +365,14 @@ export function mergeHabitList(
 }
 
 /** Tick records form a last-write-wins map; an untick is a record, never a deletion. */
-export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, theirs: HabitDay | null): MergeResult<HabitDay> {
+export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, theirs: HabitDay | null, now: number = Date.now()): MergeResult<HabitDay> {
   if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
     return { value: null, conflicts: [] };
   }
   if (!ours || !theirs) return { value: ours ?? theirs, conflicts: [] };
   const ticks = { ...ours.ticks };
   for (const [id, tick] of Object.entries(theirs.ticks)) {
-    if (!Object.hasOwn(ticks, id) || timestamp(tick.at) >= timestamp(ticks[id].at)) ticks[id] = tick;
+    if (!Object.hasOwn(ticks, id) || trustedTime(tick.at, now) >= trustedTime(ticks[id].at, now)) ticks[id] = tick;
   }
   return { value: { date: theirs.date, ticks }, conflicts: [] };
 }
@@ -395,7 +393,7 @@ function backlogEditBeatsDeletion(base: BacklogItem | undefined, mine: BacklogIt
 }
 
 /** Missing items are retained; concurrent edits survive explicit deletions. */
-export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null, theirs: BacklogData | null): MergeResult<BacklogData> {
+export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null, theirs: BacklogData | null, now: number = Date.now()): MergeResult<BacklogData> {
   if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
     return { value: null, conflicts: [] };
   }
@@ -419,7 +417,7 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
       const { updatedAt: mineAt, historyLog: _mineHistory, ...mineFields } = mine;
       const { updatedAt: incomingAt, historyLog: _incomingHistory, ...incomingFields } = incoming;
       const { updatedAt: _baseAt, historyLog: _baseHistory, ...baseFields } = b.get(id) ?? mine;
-      const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
+      const newerWins = trustedTime(mineAt, now) > trustedTime(incomingAt, now) ? 'mine' : 'incoming';
       const deleteAgainstEdit = backlogEditBeatsDeletion(b.get(id), mine, incoming);
       const fieldWinner = deleteAgainstEdit ? (mine.deletedAt ? 'incoming' : 'mine') : newerWins;
       const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, fieldWinner, { absentMeans: 'cleared' });
@@ -435,7 +433,7 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
 }
 
 /** Missing records survive; tombstones and restorations compete by timestamp. */
-export function mergeNoteMeta(base: NoteMeta | null, ours: NoteMeta | null, theirs: NoteMeta | null): MergeResult<NoteMeta> {
+export function mergeNoteMeta(base: NoteMeta | null, ours: NoteMeta | null, theirs: NoteMeta | null, now: number = Date.now()): MergeResult<NoteMeta> {
   if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
     return { value: null, conflicts: [] };
   }
@@ -444,12 +442,12 @@ export function mergeNoteMeta(base: NoteMeta | null, ours: NoteMeta | null, thei
   for (const folder of [...ours.folders, ...theirs.folders]) {
     const key = folder.path.toLowerCase();
     const previous = folders.get(key);
-    if (!previous || timestamp(folder.updatedAt) >= timestamp(previous.updatedAt)) folders.set(key, folder);
+    if (!previous || trustedTime(folder.updatedAt, now) >= trustedTime(previous.updatedAt, now)) folders.set(key, folder);
   }
   const dismissed = new Map<string, NoteMeta['dismissed'][number]>();
   for (const pair of [...ours.dismissed, ...theirs.dismissed]) {
     const previous = dismissed.get(pair.key);
-    if (!previous || timestamp(pair.at) >= timestamp(previous.at)) dismissed.set(pair.key, pair);
+    if (!previous || trustedTime(pair.at, now) >= trustedTime(previous.at, now)) dismissed.set(pair.key, pair);
   }
   return { value: { folders: [...folders.values()], dismissed: [...dismissed.values()] }, conflicts: [] };
 }
@@ -461,24 +459,24 @@ export const isBacklogEntityKey = (key: string): boolean => key === 'backlog';
 /** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`, `backlog`, `notemeta`. */
 export type EntityKey = string;
 
-export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown): MergeResult<unknown> {
+export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown, now: number = Date.now()): MergeResult<unknown> {
   if (isNoteMetaEntityKey(key)) {
-    return mergeNoteMeta(base as NoteMeta | null, ours as NoteMeta | null, theirs as NoteMeta | null);
+    return mergeNoteMeta(base as NoteMeta | null, ours as NoteMeta | null, theirs as NoteMeta | null, now);
   }
   if (isBacklogEntityKey(key)) {
-    return mergeBacklog(base as BacklogData | null, ours as BacklogData | null, theirs as BacklogData | null);
+    return mergeBacklog(base as BacklogData | null, ours as BacklogData | null, theirs as BacklogData | null, now);
   }
   if (key === 'habits') {
-    return mergeHabitList(base as { habits: Habit[] } | null, ours as { habits: Habit[] } | null, theirs as { habits: Habit[] } | null);
+    return mergeHabitList(base as { habits: Habit[] } | null, ours as { habits: Habit[] } | null, theirs as { habits: Habit[] } | null, now);
   }
   if (key.startsWith('habitday:')) {
-    return mergeHabitDay(base as HabitDay | null, ours as HabitDay | null, theirs as HabitDay | null);
+    return mergeHabitDay(base as HabitDay | null, ours as HabitDay | null, theirs as HabitDay | null, now);
   }
   if (key.startsWith('doc:')) {
     return mergeDailyDocument(base as DailyDocument | null, ours as DailyDocument | null, theirs as DailyDocument | null);
   }
   if (key.startsWith('note:')) {
-    return mergeStandaloneNote(base as StandaloneNote | null, ours as StandaloneNote | null, theirs as StandaloneNote | null);
+    return mergeStandaloneNote(base as StandaloneNote | null, ours as StandaloneNote | null, theirs as StandaloneNote | null, undefined, now);
   }
   if (key === 'settings') {
     return mergeSettings(base as SyncedSettings | null, ours as SyncedSettings | null, theirs as SyncedSettings | null);

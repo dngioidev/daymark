@@ -242,6 +242,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
   };
 
   const runSync = (req: Request, res: Response, body: SyncRequest) => {
+    const receivedAt = Date.now();
     const job = syncQueue.then(async () => {
       const { device } = authed(req);
       const sinceRev = Number.isInteger(body.sinceRev) && body.sinceRev >= 0 ? body.sinceRev : 0;
@@ -276,7 +277,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
         const stored = store.vault.entities[change.key]?.value ?? null;
         // A corrupt stored entity is treated as absent so a valid push can repair it.
         const current = stored !== null && !validValue(change.key, stored) ? null : stored;
-        const merged = mergeEntity(change.key, change.base ?? null, current, change.value ?? null);
+        const merged = mergeEntity(change.key, change.base ?? null, current, change.value ?? null, receivedAt);
         conflicts.push(...merged.conflicts);
         if (!sameValue(merged.value, current)) {
           write(change.key, merged.value);

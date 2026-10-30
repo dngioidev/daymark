@@ -224,6 +224,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
  * pushed next round.
  */
 export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): VaultData {
+  const mergeTime = Date.now();
   const now = toEntities(current);
   const recovering = uneditedRecoveredHabits.has(current.habits);
   let receivedHabits = false;
@@ -248,7 +249,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
       // Recovery has no trustworthy base. Retain local survivors as additions
       // while restoring the server's history, including ticks on partially damaged days.
       // This can resurrect data deleted by another device; accepted without a trustworthy base.
-      const merged = mergeEntity(key, recovered ? null : sent, serverValue, mine);
+      const merged = mergeEntity(key, recovered ? null : sent, serverValue, mine, mergeTime);
       if (merged.value === null) now.delete(key);
       else now.set(key, merged.value);
       for (const extra of merged.extraNotes ?? []) now.set(`note:${extra.id}`, extra);
