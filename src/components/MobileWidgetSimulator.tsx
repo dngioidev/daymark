@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useState } from 'react';
 import {
   Smartphone,
@@ -14,6 +15,7 @@ import { DailyDocument, StatusDefinition, TaskItem } from '../types/daymark';
 import { calculateTaskAge, getAgingSeverity, getPreviousDate } from '../utils/lifecycleEngine';
 
 interface MobileWidgetSimulatorProps {
+  countingDays?: CountingDays;
   currentDocument: DailyDocument;
   simulatedToday: string;
   statuses: StatusDefinition[];
@@ -25,6 +27,7 @@ interface MobileWidgetSimulatorProps {
 type WidgetSize = 'medium' | 'small' | 'large' | 'lockscreen';
 
 export const MobileWidgetSimulator: React.FC<MobileWidgetSimulatorProps> = ({
+  countingDays = 'all',
   currentDocument,
   simulatedToday,
   statuses,
@@ -177,7 +180,7 @@ export const MobileWidgetSimulator: React.FC<MobileWidgetSimulatorProps> = ({
                 {/* Outstanding Tasks */}
                 <div className="space-y-2">
                   {activeTasks.slice(0, 3).map((task) => {
-                    const age = calculateTaskAge(task, currentDocument.date);
+                    const age = calculateTaskAge(task, currentDocument.date, countingDays);
                     return (
                       <div
                         key={task.id}
@@ -257,7 +260,7 @@ export const MobileWidgetSimulator: React.FC<MobileWidgetSimulatorProps> = ({
                 <div className="space-y-1.5 max-h-52 overflow-y-auto">
                   {allTasks.map((task) => {
                     const isDone = task.status === 'done';
-                    const age = calculateTaskAge(task, currentDocument.date);
+                    const age = calculateTaskAge(task, currentDocument.date, countingDays);
                     return (
                       <div
                         key={task.id}

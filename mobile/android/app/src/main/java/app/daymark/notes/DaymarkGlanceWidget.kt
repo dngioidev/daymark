@@ -232,7 +232,7 @@ private fun EmptyMessage(text: String, paint: WidgetPaint) {
 
 @Composable
 private fun TaskRow(task: WidgetTask, today: LocalDate, paint: WidgetPaint) {
-    val age = WidgetModel.ageDays(task.createdDate, today)
+    val age = WidgetModel.ageDays(task.createdDate, today, task.countingDays)
     Row(
         modifier = GlanceModifier.fillMaxWidth().height(paint.style.rowHeightDp.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -10,6 +10,38 @@ const at = '2026-10-21T09:00:00.000Z';
 const later = '2026-10-21T10:00:00.000Z';
 const h1: Habit = { id: 'h1', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-12', updatedAt: at };
 
+describe('habit warning counting days', () => {
+  const habit = { ...h1, addedOn: '2026-10-19', warnAfterDays: 3 };
+  it.each([['all', 14], ['weekdays', 10], ['weekend', 4]] as const)('counts misses across two weeks in %s mode', (mode, count) => {
+    expect(missedDays(dataWith([], habit), habit, '2026-11-02', mode)).toBe(count);
+  });
+
+  it('a Saturday tick stops the weekday miss run', () => {
+    expect(missedDays(dataWith(['2026-10-31'], habit), habit, '2026-11-03', 'weekdays')).toBe(1);
+  });
+
+  it.each(['all', 'weekdays', 'weekend'] as const)('keeps tick streaks unchanged in %s mode', (mode) => {
+    const data = dataWith(['2026-10-30', '2026-10-31', '2026-11-01'], habit);
+    expect(habitsForDay(data, '2026-11-02', '2026-11-02', mode)[0].streak).toBe(3);
+  });
+
+  it.each([
+    ['all', '2026-10-21', '2026-10-22'],
+    ['weekdays', '2026-10-21', '2026-10-22'],
+    ['weekend', '2026-10-31', '2026-11-01'],
+  ] as const)('warns on the third missed morning for %s', (mode, before, morning) => {
+    const data = dataWith([], habit);
+    expect(habitsForDay(data, before, before, mode)[0].warning).toBe(false);
+    expect(habitsForDay(data, morning, morning, mode)[0].warning).toBe(true);
+    expect(daySummary(data, morning, morning, mode).warnings).toEqual([{ habit, days: 3 }]);
+  });
+
+  it('keeps weekday warnings visible on weekends and suppresses them after ticking today', () => {
+    expect(habitsForDay(dataWith([], habit), '2026-10-24', '2026-10-24', 'weekdays')[0]).toMatchObject({ missedDays: 5, warning: true });
+    expect(habitsForDay(dataWith(['2026-10-24'], habit), '2026-10-24', '2026-10-24', 'weekdays')[0].warning).toBe(false);
+  });
+});
+
 function dataWith(dates: string[] = [], habit: Habit = h1): HabitData {
   return { habits: [{ ...habit }], days: dates.map((date) => ({ date, ticks: { [habit.id]: { done: true, at } } })) };
 }

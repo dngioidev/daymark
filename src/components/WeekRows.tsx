@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useMemo } from 'react';
 import { Check, Circle } from 'lucide-react';
 import type { CalendarCell, HabitData } from '../types/daymark';
@@ -5,6 +6,7 @@ import { formatDayParts } from '../utils/dateFormat';
 import { daySummary, habitsForDay } from '../utils/habits';
 
 interface WeekRowsProps {
+  countingDays?: CountingDays;
   cells: CalendarCell[];
   selectedDate: string;
   today: string;
@@ -13,12 +15,12 @@ interface WeekRowsProps {
   dropProps: (date: string) => React.HTMLAttributes<HTMLElement>;
 }
 
-export const WeekRows: React.FC<WeekRowsProps> = ({ cells, selectedDate, today, habits, onSelectDate, dropProps }) => {
+export const WeekRows: React.FC<WeekRowsProps> = ({ countingDays = 'all', cells, selectedDate, today, habits, onSelectDate, dropProps }) => {
   const habitDates = cells.map(({ date }) => date).join(',');
   const habitDays = useMemo(() => new Map(habitDates.split(',').filter(Boolean).map(date => [date, {
-    items: date <= today ? habitsForDay(habits, date, today) : [],
-    summary: date <= today ? daySummary(habits, date, today) : null,
-  }])), [habitDates, habits, today]);
+    items: date <= today ? habitsForDay(habits, date, today, countingDays) : [],
+    summary: date <= today ? daySummary(habits, date, today, countingDays) : null,
+  }])), [habitDates, habits, today, countingDays]);
   return (
     <div className="space-y-2">
       {cells.map(({ date, items, total, done, isToday }) => {

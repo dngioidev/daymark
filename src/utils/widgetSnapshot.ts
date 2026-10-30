@@ -1,4 +1,4 @@
-import { DailyDocument } from '../types/daymark';
+import { CountingDays, DailyDocument } from '../types/daymark';
 
 /** Compact view of today's tasks handed to the native Android home-screen widget. */
 export interface WidgetTask {
@@ -8,6 +8,7 @@ export interface WidgetTask {
   createdDate: string;
   carriedFromDate?: string;
   section?: string;
+  countingDays?: CountingDays;
 }
 
 export interface WidgetSnapshot {
@@ -23,7 +24,7 @@ const MAX_WIDGET_TASKS = 30;
  * Archived tasks are omitted; done tasks are kept so the widget can show "x/y done".
  * Active tasks come first, in note order, then done ones.
  */
-export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: string): WidgetSnapshot {
+export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: string, mode: CountingDays = 'all'): WidgetSnapshot {
   const all = (doc?.headings ?? [])
     .flatMap((h) => h.items.map((t) => ({ ...t, section: h.name })))
     .filter((t) => t.status !== 'archived')
@@ -31,7 +32,8 @@ export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: strin
       id: t.id,
       title: t.title,
       status: t.status,
-      createdDate: t.createdDate,
+      createdDate: t.createdDate || t.originalNoteDate,
+      countingDays: mode,
       carriedFromDate: t.carriedFromDate,
       section: t.section,
     }));

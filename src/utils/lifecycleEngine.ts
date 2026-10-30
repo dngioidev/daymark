@@ -1,4 +1,6 @@
 import { AgingThresholds, DailyDocument, StatusDefinition, TaskHistoryItem, TaskItem } from '../types/daymark';
+import type { CountingDays } from '../types/daymark';
+import { countCountedDays } from './alertDays';
 import { isClosedCopy } from './taskActions';
 
 /**
@@ -16,12 +18,13 @@ export function getCalendarDaysDifference(earlierDateStr: string, laterDateStr: 
 
 /**
  * Computes the carry-forward age of a task relative to the current active date.
- * Derived from the task's tracking/original creation date and calendar days elapsed.
+ * Derived from the task's tracking/original creation date and counted days elapsed.
  */
-export function calculateTaskAge(task: TaskItem, currentDateStr: string): number {
+export function calculateTaskAge(task: TaskItem, currentDateStr: string, mode: CountingDays = 'all'): number {
   const originDate = task.createdDate || task.originalNoteDate;
   if (!originDate) return 0;
-  return getCalendarDaysDifference(originDate, currentDateStr);
+  const age = countCountedDays(originDate, currentDateStr, mode);
+  return Number.isFinite(age) ? Math.max(0, age) : 0;
 }
 
 /**
@@ -31,7 +34,8 @@ export function getAgingSeverity(
   task: TaskItem,
   currentDateStr: string,
   thresholds: AgingThresholds,
-  statuses: StatusDefinition[]
+  statuses: StatusDefinition[],
+  mode: CountingDays = 'all'
 ): 'normal' | 'attention' | 'critical' {
   if (!thresholds.enabled) return 'normal';
   if (isClosedCopy(task)) return 'normal';
@@ -42,7 +46,7 @@ export function getAgingSeverity(
   const participates = statusDef ? statusDef.participatesInAging : thresholds.statuses.includes(task.status);
   if (!participates) return 'normal';
 
-  const age = calculateTaskAge(task, currentDateStr);
+  const age = calculateTaskAge(task, currentDateStr, mode);
   if (age >= thresholds.criticalDays) return 'critical';
   if (age >= thresholds.attentionDays) return 'attention';
   return 'normal';

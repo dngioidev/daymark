@@ -1,3 +1,4 @@
+import { resolveAlertDays } from './utils/alertDays';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppearance } from './hooks/useAppearance';
 import { useBackgroundPhoto } from './hooks/useBackgroundPhoto';
@@ -374,11 +375,11 @@ export default function App() {
     for (const task of allTasks) {
       if (task.status === 'done' || task.status === 'archived') continue;
       if (task.dismissedAlertDate === currentDate) continue;
-      const severity = getAgingSeverity(task, currentDate, settings.agingThresholds, settings.statuses);
+      const severity = getAgingSeverity(task, currentDate, settings.agingThresholds, settings.statuses, resolveAlertDays(settings).tasks);
       if (severity === 'attention' || severity === 'critical') count++;
     }
     return count;
-  }, [currentDoc, currentDate, settings.agingThresholds, settings.statuses]);
+  }, [currentDoc, currentDate, settings.agingThresholds, settings.statuses, settings.alertDays]);
 
   // Handler: Update DailyDocument
   const handleUpdateDocument = (updatedDoc: DailyDocument) => {
@@ -634,7 +635,7 @@ export default function App() {
     setActiveMobileTab('today');
     setCurrentDate(today);
     setHabitsOpenSignal((signal) => signal + 1);
-  });
+  }, settings);
 
   // Backups: closing the Android share sheet without choosing a target is not an error
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
@@ -870,8 +871,8 @@ export default function App() {
           <main className={`dm-backdrop-surface flex-1 min-w-0 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
             <h1 className="sr-only">{DESKTOP_PAGE_LABELS[activeDesktopTab]}</h1>
             {activeDesktopTab === 'today' && (
-              <TodayView
-                habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} />}
+              <TodayView countingDays={resolveAlertDays(settings).tasks}
+                habitsSlot={<HabitsBar countingDays={resolveAlertDays(settings).habits} data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} />}
                 currentDocument={currentDoc}
                 allDocs={dailyDocs}
                 simulatedToday={today}
@@ -892,7 +893,7 @@ export default function App() {
             )}
 
             {activeDesktopTab === 'calendar' && (
-              <CalendarView
+              <CalendarView countingDays={resolveAlertDays(settings).habits}
                 habits={habits}
                 onHabitsChange={setHabits}
                 dailyDocuments={dailyDocs}
@@ -917,7 +918,7 @@ export default function App() {
             {activeDesktopTab === 'mobile-code' && (
               <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <React.Suspense fallback={null}>
-                  <MobileCodeHub
+                  <MobileCodeHub countingDays={resolveAlertDays(settings).tasks}
                     currentDocument={currentDoc}
                     simulatedToday={today}
                     statuses={settings.statuses}
@@ -937,7 +938,7 @@ export default function App() {
           backlogSlot={<BacklogView compact {...backlogViewProps} />}
           habits={habits}
           onHabitsChange={setHabits}
-          habitsSlot={<HabitsBar data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
+          habitsSlot={<HabitsBar countingDays={resolveAlertDays(settings).habits} data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}
           notes={notes}
@@ -984,7 +985,7 @@ export default function App() {
         onConfirm={handleConfirmHistoricalCorrection}
       />
 
-      <TaskHistoryDrawer
+      <TaskHistoryDrawer countingDays={resolveAlertDays(settings).tasks}
         task={detailsTask}
         currentDate={currentDate}
         statuses={settings.statuses}

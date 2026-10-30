@@ -1,7 +1,6 @@
 package app.daymark.notes
 
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -10,7 +9,7 @@ data class HabitSnapshotRow(
     val id: String, val name: String, val doneToday: Boolean, val streakBefore: Int,
     val lastDoneBefore: String?, val addedOn: String, val warnAfterDays: Int,
 )
-data class HabitSnapshot(val date: String, val habits: List<HabitSnapshotRow>) {
+data class HabitSnapshot(val date: String, val habits: List<HabitSnapshotRow>, val countingDays: String = "all") {
     companion object {
         fun parse(json: String): HabitSnapshot {
             val obj = JSONObject(json)
@@ -20,7 +19,7 @@ data class HabitSnapshot(val date: String, val habits: List<HabitSnapshotRow>) {
                 HabitSnapshotRow(row.getString("id"), row.getString("name"), row.getBoolean("doneToday"),
                     row.getInt("streakBefore"), if (row.isNull("lastDoneBefore")) null else row.getString("lastDoneBefore"),
                     row.getString("addedOn"), row.getInt("warnAfterDays"))
-            })
+            }, obj.optString("countingDays", "all"))
         }
     }
 }
@@ -75,7 +74,7 @@ object HabitWidgetModel {
             val done = doneOn(effectiveToday)
             val addedOn = LocalDate.parse(habit.addedOn)
             val firstMiss = maxOf(lastDone?.plusDays(1) ?: addedOn, addedOn)
-            val missed = ChronoUnit.DAYS.between(firstMiss, effectiveToday).coerceAtLeast(0)
+            val missed = WidgetModel.countDays(firstMiss, effectiveToday, snapshot.countingDays)
             HabitRow(habit.id, habit.name, done, streakBefore + if (done) 1 else 0,
                 missed, !done && missed >= habit.warnAfterDays)
         }

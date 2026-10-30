@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Check, ChevronLeft, ChevronRight, Circle, ExternalLink, MoreHorizontal, RotateCcw } from 'lucide-react';
 import { DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
@@ -13,6 +14,7 @@ import { HabitChecklist } from './habits/HabitChecklist';
 import { habitsForDay, setTick } from '../utils/habits';
 
 interface CalendarViewProps {
+  countingDays?: CountingDays;
   habits: HabitData;
   onHabitsChange: (next: HabitData) => void;
   initialView?: 'month' | 'week';
@@ -39,6 +41,7 @@ const countTasks = (doc?: DailyDocument) => {
 };
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  countingDays = 'all',
   habits,
   onHabitsChange,
   initialView = 'month',
@@ -86,7 +89,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedSections = (selectedDoc?.headings ?? []).map((section) => ({
     ...section, items: section.items.filter((task) => !task.movedToBacklogDate),
   }));
-  const selectedHabits = selectedDate <= simulatedToday ? habitsForDay(habits, selectedDate, simulatedToday) : [];
+  const selectedHabits = selectedDate <= simulatedToday ? habitsForDay(habits, selectedDate, simulatedToday, countingDays) : [];
   const selectedHasContent = selectedSections.some((section) => section.items.length > 0 || !!section.notesContent?.trim());
   const todayDoc = docMap.get(simulatedToday);
   const openToday = new Set(todayDoc?.headings.flatMap((h) => h.items).filter((t) => t.status !== 'done').map((t) => t.id) ?? []);
@@ -180,7 +183,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               ))}
             </div>
             {view === 'week' ? (
-              <WeekRows cells={cells} selectedDate={selectedDate} today={simulatedToday} habits={habits}
+              <WeekRows countingDays={countingDays} cells={cells} selectedDate={selectedDate} today={simulatedToday} habits={habits}
                 onSelectDate={onSelectDate} dropProps={dropProps} />
             ) : <>
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1" aria-hidden="true">

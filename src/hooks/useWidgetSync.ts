@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { DailyDocument, HabitData, ResolvedAppearance } from '../types/daymark';
+import { AppSettings, DailyDocument, HabitData, ResolvedAppearance } from '../types/daymark';
 import { consumeWidgetActions, isNativeApp, pushWidgetSnapshot, setAppColors, setHabitSnapshot } from '../native/daymarkBridge';
+import { resolveAlertDays } from '../utils/alertDays';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
 import { applyWidgetAction, buildHabitWidgetSnapshot } from '../utils/habitWidgetSnapshot';
 
@@ -21,7 +22,9 @@ export function useWidgetSync(
   habits: HabitData,
   onHabitsChange: Dispatch<SetStateAction<HabitData>>,
   onOpenHabits: () => void,
+  settings: Pick<AppSettings, 'alertDays'> = {},
 ): void {
+  const { tasks: taskDays, habits: habitDays } = resolveAlertDays(settings);
   const toggleRef = useRef(onToggleTask);
   toggleRef.current = onToggleTask;
   const captureRef = useRef(onCapture);
@@ -82,9 +85,9 @@ export function useWidgetSync(
     if (!isNativeApp() || !settledRevision || applying.current) return;
     const timer = setTimeout(() => {
       if (applying.current || settledRevision !== actionRevision.current) return;
-      void pushWidgetSnapshot(buildWidgetSnapshot(todayDoc, today));
-      void setHabitSnapshot(buildHabitWidgetSnapshot(habits, today));
+      void pushWidgetSnapshot(buildWidgetSnapshot(todayDoc, today, taskDays));
+      void setHabitSnapshot(buildHabitWidgetSnapshot(habits, today, habitDays));
     }, 300);
     return () => clearTimeout(timer);
-  }, [today, todayDoc, habits, settledRevision]);
+  }, [today, todayDoc, habits, settledRevision, taskDays, habitDays]);
 }

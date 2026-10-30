@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useState } from 'react';
 import {
   Smartphone,
@@ -17,6 +18,7 @@ import { MobileWidgetSimulator } from './MobileWidgetSimulator';
 import { DailyDocument, StatusDefinition } from '../types/daymark';
 
 interface MobileCodeHubProps {
+  countingDays?: CountingDays;
   currentDocument: DailyDocument;
   simulatedToday: string;
   statuses: StatusDefinition[];
@@ -373,6 +375,7 @@ struct DaymarkWidget: Widget {
 }`;
 
 export const MobileCodeHub: React.FC<MobileCodeHubProps> = ({
+  countingDays = 'all',
   currentDocument,
   simulatedToday,
   statuses,
@@ -504,7 +507,7 @@ export const MobileCodeHub: React.FC<MobileCodeHubProps> = ({
 
       {/* Tab Content */}
       {activeCodeTab === 'simulator' && (
-        <MobileWidgetSimulator
+        <MobileWidgetSimulator countingDays={countingDays}
           currentDocument={currentDocument}
           simulatedToday={simulatedToday}
           statuses={statuses}

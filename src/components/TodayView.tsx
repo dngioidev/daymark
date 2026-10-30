@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -27,6 +28,7 @@ import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
 
 interface TodayViewProps {
+  countingDays?: CountingDays;
   habitsSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   allDocs: DailyDocument[];
@@ -82,6 +84,7 @@ function wrapSelection(el: HTMLTextAreaElement | null, value: string, before: st
 }
 
 export const TodayView: React.FC<TodayViewProps> = ({
+  countingDays = 'all',
   habitsSlot,
   compact = false,
   currentDocument,
@@ -157,7 +160,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const severityOf = (task: TaskItem) =>
     task.status === 'done' || task.status === 'archived' || task.dismissedAlertDate === date
       ? 'normal'
-      : getAgingSeverity(task, date, agingThresholds, statuses);
+      : getAgingSeverity(task, date, agingThresholds, statuses, countingDays);
 
   const alerts = useMemo(() => {
     let critical = 0;
@@ -169,7 +172,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
     return { critical, attention, total: critical + attention };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTasks, date, agingThresholds, statuses]);
+  }, [allTasks, date, agingThresholds, statuses, countingDays]);
 
   // ---------- Markdown view ----------
   const canonicalMarkdown = useMemo(() => serializeDailyDocument(currentDocument), [currentDocument]);
@@ -378,6 +381,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   };
 
   const cardProps = {
+    countingDays,
     currentDate: date,
     today: simulatedToday,
     onMoveTask,

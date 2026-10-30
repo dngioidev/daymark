@@ -1,3 +1,4 @@
+import { resolveAlertDays } from '../../utils/alertDays';
 import React, { useState } from 'react';
 import { Calendar, CalendarDays, Download, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
 import { AppSettings, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
@@ -185,7 +186,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
         <main className={`flex-1 text-stone-900 dark:text-stone-100 ${activeTab === 'notes' ? 'min-h-0 flex overflow-hidden p-2.5' : 'overflow-y-auto pb-24 p-3'}`}>
           {activeTab === 'today' && (
-            <TodayView
+            <TodayView countingDays={resolveAlertDays(settings).tasks}
               habitsSlot={habitsSlot}
               compact
               currentDocument={currentDocument}
@@ -208,7 +209,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           )}
 
           {activeTab === 'calendar' && (
-            <CalendarView
+            <CalendarView countingDays={resolveAlertDays(settings).habits}
               habits={habits}
               onHabitsChange={onHabitsChange}
               compact

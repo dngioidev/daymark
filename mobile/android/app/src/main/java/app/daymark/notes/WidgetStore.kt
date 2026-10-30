@@ -84,6 +84,7 @@ object WidgetStore {
                     status = t.optString("status", "in-progress"),
                     createdDate = t.optString("createdDate"),
                     section = t.optString("section"),
+                    countingDays = t.optString("countingDays", "all"),
                 )
             }
             WidgetSnapshot(obj.optString("date"), WidgetModel.applyToggles(tasks, queued))

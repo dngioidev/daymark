@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useId, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -24,6 +25,7 @@ import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog } from './ui/feedback';
 
 interface TaskItemCardProps {
+  countingDays?: CountingDays;
   task: TaskItem;
   currentDate: string;
   today?: string;
@@ -58,6 +60,7 @@ export const pickableStatuses = (statuses: StatusDefinition[], current?: string)
  * sheet or the "…" menu, so a phone shows a full day's list at a glance.
  */
 export const TaskItemCard: React.FC<TaskItemCardProps> = ({
+  countingDays = 'all',
   task,
   currentDate,
   today = currentDate,
@@ -102,8 +105,8 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   const isDone = task.status === 'done';
   // An earlier copy closed when the task was finished on a later day: reopen it from that day instead
   const doneLater = isDone && !!task.doneLaterDate;
-  const ageDays = calculateTaskAge(task, currentDate);
-  const severity = isDone ? 'normal' : getAgingSeverity(task, currentDate, agingThresholds, statuses);
+  const ageDays = calculateTaskAge(task, currentDate, countingDays);
+  const severity = isDone ? 'normal' : getAgingSeverity(task, currentDate, agingThresholds, statuses, countingDays);
   const isSnoozed = isAlertDismissedForDate(task, currentDate);
   const showWarning = severity !== 'normal' && !isSnoozed;
   const carriedDay = task.carriedFromDate || getPreviousDate(currentDate, 1);

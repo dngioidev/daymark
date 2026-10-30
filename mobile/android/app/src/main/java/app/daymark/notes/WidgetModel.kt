@@ -10,6 +10,7 @@ data class WidgetTask(
     val status: String,
     val createdDate: String,
     val section: String = "",
+    val countingDays: String = "all",
 ) {
     val isDone: Boolean get() = status == "done"
 }
@@ -60,13 +61,26 @@ object WidgetModel {
     fun tasksForDisplay(snapshot: WidgetSnapshot, today: LocalDate): List<WidgetTask> =
         if (snapshot.date == today.toString()) snapshot.tasks else snapshot.tasks.filter { !it.isDone }
 
-    /** Calendar days since the task was created, never negative; 0 when the date cannot be parsed. */
-    fun ageDays(createdDate: String, today: LocalDate): Long =
+    /** Counted days since the task was created, never negative; 0 when the date cannot be parsed. */
+    fun ageDays(createdDate: String, today: LocalDate, mode: String = "all"): Long =
         try {
-            maxOf(0L, ChronoUnit.DAYS.between(LocalDate.parse(createdDate), today))
+            countDays(LocalDate.parse(createdDate).plusDays(1), today.plusDays(1), mode)
         } catch (e: Exception) {
             0L
         }
+
+    /** Count [from, to), using local calendar dates, just like the app. */
+    fun countDays(from: LocalDate, to: LocalDate, mode: String = "all"): Long {
+        if (mode != "weekdays" && mode != "weekend") return maxOf(0L, ChronoUnit.DAYS.between(from, to))
+        var date = from
+        var count = 0L
+        while (date < to) {
+            val weekend = date.dayOfWeek.value >= 6
+            if (if (mode == "weekend") weekend else !weekend) count++
+            date = date.plusDays(1)
+        }
+        return count
+    }
 
     /** Same thresholds as the web app defaults: attention from 3 days, critical from 7. */
     fun severity(ageDays: Long): Severity = when {

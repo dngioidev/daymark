@@ -273,6 +273,7 @@ export interface WidgetStyle {
 
 /** Compact habit history sent to the native home-screen widget. */
 export interface HabitWidgetSnapshot {
+  countingDays?: CountingDays;
   date: string;
   updatedAt: string;
   habits: {

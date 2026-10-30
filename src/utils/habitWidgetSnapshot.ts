@@ -1,4 +1,4 @@
-import type { HabitData, HabitWidgetSnapshot } from '../types/daymark';
+import type { CountingDays, HabitData, HabitWidgetSnapshot } from '../types/daymark';
 import type { WidgetAction } from '../native/daymarkBridge';
 import { activeHabits, isDoneOn, setTick, streak } from './habits';
 import { getPreviousDate } from './lifecycleEngine';
@@ -6,10 +6,11 @@ import { getPreviousDate } from './lifecycleEngine';
 export type { HabitWidgetSnapshot } from '../types/daymark';
 
 /** Enough history for the native widget to recompute streaks and warnings after midnight. */
-export function buildHabitWidgetSnapshot(data: HabitData, today: string): HabitWidgetSnapshot {
+export function buildHabitWidgetSnapshot(data: HabitData, today: string, mode: CountingDays = 'all'): HabitWidgetSnapshot {
   const yesterday = getPreviousDate(today);
   return {
     date: today,
+    countingDays: mode,
     updatedAt: new Date().toISOString(),
     habits: activeHabits(data, today).slice(0, 30).map((habit) => ({
       id: habit.id,

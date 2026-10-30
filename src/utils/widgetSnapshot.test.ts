@@ -65,3 +65,8 @@ describe('toggleTaskDoneInDocument', () => {
     expect(toggleTaskDoneInDocument(doc, 'zzz', '2026-10-20')).toBeNull();
   });
 });
+
+it('includes the selected task counting mode for native age recomputation', () => {
+  expect(buildWidgetSnapshot(doc, '2026-11-02', 'weekdays').tasks[0]).toMatchObject({ countingDays: 'weekdays' });
+  expect(buildWidgetSnapshot(doc, '2026-11-02').tasks[0]).toMatchObject({ countingDays: 'all' });
+});

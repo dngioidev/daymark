@@ -1,3 +1,4 @@
+import type { CountingDays } from '../types/daymark';
 import React, { useEffect, useState } from 'react';
 import { CalendarCheck, Check, RotateCcw, Trash2, X } from 'lucide-react';
 import { AgingThresholds, StatusDefinition, TaskItem } from '../types/daymark';
@@ -7,6 +8,7 @@ import { Dialog, buttonClass } from './ui/Dialog';
 import { confirmDialog } from './ui/feedback';
 
 interface TaskDetailsSheetProps {
+  countingDays?: CountingDays;
   task: TaskItem | null;
   currentDate: string;
   statuses: StatusDefinition[];
@@ -29,6 +31,7 @@ export const humanizeLog = (text: string, today: string): string =>
  * task title. Edits apply immediately (notes on blur).
  */
 export const TaskHistoryDrawer: React.FC<TaskDetailsSheetProps> = ({
+  countingDays = 'all',
   task,
   currentDate,
   statuses,
@@ -49,7 +52,7 @@ export const TaskHistoryDrawer: React.FC<TaskDetailsSheetProps> = ({
 
   const editable = Boolean(onUpdateTask);
   const statusLabel = statuses.find((s) => s.id === task.status)?.label ?? task.status;
-  const ageDays = calculateTaskAge(task, currentDate);
+  const ageDays = calculateTaskAge(task, currentDate, countingDays);
   const isDone = task.status === 'done';
   const checklist = task.checklist ?? [];
   const update = (patch: Partial<TaskItem>) => onUpdateTask?.({ ...task, ...patch });

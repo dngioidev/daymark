@@ -3,6 +3,7 @@ import { DailyDocument, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from './defaultData';
 import { removeTaskFromDocument } from './taskActions';
 import {
+  calculateTaskAge,
   correctHistoricalCompletion,
   getAgingSeverity,
   getCalendarDaysDifference,
@@ -11,6 +12,35 @@ import {
   reopenIntoToday,
   reopenTask,
 } from './lifecycleEngine';
+
+describe('task aging counting days', () => {
+  it.each([
+    ['2026-10-30', '2026-11-02', 'weekdays', 1],
+    ['2026-10-30', '2026-11-02', 'all', 3],
+    ['2026-10-31', '2026-11-01', 'weekdays', 0],
+    ['2026-10-31', '2026-11-02', 'weekdays', 1],
+    ['2026-10-30', '2026-11-02', 'weekend', 2],
+  ] as const)('counts %s to %s using %s as %i', (from, to, mode, age) => {
+    expect(calculateTaskAge(task('a', 'in-progress', from), to, mode)).toBe(age);
+  });
+
+  it('defaults to all calendar days', () => {
+    expect(calculateTaskAge(task('a', 'in-progress', '2026-10-30'), '2026-11-02')).toBe(3);
+  });
+
+  it.each(['all', 'weekdays', 'weekend'] as const)('returns zero for missing or malformed origins in %s mode', (mode) => {
+    expect(calculateTaskAge(task('a', 'in-progress', ''), '2026-11-02', mode)).toBe(0);
+    expect(calculateTaskAge(task('a', 'in-progress', 'malformed'), '2026-11-02', mode)).toBe(0);
+  });
+
+  it('uses counted age for severity without hiding alerts on uncounted days', () => {
+    const t = { ...DEFAULT_SETTINGS.agingThresholds, enabled: true, attentionDays: 3, criticalDays: 7 };
+    const item = task('a', 'in-progress', '2026-10-23');
+    expect(getAgingSeverity(item, '2026-11-01', t, DEFAULT_SETTINGS.statuses, 'all')).toBe('critical');
+    expect(getAgingSeverity(item, '2026-11-01', t, DEFAULT_SETTINGS.statuses, 'weekdays')).toBe('attention');
+    expect(getAgingSeverity(task('b', 'in-progress', '2026-10-30'), '2026-11-02', t, DEFAULT_SETTINGS.statuses, 'weekdays')).toBe('normal');
+  });
+});
 
 function task(id: string, status: string, createdDate: string): TaskItem {
   return {

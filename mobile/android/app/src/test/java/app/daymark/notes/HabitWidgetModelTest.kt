@@ -7,6 +7,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HabitWidgetModelTest {
+    @Test fun `counted misses skip weekends and respect a weekend tick`() {
+        val json = """{"date":"2026-11-02","countingDays":"weekdays","habits":[{"id":"water","name":"Water","doneToday":false,"streakBefore":0,"lastDoneBefore":null,"addedOn":"2026-10-19","warnAfterDays":3}]}"""
+        val snap = HabitSnapshot.parse(json)
+        assertEquals(10L, HabitWidgetModel.view(snap, emptyList(), LocalDate.parse("2026-11-02")).rows.single().missedDays)
+        val ticked = snap.copy(habits = snap.habits.map { it.copy(lastDoneBefore = "2026-10-31") })
+        assertEquals(1L, HabitWidgetModel.view(ticked, emptyList(), LocalDate.parse("2026-11-03")).rows.single().missedDays)
+    }
+
     private val date = LocalDate.parse("2026-10-20")
     private fun habit(done: Boolean = false, streak: Int = 0, last: String? = null, added: String = "2026-10-17") =
         HabitSnapshotRow("water", "Water", done, streak, last, added, 3)

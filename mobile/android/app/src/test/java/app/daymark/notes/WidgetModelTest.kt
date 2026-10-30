@@ -5,6 +5,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WidgetModelTest {
+    @Test fun `task age counts selected local days`() {
+        val monday = LocalDate.parse("2026-11-02")
+        assertEquals(1L, WidgetModel.ageDays("2026-10-30", monday, "weekdays"))
+        assertEquals(3L, WidgetModel.ageDays("2026-10-30", monday))
+        assertEquals(2L, WidgetModel.ageDays("2026-10-30", monday, "weekend"))
+        assertEquals(0L, WidgetModel.ageDays("2026-10-31", monday.minusDays(1), "weekdays"))
+        assertEquals(1L, WidgetModel.ageDays("2026-10-31", monday, "weekdays"))
+        assertEquals(0L, WidgetModel.ageDays("malformed", monday, "weekdays"))
+    }
+
     @Test
     fun layoutHidesDoneRowsUnlessEnabledAndRetainsOrder() {
         val tasks = listOf(task("a", "in-progress"), task("b", "done"))

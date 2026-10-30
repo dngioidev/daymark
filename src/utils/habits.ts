@@ -1,4 +1,6 @@
 import type { Habit, HabitData, HabitDay, HabitDayItem } from '../types/daymark';
+import type { CountingDays } from '../types/daymark';
+import { isCountedDay } from './alertDays';
 import { getPreviousDate } from './lifecycleEngine';
 
 export const EMPTY_HABITS: HabitData = { habits: [], days: [] };
@@ -41,23 +43,23 @@ export function streak(data: HabitData, habit: Habit, today: string): number {
 }
 
 /** Consecutive misses before today; ticking today suppresses the warning separately. */
-export function missedDays(data: HabitData, habit: Habit, today: string): number {
+export function missedDays(data: HabitData, habit: Habit, today: string, mode: CountingDays = 'all'): number {
   let date = getPreviousDate(today);
   let count = 0;
   while (date >= habit.addedOn && !isDoneOn(data, habit.id, date)) {
-    count++;
+    if (isCountedDay(date, mode)) count++;
     date = getPreviousDate(date);
   }
   return count;
 }
 
-export function habitsForDay(data: HabitData, date: string, today: string): HabitDayItem[] {
+export function habitsForDay(data: HabitData, date: string, today: string, mode: CountingDays = 'all'): HabitDayItem[] {
   return data.habits
     .filter((habit) => existsOn(habit, date) || isDoneOn(data, habit.id, date))
     .sort((a, b) => a.order - b.order)
     .map((habit) => {
       const done = isDoneOn(data, habit.id, date);
-      const missed = missedDays(data, habit, today);
+      const missed = missedDays(data, habit, today, mode);
       return {
         habit, done,
         canTick: date <= today && existsOn(habit, date),
@@ -79,8 +81,8 @@ export function setTick(data: HabitData, habitId: string, date: string, done: bo
   return { ...data, days };
 }
 
-export function daySummary(data: HabitData, date: string, today: string): { done: number; total: number; warnings: { habit: Habit; days: number }[] } {
-  const items = habitsForDay(data, date, today).filter((item) => existsOn(item.habit, date));
+export function daySummary(data: HabitData, date: string, today: string, mode: CountingDays = 'all'): { done: number; total: number; warnings: { habit: Habit; days: number }[] } {
+  const items = habitsForDay(data, date, today, mode).filter((item) => existsOn(item.habit, date));
   return {
     done: items.filter((item) => item.done).length,
     total: items.length,

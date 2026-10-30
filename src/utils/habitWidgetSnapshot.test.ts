@@ -62,3 +62,8 @@ it('compares widget timestamps by instant even when native omits fractional seco
   const current: HabitData = { habits: [habit], days: [{ date: today, ticks: { read: { done: false, at: '2026-10-21T09:00:00.100Z' } } }] };
   expect(applyWidgetAction(current, { type: 'habit', habitId: 'read', date: today, done: true, at: '2026-10-21T09:00:00Z' }, today)).toBe(current);
 });
+
+it('includes the selected habit counting mode without changing tick history', () => {
+  expect(buildHabitWidgetSnapshot(data, today, 'weekend')).toMatchObject({ countingDays: 'weekend', habits: [{ streakBefore: 3, lastDoneBefore: '2026-10-20' }] });
+  expect(buildHabitWidgetSnapshot(data, today)).toMatchObject({ countingDays: 'all' });
+});
