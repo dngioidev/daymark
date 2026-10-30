@@ -1,7 +1,7 @@
 import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
 import { AppSettings, NoteMeta, EMPTY_NOTE_META, BacklogData, DailyDocument, HabitData, HabitDay, StandaloneNote } from '../types/daymark';
 import { canonicalJson, isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
-import { SyncChange, SyncRequest, SyncResponse } from './protocol';
+import { MAX_CHANGES_PER_SYNC, SyncChange, SyncRequest, SyncResponse } from './protocol';
 import { EMPTY_BACKLOG, reconcileBacklogVault, uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { dropStaleCarries } from '../utils/lifecycleEngine';
@@ -160,7 +160,7 @@ export interface SyncOutcome {
   received: number;
 }
 
-/** One round trip: push local changes, receive merged results and other devices' changes. */
+/** Push local changes in bounded batches, receiving merged results and other devices' changes. */
 export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: SyncState, accessToken: string, unsupportedFeatures: ReadonlySet<SyncFeature> | boolean = new Set()): Promise<SyncOutcome> {
   const unsupported = new Set<SyncFeature>(typeof unsupportedFeatures === 'boolean' ? unsupportedFeatures ? ['habits'] : [] : unsupportedFeatures);
   const habitsRecovered = uneditedRecoveredHabits.has(local.habits);
@@ -168,16 +168,33 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
   const notemetaRecovered = uneditedRecoveredNoteMeta.has(local.notemeta);
   const snapshot = toEntities(local, !unsupported.has('habits'), !unsupported.has('backlog'), !unsupported.has('notemeta'));
   let changes = collectChanges(snapshot, state, !unsupported.has('habits') && !habitsRecovered, !unsupported.has('backlog') && !backlogRecovered, !unsupported.has('notemeta') && !notemetaRecovered);
-  const send = () => {
+  const send = (batch: SyncChange[]) => {
     const needsBackfill = (!unsupported.has('habits') && !state.habitsSynced) || (!unsupported.has('backlog') && !state.backlogSynced) || (!unsupported.has('notemeta') && !state.notemetaSynced);
-    const body: SyncRequest = { sinceRev: needsBackfill ? 0 : state.lastRev, changes, features: ['habits', 'backlog', 'notemeta'] };
+    // Keep the original pull cursor across batches: a later server reconciliation
+    // may change an entity already pushed by an earlier batch.
+    const body: SyncRequest = { sinceRev: needsBackfill ? 0 : state.lastRev, changes: batch, features: ['habits', 'backlog', 'notemeta'] };
     return request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
   };
   let res: SyncResponse;
+  const serverValues = new Map<string, unknown | null>();
+  const receivedKeys = new Set<string>();
+  const conflicts: string[] = [];
+  let pushed = 0;
   for (;;) {
+    const batch = changes.slice(0, MAX_CHANGES_PER_SYNC);
     try {
-      res = await send();
-      break;
+      res = await send(batch);
+      for (const e of res.entities) {
+        receivedKeys.add(e.key);
+        if (!(unsupported.has('habits') && isHabitEntityKey(e.key)) && !(unsupported.has('backlog') && isBacklogEntityKey(e.key)) && !(unsupported.has('notemeta') && isNoteMetaEntityKey(e.key))) serverValues.set(e.key, e.value);
+      }
+      // Deleting an entity the server never had produces no returned entity.
+      const returnedKeys = new Set(res.entities.map(e => e.key));
+      for (const c of batch) if (!returnedKeys.has(c.key)) serverValues.set(c.key, null);
+      conflicts.push(...res.conflicts);
+      pushed += batch.length;
+      changes = changes.slice(batch.length);
+      if (changes.length === 0) break;
     } catch (err) {
       if (!(err instanceof SyncHttpError) || err.status !== 400 || !err.message.startsWith('Invalid entity key')) throw err;
       // Older servers report no offending key. Probe the newest entity first so a
@@ -188,15 +205,9 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
       const matches = feature === 'notemeta' ? isNoteMetaEntityKey : feature === 'backlog' ? isBacklogEntityKey : isHabitEntityKey;
       changes = changes.filter(c => !matches(c.key));
       for (const key of snapshot.keys()) if (matches(key)) snapshot.delete(key);
+      for (const key of serverValues.keys()) if (matches(key)) serverValues.delete(key);
     }
   }
-
-  const serverValues = new Map<string, unknown | null>();
-  for (const e of res.entities) {
-    if (!(unsupported.has('habits') && isHabitEntityKey(e.key)) && !(unsupported.has('backlog') && isBacklogEntityKey(e.key)) && !(unsupported.has('notemeta') && isNoteMetaEntityKey(e.key))) serverValues.set(e.key, e.value);
-  }
-  // A pushed key the server never stored (e.g. deleting something it never had) is simply absent
-  for (const c of changes) if (!serverValues.has(c.key)) serverValues.set(c.key, null);
 
   const bases = { ...state.bases };
   for (const [key, value] of serverValues) {
@@ -212,9 +223,9 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
     serverValues,
     snapshot,
     state: { ...state, bases, lastRev: res.rev, habitsSynced: !unsupported.has('habits'), backlogSynced: !unsupported.has('backlog'), notemetaSynced: !unsupported.has('notemeta'), lastSyncAt: new Date().toISOString() },
-    conflicts: res.conflicts,
-    pushed: changes.length,
-    received: res.entities.length,
+    conflicts,
+    pushed,
+    received: receivedKeys.size,
   };
 }
 

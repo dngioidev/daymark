@@ -78,3 +78,24 @@ it('keeps note and folder reachable when moving into a concurrently deleted fold
   ]);
   expect(folderMatches(a.vault.notes[0], 'Work')).toBe(true);
 });
+
+it('keeps existing notes and an incoming note reachable during a populated folder rename', async () => {
+  a.edit(v => ({ ...v, notes: [...v.notes, { ...note, id: 'existing', content: 'Existing text', folder: 'Work' }, { ...note, id: 'nested', content: 'Nested text', folder: 'Work/Sub' }] }));
+  await a.sync(); await b.sync();
+  a.edit(v => { const renamed = renameFolder(v.notes, v.notemeta, 'Work', 'Projects', late)!;
+    return { ...v, notes: renamed.notes, notemeta: renamed.meta }; });
+  b.edit(v => ({ ...v, notes: moveNote(v.notes, 'note', 'Work', late) }));
+  await converge();
+  expect(a.vault.notes).toHaveLength(3);
+  expect(a.vault.notes).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'existing', content: 'Existing text', folder: 'Projects' }),
+    expect.objectContaining({ id: 'nested', content: 'Nested text', folder: 'Projects/Sub' }),
+    expect.objectContaining({ id: 'note', content: 'Original text', folder: 'Work' }),
+  ]));
+  const tree = buildFolderTree(a.vault.notes, a.vault.notemeta);
+  expect(tree).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: 'Projects', totalCount: 2, children: expect.arrayContaining([expect.objectContaining({ path: 'Projects/Sub', ownCount: 1 })]) }),
+    expect.objectContaining({ path: 'Work', ownCount: 1 }),
+  ]));
+  for (const n of a.vault.notes) expect(folderMatches(n, n.folder)).toBe(true);
+});

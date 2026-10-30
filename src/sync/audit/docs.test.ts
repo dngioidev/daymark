@@ -55,7 +55,7 @@ it('unions tasks when a daily document is first created on both devices', async 
 });
 
 it('restores a correct-clock backlog undo against a future removal stamp and accepts later edits', async () => {
-  const future = '2027-10-24T09:00:00Z';
+  const future = new Date(Date.now() + 366 * 24 * 60 * 60 * 1000).toISOString();
   a.edit(v => ({ ...v, docs: [{ ...doc([], future), removedTaskIds: ['one'] }] }));
   const restored = { ...task('one'), historyLog: [{ id: 'hist-backlog-undo:park-one', action: 'moved' as const, date, timestamp: late, details: 'Undid move to backlog' }] };
   b.edit(v => ({ ...v, docs: [doc([restored], late)] }));

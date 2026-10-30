@@ -3,7 +3,7 @@ import { HabitData } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { canonicalJson } from './merge';
-import { SyncRequest } from './protocol';
+import { MAX_CHANGES_PER_SYNC, SyncRequest } from './protocol';
 import { applySyncOutcome, collectChanges, fromEntities, syncOnce, SyncState, toEntities, VaultData } from './syncClient';
 import { pickBacklogItem } from '../utils/backlog';
 
@@ -23,6 +23,68 @@ it('toEntities/fromEntities round-trip habits', () => {
   expect(map.get('habitday:2026-10-24')).toEqual(habits.days[1]);
   expect(fromEntities(map, DEFAULT_SETTINGS)).toEqual(vault);
   expect(fromEntities(new Map(), DEFAULT_SETTINGS).habits).toEqual({ habits: [], days: [] });
+});
+
+it('applies server alertDays to old-format settings while preserving an in-flight local settings edit', async () => {
+  const settings = { ...vault.settings };
+  delete settings.alertDays;
+  const legacy = { ...vault, settings };
+  const outcome = await syncOnce(async () => Response.json({ rev: 1, conflicts: [], entities: [
+    { key: 'settings', rev: 1, value: { ...settings, alertDays: { tasks: 'weekdays', habits: 'weekend' } } },
+  ] }), legacy, state, 'access');
+  const current = { ...legacy, settings: { ...settings, timeZone: 'Asia/Saigon' } };
+  expect(toEntities(current).get('settings')).not.toEqual(outcome.snapshot.get('settings'));
+  expect(applySyncOutcome(current, outcome).settings).toMatchObject({ timeZone: 'Asia/Saigon', alertDays: { tasks: 'weekdays', habits: 'weekend' } });
+});
+
+describe('large pending pushes', () => {
+  const largeVault: VaultData = { ...vault, notes: Array.from({ length: MAX_CHANGES_PER_SYNC + 1 }, (_, i) => ({
+    id: `bulk-${i}`, title: `Note ${i}`, content: `Text ${i}`, folder: '', tags: [], createdAt: '2026-10-24T09:00:00Z', updatedAt: '2026-10-24T09:00:00Z',
+  })) };
+  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
+    bases: Object.fromEntries([...toEntities(vault)].map(([key, value]) => [key, canonicalJson(value)])) };
+
+  it('splits pushes at the protocol limit and retains results and conflicts from every response', async () => {
+    const calls: SyncRequest[] = [];
+    const outcome = await syncOnce(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as SyncRequest;
+      calls.push(body);
+      if (body.changes.length > MAX_CHANGES_PER_SYNC) return Response.json({ error: 'Too many changes' }, { status: 413 });
+      return Response.json({ rev: 10 + calls.length, conflicts: calls.length === 1 ? ['First batch conflict'] : [], entities: [
+        ...body.changes.map(c => ({ key: c.key, value: c.value, rev: 10 + calls.length })),
+        ...(calls.length === 1 ? [{ key: 'note:remote', value: { ...largeVault.notes[0], id: 'remote', content: 'Remote text' }, rev: 11 }] : []),
+        ...(calls.length === 2 ? [{ key: 'note:bulk-0', value: { ...largeVault.notes[0], content: 'Updated during the second batch' }, rev: 12 }] : []),
+      ] });
+    }, largeVault, synced, 'access');
+    expect(calls.map(c => c.changes.length)).toEqual([MAX_CHANGES_PER_SYNC, 1]);
+    expect(calls.map(c => c.sinceRev)).toEqual([10, 10]);
+    expect(outcome.pushed).toBe(MAX_CHANGES_PER_SYNC + 1);
+    expect(outcome.state.lastRev).toBe(12);
+    expect(outcome.conflicts).toEqual(['First batch conflict']);
+    expect(outcome.serverValues.size).toBe(MAX_CHANGES_PER_SYNC + 2);
+    const applied = applySyncOutcome(largeVault, outcome);
+    expect(applied.notes).toHaveLength(MAX_CHANGES_PER_SYNC + 2);
+    expect(applied.notes.find(n => n.id === 'remote')?.content).toBe('Remote text');
+    expect(applied.notes.find(n => n.id === 'bulk-0')?.content).toBe('Updated during the second batch');
+    expect(collectChanges(toEntities(applied), outcome.state)).toEqual([]);
+  });
+
+  it('leaves caller state and local data unchanged when a later batch fails so retry remains possible', async () => {
+    const beforeState = structuredClone(synced);
+    const beforeVault = structuredClone(largeVault);
+    let calls = 0;
+    await expect(syncOnce(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as SyncRequest;
+      calls++;
+      if (body.changes.length > MAX_CHANGES_PER_SYNC) return Response.json({ error: 'Too many changes' }, { status: 413 });
+      if (calls === 2) return Response.json({ error: 'Temporary failure' }, { status: 503 });
+      return Response.json({ rev: 11, conflicts: [], entities: body.changes.map(c => ({ key: c.key, value: c.value, rev: 11 })) });
+    }, largeVault, synced, 'access')).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(2);
+    expect(synced).toEqual(beforeState);
+    expect(largeVault).toEqual(beforeVault);
+    expect(collectChanges(toEntities(largeVault), synced)).toHaveLength(MAX_CHANGES_PER_SYNC + 1);
+  });
 });
 
 describe('older server fallback', () => {
