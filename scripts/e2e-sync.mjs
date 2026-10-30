@@ -399,6 +399,103 @@ try {
       label + ' does not resurrect the old folder after the offline content edit');
   }
 
+  // Cycle 13: alert-days settings use real Settings controls and merge field by field across devices.
+  const settingsDialog = page => page.getByRole('dialog', { name: 'Settings', exact: true });
+  const openAgingTab = async page => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+    await settingsDialog(page).getByRole('tab', { name: 'Old-task warnings', exact: true }).click();
+  };
+  const closeSettings = page => settingsDialog(page).getByRole('button', { name: 'Close', exact: true }).click();
+  const alertGroup = (page, name) => settingsDialog(page).getByRole('group', { name, exact: true });
+  const idbSettings = page => page.evaluate(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+    try {
+      return await new Promise(resolve => { const r = db.transaction('kv').objectStore('kv').get('settings'); r.onsuccess = () => resolve(r.result); });
+    } finally { db.close(); }
+  });
+  const waitSettings = async (page, test) => {
+    for (let i = 0; i < 100 && !test(await idbSettings(page)); i++) await page.waitForTimeout(100);
+  };
+  const chooseDays = async (page, group, label) => {
+    await openAgingTab(page);
+    await alertGroup(page, group).getByRole('radio', { name: label, exact: true }).check();
+    await closeSettings(page);
+  };
+
+  // Fresh devices count every day of the week.
+  for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
+    await openAgingTab(page);
+    const allWeek = await Promise.all(['Task aging counts', 'Habit warnings count'].map(group =>
+      alertGroup(page, group).getByRole('radio', { name: 'All week', exact: true }).isChecked()));
+    check(allWeek.every(Boolean), `${label} defaults both alert-day groups to All week`, allWeek.join(','));
+    if (label === 'laptop') {
+      await alertGroup(page, 'Habit warnings count').getByRole('radio', { name: 'All week', exact: true }).scrollIntoViewIfNeeded();
+      await shot(laptop, 'alert-days-settings');
+    }
+    await closeSettings(page);
+  }
+
+  // A task that has been in the list for exactly seven days: 7 all-week days, 5 weekdays, 2 weekend days.
+  await laptop.route('**/api/sync', route => route.abort());
+  const agingVault = await readVault(laptop);
+  const localDay = offset => {
+    const date = new Date(); date.setDate(date.getDate() + offset);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+  const todayDoc = agingVault.docs.find(d => d.date === localDay(0));
+  if (!todayDoc) throw new Error('no Today document for the aging fixture');
+  todayDoc.headings[0].items.push({
+    id: 'e2e-aging-task', title: 'Seven day old task', status: 'todo', createdDate: localDay(-7), originalNoteDate: localDay(-7),
+    carriedFromDate: localDay(-1), heading: todayDoc.headings[0].name, order: 99, historyLog: [],
+  });
+  await writeVault(laptop, agingVault.docs, agingVault.backlog);
+  await laptop.unroute('**/api/sync'); await syncNow(laptop); await syncNow(phone);
+  const ageShown = (page, text) => page.getByText(text, { exact: true }).first().waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check(await ageShown(laptop, '7 days old'), 'laptop shows the carried task as 7 days old with All week counting');
+  check(await ageShown(phone, '7 days old'), 'phone shows the carried task as 7 days old with All week counting');
+
+  // Two devices change different settings (weekday counting, text size) while offline; both changes survive reconnect.
+  await laptopCtx.setOffline(true);
+  await phoneCtx.setOffline(true);
+  await chooseDays(laptop, 'Task aging counts', 'Weekdays (Mon to Fri)');
+  await phone.getByRole('button', { name: 'Settings', exact: true }).first().click();
+  await settingsDialog(phone).getByRole('tab', { name: 'Appearance', exact: true }).click();
+  await settingsDialog(phone).getByRole('button', { name: 'L', exact: true }).click();
+  await closeSettings(phone);
+  await waitSettings(laptop, s => s?.alertDays?.tasks === 'weekdays');
+  await waitSettings(phone, s => s?.appearance?.textSize === 'l');
+  const offlineLaptop = await idbSettings(laptop), offlinePhone = await idbSettings(phone);
+  check(offlineLaptop.alertDays?.tasks === 'weekdays' && offlineLaptop.appearance?.textSize !== 'l'
+    && offlinePhone.appearance?.textSize === 'l' && offlinePhone.alertDays?.tasks !== 'weekdays',
+    'each offline device holds only its own settings change before reconnect');
+  await laptopCtx.setOffline(false);
+  await syncNow(laptop);
+  await phoneCtx.setOffline(false);
+  await syncNow(phone);
+  await syncNow(laptop);
+  await syncNow(phone);
+  for (const [page, label] of [[laptop, 'laptop'], [phone, 'phone']]) {
+    const merged = await idbSettings(page);
+    check(merged?.alertDays?.tasks === 'weekdays' && merged?.appearance?.textSize === 'l',
+      `${label} keeps both offline settings changes after reconnect`, JSON.stringify({ alertDays: merged?.alertDays, textSize: merged?.appearance?.textSize }));
+    await openAgingTab(page);
+    check(await alertGroup(page, 'Task aging counts').getByRole('radio', { name: 'Weekdays (Mon to Fri)', exact: true }).isChecked(),
+      `${label} Settings shows Weekdays for Task aging counts`);
+    await closeSettings(page);
+    check(await ageShown(page, '5 days old') && await page.getByText('7 days old', { exact: true }).count() === 0,
+      `${label} counts the carried task as 5 days old once weekdays-only is chosen`);
+  }
+
+  // Background photo section on a device without photos (visual check for the release notes).
+  await laptop.getByRole('button', { name: 'Settings', exact: true }).first().click();
+  await settingsDialog(laptop).getByRole('tab', { name: 'Appearance', exact: true }).click();
+  check(await settingsDialog(laptop).getByText("Photos stay on this device and aren't synced or backed up.").isVisible()
+    && await settingsDialog(laptop).getByText('If you chose a photo on another device, add it here too.').isVisible(),
+    'a device without photos explains that background photos stay on their device');
+  await settingsDialog(laptop).getByText('If you chose a photo on another device, add it here too.').scrollIntoViewIfNeeded();
+  await shot(laptop, 'background-photo-settings');
+  await closeSettings(laptop);
+
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });
