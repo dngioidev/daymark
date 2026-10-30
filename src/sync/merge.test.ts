@@ -19,6 +19,36 @@ const habit = (id: string, extra: Partial<Habit> = {}): Habit => ({
   id, name: id, order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z', ...extra,
 });
 const habitDay = (ticks: HabitDay['ticks']): HabitDay => ({ date: '2026-10-24', ticks });
+
+it('unions history when two devices independently pick the same new task (audit seeds 13, 20)', () => {
+  const event = (id: string): TaskItem['historyLog'][number] => ({ id, timestamp: '2026-10-24T10:00:00Z', date: '2026-10-24', action: 'moved', details: 'Picked from backlog' });
+  const task: TaskItem = { id: 'picked', title: 'Picked', status: 'not-started', heading: 'Work', order: 1,
+    createdDate: '2026-10-24', originalNoteDate: '2026-10-24', historyLog: [] };
+  const base: DailyDocument = { date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T10:00:00Z' };
+  const side = (id: string): DailyDocument => ({ ...base, headings: [{ name: 'Work', items: [{ ...task, historyLog: [event(id)] }] }] });
+  const result = mergeDailyDocument(base, side('pick-a'), side('pick-b'));
+  expect(result.value?.headings[0].items[0].historyLog.map(e => e.id).sort()).toEqual(['pick-a', 'pick-b']);
+});
+
+it('does not mistake automatic task renumbering for an edit defeating deletion (audit seeds 11, 12)', () => {
+  const task: TaskItem = { id: 't', title: 'Original', status: 'not-started', heading: 'Work', order: 1,
+    createdDate: '2026-10-24', originalNoteDate: '2026-10-24', historyLog: [] };
+  const doc = (items: TaskItem[]): DailyDocument => ({ date: '2026-10-24', type: 'daily', updatedAt: '2026-10-24T10:00:00Z', headings: [{ name: 'Work', items }] });
+  const base = doc([task]);
+  const other = { ...task, id: 'other', title: 'Other' };
+  // Merging an unrelated addition must not make t appear edited to its owner.
+  const renumbered = mergeDailyDocument(doc([]), base, doc([other])).value!;
+  const deleted = { ...doc([]), removedTaskIds: ['t'] };
+  for (const [ours, theirs] of [[renumbered, deleted], [deleted, renumbered]]) {
+    const merged = mergeDailyDocument(base, ours, theirs).value!;
+    expect(merged.headings.flatMap(h => h.items).map(t => t.id)).toEqual(['other']);
+    expect(merged.removedTaskIds).toEqual(['t']);
+  }
+  // An actual edit still defeats deletion even when its position also changed.
+  const edited = doc([{ ...task, order: 4, title: 'Edited' }]);
+  expect(mergeDailyDocument(base, edited, deleted).value?.headings[0].items[0].title).toBe('Edited');
+  expect(mergeDailyDocument(base, doc([{ ...task, order: 4 }]), deleted).value?.headings[0].items[0].id).toBe('t');
+});
 describe('backlog merges', () => {
   const early = '2026-10-26T08:00:00Z';
   const late = '2026-10-26T09:00:00Z';

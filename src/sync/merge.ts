@@ -94,7 +94,9 @@ function mergeTask(base: TaskItem | undefined, ours: TaskItem, theirs: TaskItem)
   if (!base) {
     if (extendsCarry(ours, theirs)) return { task: ours, conflict: false };
     if (extendsCarry(theirs, ours)) return { task: theirs, conflict: false };
-    return { task: theirs, conflict: true };
+    // The same task can be independently introduced by two backlog picks. There
+    // is no shared task base, but neither writer's append-only history is stale.
+    return { task: { ...theirs, historyLog: mergeBacklogHistory(ours.historyLog, theirs.historyLog) ?? [] }, conflict: true };
   }
   const merged: Record<string, unknown> = {};
   let conflict = false;
@@ -198,7 +200,10 @@ export function mergeDailyDocument(
       return 10_000 + (oi >= 0 ? oi : 0);
     };
     items.sort((a, b) => orderOf(a.id) - orderOf(b.id));
-    headings.push({ name, items: items.map((task, i) => ({ ...task, order: i + 1 })), notesContent: text.text });
+    // Array order already describes the merged layout. Renumbering unrelated
+    // tasks here fabricates edits against other devices' bases, which can make
+    // an unchanged task defeat a later deletion. Preserve explicit order edits.
+    headings.push({ name, items, notesContent: text.text });
   }
 
   // Deletions from either device stick, unless the task is present in the merge
