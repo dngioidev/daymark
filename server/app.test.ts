@@ -800,6 +800,111 @@ describe('note asset hardening', () => {
   });
 });
 
+describe('note asset inventory cache', () => {
+  const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+  const timestamp = new Date('2026-01-01T00:00:00Z');
+  let token: string;
+  const target = (suffix = '') => path.join(dir, 'assets', id + suffix);
+  const request = (method: string, route = '', data = 'YWJj') => fetch(base + '/api/assets' + route, {
+    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(method === 'PUT' ? { body: JSON.stringify({ mime: 'image/png', data }) } : {}),
+  });
+  const inventory = async () => (await request('GET')).json();
+  beforeEach(async () => {
+    token = (await connect('picture-cache')).accessToken;
+    expect((await request('PUT', '/' + id)).status).toBe(200);
+  });
+  it('second inventory stats both files without re-reading unchanged pictures or metadata', async () => {
+    expect(await inventory()).toEqual([expect.objectContaining({ id })]);
+    const reads = vi.spyOn(fs, 'readFileSync');
+    const stats = vi.spyOn(fs, 'statSync');
+    try {
+      expect(await inventory()).toEqual([expect.objectContaining({ id })]);
+      expect(reads.mock.calls.filter(([file]) => file === target() || file === target('.json'))).toEqual([]);
+      for (const file of [target(), target('.json')]) expect(stats.mock.calls.some(([candidate]) => candidate === file)).toBe(true);
+    } finally { reads.mockRestore(); stats.mockRestore(); }
+  });
+  it.each(['', '.json'])('unchanged damaged file %s is not re-read on every poll', async suffix => {
+    fs.writeFileSync(target(suffix), suffix ? '{broken' : 'bad');
+    expect(await inventory()).toEqual([]);
+    const reads = vi.spyOn(fs, 'readFileSync');
+    try {
+      expect(await inventory()).toEqual([]);
+      expect(reads.mock.calls.filter(([file]) => file === target() || file === target('.json'))).toEqual([]);
+    } finally { reads.mockRestore(); }
+  });
+  it.each([
+    { suffix: '', change: 'mtime' }, { suffix: '', change: 'size' },
+    { suffix: '.json', change: 'mtime' }, { suffix: '.json', change: 'size' },
+  ])('changing $suffix $change invalidates inventory verification and PUT restores it', async ({ suffix, change }) => {
+    const file = target(suffix);
+    const original = fs.readFileSync(file, 'utf8');
+    fs.utimesSync(file, timestamp, timestamp);
+    expect(await inventory()).toEqual([expect.objectContaining({ id })]);
+    const damaged = suffix ? original.replace('image/png', 'image/svg') : 'bad';
+    fs.writeFileSync(file, change === 'size' ? damaged + ' ' : damaged);
+    // Isolate the signature fields: same size/new mtime, or new size/same mtime.
+    const modified = change === 'size' ? timestamp : new Date('2026-01-02T00:00:00Z');
+    fs.utimesSync(file, modified, modified);
+    expect(await inventory()).toEqual([]);
+    expect((await request('PUT', '/' + id)).status).toBe(200);
+    expect(await inventory()).toEqual([expect.objectContaining({ id, bytes: 3 })]);
+  });
+  it.each(['', '.json'])('drops verification when file %s disappears, even if restored with the same signature', async suffix => {
+    const file = target(suffix);
+    const bytes = fs.readFileSync(file);
+    fs.utimesSync(file, timestamp, timestamp);
+    await inventory();
+    fs.unlinkSync(file);
+    expect(await inventory()).toEqual([]);
+    fs.writeFileSync(file, bytes);
+    fs.utimesSync(file, timestamp, timestamp);
+    const reads = vi.spyOn(fs, 'readFileSync');
+    try {
+      expect(await inventory()).toEqual([expect.objectContaining({ id })]);
+      expect(reads.mock.calls.some(([candidate]) => candidate === target())).toBe(true);
+    } finally { reads.mockRestore(); }
+  });
+  it.each(['', '?format=base64'])('GET %s fully verifies bytes and invalidates cached health even with an unchanged stat signature', async format => {
+    fs.utimesSync(target(), timestamp, timestamp);
+    await inventory();
+    fs.writeFileSync(target(), 'bad');
+    fs.utimesSync(target(), timestamp, timestamp);
+    expect((await request('GET', '/' + id + format)).status).toBe(404);
+    expect(await inventory()).toEqual([]);
+  });
+  it('PUT fully verifies existing bytes despite cached health and repairs same-signature damage', async () => {
+    fs.utimesSync(target(), timestamp, timestamp);
+    await inventory();
+    fs.writeFileSync(target(), 'bad');
+    fs.utimesSync(target(), timestamp, timestamp);
+    expect((await request('PUT', '/' + id)).status).toBe(200);
+    expect(fs.readFileSync(target(), 'utf8')).toBe('abc');
+    expect(await inventory()).toEqual([expect.objectContaining({ id })]);
+  });
+  it('PUT rejects bytes that do not hash to the id without replacing a healthy picture', async () => {
+    const before = fs.readFileSync(target('.json'), 'utf8');
+    await inventory();
+    const response = await request('PUT', '/' + id, 'ZGVm');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Picture hash does not match its id.' });
+    expect(fs.readFileSync(target(), 'utf8')).toBe('abc');
+    expect(fs.readFileSync(target('.json'), 'utf8')).toBe(before);
+  });
+  it('PUT of an already healthy picture preserves createdAt without rewriting either file', async () => {
+    const before = JSON.parse(fs.readFileSync(target('.json'), 'utf8'));
+    await inventory();
+    const writes = vi.spyOn(fs, 'writeFileSync');
+    const renames = vi.spyOn(fs, 'renameSync');
+    try {
+      expect((await request('PUT', '/' + id)).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(target('.json'), 'utf8')).createdAt).toBe(before.createdAt);
+      expect(writes.mock.calls.filter(([file]) => String(file).startsWith(path.join(dir, 'assets') + path.sep))).toEqual([]);
+      expect(renames.mock.calls.filter(([, file]) => file === target() || file === target('.json'))).toEqual([]);
+    } finally { writes.mockRestore(); renames.mockRestore(); }
+  });
+});
+
 describe('backlog sync', () => {
   const item = { id: 'idea', title: 'Build it', category: 'Home', order: 1, createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z' };
   it.each([undefined, ['habits'], ['backlog']])('closes stale parked edits and rollover from features=%j without losing journal content', async features => {

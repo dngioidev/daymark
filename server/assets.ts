@@ -23,6 +23,16 @@ export function assetRoutes(dataDir: string): Router {
   const router = Router();
   const directory = path.join(dataDir, 'assets');
   const file = (id: string) => path.join(directory, id);
+  const inventoryCache = new Map<string, { signature: string; meta: NoteAssetMeta | null }>();
+  const signature = (id: string): string | null => {
+    try {
+      const picture = fs.statSync(file(id));
+      const metadata = fs.statSync(file(`${id}.json`));
+      return `${picture.mtimeMs}:${picture.size}:${metadata.mtimeMs}:${metadata.size}`;
+    } catch {
+      return null;
+    }
+  };
   // Inventory and downloads must agree about which files are safe. Omitting a
   // damaged file also lets an owning device discover it and re-upload its copy.
   const readAsset = (id: string): { meta: NoteAssetMeta; bytes: Buffer } | null => {
@@ -46,13 +56,27 @@ export function assetRoutes(dataDir: string): Router {
     next();
   });
   router.get('/', (_req, res) => {
-    if (!fs.existsSync(directory)) return res.json([]);
+    if (!fs.existsSync(directory)) {
+      inventoryCache.clear();
+      return res.json([]);
+    }
     const metas: NoteAssetMeta[] = [];
+    const present = new Set<string>();
     for (const name of fs.readdirSync(directory)) {
       if (!/^[a-f0-9]{64}\.json$/.test(name)) continue;
-      const asset = readAsset(name.slice(0, -5));
-      if (asset) metas.push(asset.meta);
+      const id = name.slice(0, -5);
+      const current = signature(id);
+      if (current === null) continue;
+      present.add(id);
+      let cached = inventoryCache.get(id);
+      if (!cached || cached.signature !== current) {
+        // Cache failures too: unchanged damaged files need no repeated reads/hash.
+        cached = { signature: current, meta: readAsset(id)?.meta ?? null };
+        inventoryCache.set(id, cached);
+      }
+      if (cached.meta) metas.push(cached.meta);
     }
+    for (const id of inventoryCache.keys()) if (!present.has(id)) inventoryCache.delete(id);
     res.json(metas);
   });
   router.use('/:id', (req, res, next) => {
@@ -76,6 +100,7 @@ export function assetRoutes(dataDir: string): Router {
     }
     // Synchronous writes keep a PUT/DELETE pair indivisible within this server process.
     // Healthy repeated uploads preserve metadata; damaged files are repaired.
+    inventoryCache.delete(id);
     if (!readAsset(id)) {
       const meta: NoteAssetMeta = { id, mime, width: 0, height: 0, bytes: bytes.length, createdAt: new Date().toISOString() };
       writeAtomic(file(id), bytes);
@@ -86,12 +111,16 @@ export function assetRoutes(dataDir: string): Router {
   router.get('/:id', (req, res) => {
     const id = req.params.id;
     const asset = readAsset(id);
-    if (!asset) return res.status(404).json({ error: 'Picture not found.' });
+    if (!asset) {
+      inventoryCache.delete(id);
+      return res.status(404).json({ error: 'Picture not found.' });
+    }
     const { meta, bytes } = asset;
     if (req.query.format === 'base64') return res.json({ id, mime: meta.mime, data: bytes.toString('base64') });
     res.type(meta.mime).send(bytes);
   });
   router.delete('/:id', (req, res) => {
+    inventoryCache.delete(req.params.id);
     fs.rmSync(file(req.params.id), { force: true });
     fs.rmSync(file(`${req.params.id}.json`), { force: true });
     res.json({ ok: true });
