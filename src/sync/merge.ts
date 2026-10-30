@@ -266,26 +266,36 @@ export function toSyncedSettings(settings: AppSettings): SyncedSettings {
   return rest;
 }
 
-/** Recursive three-way fields; absent keys express no opinion, arrays remain atomic. */
-function mergeFields<T>(base: T | undefined, mine: T, incoming: T, newerWins: 'mine' | 'incoming'): { value: T; conflicts: string[] } {
+/** Recursive three-way fields with explicit clearing semantics; arrays remain atomic. */
+function mergeFields<T>(base: T | undefined, mine: T, incoming: T, newerWins: 'mine' | 'incoming',
+  options: { absentMeans: 'no-opinion' | 'cleared' }): { value: T; conflicts: string[] } {
   const conflicts: string[] = [];
   const plainObject = (value: unknown): value is Record<string, unknown> =>
     value !== null && typeof value === 'object' &&
     (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
   const mergeField = (b: unknown, o: unknown, t: unknown, path: string): unknown => {
-    // Old clients cannot express an opinion about fields they do not know.
-    // Retain the base as well when neither side includes a previously known key.
-    if (o === undefined) return t === undefined ? b : t;
-    if (t === undefined) return o;
+    // Settings tolerate old clients stripping keys. Items clear known keys, while
+    // a key absent from the base still has no previous value to clear.
+    if (options.absentMeans === 'no-opinion' || b === undefined) {
+      if (o === undefined) return t === undefined ? b : t;
+      if (t === undefined) return o;
+    }
     if (plainObject(o) && plainObject(t) && (b === undefined || plainObject(b))) {
       const previous = b ?? {};
       const keys = new Set([...Object.keys(previous), ...Object.keys(o), ...Object.keys(t)]);
       return Object.fromEntries([...keys].map(key => [key,
         mergeField(previous[key], o[key], t[key], path ? `${path}.${key}` : key),
-      ]));
+      ]).filter(([, value]) => options.absentMeans === 'no-opinion' || value !== undefined));
     }
-    const r = pick3(b, o, t);
-    if (r.kind === 'value') return r.value;
+    if (options.absentMeans === 'cleared') {
+      // A field clear is a real value change, so it can beat a conflicting edit.
+      // Whole-entity pick3 instead protects edits against entity deletions.
+      if (sameValue(o, t) || sameValue(b, t)) return o;
+      if (sameValue(b, o)) return t;
+    } else {
+      const r = pick3(b, o, t);
+      if (r.kind === 'value') return r.value;
+    }
     conflicts.push(path);
     return newerWins === 'mine' ? o : t;
   };
@@ -304,7 +314,7 @@ export function mergeSettings(
     return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
   }
 
-  const result = mergeFields(base, ours, theirs, 'incoming');
+  const result = mergeFields(base, ours, theirs, 'incoming', { absentMeans: 'no-opinion' });
   return { value: result.value, conflicts: result.conflicts.map(path =>
     `Settings field "${path}" was changed on two devices; kept the latest change`) };
 }
@@ -339,7 +349,7 @@ export function mergeHabitList(
     const result = pick3(b.get(id), mine, incoming);
     if (result.kind === 'value') habits.push(result.value!);
     else {
-      if (mine.removedOn || incoming.removedOn) {
+      if (!b.get(id)?.removedOn && (mine.removedOn || incoming.removedOn)) {
         habits.push(mine.removedOn ? mine : incoming);
         conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept the removal`);
         continue;
@@ -348,7 +358,7 @@ export function mergeHabitList(
       const { updatedAt: incomingAt, ...incomingFields } = incoming;
       const { updatedAt: _baseAt, ...baseFields } = b.get(id) ?? mine;
       const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
-      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, newerWins);
+      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, newerWins, { absentMeans: 'cleared' });
       habits.push({ ...merged.value, updatedAt: newerWins === 'mine' ? mineAt : incomingAt });
       if (merged.conflicts.length) conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
     }
@@ -370,6 +380,19 @@ export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, thei
 }
 
 export const isHabitEntityKey = (key: string): boolean => key === 'habits' || key.startsWith('habitday:');
+
+/** Distinguish a concurrent live edit from an unchanged copy next to a tombstone. */
+function backlogEditBeatsDeletion(base: BacklogItem | undefined, mine: BacklogItem, incoming: BacklogItem): boolean {
+  if (Boolean(mine.deletedAt) === Boolean(incoming.deletedAt)) return false;
+  const payload = (item: BacklogItem) => {
+    const { updatedAt: _at, historyLog: _history, deletedAt: _deleted, ...fields } = item;
+    return fields;
+  };
+  const live = mine.deletedAt ? incoming : mine;
+  // Without a base, equal payloads identify a stale copy rather than an edit.
+  const previous = base ?? (mine.deletedAt ? mine : incoming);
+  return !sameValue(payload(live), payload(previous));
+}
 
 /** Missing items are retained; concurrent edits survive explicit deletions. */
 export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null, theirs: BacklogData | null): MergeResult<BacklogData> {
@@ -397,15 +420,9 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
       const { updatedAt: incomingAt, historyLog: _incomingHistory, ...incomingFields } = incoming;
       const { updatedAt: _baseAt, historyLog: _baseHistory, ...baseFields } = b.get(id) ?? mine;
       const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
-      const { deletedAt: _mineDeleted, ...mineEdits } = mineFields;
-      const { deletedAt: _incomingDeleted, ...incomingEdits } = incomingFields;
-      const { deletedAt: _baseDeleted, ...baseEdits } = baseFields;
-      const liveFields = mine.deletedAt ? incomingEdits : mineEdits;
-      // Without a base, equal payloads identify a stale copy rather than an edit.
-      const previousFields = b.has(id) ? baseEdits : mine.deletedAt ? mineEdits : incomingEdits;
-      const deleteAgainstEdit = Boolean(mine.deletedAt) !== Boolean(incoming.deletedAt) && !sameValue(liveFields, previousFields);
+      const deleteAgainstEdit = backlogEditBeatsDeletion(b.get(id), mine, incoming);
       const fieldWinner = deleteAgainstEdit ? (mine.deletedAt ? 'incoming' : 'mine') : newerWins;
-      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, fieldWinner);
+      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, fieldWinner, { absentMeans: 'cleared' });
       winner = { ...merged.value, updatedAt: newerWins === 'mine' ? mineAt : incomingAt };
       // A tombstone must not hide a concurrent edit, even with a newer timestamp.
       if (deleteAgainstEdit) delete winner.deletedAt;

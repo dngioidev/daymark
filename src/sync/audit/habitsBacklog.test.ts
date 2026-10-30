@@ -27,15 +27,74 @@ it.each([[late, early, 'Mine'], [early, late, 'Incoming'], [late, '2026-10-24T10
     expect(result.conflicts[0]).toContain('Incoming');
   });
 
-it('retains absent optional fields and unions backlog history without a conflict', () => {
+it('clears an omitted optional field and unions backlog history without a conflict', () => {
   const history = (id: string, timestamp: string): TaskHistoryItem => ({ id, timestamp, date: '2026-10-24', action: 'moved', details: 'Moved to backlog' });
   const { description: _description, ...legacy } = item;
   const result = mergeBacklog({ items: [item] },
     { items: [{ ...legacy, title: 'Renamed', historyLog: [history('a', early)], updatedAt: late }] },
     { items: [{ ...item, category: 'Home', historyLog: [history('b', late)], updatedAt: early }] });
-  expect(result.value?.items[0]).toMatchObject({ title: 'Renamed', description: 'Original note', category: 'Home' });
+  expect(result.value?.items[0]).toMatchObject({ title: 'Renamed', category: 'Home' });
+  expect(result.value?.items[0]).not.toHaveProperty('description');
   expect(result.value?.items[0].historyLog?.map(event => event.id)).toEqual(['a', 'b']);
   expect(result.conflicts).toEqual([]);
+});
+
+it('clears pickedOn while retaining an independent title edit in either argument order', () => {
+  const base = { items: [{ ...item, pickedOn: '2026-10-23' }] };
+  const cleared = { items: [{ ...item, updatedAt: early }] };
+  const edited = { items: [{ ...base.items[0], title: 'Edited idea', updatedAt: late }] };
+  for (const [mine, incoming] of [[cleared, edited], [edited, cleared]]) {
+    const result = mergeBacklog(base, mine, incoming);
+    expect(result.value?.items[0]).toMatchObject({ title: 'Edited idea', updatedAt: late });
+    expect(result.value?.items[0]).not.toHaveProperty('pickedOn');
+    expect(result.conflicts).toEqual([]);
+  }
+});
+
+it('clears an existing habit removal while retaining an independent rename in either order', () => {
+  const base = { habits: [{ ...habit, removedOn: '2026-10-23' }] };
+  const cleared = { habits: [{ ...habit, updatedAt: early }] };
+  const edited = { habits: [{ ...base.habits[0], name: 'Renamed', updatedAt: late }] };
+  for (const [mine, incoming] of [[cleared, edited], [edited, cleared]]) {
+    const result = mergeHabitList(base, mine, incoming);
+    expect(result.value?.habits[0]).toMatchObject({ name: 'Renamed', updatedAt: late });
+    expect(result.value?.habits[0]).not.toHaveProperty('removedOn');
+    expect(result.conflicts).toEqual([]);
+  }
+});
+
+it.each([early, late])('resolves clearing versus changing the same optional field by timestamp (clear at %s)', clearAt => {
+  const editAt = clearAt === late ? early : late;
+  const backlogBase = { items: [{ ...item, pickedOn: '2026-10-23' }] };
+  const backlogCleared = { items: [{ ...item, updatedAt: clearAt }] };
+  const backlogChanged = { items: [{ ...item, pickedOn: '2026-10-24', updatedAt: editAt }] };
+  const habitBase = { habits: [{ ...habit, removedOn: '2026-10-23' }] };
+  const habitCleared = { habits: [{ ...habit, updatedAt: clearAt }] };
+  const habitChanged = { habits: [{ ...habit, removedOn: '2026-10-24', updatedAt: editAt }] };
+  for (const swap of [false, true]) {
+    const backlog = mergeBacklog(backlogBase, swap ? backlogChanged : backlogCleared, swap ? backlogCleared : backlogChanged);
+    const habits = mergeHabitList(habitBase, swap ? habitChanged : habitCleared, swap ? habitCleared : habitChanged);
+    expect(backlog.value?.items[0].pickedOn).toBe(clearAt === late ? undefined : '2026-10-24');
+    expect(habits.value?.habits[0].removedOn).toBe(clearAt === late ? undefined : '2026-10-24');
+    expect(backlog.conflicts).toHaveLength(1);
+    expect(habits.conflicts).toHaveLength(1);
+  }
+});
+
+it('keeps the newer habit and backlog conflicts independent of argument order', () => {
+  const habitOlder = { habits: [{ ...habit, name: 'Older', updatedAt: early }] };
+  const habitNewer = { habits: [{ ...habit, name: 'Newer', updatedAt: late }] };
+  const backlogOlder = { items: [{ ...item, title: 'Older', updatedAt: early }] };
+  const backlogNewer = { items: [{ ...item, title: 'Newer', updatedAt: late }] };
+  const firstHabit = mergeHabitList({ habits: [habit] }, habitOlder, habitNewer);
+  const swappedHabit = mergeHabitList({ habits: [habit] }, habitNewer, habitOlder);
+  const firstBacklog = mergeBacklog({ items: [item] }, backlogOlder, backlogNewer);
+  const swappedBacklog = mergeBacklog({ items: [item] }, backlogNewer, backlogOlder);
+  expect(firstHabit.value?.habits[0].name).toBe('Newer');
+  expect(firstBacklog.value?.items[0].title).toBe('Newer');
+  expect(swappedHabit.value).toEqual(firstHabit.value);
+  expect(swappedBacklog.value).toEqual(firstBacklog.value);
+  for (const result of [firstHabit, swappedHabit, firstBacklog, swappedBacklog]) expect(result.conflicts).toHaveLength(1);
 });
 
 it.each([true, false])('backlog deletion loses to a concurrent edit even with a newer clock (delete mine: %s)', deleteMine => {
@@ -60,6 +119,35 @@ it.each([true, false])('without a base distinguishes a stale copy from an edit a
 let rig: Awaited<ReturnType<typeof startSyncRig>>;
 beforeEach(async () => { rig = await startSyncRig(); });
 afterEach(async () => { await rig?.stop(); });
+
+it('keeps incoming tie winners stable across a second sync round for habits and backlog', async () => {
+  const a = rig.device('a');
+  const b = rig.device('b');
+  a.edit(v => ({ ...v, backlog: { items: [item] } }));
+  await a.sync();
+  await b.sync();
+  for (const [device, name] of [[a, 'A'], [b, 'B']] as const) {
+    device.edit(v => ({ ...v,
+      habits: { ...v.habits!, habits: [{ ...habit, name, updatedAt: late }] },
+      backlog: { items: [{ ...item, title: name, updatedAt: late }] },
+    }));
+  }
+  await a.sync();
+  expect((await b.sync()).conflicts).toHaveLength(2);
+  await a.sync();
+  for (const device of [a, b]) {
+    expect(device.vault.habits?.habits[0].name).toBe('B');
+    expect(device.vault.backlog?.items[0].title).toBe('B');
+  }
+  expect((await a.sync()).conflicts).toEqual([]);
+  expect((await b.sync()).conflicts).toEqual([]);
+  for (const device of [a, b]) {
+    expect(device.vault.habits?.habits[0].name).toBe('B');
+    expect(device.vault.backlog?.items[0].title).toBe('B');
+  }
+  expect(a.vault.habits).toEqual(b.vault.habits);
+  expect(a.vault.backlog).toEqual(b.vault.backlog);
+});
 
 // Whole-item LWW loses the older side's independent edit; these also exercise late join and repeat sync.
 it.each(['habit fields', 'habit conflict', 'habit removal', 'backlog fields', 'backlog pick', 'offline additions'])(
