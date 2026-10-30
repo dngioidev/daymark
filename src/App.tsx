@@ -44,6 +44,7 @@ import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
 import { useRealToday } from './hooks/useRealToday';
 import { useWidgetSync } from './hooks/useWidgetSync';
+import { waitForSync } from './utils/syncBeforeRollover';
 import { closeEarlierCopies, followDoneChanges, reopenEarlierCopies, getMoveTaskDateError, isClosedCopy, moveTaskToDate, moveTaskToSection, undoMoveTask, removeTaskFromDocument, restoreTaskToDocument, toggleTaskDoneInDocument } from './utils/taskActions';
 import { WelcomeModal } from './components/WelcomeModal';
 import {
@@ -243,6 +244,10 @@ export default function App() {
   // When the day changes (midnight, or waking the phone next day), follow it if the user was
   // viewing today, and carry unfinished tasks into the new day automatically.
   const previousTodayRef = React.useRef(today);
+  const settingsRef = React.useRef(settings);
+  settingsRef.current = settings;
+  // Assigned once useSync has run below; effects only read it after render.
+  const syncRef = React.useRef<Pick<ReturnType<typeof useSync>, 'status' | 'syncNow'> | null>(null);
   useEffect(() => {
     const previousToday = previousTodayRef.current;
     previousTodayRef.current = today;
@@ -250,16 +255,25 @@ export default function App() {
       setCurrentDate((prev) => (prev === previousToday ? today : prev));
       setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
-    const { updatedDocs, carriedCount } = performDailyRollover(
-      today,
-      dailyDocs,
-      settings.statuses,
-      settings.defaultHeadings
-    );
-    if (carriedCount > 0) {
-      setDailyDocs(updatedDocs);
-      showToast(`${carriedCount} unfinished ${carriedCount === 1 ? 'task' : 'tasks'} moved to today.`, { tone: 'info' });
-    }
+    const rollOver = () => {
+      const { updatedDocs, carriedCount } = performDailyRollover(
+        today,
+        dailyDocsRef.current,
+        settingsRef.current.statuses,
+        settingsRef.current.defaultHeadings
+      );
+      if (carriedCount > 0) {
+        dailyDocsRef.current = updatedDocs;
+        setDailyDocs(updatedDocs);
+        showToast(`${carriedCount} unfinished ${carriedCount === 1 ? 'task' : 'tasks'} moved to today.`, { tone: 'info' });
+      }
+    };
+    // With sync on, pull first so tasks finished on another device overnight are not carried.
+    const syncing = syncRef.current;
+    if (!syncing || syncing.status === 'off') return rollOver();
+    let cancelled = false;
+    void waitForSync(syncing.syncNow).then(() => { if (!cancelled) rollOver(); });
+    return () => { cancelled = true; };
     // Runs when the effective date changes; performDailyRollover is idempotent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
@@ -737,6 +751,7 @@ export default function App() {
   const sync = useSync(
     vaultForSync,
     (next) => {
+      dailyDocsRef.current = next.docs;
       setDailyDocs(next.docs);
       notesRef.current = next.notes;
       setNotes(next.notes);
@@ -749,6 +764,7 @@ export default function App() {
       showToast(conflicts.length === 1 ? conflicts[0] : `${conflicts.length} edits made on two devices were merged; nothing was lost.`),
     isNativeApp() ? 'android' : 'web'
   );
+  syncRef.current = sync;
   const defaultDeviceName = useMemo(() => {
     if (isNativeApp()) return 'Android phone';
     return browserDeviceName();
