@@ -47,7 +47,7 @@ export function BackgroundPhotoSection({ background }: { background: ReturnType<
       }} />
     </div>
     <p className="text-sm text-stone-600 dark:text-stone-400">Photos stay on this device and aren't synced or backed up.</p>
-    {background.meta === null && <p className="text-sm text-stone-600 dark:text-stone-400">If you chose a photo on another device, add it here too.</p>}
+    {background.meta === null && background.photos.length === 0 && <p className="text-sm text-stone-600 dark:text-stone-400">If you chose a photo on another device, add it here too.</p>}
     {error && <p role="alert">{error}</p>}
     <Dialog isOpen={pending !== null} onClose={() => { if (!busy) setPending(null); }} dismissible={!busy} title="Replace which photo?" footer={<button type="button" disabled={busy} className={buttonClass.secondary} onClick={() => setPending(null)}>Cancel</button>}>
       <div className="p-4 flex flex-wrap gap-3">{background.photos.map((photo) => <button type="button" key={photo.slot} disabled={busy} aria-label={`Replace photo ${photo.slot + 1}`} className="p-1 rounded border border-stone-400" onClick={() => { if (pending) void run(() => background.add(pending, photo.slot)); }}><Thumbnail photo={photo} /></button>)}</div>

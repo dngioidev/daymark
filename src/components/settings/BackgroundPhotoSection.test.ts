@@ -27,6 +27,12 @@ it('shows None, five selectable and removable thumbnails and the device-only cap
   expect(html).toContain("Photos stay on this device and aren&#x27;t synced or backed up.");
   expect(html).not.toContain('If you chose a photo on another device');
 });
+it('does not show the other-device hint when this device has photos and None is selected', () => {
+  const photos = [{ slot: 0, addedAt: '2026-10-22', width: 100, height: 100, luminance: 0.5 }];
+  const html = renderToStaticMarkup(React.createElement(BackgroundPhotoSection, { background: { photos, meta: null, url: null, select: vi.fn(), add: vi.fn(), remove: vi.fn() } }));
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).not.toContain('If you chose a photo on another device');
+});
 
 it('uses the synced appearance without a local photo and explains the other-device fallback', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
