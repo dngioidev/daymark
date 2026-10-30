@@ -14,7 +14,7 @@ import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory
  *  - both changed to the same thing   -> take it
  *  - one deleted, the other modified  -> keep the modified version (never lose edits)
  *  - both modified differently        -> tasks: field by field, the incoming change wins per field;
- *                                        settings: the incoming change wins;
+ *                                        settings: field by field, the incoming change wins per field;
  *                                        notes text: both texts are kept with a separator;
  *                                        standalone notes: server copy kept, incoming saved as a conflict copy
  * Every "both modified" case is reported in `conflicts`.
@@ -271,11 +271,36 @@ export function mergeSettings(
   ours: SyncedSettings | null,
   theirs: SyncedSettings | null
 ): MergeResult<SyncedSettings> {
-  const r = pick3(base, ours, theirs);
-  if (r.kind === 'value') return { value: r.value, conflicts: [] };
-  // No shared base: a device that has never synced. The server copy (ours) is the established one.
-  if (base === null) return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
-  return { value: theirs, conflicts: ['Settings were changed on two devices; kept the latest change'] };
+  if (base === null || ours === null || theirs === null) {
+    const r = pick3(base, ours, theirs);
+    if (r.kind === 'value') return { value: r.value, conflicts: [] };
+    // No shared base: a device that has never synced. The server copy (ours) is the established one.
+    return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
+  }
+
+  const conflicts: string[] = [];
+  const plainObject = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' &&
+    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+  const mergeField = (b: unknown, o: unknown, t: unknown, path: string): unknown => {
+    // Old clients cannot express an opinion about fields they do not know.
+    // Retain the base as well when neither side includes a previously known key.
+    if (o === undefined) return t === undefined ? b : t;
+    if (t === undefined) return o;
+    if (plainObject(o) && plainObject(t) && (b === undefined || plainObject(b))) {
+      const previous = b ?? {};
+      const keys = new Set([...Object.keys(previous), ...Object.keys(o), ...Object.keys(t)]);
+      return Object.fromEntries([...keys].map(key => [key,
+        mergeField(previous[key], o[key], t[key], path ? `${path}.${key}` : key),
+      ]));
+    }
+    // Arrays and scalars are atomic values, using the shared three-way rules.
+    const r = pick3(b, o, t);
+    if (r.kind === 'value') return r.value;
+    conflicts.push(`Settings field "${path}" was changed on two devices; kept the latest change`);
+    return t;
+  };
+  return { value: mergeField(base, ours, theirs, '') as SyncedSettings, conflicts };
 }
 
 const timestamp = (value: string): number => {

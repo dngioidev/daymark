@@ -120,9 +120,9 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
     ? settings : { ...settings, statuses, defaultHeadings, appearance };
 }
 
-/** Older clients omit appearance; keep this device's choice until one is explicitly sent. */
+/** Older clients omit newer fields; keep local values until explicitly sent. */
 export function mergeIncomingSettings(local: AppSettings, incoming: AppSettings): AppSettings {
-  return normalizeSettings({ ...incoming, appearance: incoming.appearance ?? local.appearance });
+  return normalizeSettings({ ...local, ...incoming, appearance: incoming.appearance ?? local.appearance });
 }
 
 export const DEFAULT_HEADINGS = ['Work', 'Meetings', 'Ideas', 'Attention'];

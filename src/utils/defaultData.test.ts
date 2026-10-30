@@ -4,6 +4,12 @@ import { toSyncedSettings } from '../sync/merge';
 import type { AppSettings } from '../types/daymark';
 
 describe('mergeIncomingSettings', () => {
+  it('keeps newer settings keys omitted by an older incoming copy through normalization', () => {
+    const local = { ...DEFAULT_SETTINGS, alertDays: { tasks: 'weekdays', habits: 'all' } };
+    const incoming = { ...DEFAULT_SETTINGS, timeZone: 'Asia/Saigon' };
+    const merged = mergeIncomingSettings(local, incoming);
+    expect(normalizeSettings(merged)).toMatchObject({ alertDays: { tasks: 'weekdays', habits: 'all' }, timeZone: 'Asia/Saigon' });
+  });
   const local = { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_APPEARANCE, theme: 'dark' as const, dim: 60 } };
   it('keeps local appearance when an older client sends none', () => {
     const { appearance: _appearance, ...incoming } = DEFAULT_SETTINGS;

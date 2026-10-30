@@ -329,6 +329,61 @@ describe('mergeStandaloneNote', () => {
 });
 
 describe('settings and helpers', () => {
+  it('settings: different fields changed on two devices both survive', () => {
+    const base = toSyncedSettings(DEFAULT_SETTINGS);
+    const ours = { ...base, agingThresholds: { ...base.agingThresholds, criticalDays: 9 } };
+    const theirs = { ...base, appearance: { ...base.appearance!, theme: 'dark' as const } };
+    const result = mergeSettings(base, ours, theirs);
+    expect(result.value).toMatchObject({ agingThresholds: { criticalDays: 9 }, appearance: { theme: 'dark' } });
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('settings: same field changed on both takes incoming and reports it', () => {
+    const base = toSyncedSettings(DEFAULT_SETTINGS);
+    const ours = { ...base, agingThresholds: { ...base.agingThresholds, criticalDays: 9 } };
+    const theirs = { ...base, agingThresholds: { ...base.agingThresholds, criticalDays: 11 } };
+    const result = mergeSettings(base, ours, theirs);
+    expect(result.value?.agingThresholds.criticalDays).toBe(11);
+    expect(result.conflicts).toEqual([expect.stringContaining('agingThresholds.criticalDays')]);
+  });
+
+  it('settings: a key missing on the incoming side is not a deletion', () => {
+    const old = toSyncedSettings(DEFAULT_SETTINGS);
+    const base = { ...old, alertDays: { tasks: 'weekdays', habits: 'all' } };
+    const result = mergeSettings(base, base, old);
+    expect(result.value).toHaveProperty('alertDays', { tasks: 'weekdays', habits: 'all' });
+    expect(result.conflicts).toEqual([]);
+    expect(mergeSettings(base, old, base).value).toHaveProperty('alertDays', base.alertDays);
+    expect(mergeSettings(base, old, old).value).toHaveProperty('alertDays', base.alertDays);
+  });
+
+  it('settings: nested agingThresholds subfields merge independently', () => {
+    const base = toSyncedSettings(DEFAULT_SETTINGS);
+    const ours = { ...base, agingThresholds: { ...base.agingThresholds, criticalDays: 9 } };
+    const theirs = { ...base, agingThresholds: { ...base.agingThresholds, attentionDays: 5 } };
+    const result = mergeSettings(base, ours, theirs);
+    expect(result.value?.agingThresholds).toEqual({ ...base.agingThresholds, criticalDays: 9, attentionDays: 5 });
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('settings: nested appearance colors and alert days merge independently', () => {
+    const base = { ...toSyncedSettings(DEFAULT_SETTINGS), alertDays: { tasks: 'all', habits: 'all' } };
+    const ours = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, accent: '#123456' } }, alertDays: { ...base.alertDays, tasks: 'weekdays' } };
+    const theirs = { ...base, appearance: { ...base.appearance!, light: { ...base.appearance!.light, headerOpacity: 70 }, dark: { ...base.appearance!.dark, accent: '#abcdef' } }, alertDays: { ...base.alertDays, habits: 'weekdays' } };
+    const result = mergeSettings(base, ours, theirs);
+    expect(result.value).toMatchObject({ appearance: { light: { accent: '#123456', headerOpacity: 70 }, dark: { accent: '#abcdef' } }, alertDays: { tasks: 'weekdays', habits: 'weekdays' } });
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('settings: missing nested keys keep the other side while arrays remain leaves', () => {
+    const base = toSyncedSettings(DEFAULT_SETTINGS);
+    const ours = { ...base, agingThresholds: { ...base.agingThresholds, statuses: ['blocked'] } };
+    const theirs = { ...base, agingThresholds: { attentionDays: 5, statuses: ['waiting'] } };
+    const result = mergeSettings(base, ours, theirs as never);
+    expect(result.value?.agingThresholds).toEqual({ attentionDays: 5, criticalDays: 7, enabled: true, statuses: ['waiting'] });
+    expect(result.conflicts).toEqual([expect.stringContaining('agingThresholds.statuses')]);
+  });
+
   it('never syncs the device-local sync config or date override', () => {
     const synced = toSyncedSettings(DEFAULT_SETTINGS);
     expect(synced).not.toHaveProperty('syncConfig');
