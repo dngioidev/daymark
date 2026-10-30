@@ -1,5 +1,4 @@
-import { AgingThresholds, DailyDocument, StatusDefinition, TaskHistoryItem, TaskItem } from '../types/daymark';
-import type { CountingDays } from '../types/daymark';
+import { AgingThresholds, CountingDays, DailyDocument, StatusDefinition, TaskHistoryItem, TaskItem } from '../types/daymark';
 import { countCountedDays } from './alertDays';
 import { isClosedCopy } from './taskActions';
 

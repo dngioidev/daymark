@@ -1,5 +1,4 @@
-import type { Habit, HabitData, HabitDay, HabitDayItem } from '../types/daymark';
-import type { CountingDays } from '../types/daymark';
+import type { CountingDays, Habit, HabitData, HabitDay, HabitDayItem } from '../types/daymark';
 import { isCountedDay } from './alertDays';
 import { getPreviousDate } from './lifecycleEngine';
 

@@ -449,7 +449,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <>
             <p className={hint}>
               Tasks that keep moving to the next day get a warning so they don't drift forever. Choose which days count below.
-              Changing a choice updates existing ages and missed days. Warnings stay visible on days that don't count.
+              Changing a choice updates existing ages and missed days; changing a task's status doesn't reset its age. Warnings stay visible on days that don't count.
             </p>
             {(
               [
