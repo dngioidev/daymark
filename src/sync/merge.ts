@@ -266,18 +266,8 @@ export function toSyncedSettings(settings: AppSettings): SyncedSettings {
   return rest;
 }
 
-export function mergeSettings(
-  base: SyncedSettings | null,
-  ours: SyncedSettings | null,
-  theirs: SyncedSettings | null
-): MergeResult<SyncedSettings> {
-  if (base === null || ours === null || theirs === null) {
-    const r = pick3(base, ours, theirs);
-    if (r.kind === 'value') return { value: r.value, conflicts: [] };
-    // No shared base: a device that has never synced. The server copy (ours) is the established one.
-    return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
-  }
-
+/** Recursive three-way fields; absent keys express no opinion, arrays remain atomic. */
+function mergeFields<T>(base: T | undefined, mine: T, incoming: T, newerWins: 'mine' | 'incoming'): { value: T; conflicts: string[] } {
   const conflicts: string[] = [];
   const plainObject = (value: unknown): value is Record<string, unknown> =>
     value !== null && typeof value === 'object' &&
@@ -294,13 +284,29 @@ export function mergeSettings(
         mergeField(previous[key], o[key], t[key], path ? `${path}.${key}` : key),
       ]));
     }
-    // Arrays and scalars are atomic values, using the shared three-way rules.
     const r = pick3(b, o, t);
     if (r.kind === 'value') return r.value;
-    conflicts.push(`Settings field "${path}" was changed on two devices; kept the latest change`);
-    return t;
+    conflicts.push(path);
+    return newerWins === 'mine' ? o : t;
   };
-  return { value: mergeField(base, ours, theirs, '') as SyncedSettings, conflicts };
+  return { value: mergeField(base, mine, incoming, '') as T, conflicts };
+}
+
+export function mergeSettings(
+  base: SyncedSettings | null,
+  ours: SyncedSettings | null,
+  theirs: SyncedSettings | null
+): MergeResult<SyncedSettings> {
+  if (base === null || ours === null || theirs === null) {
+    const r = pick3(base, ours, theirs);
+    if (r.kind === 'value') return { value: r.value, conflicts: [] };
+    // No shared base: a device that has never synced. The server copy (ours) is the established one.
+    return { value: ours, conflicts: ['This device now uses the settings from your other devices.'] };
+  }
+
+  const result = mergeFields(base, ours, theirs, 'incoming');
+  return { value: result.value, conflicts: result.conflicts.map(path =>
+    `Settings field "${path}" was changed on two devices; kept the latest change`) };
 }
 
 const timestamp = (value: string): number => {
@@ -333,8 +339,18 @@ export function mergeHabitList(
     const result = pick3(b.get(id), mine, incoming);
     if (result.kind === 'value') habits.push(result.value!);
     else {
-      habits.push(mine.removedOn ? mine : incoming.removedOn ? incoming : timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming);
-      conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept ${mine.removedOn || incoming.removedOn ? 'the removal' : 'the edit with the newer timestamp (incoming on ties)'}`);
+      if (mine.removedOn || incoming.removedOn) {
+        habits.push(mine.removedOn ? mine : incoming);
+        conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept the removal`);
+        continue;
+      }
+      const { updatedAt: mineAt, ...mineFields } = mine;
+      const { updatedAt: incomingAt, ...incomingFields } = incoming;
+      const { updatedAt: _baseAt, ...baseFields } = b.get(id) ?? mine;
+      const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
+      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, newerWins);
+      habits.push({ ...merged.value, updatedAt: newerWins === 'mine' ? mineAt : incomingAt });
+      if (merged.conflicts.length) conflicts.push(`Habit "${incoming.name}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
     }
   }
   return { value: { habits }, conflicts };
@@ -355,7 +371,7 @@ export function mergeHabitDay(base: HabitDay | null, ours: HabitDay | null, thei
 
 export const isHabitEntityKey = (key: string): boolean => key === 'habits' || key.startsWith('habitday:');
 
-/** Missing items are retained as in habits; explicit tombstones participate in timestamp conflicts. */
+/** Missing items are retained; concurrent edits survive explicit deletions. */
 export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null, theirs: BacklogData | null): MergeResult<BacklogData> {
   if ((theirs === null && sameValue(base, ours)) || (ours === null && sameValue(base, theirs))) {
     return { value: null, conflicts: [] };
@@ -377,8 +393,23 @@ export function mergeBacklog(base: BacklogData | null, ours: BacklogData | null,
     let winner: BacklogItem;
     if (result.kind === 'value') winner = result.value!;
     else {
-      winner = timestamp(mine.updatedAt) > timestamp(incoming.updatedAt) ? mine : incoming;
-      conflicts.push(`Backlog item "${incoming.title}" was changed on two devices; kept the edit with the newer timestamp (incoming on ties)`);
+      const { updatedAt: mineAt, historyLog: _mineHistory, ...mineFields } = mine;
+      const { updatedAt: incomingAt, historyLog: _incomingHistory, ...incomingFields } = incoming;
+      const { updatedAt: _baseAt, historyLog: _baseHistory, ...baseFields } = b.get(id) ?? mine;
+      const newerWins = timestamp(mineAt) > timestamp(incomingAt) ? 'mine' : 'incoming';
+      const { deletedAt: _mineDeleted, ...mineEdits } = mineFields;
+      const { deletedAt: _incomingDeleted, ...incomingEdits } = incomingFields;
+      const { deletedAt: _baseDeleted, ...baseEdits } = baseFields;
+      const liveFields = mine.deletedAt ? incomingEdits : mineEdits;
+      // Without a base, equal payloads identify a stale copy rather than an edit.
+      const previousFields = b.has(id) ? baseEdits : mine.deletedAt ? mineEdits : incomingEdits;
+      const deleteAgainstEdit = Boolean(mine.deletedAt) !== Boolean(incoming.deletedAt) && !sameValue(liveFields, previousFields);
+      const fieldWinner = deleteAgainstEdit ? (mine.deletedAt ? 'incoming' : 'mine') : newerWins;
+      const merged = mergeFields(b.has(id) ? baseFields : undefined, mineFields, incomingFields, fieldWinner);
+      winner = { ...merged.value, updatedAt: newerWins === 'mine' ? mineAt : incomingAt };
+      // A tombstone must not hide a concurrent edit, even with a newer timestamp.
+      if (deleteAgainstEdit) delete winner.deletedAt;
+      if (merged.conflicts.length || deleteAgainstEdit) conflicts.push(`Backlog item "${incoming.title}" was changed on two devices; kept ${deleteAgainstEdit ? 'the edit over the deletion' : 'the edit with the newer timestamp (incoming on ties)'}`);
     }
     const historyLog = mergeBacklogHistory(winner.historyLog, mine.historyLog, incoming.historyLog);
     items.push(historyLog === winner.historyLog ? winner : { ...winner, historyLog });

@@ -39,9 +39,9 @@ describe('backlog merges', () => {
     expect(mergeBacklog(edited, edited, other).value).toEqual(other);
     expect(mergeBacklog(base, edited, other).conflicts).toHaveLength(1);
   });
-  it('keeps the newer edit when a concurrent pick occurs; reconciliation updates backlog visibility later', () => {
+  it('keeps both the edit and a concurrent pick', () => {
     const picked = { items: [{ ...a, pickedOn: '2026-10-26' }] };
-    expect(mergeBacklog(base, picked, edited).value).toEqual(edited);
+    expect(mergeBacklog(base, picked, edited).value).toEqual({ items: [{ ...edited.items[0], pickedOn: '2026-10-26' }] });
   });
   it('retains edits against item or whole-entity deletes, honours unchanged entity deletes', () => {
     expect(mergeBacklog(base, { items: [{ ...a, deletedAt: early }] }, edited).value).toEqual(edited);
