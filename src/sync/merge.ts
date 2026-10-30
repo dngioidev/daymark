@@ -13,7 +13,8 @@ import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory
  *  - only one side changed            -> take that side
  *  - both changed to the same thing   -> take it
  *  - one deleted, the other modified  -> keep the modified version (never lose edits)
- *  - both modified differently        -> tasks/settings: the incoming change wins;
+ *  - both modified differently        -> tasks: field by field, the incoming change wins per field;
+ *                                        settings: the incoming change wins;
  *                                        notes text: both texts are kept with a separator;
  *                                        standalone notes: server copy kept, incoming saved as a conflict copy
  * Every "both modified" case is reported in `conflicts`.
@@ -73,6 +74,52 @@ function tasksById(doc: DailyDocument | null): Map<string, TaskItem> {
   return map;
 }
 
+// Completion fields change together; merging them one by one could pair a done status with no date.
+const STATUS_FIELDS = ['status', 'statusBeforeDone', 'completedDate', 'doneLaterDate', 'movedToBacklogDate'] as const;
+
+/** `longer` is `shorter` plus later history, and `shorter` was last touched by a rollover. */
+function extendsCarry(longer: TaskItem, shorter: TaskItem): boolean {
+  const short = shorter.historyLog ?? [];
+  const long = longer.historyLog ?? [];
+  return short.at(-1)?.action === 'carried_forward' && long.length > short.length && short.every((e, i) => e.id === long[i].id);
+}
+
+/**
+ * Both devices changed the same task: fields changed on one side only are combined, history is
+ * unioned and only fields changed on both sides take the incoming value (reported as a conflict).
+ * Without a base, a copy that is the other's rollover plus later edits wins over that stale carry.
+ */
+function mergeTask(base: TaskItem | undefined, ours: TaskItem, theirs: TaskItem): { task: TaskItem; conflict: boolean } {
+  if (!base) {
+    if (extendsCarry(ours, theirs)) return { task: ours, conflict: false };
+    if (extendsCarry(theirs, ours)) return { task: theirs, conflict: false };
+    return { task: theirs, conflict: true };
+  }
+  const merged: Record<string, unknown> = {};
+  let conflict = false;
+  const take = (keys: readonly string[]) => {
+    const part = (task: TaskItem) => Object.fromEntries(keys.map((k) => [k, (task as unknown as Record<string, unknown>)[k]]));
+    const r = pick3(part(base), part(ours), part(theirs));
+    if (r.kind === 'conflict') conflict = true;
+    const chosen = r.kind === 'value' ? r.value! : part(theirs);
+    for (const k of keys) if (chosen[k] !== undefined && chosen[k] !== null) merged[k] = chosen[k];
+  };
+  take(STATUS_FIELDS);
+  const others = new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)]);
+  for (const k of [...STATUS_FIELDS, 'historyLog']) others.delete(k);
+  for (const k of others) take([k]);
+  const history = pick3(base.historyLog, ours.historyLog, theirs.historyLog);
+  if (history.kind === 'value') merged.historyLog = history.value ?? [];
+  else {
+    const seen = new Set((ours.historyLog ?? []).map((e) => e.id));
+    merged.historyLog = [...(ours.historyLog ?? []), ...(theirs.historyLog ?? []).filter((e) => !seen.has(e.id))]
+      .map((e, i) => [e, i] as const)
+      .sort(([a, ai], [b, bi]) => (Date.parse(a.timestamp) - Date.parse(b.timestamp)) || ai - bi)
+      .map(([e]) => e);
+  }
+  return { task: merged as unknown as TaskItem, conflict };
+}
+
 function headingNotes(doc: DailyDocument | null): Map<string, string> {
   const map = new Map<string, string>();
   for (const h of doc?.headings ?? []) map.set(h.name, h.notesContent ?? '');
@@ -101,8 +148,9 @@ export function mergeDailyDocument(
     if (r.kind === 'value') {
       if (r.value) mergedTasks.set(id, r.value);
     } else {
-      mergedTasks.set(id, tTasks.get(id)!);
-      conflicts.push(`${o.date}: task "${tTasks.get(id)!.title}" was changed on two devices; kept the latest change`);
+      const merged = mergeTask(bTasks.get(id), oTasks.get(id)!, tTasks.get(id)!);
+      mergedTasks.set(id, merged.task);
+      if (merged.conflict) conflicts.push(`${o.date}: task "${tTasks.get(id)!.title}" was changed on two devices; kept the latest change`);
     }
   }
 

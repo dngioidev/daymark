@@ -169,6 +169,39 @@ export function performDailyRollover(
 }
 
 /**
+ * A device that rolls over before it syncs can carry a task another device had already finished.
+ * Once the finished copy arrives, drops carried copies that are still open and untouched since the
+ * carry, whose source copy is now closed by history the carry never saw, all recorded before the
+ * carry day began (later completions of an old copy are deliberate and keep the carry).
+ * Returns `docs` itself when nothing changes.
+ */
+export function dropStaleCarries(docs: DailyDocument[]): DailyDocument[] {
+  const byDate = new Map(docs.map((d) => [d.date, d]));
+  const isStale = (task: TaskItem, date: string): boolean => {
+    const log = task.historyLog ?? [];
+    if (log.at(-1)?.id !== `hist-carry-${task.id}-${date}` || task.status === 'done' || task.status === 'archived' || task.completedDate) return false;
+    const source = byDate.get(task.carriedFromDate ?? '')?.headings.flatMap((h) => h.items).find((t) => t.id === task.id);
+    if (!source || !(source.status === 'done' || source.status === 'archived') || (source.doneLaterDate && source.doneLaterDate >= date)) return false;
+    const sourceLog = source.historyLog ?? [];
+    const seen = log.slice(0, -1);
+    if (sourceLog.length <= seen.length || !seen.every((e, i) => e.id === sourceLog[i].id)) return false;
+    const dayStart = new Date(date + 'T00:00:00').getTime();
+    return sourceLog.slice(seen.length).every((e) => Date.parse(e.timestamp) < dayStart);
+  };
+  let changed = false;
+  const next = docs.map((d) => {
+    if (!d.headings.some((h) => h.items.some((t) => isStale(t, d.date)))) return d;
+    changed = true;
+    return {
+      ...d,
+      headings: d.headings.map((h) => ({ ...h, items: h.items.filter((t) => !isStale(t, d.date)).map((t, i) => ({ ...t, order: i + 1 })) })),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+  return changed ? next : docs;
+}
+
+/**
  * Historical Completion Correction:
  * When a user marks a carried-forward task completed on a previous day (e.g. Done on Oct 15):
  * 1. Sets effective completion date to effectiveCompletedDate

@@ -4,6 +4,7 @@ import { canonicalJson, isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKe
 import { SyncChange, SyncRequest, SyncResponse } from './protocol';
 import { EMPTY_BACKLOG, reconcileBacklogVault, uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
+import { dropStaleCarries } from '../utils/lifecycleEngine';
 
 /**
  * Client side of sync, kept free of React and storage so it can be tested against the real
@@ -255,6 +256,8 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
   }
   const next = fromEntities(now, current.settings);
   if (recovering && !receivedHabits) uneditedRecoveredHabits.add(next.habits);
+  // A rollover made before this pull may have carried a task finished elsewhere
+  next.docs = dropStaleCarries(next.docs);
   const reconciled = reconcileBacklogVault(next.backlog, next.docs);
   next.backlog = reconciled.backlog;
   next.docs = reconciled.docs;
