@@ -18,6 +18,7 @@ export interface Device {
   edit(change: (v: VaultData) => VaultData): void;
   sync(opts?: { dropResponse?: boolean }): Promise<SyncOutcome>;
   online: boolean;
+  authFetch(path: string, init?: RequestInit): Promise<Response>;
 }
 
 function defaultVault(): VaultData {
@@ -44,6 +45,7 @@ function withoutAlertDays<T>(settings: T): T {
 }
 
 export async function startSyncRig(): Promise<{
+  dataDir: string;
   device(name: string, opts?: { legacy?: boolean }): Device;
   restartServer(): Promise<void>;
   stop(): Promise<void>;
@@ -76,12 +78,20 @@ export async function startSyncRig(): Promise<{
   }
 
   return {
+    dataDir: dir,
     device(name, opts = {}) {
       let state: SyncState | undefined;
       let accessToken: string;
       const device: Device = {
         name, vault: defaultVault(), online: true,
         edit(change) { device.vault = change(device.vault); },
+        async authFetch(path, init) {
+          if (!device.online) throw new Error(`Device ${name} is offline.`);
+          if (!state) await device.sync();
+          const headers = new Headers(init?.headers);
+          headers.set('Authorization', `Bearer ${accessToken}`);
+          return fetch(base + path, { ...init, headers });
+        },
         async sync(syncOpts = {}) {
           if (!device.online) throw new Error(`Device ${name} is offline.`);
           if (stopped) throw new Error('Sync rig is stopped.');

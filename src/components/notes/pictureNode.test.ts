@@ -95,6 +95,28 @@ it('storage failures show a toast and do not insert or save a broken reference',
   expect(editor.getMarkdown()).toBe('Original'); expect(onChange).not.toHaveBeenCalled();
   await act(async () => feedbackRoot.unmount());
 });
+it('oversized encoded picture shows a visible error and never writes a dangling reference', async () => {
+  const { FeedbackHost } = await import('../ui/feedback');
+  const feedback = document.createElement('div'); document.body.append(feedback); const feedbackRoot = createRoot(feedback);
+  await act(async () => feedbackRoot.render(React.createElement(FeedbackHost)));
+  try {
+    const { editor, onChange } = await mount('Original');
+    const blob = new Blob([new Uint8Array(1.5 * 1024 * 1024 + 1)], { type: 'image/webp' });
+    vi.mocked(encodeNotePicture).mockResolvedValueOnce({ blob, width: 100, height: 80, mime: 'image/webp' });
+    // Use real size validation; only browser encoding and unavailable jsdom storage are doubled.
+    const real = await vi.importActual<typeof import('../../utils/noteAssets')>('../../utils/noteAssets');
+    const vault = await import('../../utils/vaultStore');
+    const available = vi.spyOn(vault, 'isPhotoStorageAvailable').mockReturnValue(true);
+    vi.mocked(putAsset).mockImplementationOnce(real.putAsset);
+    try {
+      await act(async () => { editor.view.dom.dispatchEvent(fileEvent('paste', [new File([blob], 'large.png', { type: 'image/png' })])); });
+      expect(document.body.textContent).toMatch(/exceeds 1\.5 MiB.*smaller picture/);
+      expect(editor.getMarkdown()).toBe('Original');
+      expect(onChange).not.toHaveBeenCalled();
+      expect(editor.getMarkdown()).not.toContain('daymark-asset:');
+    } finally { available.mockRestore(); }
+  } finally { await act(async () => feedbackRoot.unmount()); }
+});
 it('Picture offers a file picker and a Dialog for https links', async () => {
   const { onChange } = await mount();
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Picture"]')!.click());

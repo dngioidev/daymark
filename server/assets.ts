@@ -23,6 +23,23 @@ export function assetRoutes(dataDir: string): Router {
   const router = Router();
   const directory = path.join(dataDir, 'assets');
   const file = (id: string) => path.join(directory, id);
+  // Inventory and downloads must agree about which files are safe. Omitting a
+  // damaged file also lets an owning device discover it and re-upload its copy.
+  const readAsset = (id: string): { meta: NoteAssetMeta; bytes: Buffer } | null => {
+    try {
+      const meta = JSON.parse(fs.readFileSync(file(`${id}.json`), 'utf8')) as NoteAssetMeta;
+      if (!meta || meta.id !== id || !['image/webp', 'image/jpeg', 'image/png'].includes(meta.mime) ||
+        !Number.isFinite(meta.bytes) || meta.bytes <= 0 || meta.bytes > MAX_BYTES ||
+        !Number.isFinite(meta.width) || meta.width < 0 || !Number.isFinite(meta.height) || meta.height < 0 ||
+        typeof meta.createdAt !== 'string') return null;
+      const bytes = fs.readFileSync(file(id));
+      if (bytes.length !== meta.bytes || createHash('sha256').update(bytes).digest('hex') !== id) return null;
+      return { meta, bytes };
+    } catch {
+      // Missing, damaged or unreadable files are isolated to this picture.
+      return null;
+    }
+  };
   router.use((_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -32,15 +49,9 @@ export function assetRoutes(dataDir: string): Router {
     if (!fs.existsSync(directory)) return res.json([]);
     const metas: NoteAssetMeta[] = [];
     for (const name of fs.readdirSync(directory)) {
-      if (!/^[a-f0-9]{64}\.json$/.test(name) || !fs.existsSync(file(name.slice(0, -5)))) continue;
-      try {
-        const meta = JSON.parse(fs.readFileSync(path.join(directory, name), 'utf8')) as NoteAssetMeta;
-        if (meta && meta.id === name.slice(0, -5) && ['image/webp', 'image/jpeg', 'image/png'].includes(meta.mime) &&
-          Number.isFinite(meta.bytes) && meta.bytes > 0 && Number.isFinite(meta.width) && meta.width >= 0 &&
-          Number.isFinite(meta.height) && meta.height >= 0 && typeof meta.createdAt === 'string') metas.push(meta);
-      } catch {
-        // A damaged or unreadable metadata file must not hide healthy pictures.
-      }
+      if (!/^[a-f0-9]{64}\.json$/.test(name)) continue;
+      const asset = readAsset(name.slice(0, -5));
+      if (asset) metas.push(asset.meta);
     }
     res.json(metas);
   });
@@ -64,8 +75,8 @@ export function assetRoutes(dataDir: string): Router {
       // Some volumes cannot tighten existing directory permissions (as in FileStore).
     }
     // Synchronous writes keep a PUT/DELETE pair indivisible within this server process.
-    // Repeated uploads preserve metadata, including the original creation time.
-    if (!fs.existsSync(file(id)) || !fs.existsSync(file(`${id}.json`))) {
+    // Healthy repeated uploads preserve metadata; damaged files are repaired.
+    if (!readAsset(id)) {
       const meta: NoteAssetMeta = { id, mime, width: 0, height: 0, bytes: bytes.length, createdAt: new Date().toISOString() };
       writeAtomic(file(id), bytes);
       writeAtomic(file(`${id}.json`), JSON.stringify(meta));
@@ -74,18 +85,11 @@ export function assetRoutes(dataDir: string): Router {
   });
   router.get('/:id', (req, res) => {
     const id = req.params.id;
-    if (!fs.existsSync(file(id)) || !fs.existsSync(file(`${id}.json`))) return res.status(404).json({ error: 'Picture not found.' });
-    try {
-      const meta = JSON.parse(fs.readFileSync(file(`${id}.json`), 'utf8')) as NoteAssetMeta;
-      if (!meta || meta.id !== id || !['image/webp', 'image/jpeg', 'image/png'].includes(meta.mime)) {
-        return res.status(404).json({ error: 'Picture not found.' });
-      }
-      const bytes = fs.readFileSync(file(id));
-      if (req.query.format === 'base64') return res.json({ id, mime: meta.mime, data: bytes.toString('base64') });
-      res.type(meta.mime).send(bytes);
-    } catch {
-      return res.status(404).json({ error: 'Picture not found.' });
-    }
+    const asset = readAsset(id);
+    if (!asset) return res.status(404).json({ error: 'Picture not found.' });
+    const { meta, bytes } = asset;
+    if (req.query.format === 'base64') return res.json({ id, mime: meta.mime, data: bytes.toString('base64') });
+    res.type(meta.mime).send(bytes);
   });
   router.delete('/:id', (req, res) => {
     fs.rmSync(file(req.params.id), { force: true });

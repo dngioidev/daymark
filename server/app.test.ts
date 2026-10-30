@@ -721,6 +721,45 @@ describe('note asset hardening', () => {
     method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     ...(method === 'PUT' ? { body: JSON.stringify({ mime: 'image/png', data: 'YWJj' }) } : {}),
   });
+  it.each(['bytes', 'metadata', 'metadata size'] as const)('ignores damaged %s without hiding healthy pictures and repairs on re-upload', async damage => {
+    const { accessToken } = await connect('picture-audit');
+    await request('PUT', '/' + id, accessToken);
+    const healthy = 'cb8379ac2098aa165029e3938a51da0bcecfc008fd6795f401178647f96c5b34';
+    await fetch(base + '/api/assets/' + healthy, {
+      method: 'PUT', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mime: 'image/png', data: 'ZGVm' }),
+    });
+    const target = path.join(dir, 'assets', id);
+    if (damage === 'bytes') fs.writeFileSync(target, 'bad'); // same size, wrong hash
+    else if (damage === 'metadata') fs.writeFileSync(target + '.json', '{broken');
+    else {
+      const meta = JSON.parse(fs.readFileSync(target + '.json', 'utf8'));
+      fs.writeFileSync(target + '.json', JSON.stringify({ ...meta, bytes: 99 }));
+    }
+    expect(await (await request('GET', '', accessToken)).json()).toEqual([expect.objectContaining({ id: healthy })]);
+    for (const format of ['', '?format=base64']) expect((await request('GET', '/' + id + format, accessToken)).status).toBe(404);
+    expect(await (await request('GET', '/' + healthy, accessToken)).text()).toBe('def');
+    expect((await request('PUT', '/' + id, accessToken)).status).toBe(200);
+    expect(await (await request('GET', '/' + id, accessToken)).text()).toBe('abc');
+    expect(await (await request('GET', '/' + id + '?format=base64', accessToken)).json()).toEqual({ id, mime: 'image/png', data: 'YWJj' });
+    expect((await (await request('GET', '', accessToken)).json()).map((meta: { id: string }) => meta.id).sort()).toEqual([id, healthy].sort());
+  });
+  it.each(['bytes', 'metadata'] as const)('a validated PUT repairs existing damaged %s', async damage => {
+    const { accessToken } = await connect('picture-repair');
+    await request('PUT', '/' + id, accessToken);
+    fs.writeFileSync(path.join(dir, 'assets', id + (damage === 'metadata' ? '.json' : '')), damage === 'metadata' ? '{broken' : 'bad');
+    expect((await request('PUT', '/' + id, accessToken)).status).toBe(200);
+    expect(await (await request('GET', '/' + id, accessToken)).text()).toBe('abc');
+    expect(await (await request('GET', '', accessToken)).json()).toEqual([expect.objectContaining({ id, bytes: 3 })]);
+  });
+  it.each(['', '?format=base64'])('GET %s refuses bytes with the wrong content hash', async format => {
+    const { accessToken } = await connect('picture-integrity');
+    await request('PUT', '/' + id, accessToken);
+    fs.writeFileSync(path.join(dir, 'assets', id), 'bad');
+    const response = await request('GET', '/' + id + format, accessToken);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'Picture not found.' });
+  });
   it('GET sets nosniff and rejects an encoded traversal id', async () => {
     const { accessToken } = await connect('assets');
     await request('PUT', '/' + id, accessToken);

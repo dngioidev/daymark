@@ -9,7 +9,7 @@ vi.mock('./vaultStore', () => ({
   kvKeysRaw: async (prefix: string) => [...kv.keys()].filter(key => key.startsWith(prefix)),
 }));
 import { buildVaultZip, importVaultFromZip, exportBackupAssets, importBackupAssets, removeUnusedPictures } from './vaultArchive';
-import { hasAsset, pendingUploads, putAsset } from './noteAssets';
+import { getAssetUrl, hasAsset, parseAssetRefs, pendingUploads, putAsset } from './noteAssets';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import type { HabitData } from '../types/daymark';
 const id = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
@@ -18,6 +18,26 @@ const content = `![picture](daymark-asset:${id}.png)`;
 const note = { ...SEED_STANDALONE_NOTES[0], title: 'Picture', folder: 'A', content };
 beforeEach(() => { kv.clear(); available.value = true; });
 const seed = () => putAsset(new Blob(['abc'], { type: meta.mime }), meta);
+
+it.each(['ZIP', 'JSON'] as const)('%s backup restores every reference to identical non-UTF8 picture bytes', async format => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 255, 0, 128]);
+  const picture = await putAsset(new Blob([bytes], { type: meta.mime }), meta);
+  await seed();
+  const notes = [{ ...note, content: content + `\n![](daymark-asset:${picture}.png)` }];
+  const zip = await buildVaultZip([], notes, DEFAULT_SETTINGS);
+  const json = JSON.parse(JSON.stringify({ notes, assets: await exportBackupAssets(notes) }));
+  kv.clear();
+  const restored = format === 'ZIP' ? (await importVaultFromZip(zip)).notes : json.notes;
+  if (format === 'JSON') await importBackupAssets(json.assets);
+  expect(restored).toEqual(notes);
+  expect(parseAssetRefs(restored[0].content)).toEqual([id, picture]);
+  for (const ref of [id, picture]) {
+    expect(await getAssetUrl(ref)).toMatch(/^blob:/);
+    const actual = new Uint8Array(await (kv.get(`noteAsset:${ref}`) as Blob).arrayBuffer());
+    expect(actual).toEqual(ref === picture ? bytes : new Uint8Array([97, 98, 99]));
+  }
+  expect((await pendingUploads()).sort()).toEqual([id, picture].sort());
+});
 
 it('zip export rewrites refs and includes files at the correct nested depth', async () => {
   await seed();
