@@ -39,6 +39,7 @@ npm run test:e2e      # Android PWA e2e (needs a prior build and local Chrome/Ed
 npm run test:sync     # two-device sync e2e against a fresh production server (needs a prior build)
 npm run test:qa       # QA regression e2e (needs a prior build); `-- <idPrefix>` runs one scenario
 npm run android:build   # debug APK (JDK 21 + Android SDK); add -- --test for Kotlin unit tests
+npm run android:build -- --release # signed release APK; add --test for release Kotlin unit tests
 npm run validate:ai  # AI config check (structure, scripts, invariants, links)
 node scripts/capture-screenshots.mjs <cycle>  # Release-doc screenshots -> docs/releases/<cycle>/images
 ```

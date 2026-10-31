@@ -2,6 +2,41 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose' // Jetpack Glance (home-screen widget) is Compose-based
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def releaseSigningValues = [:]
+def releaseSigningError = null
+[
+    storeFile: 'DAYMARK_KEYSTORE',
+    storePassword: 'DAYMARK_KEYSTORE_PASSWORD',
+    keyAlias: 'DAYMARK_KEY_ALIAS',
+    keyPassword: 'DAYMARK_KEY_PASSWORD'
+].each { property, variable ->
+    def value = System.getenv(variable) ?: keystoreProperties.getProperty(property)
+    if (!value?.trim()) {
+        releaseSigningError = releaseSigningError ?: "Release signing missing ${variable} (${property}). See docs/guide/getting-started.md."
+    }
+    releaseSigningValues[property] = value
+}
+if (!releaseSigningError) {
+    def keystore = rootProject.file(releaseSigningValues.storeFile)
+    if (keystore.name.equalsIgnoreCase('debug.keystore')) {
+        releaseSigningError = 'Release signing must not use debug.keystore. See docs/guide/getting-started.md.'
+    } else if (!keystore.isFile()) {
+        releaseSigningError = 'Release signing DAYMARK_KEYSTORE (storeFile) does not exist. See docs/guide/getting-started.md.'
+    }
+}
+// Validate the resolved task graph, including release tasks invoked directly or via
+// aggregate tasks. Debug builds need no signing credentials.
+gradle.taskGraph.whenReady { graph ->
+    if (releaseSigningError && graph.allTasks.any { it.project == project && it.name.toLowerCase(java.util.Locale.ROOT).contains('release') }) {
+        throw new GradleException(releaseSigningError)
+    }
+}
+
 android {
     namespace = "app.daymark.notes"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -22,8 +57,19 @@ android {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
+    signingConfigs {
+        release {
+            if (!releaseSigningError) {
+                storeFile rootProject.file(releaseSigningValues.storeFile)
+                storePassword releaseSigningValues.storePassword
+                keyAlias releaseSigningValues.keyAlias
+                keyPassword releaseSigningValues.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

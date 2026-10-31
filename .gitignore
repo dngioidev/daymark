@@ -11,3 +11,8 @@ coverage/
 
 # Self-hosted server data (vault, account, devices)
 data/
+
+# Local Android release signing inputs (keep the key outside the repository)
+keystore.properties
+*.jks
+*.keystore

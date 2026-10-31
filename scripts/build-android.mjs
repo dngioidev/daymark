@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Builds the web app, syncs it into the Android project, and assembles the debug APK.
+ * Builds the web app, syncs it into Android, and assembles a debug or signed release APK.
  *
  * Usage: npm run android:build            (APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk)
  *        npm run android:build -- --test  (also runs the Kotlin unit tests)
+ *        npm run android:build -- --release [--test] (requires release signing inputs)
  *
  * Needs JDK 21 (a standard one; GraalVM's jlink breaks the Android Gradle plugin) and the
  * Android SDK. JAVA_HOME / ANDROID_HOME are used when set; otherwise common install paths are tried.
@@ -12,45 +13,89 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const isWin = process.platform === 'win32';
-const run = (cmd, args, opts = {}) => {
-  const res = spawnSync(cmd, args, { stdio: 'inherit', shell: isWin, ...opts });
-  if (res.status !== 0) {
-    console.error(`\nFailed: ${cmd} ${args.join(' ')}`);
-    process.exit(res.status ?? 1);
+export function releaseSigning(env, fileProps) {
+  const config = {};
+  for (const [variable, property] of [
+    ['DAYMARK_KEYSTORE', 'storeFile'], ['DAYMARK_KEYSTORE_PASSWORD', 'storePassword'],
+    ['DAYMARK_KEY_ALIAS', 'keyAlias'], ['DAYMARK_KEY_PASSWORD', 'keyPassword'],
+  ]) {
+    const value = env[variable] || fileProps[property];
+    if (typeof value !== 'string' || !value.trim()) {
+      return { ok: false, message: `Release signing missing ${variable} (${property}). See docs/guide/getting-started.md.` };
+    }
+    config[property] = value;
   }
-};
-
-const firstExisting = (candidates) => candidates.find((p) => p && fs.existsSync(p));
-
-const javaHome =
-  process.env.JAVA_HOME && !/graalvm/i.test(process.env.JAVA_HOME)
-    ? process.env.JAVA_HOME
-    : firstExisting(['C:\\Program Files\\Java\\jdk-21', '/usr/lib/jvm/temurin-21-jdk-amd64', '/usr/lib/jvm/java-21-openjdk-amd64']);
-const sdk = firstExisting([
-  process.env.ANDROID_HOME,
-  process.env.ANDROID_SDK_ROOT,
-  path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk'),
-  path.join(os.homedir(), 'Library', 'Android', 'sdk'),
-  path.join(os.homedir(), 'Android', 'Sdk'),
-]);
-
-if (!javaHome) {
-  console.error('JDK 21 not found. Install a standard JDK 21 and set JAVA_HOME.');
-  process.exit(1);
+  if (/(^|[\\/])debug\.keystore$/i.test(config.storeFile)) {
+    return { ok: false, message: 'Release signing must not use debug.keystore. See docs/guide/getting-started.md.' };
+  }
+  return { ok: true, config };
 }
-if (!sdk) {
-  console.error('Android SDK not found. Install it and set ANDROID_HOME.');
-  process.exit(1);
+
+export function androidBuildOptions(args) {
+  const release = args.includes('--release');
+  const variant = release ? 'Release' : 'Debug';
+  const name = release ? 'release' : 'debug';
+  return {
+    release,
+    tasks: [...(args.includes('--test') ? [`test${variant}UnitTest`] : []), `assemble${variant}`],
+    apk: `mobile/android/app/build/outputs/apk/${name}/app-${name}.apk`,
+  };
 }
-const env = { ...process.env, JAVA_HOME: javaHome, ANDROID_HOME: sdk };
 
-run('npm', ['run', 'build']);
-run('npx', ['cap', 'sync', 'android']);
+function main() {
+  const options = androidBuildOptions(process.argv.slice(2));
+  // Gradle loads Java properties itself (including its escaping rules). With no file,
+  // fail before building web assets or looking for the Android toolchain.
+  if (options.release && !fs.existsSync('mobile/android/keystore.properties')) {
+    const signing = releaseSigning(process.env, {});
+    if (!signing.ok) {
+      console.error(signing.message);
+      process.exit(1);
+    }
+  }
 
-const gradle = isWin ? 'gradlew.bat' : './gradlew';
-const tasks = process.argv.includes('--test') ? ['testDebugUnitTest', 'assembleDebug'] : ['assembleDebug'];
-// Absolute path so Windows cmd does not depend on cwd lookup
-run(path.resolve('mobile', 'android', gradle), [...tasks, '--no-daemon'], { cwd: path.resolve('mobile', 'android'), env });
-console.log('\nAPK: mobile/android/app/build/outputs/apk/debug/app-debug.apk');
+  const isWin = process.platform === 'win32';
+  const run = (cmd, args, opts = {}) => {
+    const res = spawnSync(cmd, args, { stdio: 'inherit', shell: isWin, ...opts });
+    if (res.status !== 0) {
+      console.error(`\nFailed: ${cmd} ${args.join(' ')}`);
+      process.exit(res.status ?? 1);
+    }
+  };
+
+  const firstExisting = (candidates) => candidates.find((p) => p && fs.existsSync(p));
+
+  const javaHome =
+    process.env.JAVA_HOME && !/graalvm/i.test(process.env.JAVA_HOME)
+      ? process.env.JAVA_HOME
+      : firstExisting(['C:\\Program Files\\Java\\jdk-21', '/usr/lib/jvm/temurin-21-jdk-amd64', '/usr/lib/jvm/java-21-openjdk-amd64']);
+  const sdk = firstExisting([
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk'),
+    path.join(os.homedir(), 'Library', 'Android', 'sdk'),
+    path.join(os.homedir(), 'Android', 'Sdk'),
+  ]);
+
+  if (!javaHome) {
+    console.error('JDK 21 not found. Install a standard JDK 21 and set JAVA_HOME.');
+    process.exit(1);
+  }
+  if (!sdk) {
+    console.error('Android SDK not found. Install it and set ANDROID_HOME.');
+    process.exit(1);
+  }
+  const env = { ...process.env, JAVA_HOME: javaHome, ANDROID_HOME: sdk };
+
+  run('npm', ['run', 'build']);
+  run('npx', ['cap', 'sync', 'android']);
+
+  const gradle = isWin ? 'gradlew.bat' : './gradlew';
+  // Absolute path so Windows cmd does not depend on cwd lookup
+  run(path.resolve('mobile', 'android', gradle), [...options.tasks, '--no-daemon'], { cwd: path.resolve('mobile', 'android'), env });
+  console.log(`\nAPK: ${options.apk}`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();
