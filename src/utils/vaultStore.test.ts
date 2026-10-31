@@ -16,11 +16,14 @@ async function habitStoreTest(run: (env: {
   store: typeof import('./vaultStore'); values: Map<string, string>;
   raw: Map<string, unknown>; messages: unknown[];
   peers: { onmessage?: (event: { data: unknown }) => void }[];
+  /** Simulate a document unload: later IndexedDB writes are aborted (never applied or completed). */
+  unload: (aborted?: boolean) => void;
 }) => Promise<void>, indexed = false, legacy?: string, legacyKey = 'daymark_habits_v1') {
   vi.resetModules();
   const values = new Map<string, string>(legacy === undefined ? [] : [[legacyKey, legacy]]);
   const raw = new Map<string, unknown>();
   const messages: unknown[] = [];
+  let aborting = false;
   const peers: { onmessage?: (event: { data: unknown }) => void }[] = [];
   vi.stubGlobal('BroadcastChannel', class {
     onmessage?: (event: { data: unknown }) => void;
@@ -69,9 +72,9 @@ async function habitStoreTest(run: (env: {
           advance();
           return request;
         },
-        put: (value: unknown, key: string) => raw.set(key, value),
+        put: (value: unknown, key: string) => { if (!aborting) raw.set(key, value); },
       }),
-      set oncomplete(fn: () => void) { if (mode === 'readwrite') queueMicrotask(fn); },
+      set oncomplete(fn: () => void) { if (mode === 'readwrite' && !aborting) queueMicrotask(fn); },
     }),
   };
   vi.stubGlobal('indexedDB', indexed ? {
@@ -93,7 +96,7 @@ async function habitStoreTest(run: (env: {
   try {
     const store = await import('./vaultStore');
     await store.initVaultStore();
-    await run({ store, values, raw, messages, peers });
+    await run({ store, values, raw, messages, peers, unload: (aborted = true) => { aborting = aborted; } });
   } finally { vi.unstubAllGlobals(); errors.mockRestore(); }
 }
 
@@ -620,6 +623,82 @@ it.each([false, true])('ink saves debounce within 1s and flush on pagehide and h
     } finally { vi.useRealTimers(); }
   }, indexed);
 });
+describe('ink written just before the page unloads', () => {
+  const stroke = (id: string) => ({ id, points: 'AAAA', color: '#000', width: 2, tool: 'pen' as const, createdAt: 'now' });
+  const page = (strokes: string[], removed: string[] = []) => ({ noteId: 'study', page: 0, strokes: strokes.map(stroke), removed, updatedAt: 'now' });
+  const reopen = async () => {
+    vi.resetModules();
+    const next = await import('./vaultStore');
+    await next.initVaultStore();
+    return next;
+  };
+
+  it('survives a reload inside the write window, when the unload aborts the IndexedDB write', async () => {
+    const win = new EventTarget();
+    vi.stubGlobal('window', win);
+    await habitStoreTest(async ({ store, raw, unload }) => {
+      store.saveInkPages([page(['a', 'b'])]);
+      win.dispatchEvent(new Event('pagehide'));
+      unload(); // the browser tears the document down before the flush transaction commits
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(raw.get('ink')).toBeUndefined();
+      unload(false);
+      const next = await reopen();
+      expect(next.readInkPages()).toEqual([page(['a', 'b'])]);
+      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a', 'b'])]));
+    }, true);
+  });
+
+  it('survives an unload while the timed flush is still committing', async () => {
+    const win = new EventTarget();
+    vi.stubGlobal('window', win);
+    await habitStoreTest(async ({ store, raw, unload }) => {
+      vi.useFakeTimers();
+      try {
+        store.saveInkPages([page(['a'])]);
+        unload();
+        await vi.advanceTimersByTimeAsync(600); // the timed write starts but never commits
+        win.dispatchEvent(new Event('pagehide'));
+      } finally { vi.useRealTimers(); }
+      unload(false);
+      const next = await reopen();
+      expect(next.readInkPages()).toEqual([page(['a'])]);
+    }, true);
+  });
+
+  it('a committed later write retires the unload copy, so it cannot restore erased strokes', async () => {
+    const win = new EventTarget(), doc = new EventTarget();
+    vi.stubGlobal('window', win); vi.stubGlobal('document', doc);
+    await habitStoreTest(async ({ store, raw, values }) => {
+      store.saveInkPages([page(['a', 'b'])]);
+      Object.defineProperty(doc, 'visibilityState', { value: 'hidden', configurable: true });
+      doc.dispatchEvent(new Event('visibilitychange')); // app backgrounded; this time the write commits
+      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a', 'b'])]));
+      store.saveInkPages([page(['a'])]); // whole-page replacement on the same device
+      win.dispatchEvent(new Event('pagehide'));
+      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a'])]));
+      expect([...values.keys()].filter(key => key.includes('ink'))).toEqual([]);
+      const next = await reopen();
+      expect(next.readInkPages()).toEqual([page(['a'])]);
+    }, true);
+  });
+
+  it('merges the unload copy with newer stored ink instead of replacing it', async () => {
+    const win = new EventTarget();
+    vi.stubGlobal('window', win);
+    await habitStoreTest(async ({ store, raw, unload }) => {
+      store.saveInkPages([page(['a'])]);
+      win.dispatchEvent(new Event('pagehide'));
+      unload();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      unload(false);
+      raw.set('ink', [page(['b'], ['x'])]); // another tab saved later work meanwhile
+      const next = await reopen();
+      expect(next.readInkPages()).toEqual([page(['a', 'b'], ['x'])]);
+    }, true);
+  });
+});
+
 it('JSON backup exports ink and restores the exact ink array', async () => {
   await habitStoreTest(async ({ store }) => {
     const ink = [{ noteId: 'study', page: 0, strokes: [], removed: ['erased'], updatedAt: 'now' }];

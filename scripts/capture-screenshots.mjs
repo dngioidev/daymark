@@ -203,6 +203,13 @@ const cycle14Ink = (paper = 'Lined', phone = false) => async page => {
     await page.getByRole('treeitem', { name: 'Field study notebook', exact: true }).click();
     await inkCanvas(page).waitFor();
     if (await page.getByRole('toolbar', { name: 'Writing tools', exact: true }).count()) throw new Error('Phone screenshot must be read only');
+    // The screenshot must show the strokes, not an empty page captured before they paint.
+    await inkCanvas(page).evaluate(el => new Promise((resolve, reject) => {
+      const started = performance.now();
+      const painted = () => el.getContext('2d').getImageData(0, 0, el.width, el.height).data.some((v, i) => i % 4 === 3 && v > 0);
+      const poll = () => painted() ? resolve() : performance.now() - started > 5000 ? reject(new Error('Read-only page shows no ink')) : requestAnimationFrame(poll);
+      poll();
+    }));
   }
 };
 const cycle14Highlight = async page => {

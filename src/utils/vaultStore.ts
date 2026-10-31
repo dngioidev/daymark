@@ -12,6 +12,7 @@ import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
 import { decideInitialAppearance } from './appearance';
 import { isHabitEntityKey } from '../sync/merge';
+import { inkKey, mergeInkPage } from '../ink/inkModel';
 
 /**
  * Vault persistence.
@@ -213,6 +214,8 @@ export async function initVaultStore(): Promise<void> {
         }
       }
     }
+
+    await replayInkJournal(db);
 
     // Ask the browser not to evict the vault under storage pressure
     navigator.storage?.persist?.().catch(() => undefined);
@@ -453,6 +456,78 @@ export function saveSyncState(state: SyncState | null): Promise<void> {
 let inkTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingInk: InkPage[] | undefined;
 const inkFlushTargets = new WeakSet<EventTarget>();
+// A browser aborts IndexedDB transactions that have not committed when the document unloads,
+// so the pagehide/hidden flush alone can lose the last strokes on a reload or close.
+// Before the page goes away, the uncommitted pages are copied synchronously to localStorage;
+// the next start merges them back (stroke union, erasures kept) and then drops the copy.
+const INK_JOURNAL_KEY = 'daymark_ink_unsaved_v1';
+let lastWrittenInk: InkPage[] | undefined;
+let lastCommittedInk: InkPage[] | undefined;
+let inkWriteSeq = 0;
+let journaledSeq = 0;
+
+function readInkJournal(): InkPage[] | null {
+  try {
+    const raw = localStorage.getItem(INK_JOURNAL_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isInkPage) : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeInkJournal(): void {
+  try { localStorage.removeItem(INK_JOURNAL_KEY); } catch { /* storage blocked; the copy is merged harmlessly */ }
+}
+
+/** Merges unload copies page by page; strokes are a union and erasures stay erased. */
+export function mergeInkJournal(stored: InkPage[], journal: InkPage[]): InkPage[] {
+  const out = [...stored];
+  for (const page of journal) {
+    const index = out.findIndex(p => inkKey(p.noteId, p.page) === inkKey(page.noteId, page.page));
+    if (index < 0) out.push(page);
+    else out[index] = mergeInkPage(null, page, out[index]) ?? out[index];
+  }
+  return out;
+}
+
+async function replayInkJournal(database: IDBDatabase): Promise<void> {
+  const journal = readInkJournal();
+  if (journal === null) return;
+  if (journal.length) {
+    const stored = cache.get(KEYS.INK);
+    const merged = mergeInkJournal(Array.isArray(stored) ? stored.filter(isInkPage) : [], journal);
+    cache.set(KEYS.INK, merged);
+    await putValue(database, KEYS.INK, merged);
+  }
+  removeInkJournal();
+}
+
+/** Synchronously keeps the pages not yet committed to IndexedDB, for the next start. */
+function journalUncommittedInk(): void {
+  const latest = lastWrittenInk;
+  if (!latest || latest === lastCommittedInk || storageMode !== 'indexeddb') return;
+  const committed = new Set(lastCommittedInk ?? []);
+  const changed = latest.filter(page => !committed.has(page));
+  if (!changed.length) return;
+  try {
+    const earlier = readInkJournal() ?? [];
+    localStorage.setItem(INK_JOURNAL_KEY, JSON.stringify(mergeInkJournal(earlier, changed)));
+    journaledSeq = inkWriteSeq;
+  } catch (err) {
+    console.error('Could not keep a copy of the last handwriting before closing.', err);
+  }
+}
+
+function inkCommitted(pages: InkPage[], seq: number): void {
+  lastCommittedInk = pages;
+  // Only this write (or a later one) contains everything the copy holds.
+  if (journaledSeq && seq >= journaledSeq) {
+    journaledSeq = 0;
+    removeInkJournal();
+  }
+}
 
 /** Read the startup cache hydrated by initVaultStore, before the first sync. */
 export function readInkPages(): InkPage[] {
@@ -469,17 +544,25 @@ function flushInkPages(): void {
   if (!pendingInk || wiping) return;
   const pages = pendingInk;
   pendingInk = undefined;
-  void writeValue(KEYS.INK, pages, true).catch(() => undefined);
+  const seq = ++inkWriteSeq;
+  lastWrittenInk = pages;
+  void writeValue(KEYS.INK, pages, true).then(() => inkCommitted(pages, seq), () => undefined);
+}
+
+/** The page may be unloaded next: start the write and keep a synchronous copy until it commits. */
+function flushInkBeforeHide(): void {
+  flushInkPages();
+  if (!wiping) journalUncommittedInk();
 }
 
 function installInkFlushHandlers(): void {
   if (typeof window !== 'undefined' && !inkFlushTargets.has(window)) {
-    window.addEventListener('pagehide', flushInkPages);
+    window.addEventListener('pagehide', flushInkBeforeHide);
     inkFlushTargets.add(window);
   }
   if (typeof document !== 'undefined' && !inkFlushTargets.has(document)) {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') flushInkPages();
+      if (document.visibilityState === 'hidden') flushInkBeforeHide();
     });
     inkFlushTargets.add(document);
   }
