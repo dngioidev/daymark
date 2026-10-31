@@ -1,4 +1,4 @@
-# Cycle 14: tablet layout fix, handwritten notes and pen highlighting
+# Cycle 14: tablet layout fix, handwritten notes, pen highlighting, signed APK and widget thresholds
 
 ## Intent and why
 
@@ -52,6 +52,19 @@ Done when: on a tablet emulator in portrait and landscape, every top control is 
 - Loose freehand marks (circles, arrows, margin scribbles) are **not** kept on typed notes.
 - Guess: a pen stroke drawn under words (not with the highlighter) may become an underline the same way. Builder's call whether to include it; the highlighter is the requirement.
 
+## Part 4: signed release APK (owner approved as an extra)
+
+Every release so far is a debug APK signed with a key that only exists on the build machine. Switch to a proper release signing key so every future update installs over the app.
+
+- A release keystore is created once and kept **outside the repository**, with its passwords outside the repository too (for example environment variables or a git-ignored local properties file). Nothing secret is committed. The build fails with a clear message if the key is missing, instead of silently falling back to the debug key for a release.
+- `npm run android:build` keeps producing a debug APK for development; a release build command produces the signed APK that is attached to GitHub releases (named `daymark-X.Y.Z.apk`, with `SHA256SUMS`).
+- Release docs explain how to back up the keystore and passwords: losing them means future updates can no longer install over the app.
+- **One-time switch:** an APK signed with the new key cannot install over the current debug-signed app. The owner must uninstall the old app once. Data that only lives on that device would be lost, so the release notes must say plainly: sync (or make a backup) first, then uninstall, install the signed APK, sign in again. This is stated, not hidden.
+
+## Part 5: widgets use the owner's warning thresholds (owner approved as an extra)
+
+The Android widgets mark task age with fixed thresholds of 3 and 7 days. They must use the owner's own settings ("Needs attention after", "Urgent after", and the on/off switch for aging warnings), together with the counting days added in cycle 13, so the widget and the app always agree. The widget data stays readable by an older APK (new fields optional; missing fields fall back to 3 and 7).
+
 ## Constraints
 
 - Follow `CLAUDE.md` and the repository invariants: stone palette tokens only, types from `src/types/daymark.ts`, `max-w-[1800px]` desktop width, markdown comment format preserved.
@@ -67,6 +80,8 @@ Done when: on a tablet emulator in portrait and landscape, every top control is 
 - The owner can write a multi-page study note on the Samsung tablet with pens, highlighter and eraser on lined or grid paper, and it opens, read only, on phone and laptop after sync.
 - Highlighting words on a typed note with the S Pen produces highlights that stay with the words on every device.
 - Top controls are never under the status bar on tablet.
+- The release APK is signed with the new release key, the keystore and passwords are not in the repository, and the switch steps are in the release notes.
+- The widgets show the same warning levels as the app for the owner's thresholds and counting days.
 - Writing latency and palm rejection are checked on a real tablet or a tablet emulator with stylus input. The owner's own trial on the Samsung tablet is the final acceptance, since the APK has not yet been tried on a real device.
 
 ## Decisions after the builder check
