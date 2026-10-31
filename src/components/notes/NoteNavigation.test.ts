@@ -8,6 +8,28 @@ import { ViewSwitch } from './ViewSwitch';
 import type { StandaloneNote } from '../../types/daymark';
 const note = (id: string, title: string, folder = '', extra = {}): StandaloneNote => ({ id, title, folder, content: 'private body', tags: [], createdAt: '2026-10-29', updatedAt: '2026-10-29', ...extra });
 const base = (): NoteNavigationProps => ({ notes: [note('one', 'Java', 'Tech/Java', { pinned: true }), note('two', 'Root')], meta: { folders: [], dismissed: [] }, expanded: new Set(['tech', 'tech/java']), currentFolder: 'Tech', query: '', openNoteId: 'one', onExpandedChange: vi.fn(), onQueryChange: vi.fn(), onOpenNote: vi.fn(), onSelectFolder: vi.fn(), onNewNote: vi.fn(), onNewFolder: vi.fn(), onFolderAction: vi.fn(), dragEnabled: true });
+it('labels handwritten rows with a pen and page count', () => {
+  const el = parse({ ...base(), notes: [note('ink', 'Study', '', { kind: 'handwritten' })], inkPagesForNote: () => [{ page: 1 }, { page: 2 }] });
+  expect(el.querySelector('[aria-label="Handwritten note"]')).not.toBeNull();
+  expect(el.querySelector('[data-note-id=ink]')?.textContent).toContain('2 pages');
+});
+it('searches handwriting by title only in the column', () => {
+  const p = { ...base(), openNoteId: undefined, notes: [note('ink', 'Study', '', { kind: 'handwritten', content: 'Handwritten note: open Daymark 1.11 or later on a tablet to view.', tags: ['secret'] })] };
+  expect(parse({ ...p, query: 'tablet' }).querySelector('[data-note-id=ink]')).toBeNull();
+  expect(parse({ ...p, query: 'secret' }).querySelector('[data-note-id=ink]')).toBeNull();
+  expect(parse({ ...p, query: 'Study' }).querySelector('[data-note-id=ink]')).not.toBeNull();
+});
+it.each(['Lined', 'Grid', 'Blank'])('offers Handwritten note in the menu and creates chosen %s paper', paper => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  const onNewHandwrittenNote = vi.fn(); mount({ ...base(), onNewHandwrittenNote });
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Note templates"]')!.click());
+  const item = [...document.querySelectorAll<HTMLElement>('[role=menuitem]')].find(el => el.textContent?.includes('Handwritten note'))!;
+  expect(item).toBeDefined(); act(() => item.click());
+  const choice = [...document.querySelectorAll<HTMLButtonElement>('[role=dialog] button')].find(el => el.textContent === paper)!;
+  expect(choice).toBeDefined(); act(() => choice.click());
+  expect(onNewHandwrittenNote).toHaveBeenCalledWith(paper.toLowerCase());
+  expect(document.querySelector('[role=dialog]')).toBeNull();
+});
 const parse = (props = base()) => { const el = document.createElement('div'); el.innerHTML = renderToStaticMarkup(React.createElement(NoteNavigation, props)); return el; };
 let root: Root | undefined; let host: HTMLDivElement;
 afterEach(() => { if (root) act(() => root!.unmount()); root = undefined; host?.remove(); vi.unstubAllGlobals(); });

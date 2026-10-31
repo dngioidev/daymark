@@ -59,7 +59,7 @@ const searchCache = new WeakMap<StandaloneNote, { title: SearchField; content: S
 function searchText(note: StandaloneNote) {
   let value = searchCache.get(note);
   if (!value) {
-    value = { title: searchField(note.title), content: searchField(note.content), tags: note.tags.map(tag => tag.toLowerCase()) };
+    value = { title: searchField(note.title), content: searchField(note.kind === 'handwritten' ? '' : note.content), tags: note.kind === 'handwritten' ? [] : note.tags.map(tag => tag.toLowerCase()) };
     searchCache.set(note, value);
   }
   return value;

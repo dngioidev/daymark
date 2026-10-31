@@ -37,6 +37,28 @@ import { RelatedPanel } from './notes/RelatedPanel';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
+it.each(['lined', 'grid', 'blank'] as const)('creates and opens handwritten %s paper in the current folder', paper => {
+  (find(render(), el => el.type === NoteNavigation)!.props.onSelectFolder as (path: string) => void)('Study');
+  const nav = find(render(), el => el.type === NoteNavigation)!;
+  (nav.props.onNewHandwrittenNote as (paper: string) => void)(paper);
+  const created = update.mock.calls.at(-1)![0][0];
+  expect(created).toMatchObject({ kind: 'handwritten', paper, folder: 'Study', content: 'Handwritten note: open Daymark 1.11 or later on a tablet to view.' });
+  expect(find(render(false, { notes: [created, note] }), el => el.props.note === created)).toBeDefined();
+});
+it.each([false, true])('opens ink in the shared editor on compact=%s and preserves metadata edits', compact => {
+  const ink = { ...note, kind: 'handwritten' as const, paper: 'grid' as const };
+  const extra = { notes: [ink], inkPagesForNote: () => [], updateInkPage: vi.fn() };
+  (find(render(compact, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(ink.id);
+  const tree = render(compact, extra);
+  expect(find(tree, el => el.props.note === ink)).toBeDefined();
+  expect(find(tree, el => el.props.noteId === ink.id)).toBeUndefined();
+  (find(tree, el => el.props.id === 'note-title')!.props.onChange as (e: unknown) => void)({ target: { value: 'Renamed' } });
+  expect(update.mock.calls.at(-1)![0][0]).toMatchObject({ kind: 'handwritten', paper: 'grid', title: 'Renamed' });
+  find(tree, el => el.props['aria-label'] === 'Pin note to the top')!.props.onClick();
+  expect(update.mock.calls.at(-1)![0][0]).toMatchObject({ kind: 'handwritten', pinned: true, title: 'Renamed' });
+  (find(tree, el => el.type === FolderPicker)!.props.onChange as (path: string) => void)('Archive');
+  expect(update.mock.calls.at(-1)![0].find((n: StandaloneNote) => n.id === ink.id)).toMatchObject({ kind: 'handwritten', folder: 'Archive', pinned: true, title: 'Renamed' });
+});
 it('explains a loading editor and missing targets instead of silently ignoring Link', () => {
   const related = find(render(), el => el.type === RelatedPanel)!;
   (related.props.onLink as (id: string) => void)('missing');

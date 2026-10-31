@@ -95,6 +95,21 @@ beforeEach(() => {
   render(); hooks.effects.forEach((effect) => effect());
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it('remembers pen input on any app screen without unlocking for mouse or touch', () => {
+  const capture = render()[0].props.onPointerDownCapture as (e: { pointerType: string }) => void;
+  expect(capture).toBeTypeOf('function');
+  vi.mocked(localStorage.setItem).mockClear();
+  capture({ pointerType: 'mouse' }); capture({ pointerType: 'touch' });
+  expect(localStorage.setItem).not.toHaveBeenCalled();
+  capture({ pointerType: 'pen' });
+  expect(localStorage.setItem).toHaveBeenCalledWith('dm.ink.penSeen', '1');
+});
+it('does not write the capability preference again on each pen stroke', () => {
+  const capture = render()[0].props.onPointerDownCapture as (e: { pointerType: string }) => void;
+  vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'dm.ink.penSeen' ? '1' : null, setItem: vi.fn() });
+  capture({ pointerType: 'pen' });
+  expect(localStorage.setItem).not.toHaveBeenCalled();
+});
 it('preserves minimized rail across navigation, side changes, focus mode and remount', () => {
   const saved = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value) });

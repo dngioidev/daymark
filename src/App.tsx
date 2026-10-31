@@ -1,4 +1,5 @@
 import { useInkPages } from './hooks/useInkPages';
+import { rememberPen } from './ink/handwrittenNotes';
 import { resolveAlertDays } from './utils/alertDays';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppearance } from './hooks/useAppearance';
@@ -129,7 +130,7 @@ export default function App() {
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
-  const { ink, setInk } = useInkPages();
+  const { ink, setInk, inkPagesForNote, updateInkPage } = useInkPages();
   const [notemeta, setNoteMeta] = useState(loadNoteMeta);
   const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
   const backlogRef = React.useRef(backlog);
@@ -857,7 +858,7 @@ export default function App() {
   };
 
   return (
-    <div className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
+    <div onPointerDownCapture={event => { if (event.pointerType === 'pen') rememberPen(); }} className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
         <div className={`flex flex-row w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
@@ -924,7 +925,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView railCollapsed={railCollapsed} onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} railCollapsed={railCollapsed} onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
 
             {activeDesktopTab === 'backlog' && <BacklogView hideTitle {...backlogViewProps} />}
 
@@ -954,6 +955,8 @@ export default function App() {
           habitsSlot={<HabitsBar countingDays={alertDays.habits} data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}
+          inkPagesForNote={inkPagesForNote}
+          updateInkPage={updateInkPage}
           notes={notes}
           settings={settings}
           simulatedToday={today}

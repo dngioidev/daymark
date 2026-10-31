@@ -107,21 +107,23 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
   for (const note of notes) if (!titles.has(titleKey(note.title))) titles.set(titleKey(note.title), note.id);
   const frequency = new Map<string, number>();
   const entries = notes.map(note => {
+    const content = note.kind === 'handwritten' ? '' : note.content;
+    const tags = note.kind === 'handwritten' ? [] : note.tags;
     const titleTerms = tokenize(note.title);
-    const bodyTerms = tokenize(note.content);
+    const bodyTerms = tokenize(content);
     const weights = new Map<string, number>();
-    for (const [terms, weight] of [[titleTerms, FIELD_WEIGHT.title], [tokenize(note.tags.join(' ')), FIELD_WEIGHT.tags], [bodyTerms, FIELD_WEIGHT.body]] as const) {
+    for (const [terms, weight] of [[titleTerms, FIELD_WEIGHT.title], [tokenize(tags.join(' ')), FIELD_WEIGHT.tags], [bodyTerms, FIELD_WEIGHT.body]] as const) {
       for (const term of terms) weights.set(term, (weights.get(term) ?? 0) + weight);
     }
     for (const term of weights.keys()) frequency.set(term, (frequency.get(term) ?? 0) + 1);
     const outgoing = new Set<string>();
-    for (const target of extractWikiTargets(note.content)) {
+    for (const target of extractWikiTargets(content)) {
       const id = resolveWikiTarget(target, titles);
       if (id && id !== note.id) { outgoing.add(id); incoming.get(id)!.add(note.id); }
     }
     return { id: note.id, title: note.title, titlePhrase: words(note.title), titleTerms: new Set(titleTerms),
-      body: words(plainText(note.content)), hasBody: bodyTerms.length > 0,
-      tags: new Set(note.tags.map(tag => normalize(tag.trim()))), weights, outgoing };
+      body: words(plainText(content)), hasBody: bodyTerms.length > 0,
+      tags: new Set(tags.map(tag => normalize(tag.trim()))), weights, outgoing };
   });
   const idf = new Map<string, number>();
   for (const [term, count] of frequency) {

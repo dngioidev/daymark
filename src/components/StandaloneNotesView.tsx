@@ -10,6 +10,8 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react';
+import { createHandwrittenNote } from '../ink/handwrittenNotes';
+import type { InkPage } from '../types/daymark';
 import { EMPTY_NOTE_META, type NoteMeta, type StandaloneNote } from '../types/daymark';
 import { Menu } from './ui/Menu';
 import { buttonClass } from './ui/Dialog';
@@ -37,11 +39,16 @@ import { useRelatedNotes } from '../hooks/useRelatedNotes';
 import { addRelatedLink, buildNoteIndex, canLinkToTitle, pairKey } from '../utils/noteRelated';
 import { RelatedPanel, RelatedOverlay } from './notes/RelatedPanel';
 import { RelatedSheet } from './notes/RelatedSheet';
+const HandwrittenNoteView = React.lazy(() => import('./ink/HandwrittenNoteView').then(module => ({ default: module.HandwrittenNoteView })));
+const noInkPages = (): InkPage[] => [];
+const ignoreInkPage = (_page: InkPage) => {};
 const RichNoteEditor = React.lazy(() => import('./notes/RichNoteEditor'));
 const GraphView = React.lazy(() => import('./notes/graph/GraphView'));
 
 interface StandaloneNotesViewProps {
   notes: StandaloneNote[];
+  inkPagesForNote?: (noteId: string) => InkPage[];
+  updateInkPage?: (page: InkPage) => void;
   noteMeta?: NoteMeta;
   onUpdateNoteMeta?: (meta: NoteMeta) => void;
   onUpdateNotes: (notes: StandaloneNote[]) => void;
@@ -59,7 +66,7 @@ interface StandaloneNotesViewProps {
 type ViewMode = 'rich' | 'markdown';
 
 /** Notes: one navigation tree and a rich editor backed by Markdown. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, inkPagesForNote = noInkPages, updateInkPage = ignoreInkPage, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -189,7 +196,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       showToast('That note no longer exists. Suggestions are refreshing.', { tone: 'info' });
       related.refresh(); return;
     }
-    if (source.id === target.id || !canLinkToTitle(target.title)) return;
+    if (source.kind === 'handwritten' || source.id === target.id || !canLinkToTitle(target.title)) return;
     if (!graphActive && source.id === activeNote?.id && viewMode === 'rich') {
       if (!richEditorRef.current) { showToast('The editor is still loading, try again', { tone: 'info' }); return; }
       richEditorRef.current.appendRelatedLink(target.title);
@@ -356,6 +363,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     focusFolder={folderDialog ? undefined : folderFocus} onFolderFocusConsumed={() => setFolderFocus(undefined)} currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded} onToggleExpanded={toggleExpanded}
     query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
     onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}
+    inkPagesForNote={inkPagesForNote}
+    onNewHandwrittenNote={paper => {
+      const note = createHandwrittenNote(currentFolder, paper, new Date().toISOString());
+      latestNotes.current = [note, ...latestNotes.current];
+      onUpdateNotes(latestNotes.current); openNote(note.id); focusTitle.current = true;
+    }}
     templateItems={NOTE_TEMPLATES.map(template => ({ label: template.label, onSelect: () => createFromTemplate(template) }))}
     onNewFolder={() => folderAction('new', currentFolder)} onFolderAction={folderAction}
     onDropNote={moveNoteTo} onDropFolder={(path, parent) => { void changeFolder('move', path, parent); }}
@@ -429,7 +442,11 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
           </div>
 
           <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
-            {viewMode === 'markdown' ? (
+            {activeNote.kind === 'handwritten' ? (
+              <Suspense fallback={<div role="status" className="p-4">Loading handwritten note...</div>}>
+                <HandwrittenNoteView key={activeNote.id} note={activeNote} pages={inkPagesForNote(activeNote.id)} onUpdatePage={updateInkPage} />
+              </Suspense>
+            ) : viewMode === 'markdown' ? (
               <>
                 <div role="toolbar" aria-label="Formatting" className="sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 px-2 py-1 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
                   <button type="button" aria-label="Markdown" title="Markdown" aria-pressed={true} onClick={() => setViewMode('rich')} className="min-h-11 min-w-11 px-3 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"><FileCode className="w-4 h-4" /></button>
@@ -462,7 +479,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             )}
           </div>
           <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
-            {`Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
+            {activeNote.kind === 'handwritten' ? `Saved · ${Math.max(1, inkPagesForNote(activeNote.id).length)} pages · edited ${editedLabel}` : `Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
           </footer>
         </>
       ) : (

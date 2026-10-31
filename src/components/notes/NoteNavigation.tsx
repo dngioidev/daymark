@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Folder, MoreHorizontal, Pin, Plus, Search, X } from 'lucide-react';
-import type { NoteMeta, StandaloneNote } from '../../types/daymark';
+import { ChevronDown, ChevronRight, Folder, MoreHorizontal, Pin, PenLine, Plus, Search, X } from 'lucide-react';
+import { Dialog, buttonClass } from '../ui/Dialog';
+import type { InkPage, NoteMeta, StandaloneNote } from '../../types/daymark';
 import { buildNoteTreeRows, noteTooltip, visibleRowKey, type NoteTreeRow } from '../../utils/noteTree';
 import { normalizeFolderPath } from '../../utils/noteFolders';
 import { Menu, type MenuItem } from '../ui/Menu';
@@ -13,6 +14,8 @@ export interface NoteNavigationProps {
   expanded: ReadonlySet<string>; onExpandedChange(next: Set<string>): void;
   query: string; onQueryChange(q: string): void; onOpenNote(id: string): void;
   onSelectFolder(path: string): void; onNewNote(): void; templateItems?: MenuItem[];
+  onNewHandwrittenNote?(paper: NonNullable<StandaloneNote['paper']>): void;
+  inkPagesForNote?: (noteId: string) => Pick<InkPage, 'page'>[];
   onNewFolder(): void; onFolderAction(action: FolderAction, path: string): void;
   onDropNote?(noteId: string, folderPath: string): void; onDropFolder?(path: string, newParentPath: string): void;
   focusFolder?: { path: string }; onFolderFocusConsumed?(): void;
@@ -34,6 +37,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
   const rows = useMemo(() => modelRows.filter(row => row.kind !== 'status'), [modelRows]);
   const byId = useMemo(() => new Map(notes.map(note => [note.id, note])), [notes]);
   const [focusKey, setFocusKey] = useState('');
+  const [choosePaper, setChoosePaper] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [touch, setTouch] = useState(false);
   useEffect(() => {
@@ -194,14 +198,14 @@ export function NoteNavigation(props: NoteNavigationProps) {
       onDragOver={dragEnabled && folder ? event => event.preventDefault() : undefined} onDrop={dragEnabled && folder ? event => drop(event, row.path) : undefined}>
       {folder ? <>{row.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Folder size={14} className="shrink-0" /><span className="truncate flex-1">{row.name}</span><span aria-hidden="true" data-count={row.totalNotes} className="text-xs text-stone-500 after:content-[attr(data-count)]" />
         <span onClick={event => event.stopPropagation()}><Menu returnFocusTo={() => elements.current.get(key) ?? null} sheetTitle={row.path} items={(['new', 'rename', 'move', 'delete'] as const).map(action => ({ label: action === 'new' ? 'New folder inside' : `${action[0].toUpperCase()}${action.slice(1)} folder`, onSelect: () => props.onFolderAction(action, row.path) }))} trigger={trigger => <button type="button" {...trigger} tabIndex={-1} aria-label={`Actions for ${row.path}`} className={`${compact ? 'w-11 h-11' : 'w-7 h-8'} shrink-0 flex items-center justify-center`}><MoreHorizontal size={16} /></button>} /></span>
-      </> : <><span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
+      </> : <>{note?.kind === 'handwritten' && <PenLine size={14} aria-label="Handwritten note" className="shrink-0" />}<span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{note?.kind === 'handwritten' && <span className="shrink-0 text-xs text-stone-500">{Math.max(1, props.inkPagesForNote?.(note.id).length ?? 0)} pages</span>}{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
     </div>;
   };
   return <div data-notes-column className="flex flex-1 min-h-0 min-w-0 flex-col rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
     <div className="shrink-0 p-2 space-y-2">
       <div className="relative flex items-center gap-1"><Search size={14} className="absolute left-2 text-stone-500" /><label htmlFor="notes-search" className="sr-only">Search notes</label><input id="notes-search" ref={searchInput} type="search" placeholder="Search notes" value={query} onChange={event => props.onQueryChange(event.target.value)} className={`min-w-0 w-full ${notesControlHeight(compact)} pl-7 pr-8 rounded-lg bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700`} />{query && <button type="button" aria-label="Clear search" className={`absolute right-0 ${notesControlHeight(compact)} ${compact ? 'w-11' : 'w-11 sm:w-9'} inline-flex items-center justify-center`} onClick={() => props.onQueryChange('')}><X size={14} /></button>}</div>
       <div role="status" aria-live="polite" className="text-xs text-stone-600 dark:text-stone-400">{query.trim() ? `${matchCount} ${matchCount === 1 ? 'note matches' : 'notes match'}` : ''}</div>
-      <div data-testid="notes-actions-row" className="flex items-center gap-1 text-xs"><div className="inline-flex items-center"><button type="button" onClick={props.onNewNote} className={`inline-flex items-center ${notesControlHeight(compact)} px-1 rounded-l bg-stone-200 dark:bg-stone-700`}><Plus size={14} /> New note</button><Menu className="inline-flex items-center" sheetTitle="Note templates" items={props.templateItems ?? []} trigger={trigger => <button type="button" {...trigger} aria-label="Note templates" className={`inline-flex items-center justify-center ${notesControlHeight(compact)} px-1 rounded-r bg-stone-200 dark:bg-stone-700`}><ChevronDown size={14} /></button>} /></div><button type="button" aria-label="New folder" className={`inline-flex items-center justify-center ${notesControlHeight(compact)} px-1 rounded hover:bg-stone-100 dark:hover:bg-stone-800`} onClick={props.onNewFolder}>New folder</button>{props.viewSwitch}</div>
+      <div data-testid="notes-actions-row" className="flex items-center gap-1 text-xs"><div className="inline-flex items-center"><button type="button" onClick={props.onNewNote} className={`inline-flex items-center ${notesControlHeight(compact)} px-1 rounded-l bg-stone-200 dark:bg-stone-700`}><Plus size={14} /> New note</button><Menu className="inline-flex items-center" sheetTitle="Note templates" items={[...(props.templateItems ?? []), ...(props.onNewHandwrittenNote ? [{ label: 'Handwritten note', icon: <PenLine size={14} />, onSelect: () => setChoosePaper(true) }] : [])]} trigger={trigger => <button type="button" {...trigger} aria-label="Note templates" className={`inline-flex items-center justify-center ${notesControlHeight(compact)} px-1 rounded-r bg-stone-200 dark:bg-stone-700`}><ChevronDown size={14} /></button>} /></div><button type="button" aria-label="New folder" className={`inline-flex items-center justify-center ${notesControlHeight(compact)} px-1 rounded hover:bg-stone-100 dark:hover:bg-stone-800`} onClick={props.onNewFolder}>New folder</button>{props.viewSwitch}</div>
     </div>
     {modelRows.filter(row => row.kind === 'status').map(row => <p key={visibleRowKey(row)} className="px-2 text-xs text-stone-600 dark:text-stone-400">{row.text}</p>)}
     <div ref={container} onScroll={windowing.onScroll} onBlur={event => {
@@ -209,6 +213,9 @@ export function NoteNavigation(props: NoteNavigationProps) {
     }} className="flex-1 min-h-0 overflow-y-auto" role="tree" aria-label="Notes" tabIndex={-1}>
       <div role="none" className="relative" style={windowing.virtual ? { height: windowing.totalHeight } : undefined}>{rows.some(row => row.kind === 'pinned-heading') && <div role="group" aria-label="Pinned" style={windowing.virtual ? { position: 'relative', height: rows.filter(row => row.kind === 'pinned-heading' || (row.kind === 'note' && row.group === 'pinned')).length * rowHeight } : undefined} className={`before:content-[attr(aria-label)] before:flex before:items-center before:px-2 before:text-xs before:font-semibold before:text-stone-500 ${compact ? 'before:h-11' : 'before:h-8'}`}>{windowing.indices.filter(index => { const row = rows[index]; return row.kind === 'note' && row.group === 'pinned'; }).map(renderRow)}</div>}{windowing.indices.filter(index => { const row = rows[index]; return row.kind !== 'pinned-heading' && !(row.kind === 'note' && row.group === 'pinned'); }).map(renderRow)}</div>
     </div>
+    {choosePaper && <Dialog isOpen onClose={() => setChoosePaper(false)} title="Handwritten note" description="Choose paper" size="sm" variant="sheet">
+      <div className="flex flex-wrap gap-2">{(['lined', 'grid', 'blank'] as const).map(paper => <button type="button" key={paper} className={buttonClass.secondary} onClick={() => { setChoosePaper(false); props.onNewHandwrittenNote?.(paper); }}>{paper[0].toUpperCase() + paper.slice(1)}</button>)}</div>
+    </Dialog>}
     {dragEnabled && dragging && <div role="group" aria-label="Move to top level" onDragOver={event => event.preventDefault()} onDrop={event => drop(event, '')} className="shrink-0 py-1 text-center text-xs border-t border-stone-300 dark:border-stone-700">Move to top level</div>}
   </div>;
 }

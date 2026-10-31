@@ -1,7 +1,7 @@
 import { resolveAlertDays } from '../../utils/alertDays';
 import React, { useState } from 'react';
 import { Calendar, CalendarDays, Download, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
-import { AppSettings, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
+import { AppSettings, InkPage, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
@@ -21,6 +21,8 @@ interface MobileAppShellProps {
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
   notes: StandaloneNote[];
+  inkPagesForNote?: (noteId: string) => InkPage[];
+  updateInkPage?: (page: InkPage) => void;
   noteMeta?: NoteMeta;
   onUpdateNoteMeta?: (meta: NoteMeta) => void;
   settings: AppSettings;
@@ -65,6 +67,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   currentDocument,
   dailyDocs,
   notes,
+  inkPagesForNote,
+  updateInkPage,
   noteMeta,
   onUpdateNoteMeta,
   settings,
@@ -229,7 +233,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView compact notes={notes} noteMeta={noteMeta} onUpdateNoteMeta={onUpdateNoteMeta} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+          {activeTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} compact notes={notes} noteMeta={noteMeta} onUpdateNoteMeta={onUpdateNoteMeta} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
           {activeTab === 'backlog' && backlogSlot}
         </main>
 

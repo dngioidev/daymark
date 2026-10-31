@@ -26,8 +26,8 @@ export function searchVault(docs: DailyDocument[], notes: StandaloneNote[], quer
     }
   }
   for (const note of notes) {
-    if (note.title.toLowerCase().includes(q) || note.content.toLowerCase().includes(q)) {
-      results.push({ kind: 'note', noteId: note.id, title: note.title, snippet: notePreview(note.content) });
+    if (note.title.toLowerCase().includes(q) || (note.kind !== 'handwritten' && note.content.toLowerCase().includes(q))) {
+      results.push({ kind: 'note', noteId: note.id, title: note.title, snippet: note.kind === 'handwritten' ? '' : notePreview(note.content) });
     }
   }
   for (const item of visibleBacklog(backlog)) {
