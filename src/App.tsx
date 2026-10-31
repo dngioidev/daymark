@@ -869,7 +869,7 @@ export default function App() {
             hidden={activeDesktopTab === 'notes' && focusNotes}
           />
 
-          <main className={`dm-backdrop-surface flex-1 min-w-0 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : ''}`}>
+          <main className={`dm-backdrop-surface flex-1 min-w-0 w-full bg-stone-50 dark:bg-stone-950 ${activeDesktopTab === 'notes' ? 'min-h-0 flex overflow-hidden' : 'pt-[var(--dm-safe-top)]'}`}>
             <h1 className="sr-only">{DESKTOP_PAGE_LABELS[activeDesktopTab]}</h1>
             {activeDesktopTab === 'today' && (
               <TodayView countingDays={alertDays.tasks}

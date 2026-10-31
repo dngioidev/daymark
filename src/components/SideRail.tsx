@@ -64,7 +64,7 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
   return (
     <nav aria-label="Main" data-side={side} data-collapsed={collapsed} style={{ gridTemplateRows: 'repeat(5, 1fr)' }}
       className={`dm-side-rail sticky top-0 z-40 grid h-dvh ${collapsed ? 'w-[64px]' : 'w-[168px]'} shrink-0 self-start bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] backdrop-blur-md ${side === 'right' ? 'order-last border-l' : 'border-r'} border-stone-200 dark:border-stone-800`}>
-      <div data-rail-part="title" className={`min-h-0 flex flex-col justify-start overflow-y-auto py-1 text-center ${collapsed ? 'px-0 [scrollbar-width:thin]' : 'px-2'}`}>
+      <div data-rail-part="title" className={`min-h-0 flex flex-col justify-start overflow-y-auto mt-[var(--dm-safe-top)] py-1 text-center ${collapsed ? 'px-0 [scrollbar-width:thin]' : 'px-2'}`}>
         <RailButton side={side} type="button" aria-label={toggleLabel} aria-expanded={!collapsed} tooltip={toggleLabel} onClick={onToggleCollapsed} className="shrink-0 inline-flex min-h-8 items-center justify-center rounded-md hover:bg-stone-500/10"><ToggleIcon className="w-5 h-5" aria-hidden="true" /></RailButton>
         {!collapsed && <span className="shrink-0 font-bold tracking-tight text-base leading-5">Daymark</span>}
         {!collapsed && <span className="shrink-0 text-[12px] leading-4 truncate" title={todayLabel}>{todayLabel}</span>}

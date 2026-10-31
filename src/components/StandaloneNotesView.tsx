@@ -366,7 +366,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     <div className="dm-card flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
       {activeNote ? (
         <>
-          <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-stone-200 dark:border-stone-800 space-y-1">
+          <div className={`shrink-0 px-2 sm:px-3 pb-2 ${phone ? 'pt-2' : 'pt-[calc(0.5rem+var(--dm-safe-top))]'} border-b border-stone-200 dark:border-stone-800 space-y-1`}>
             <div className="flex min-w-0 items-center gap-1">
               <button type="button" onClick={event => { setFocusMode(false); setPane('list'); if (!phone && drawers) { notesButton.current = event.currentTarget; setFolderFocus(undefined); setDrawer(true); } }} aria-label="Back to notes" className={drawers ? iconBtn : 'hidden'}>
                 <ArrowLeft className="w-5 h-5" />
@@ -479,7 +479,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   );
 
   return (
-    <div className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
+    <div style={phone && !compact ? { paddingTop: 'calc(0.5rem + var(--dm-safe-top))' } : undefined} className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
       {phone && pane === 'list' && (compact ? <h1 data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
       {drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
       {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
@@ -491,12 +491,12 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">
           {!focusMode && !drawers && <div role="group" aria-label="Notes navigation" className="shrink-0 min-h-0 flex">
             <aside aria-label="Folder navigation" className={(treeMinimized ? 'w-14' : 'w-72') + ' shrink-0 min-h-0 flex flex-col border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1'}>
-              <button type="button" aria-label={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} title={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} className="min-h-11 shrink-0 w-full text-stone-700 dark:text-stone-200" onClick={() => {
+              <button type="button" aria-label={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} title={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} className="min-h-[calc(2.75rem+var(--dm-safe-top))] pt-[var(--dm-safe-top)] shrink-0 w-full text-stone-700 dark:text-stone-200" onClick={() => {
                 focusSearch.current = false;
                 if (treeMinimized && prefs.tree === 'open') { setFolderFocus(undefined); setDrawer(true); return; }
                 const next = { ...loadPanePrefs(), tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
               }}>{treeMinimized ? <ChevronRight className="w-4 h-4 mx-auto" aria-hidden="true" /> : <span className="flex items-center justify-center gap-1"><ChevronLeft className="w-4 h-4" aria-hidden="true" />Notes</span>}</button>
-              {treeMinimized ? <NotesStrip tree={tree} currentFolder={currentFolder} onSearch={() => expandColumn(true)}
+              {treeMinimized ? <NotesStrip topInset={false} tree={tree} currentFolder={currentFolder} onSearch={() => expandColumn(true)}
                 onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])} onNewFolder={() => folderAction('new', currentFolder)}
                 onFolder={path => { revealFolder(path); expandColumn(); }} onExpand={() => expandColumn()} /> : list}
             </aside>

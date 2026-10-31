@@ -154,7 +154,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           frame ? `sm:max-w-[430px] sm:h-[860px] ${activeTab === 'notes' ? 'sm:flex-initial' : 'sm:flex-none'} sm:border-4 sm:border-stone-800 sm:rounded-[40px] sm:overflow-hidden relative` : `max-w-2xl ${activeTab === 'notes' ? '' : 'min-h-screen'}`
         }`}
       >
-        <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-1 min-[480px]:gap-2 sticky top-0 z-30">
+        <header className="shrink-0 px-4 pb-2 pt-[max(0.5rem,var(--dm-safe-top))] bg-[var(--dm-header-bg)] text-[var(--dm-header-fg)] border-b border-stone-200 dark:border-stone-800 flex items-center gap-1 min-[480px]:gap-2 sticky top-0 z-30">
           <span className="hidden min-[480px]:inline-block shrink-0 w-2.5 h-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
           <span data-mobile-title className="min-w-[4.5rem] shrink-0 truncate font-bold text-base tracking-tight mr-auto">Daymark</span>
           <button type="button" onClick={onOpenSearch} aria-label="Search (Ctrl Shift F)" className="inline-flex items-center justify-center shrink-0 w-11 h-11 rounded-lg">

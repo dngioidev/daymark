@@ -199,12 +199,12 @@ export default function GraphView(props: GraphViewProps) {
   }, []);
 
   return <div className="flex flex-1 min-h-0 min-w-0 gap-2 text-stone-900 dark:text-stone-100" aria-label="Knowledge graph">
-    <aside aria-label="Graph filters" className={`${filterMin ? 'w-12' : 'w-52'} shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
+    <aside aria-label="Graph filters" className={`${filterMin ? 'w-12' : 'w-52'} mt-[var(--dm-safe-top)] shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
       <button type="button" className={`${button} w-full`} aria-label={`${filterMin ? 'Expand' : 'Minimize'} graph filters`} aria-expanded={!filterMin} onClick={() => togglePane('graphFilters')}>{filterMin ? <ChevronRight size={16} aria-hidden="true" className="mx-auto" /> : <span className="flex items-center justify-center gap-1"><ChevronLeft size={16} aria-hidden="true" />Filters</span>}</button>
       {!filterMin && <GraphFilters tree={props.folderTree} tags={tags} options={options} onChange={setOptions} activeNoteId={selectedId ?? props.activeNoteId} />}
     </aside>
     <div className="flex-1 flex flex-col min-w-0 min-h-0 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950 overflow-hidden">
-      <div role="group" aria-label="Graph controls" className="flex flex-wrap gap-1 p-2 items-center">
+      <div role="group" aria-label="Graph controls" className="flex flex-wrap gap-1 px-2 pb-2 pt-[calc(0.5rem+var(--dm-safe-top))] items-center">
         {props.onViewChange && <ViewSwitch size="toolbar" value="graph" focusOnMount={props.focusViewSwitch} onChange={props.onViewChange} />}
         <button type="button" className={button} aria-label="List view" aria-pressed={listView} onClick={() => setListView(!listView)}>List view</button>
         <button type="button" className={button} aria-label="Zoom in" onClick={() => zoomAt(1.25)}><Plus size={16} aria-hidden="true" className="mx-auto" /></button>
@@ -244,7 +244,7 @@ export default function GraphView(props: GraphViewProps) {
       {visibleEdge && <div className="p-3 border-t" role="group" aria-label="Selected suggestion"><p>{byId.get(visibleEdge.a)?.title} ↔ {byId.get(visibleEdge.b)?.title}</p><ConnectionActions {...actions} a={visibleEdge.a} b={visibleEdge.b} target={byId.get(visibleEdge.b)!} /></div>}
       <div ref={list} className={listView ? 'p-3 overflow-y-auto flex-1 min-h-0' : 'sr-only'}><GraphList nodes={listInput.nodes} edges={listInput.edges} matches={listInput.matches} {...actions} tabIndex={listView ? 0 : -1} /></div>
     </div>
-    <aside aria-label="Graph detail" className={`${detailMin ? 'w-12' : 'w-56'} shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
+    <aside aria-label="Graph detail" className={`${detailMin ? 'w-12' : 'w-56'} mt-[var(--dm-safe-top)] shrink-0 overflow-y-auto rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-950`}>
       <button type="button" className={`${button} w-full`} aria-label={`${detailMin ? 'Expand' : 'Minimize'} graph detail`} aria-expanded={!detailMin} onClick={() => togglePane('graphDetail')}>{detailMin ? <ChevronLeft size={16} aria-hidden="true" className="mx-auto" /> : <span className="flex items-center justify-center gap-1">Detail<ChevronRight size={16} aria-hidden="true" /></span>}</button>
       {!detailMin && <GraphDetail nodes={graph.nodes} edges={graph.edges} selectedId={selectedId} {...actions} />}
     </aside>

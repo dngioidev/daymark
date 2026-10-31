@@ -9,6 +9,8 @@
 
 @layer base {
   :root {
+    /* Capacitor SystemBars supplies the native inset when WebView env() is zero. */
+    --dm-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
     --dm-accent: #b45309;
     --dm-accent-fg: #ffffff;
     --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;

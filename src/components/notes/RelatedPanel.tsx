@@ -46,10 +46,10 @@ export function RelatedContents({ suggestions, linked, hidden, onLink, onDismiss
   </div>;
 }
 
-export function RelatedPanel(props: RelatedPanelProps) {
+export function RelatedPanel({ topInset = true, ...props }: RelatedPanelProps & { topInset?: boolean }) {
   const count = props.suggestions.length;
   const countLabel = `${count} ${count === 1 ? 'suggestion' : 'suggestions'}`;
-  return <aside aria-label={props.minimized ? 'Related minimized' : 'Related panel'} className={`${props.minimized ? 'w-14' : 'w-64'} shrink-0 min-h-0 overflow-y-auto rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100`}>
+  return <aside aria-label={props.minimized ? 'Related minimized' : 'Related panel'} className={`${props.minimized ? 'w-14' : 'w-64'} ${topInset ? 'mt-[var(--dm-safe-top)]' : ''} shrink-0 min-h-0 overflow-y-auto rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100`}>
     <button type="button" data-related-toggle className="min-h-11 w-full px-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800" aria-expanded={!props.minimized || !!props.overlayOpen} aria-label={props.minimized ? `${props.overlayOpen ? 'Close' : 'Expand'} Related, ${countLabel}` : 'Minimize Related'} onClick={props.onToggleMinimized}>
       {props.minimized ? <><ChevronRight size={14} aria-hidden="true" className="mx-auto" /><span className="block rounded-full bg-stone-200 dark:bg-stone-700 mx-auto w-8">{props.suggestions.length}</span></> : <span className="flex items-center justify-center gap-1">Related<ChevronLeft size={14} aria-hidden="true" /></span>}
     </button>
@@ -82,7 +82,7 @@ export function RelatedOverlay({ onClose, ...props }: RelatedPanelProps & { onCl
       opener?.focus();
     };
   }, []);
-  return <div ref={panelRef} role="dialog" aria-label="Related" className="absolute inset-y-0 right-0 z-40 w-64 overflow-y-auto rounded-xl shadow-xl bg-white dark:bg-stone-900">
-    <RelatedPanel {...props} minimized={false} onToggleMinimized={() => { props.onToggleMinimized(); onClose(); }} />
+  return <div ref={panelRef} role="dialog" aria-label="Related" className="absolute top-[var(--dm-safe-top)] bottom-0 right-0 z-40 w-64 overflow-y-auto rounded-xl shadow-xl bg-white dark:bg-stone-900">
+    <RelatedPanel {...props} topInset={false} minimized={false} onToggleMinimized={() => { props.onToggleMinimized(); onClose(); }} />
   </div>;
 }
