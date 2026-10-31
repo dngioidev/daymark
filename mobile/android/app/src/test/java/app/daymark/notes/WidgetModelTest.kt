@@ -5,6 +5,39 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WidgetModelTest {
+    @Test fun `severity uses owner thresholds and can be disabled`() {
+        val aging = Aging(2, 5, true)
+        assertEquals(WidgetModel.Severity.NORMAL, WidgetModel.severity(1, aging))
+        assertEquals(WidgetModel.Severity.ATTENTION, WidgetModel.severity(2, aging))
+        assertEquals(WidgetModel.Severity.ATTENTION, WidgetModel.severity(4, aging))
+        assertEquals(WidgetModel.Severity.CRITICAL, WidgetModel.severity(5, aging))
+        assertEquals(WidgetModel.Severity.NORMAL, WidgetModel.severity(9, Aging(enabled = false)))
+    }
+
+    @Test fun `legacy snapshot parsing defaults to 3 7 and enabled`() {
+        val snapshot = WidgetSnapshot.parse("""{"date":"2026-11-02","tasks":[{"id":"a","title":"Task a","createdDate":"2026-10-30"}]}""")
+        assertEquals(Aging(3, 7, true), snapshot.aging)
+        assertEquals("all", snapshot.tasks.single().countingDays)
+        val age = WidgetModel.ageDays(snapshot.tasks.single().createdDate, LocalDate.parse(snapshot.date))
+        assertEquals(WidgetModel.Severity.ATTENTION, WidgetModel.severity(age, snapshot.aging))
+    }
+
+    @Test fun `parsed owner thresholds work with counted days`() {
+        val snapshot = WidgetSnapshot.parse("""{"date":"2026-11-02","aging":{"attentionDays":2,"criticalDays":5,"enabled":true},"tasks":[{"id":"a","title":"Task a","status":"in-progress","createdDate":"2026-10-30","section":"Work","countingDays":"weekdays"}]}""")
+        assertEquals(Aging(2, 5, true), snapshot.aging)
+        assertEquals("Work", snapshot.tasks.single().section)
+        val task = snapshot.tasks.single()
+        val age = WidgetModel.ageDays(task.createdDate, LocalDate.parse(snapshot.date), task.countingDays)
+        assertEquals(1L, age)
+        assertEquals(WidgetModel.Severity.NORMAL, WidgetModel.severity(age, snapshot.aging))
+    }
+
+    @Test fun `parsing preserves disabled aging warnings`() {
+        val snapshot = WidgetSnapshot.parse("""{"date":"2026-11-02","tasks":[],"aging":{"attentionDays":2,"criticalDays":5,"enabled":false}}""")
+        assertEquals(Aging(2, 5, false), snapshot.aging)
+        assertEquals(WidgetModel.Severity.NORMAL, WidgetModel.severity(9, snapshot.aging))
+    }
+
     @Test fun `task age counts selected local days`() {
         val monday = LocalDate.parse("2026-11-02")
         assertEquals(1L, WidgetModel.ageDays("2026-10-30", monday, "weekdays"))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DailyDocument, TaskItem } from '../types/daymark';
+import { AppSettings, DailyDocument, TaskItem } from '../types/daymark';
 import { toggleTaskDoneInDocument } from './taskActions';
 import { buildWidgetSnapshot } from './widgetSnapshot';
 
@@ -25,6 +25,23 @@ const doc: DailyDocument = {
 };
 
 describe('buildWidgetSnapshot', () => {
+  it.each([true, false])('carries the owner aging settings (enabled=%s) without losing snapshot data', (enabled) => {
+    const settings: Pick<AppSettings, 'agingThresholds'> = {
+      agingThresholds: { attentionDays: 2, criticalDays: 5, enabled, statuses: ['in-progress', 'blocked'] },
+    };
+    const snapshot = buildWidgetSnapshot(doc, '2026-10-20', 'weekdays', settings.agingThresholds);
+    expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
+      date: '2026-10-20',
+      updatedAt: expect.any(String),
+      aging: { attentionDays: 2, criticalDays: 5, enabled },
+      tasks: [
+        { id: 'b', title: 'Task b', status: 'in-progress', createdDate: '2026-10-18', section: 'Work', countingDays: 'weekdays' },
+        { id: 'd', title: 'Task d', status: 'blocked', createdDate: '2026-10-18', section: 'Ideas', countingDays: 'weekdays' },
+        { id: 'a', title: 'Task a', status: 'done', createdDate: '2026-10-18', section: 'Work', countingDays: 'weekdays' },
+      ],
+    });
+  });
+
   it('preserves section names for optional widget subheaders', () => {
     expect(buildWidgetSnapshot(doc, '2026-10-20').tasks.map((t) => t.section)).toEqual(['Work', 'Ideas', 'Work']);
   });

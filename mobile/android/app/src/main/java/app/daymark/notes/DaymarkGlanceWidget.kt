@@ -111,7 +111,7 @@ class DaymarkGlanceWidget : GlanceAppWidget() {
             val tasks = remember(version) { snapshot?.let { WidgetModel.tasksForDisplay(it, today) } ?: emptyList() }
             val size = LocalSize.current
             if (size.width < 180.dp) SmallContent(tasks, snapshot != null, paint)
-            else ListContent(tasks, today, snapshot != null, size, paint)
+            else ListContent(tasks, today, snapshot != null, size, paint, snapshot?.aging ?: Aging())
         }
     }
 
@@ -150,7 +150,7 @@ private fun SmallContent(tasks: List<WidgetTask>, hasData: Boolean, paint: Widge
 }
 
 @Composable
-private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean, size: DpSize, paint: WidgetPaint) {
+private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Boolean, size: DpSize, paint: WidgetPaint, aging: Aging) {
     val active = tasks.filter { !it.isDone }
     val done = tasks.size - active.size
     val layout = WidgetModel.layout(tasks, paint.style, size.height.value)
@@ -188,7 +188,7 @@ private fun ListContent(tasks: List<WidgetTask>, today: LocalDate, hasData: Bool
                                 Text(text = header, maxLines = 1, style = paint.type(paint.muted, 12))
                             }
                         }
-                        TaskRow(row.task, today, paint)
+                        TaskRow(row.task, today, paint, aging)
                     }
                 }
                 if (layout.hidden > 0) {
@@ -231,7 +231,7 @@ private fun EmptyMessage(text: String, paint: WidgetPaint) {
 }
 
 @Composable
-private fun TaskRow(task: WidgetTask, today: LocalDate, paint: WidgetPaint) {
+private fun TaskRow(task: WidgetTask, today: LocalDate, paint: WidgetPaint, aging: Aging) {
     val age = WidgetModel.ageDays(task.createdDate, today, task.countingDays)
     Row(
         modifier = GlanceModifier.fillMaxWidth().height(paint.style.rowHeightDp.dp),
@@ -253,7 +253,7 @@ private fun TaskRow(task: WidgetTask, today: LocalDate, paint: WidgetPaint) {
             modifier = GlanceModifier.defaultWeight().clickable(openAppAction()),
         )
         if (paint.style.show.age && !task.isDone && age > 0) {
-            val color = when (WidgetModel.severity(age)) {
+            val color = when (WidgetModel.severity(age, aging)) {
                 WidgetModel.Severity.CRITICAL -> Red
                 WidgetModel.Severity.ATTENTION -> paint.accent
                 WidgetModel.Severity.NORMAL -> paint.muted

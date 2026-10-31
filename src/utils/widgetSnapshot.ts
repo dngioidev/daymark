@@ -1,4 +1,4 @@
-import { CountingDays, DailyDocument } from '../types/daymark';
+import { AgingThresholds, CountingDays, DailyDocument } from '../types/daymark';
 
 /** Compact view of today's tasks handed to the native Android home-screen widget. */
 export interface WidgetTask {
@@ -15,6 +15,7 @@ export interface WidgetSnapshot {
   date: string;
   tasks: WidgetTask[];
   updatedAt: string;
+  aging?: Pick<AgingThresholds, 'attentionDays' | 'criticalDays' | 'enabled'>;
 }
 
 const MAX_WIDGET_TASKS = 30;
@@ -24,7 +25,12 @@ const MAX_WIDGET_TASKS = 30;
  * Archived tasks are omitted; done tasks are kept so the widget can show "x/y done".
  * Active tasks come first, in note order, then done ones.
  */
-export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: string, mode: CountingDays = 'all'): WidgetSnapshot {
+export function buildWidgetSnapshot(
+  doc: DailyDocument | undefined,
+  today: string,
+  mode: CountingDays = 'all',
+  aging?: WidgetSnapshot['aging'],
+): WidgetSnapshot {
   const all = (doc?.headings ?? [])
     .flatMap((h) => h.items.map((t) => ({ ...t, section: h.name })))
     .filter((t) => t.status !== 'archived')
@@ -43,5 +49,6 @@ export function buildWidgetSnapshot(doc: DailyDocument | undefined, today: strin
     date: today,
     tasks: [...active, ...done].slice(0, MAX_WIDGET_TASKS),
     updatedAt: new Date().toISOString(),
+    aging: aging ? { attentionDays: aging.attentionDays, criticalDays: aging.criticalDays, enabled: aging.enabled } : undefined,
   };
 }

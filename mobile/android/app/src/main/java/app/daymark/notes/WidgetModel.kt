@@ -2,6 +2,8 @@ package app.daymark.notes
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** A task as shown on the home-screen widget. Mirrors `WidgetTask` in src/utils/widgetSnapshot.ts. */
 data class WidgetTask(
@@ -15,7 +17,34 @@ data class WidgetTask(
     val isDone: Boolean get() = status == "done"
 }
 
-data class WidgetSnapshot(val date: String, val tasks: List<WidgetTask>)
+data class Aging(val attentionDays: Int = 3, val criticalDays: Int = 7, val enabled: Boolean = true)
+
+data class WidgetSnapshot(val date: String, val tasks: List<WidgetTask>, val aging: Aging = Aging()) {
+    companion object {
+        fun parse(json: String): WidgetSnapshot {
+            val obj = JSONObject(json)
+            val arr = obj.optJSONArray("tasks") ?: JSONArray()
+            val tasks = (0 until arr.length()).map { i ->
+                val t = arr.getJSONObject(i)
+                WidgetTask(
+                    id = t.getString("id"),
+                    title = t.optString("title"),
+                    status = t.optString("status", "in-progress"),
+                    createdDate = t.optString("createdDate"),
+                    section = t.optString("section"),
+                    countingDays = t.optString("countingDays", "all"),
+                )
+            }
+            val aging = obj.optJSONObject("aging")
+            val defaults = Aging()
+            return WidgetSnapshot(obj.optString("date"), tasks, Aging(
+                attentionDays = aging?.optInt("attentionDays", defaults.attentionDays) ?: defaults.attentionDays,
+                criticalDays = aging?.optInt("criticalDays", defaults.criticalDays) ?: defaults.criticalDays,
+                enabled = aging?.optBoolean("enabled", defaults.enabled) ?: defaults.enabled,
+            ))
+        }
+    }
+}
 data class WidgetDisplayRow(val task: WidgetTask, val sectionHeader: String?)
 data class WidgetLayout(val rows: List<WidgetDisplayRow>, val hidden: Int)
 
@@ -82,10 +111,11 @@ object WidgetModel {
         return count
     }
 
-    /** Same thresholds as the web app defaults: attention from 3 days, critical from 7. */
-    fun severity(ageDays: Long): Severity = when {
-        ageDays >= 7 -> Severity.CRITICAL
-        ageDays >= 3 -> Severity.ATTENTION
+    /** Owner's warning thresholds, with web app defaults for legacy snapshots. */
+    fun severity(ageDays: Long, aging: Aging = Aging()): Severity = when {
+        !aging.enabled -> Severity.NORMAL
+        ageDays >= aging.criticalDays -> Severity.CRITICAL
+        ageDays >= aging.attentionDays -> Severity.ATTENTION
         else -> Severity.NORMAL
     }
 

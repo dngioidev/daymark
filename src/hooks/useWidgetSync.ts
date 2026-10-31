@@ -22,7 +22,7 @@ export function useWidgetSync(
   habits: HabitData,
   onHabitsChange: Dispatch<SetStateAction<HabitData>>,
   onOpenHabits: () => void,
-  settings: Pick<AppSettings, 'alertDays'> = {},
+  settings: Partial<Pick<AppSettings, 'alertDays' | 'agingThresholds'>> = {},
 ): void {
   const { tasks: taskDays, habits: habitDays } = resolveAlertDays(settings);
   const toggleRef = useRef(onToggleTask);
@@ -85,9 +85,9 @@ export function useWidgetSync(
     if (!isNativeApp() || !settledRevision || applying.current) return;
     const timer = setTimeout(() => {
       if (applying.current || settledRevision !== actionRevision.current) return;
-      void pushWidgetSnapshot(buildWidgetSnapshot(todayDoc, today, taskDays));
+      void pushWidgetSnapshot(buildWidgetSnapshot(todayDoc, today, taskDays, settings.agingThresholds));
       void setHabitSnapshot(buildHabitWidgetSnapshot(habits, today, habitDays));
     }, 300);
     return () => clearTimeout(timer);
-  }, [today, todayDoc, habits, settledRevision, taskDays, habitDays]);
+  }, [today, todayDoc, habits, settledRevision, taskDays, habitDays, settings.agingThresholds]);
 }

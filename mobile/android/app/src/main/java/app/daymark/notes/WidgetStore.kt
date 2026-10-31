@@ -74,20 +74,8 @@ object WidgetStore {
             queued = readActions(context)
         }
         return try {
-            val obj = JSONObject(raw)
-            val arr = obj.optJSONArray("tasks") ?: JSONArray()
-            val tasks = (0 until arr.length()).map { i ->
-                val t = arr.getJSONObject(i)
-                WidgetTask(
-                    id = t.getString("id"),
-                    title = t.optString("title"),
-                    status = t.optString("status", "in-progress"),
-                    createdDate = t.optString("createdDate"),
-                    section = t.optString("section"),
-                    countingDays = t.optString("countingDays", "all"),
-                )
-            }
-            WidgetSnapshot(obj.optString("date"), WidgetModel.applyToggles(tasks, queued))
+            val snapshot = WidgetSnapshot.parse(raw)
+            snapshot.copy(tasks = WidgetModel.applyToggles(snapshot.tasks, queued))
         } catch (e: Exception) {
             null
         }

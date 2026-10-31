@@ -66,7 +66,9 @@ it('waits for pending actions before debouncing both snapshots by 300ms', async 
   surfaces();
   let resolve!: (actions: []) => void;
   consume.mockReturnValue(new Promise<[]>((done) => { resolve = done; }));
-  const render = () => useWidgetSync('2026-10-21', undefined, vi.fn(), vi.fn(), vi.fn(), appearance, EMPTY_HABITS, vi.fn(), vi.fn());
+  const render = () => useWidgetSync('2026-10-21', undefined, vi.fn(), vi.fn(), vi.fn(), appearance, EMPTY_HABITS, vi.fn(), vi.fn(), {
+    agingThresholds: { attentionDays: 2, criticalDays: 5, enabled: false, statuses: ['in-progress'] },
+  });
   render();
   const cleanup = effects.map((effect) => effect());
   await vi.advanceTimersByTimeAsync(1000);
@@ -83,7 +85,9 @@ it('waits for pending actions before debouncing both snapshots by 300ms', async 
   expect(habitSnapshot).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
   expect(habitSnapshot).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ date: '2026-10-21', habits: [] }));
-  expect(taskSnapshot).toHaveBeenCalledOnce();
+  expect(taskSnapshot).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    aging: { attentionDays: 2, criticalDays: 5, enabled: false },
+  }));
   snapshotCleanup?.();
   cleanup.forEach((fn) => fn?.());
 });
