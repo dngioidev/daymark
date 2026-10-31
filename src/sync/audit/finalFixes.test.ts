@@ -5,6 +5,30 @@ import { performDailyRollover } from '../../utils/lifecycleEngine';
 import { resetTab } from '../../components/settings/useInstantSettings';
 import { normalizeVault } from '../testkit/randomEdits';
 
+it.each([false, true])('keeps the later move-in after another device moves away (later mover first: %s)', async laterFirst => {
+  const rig = await startSyncRig();
+  try {
+    const a = rig.device('A'), b = rig.device('B');
+    a.vault.docs[0].headings = [{ name: 'Work', notesContent: '', items: [{ id: 'X', title: 'Keep X', status: 'blocked', createdDate: '2026-10-24', originalNoteDate: '2026-10-24', heading: 'Work', order: 1, historyLog: [] }] }];
+    await a.sync(); await b.sync();
+    expect(b.vault.docs.some(d => d.date === '2026-10-26')).toBe(false);
+    a.vault.docs = moveTaskToDate(a.vault.docs, 'X', '2026-10-24', '2026-10-26', ['Work'], '2026-10-24T09:00:00Z')!;
+    a.vault.docs = moveTaskToDate(a.vault.docs, 'X', '2026-10-26', '2026-10-24', ['Work'], '2026-10-24T10:00:00Z')!;
+    b.vault.docs = moveTaskToDate(b.vault.docs, 'X', '2026-10-24', '2026-10-26', ['Work'], '2026-10-24T11:00:00Z')!;
+    for (const device of laterFirst ? [b, a] : [a, b]) await device.sync();
+    for (const device of [a, b, a, b]) await device.sync();
+    for (const device of [a, b]) {
+      const copies = device.vault.docs.flatMap(d => d.headings.flatMap(h => h.items.map(task => ({ date: d.date, task }))));
+      expect(copies).toEqual([{ date: '2026-10-26', task: expect.objectContaining({ id: 'X', title: 'Keep X', status: 'blocked' }) }]);
+      expect(copies[0].task.historyLog.some(e => e.timestamp === '2026-10-24T11:00:00Z')).toBe(true);
+      expect(copies[0].task.historyLog.map(e => e.timestamp)).toEqual(['2026-10-24T09:00:00Z', '2026-10-24T10:00:00Z', '2026-10-24T11:00:00Z']);
+    }
+    const c = rig.device('C'); await c.sync();
+    expect(normalizeVault(a.vault)).toBe(normalizeVault(b.vault));
+    expect(normalizeVault(c.vault)).toBe(normalizeVault(a.vault));
+  } finally { await rig.stop(); }
+});
+
 it.each([false, true])('keeps moved edits against an offline unedited carry (carry first: %s)', async carryFirst => {
   const rig = await startSyncRig();
   try {

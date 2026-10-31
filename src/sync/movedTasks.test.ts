@@ -20,6 +20,21 @@ function check(docs: DailyDocument[], date: string, title = 'Edited') {
   return result;
 }
 describe('move reconciliation edge cases', () => {
+  it.each([false, true])('keeps a newer move-in against a no-base removal (tombstone first: %s)', tombstoneFirst => {
+    const roundTrip = move(move(original(), D1, D3), D3, D1, '10');
+    const tombstone = roundTrip.find(d => d.date === D3)!;
+    const later = move(original(), D1, D3, '11').find(d => d.date === D3)!;
+    const merged = mergeDailyDocument(null, tombstoneFirst ? tombstone : later, tombstoneFirst ? later : tombstone);
+    expect(merged.value!.headings[0].items).toEqual([expect.objectContaining({ id: 't', title: 'Original' })]);
+    const docs = reconcileMovedTasks([roundTrip.find(d => d.date === D1)!, merged.value!]);
+    expect(copies(docs)).toEqual([{ date: D3, task: expect.objectContaining({ id: 't' }) }]);
+  });
+  it.each(['09', '10', 'invalid', '2099-01-01T11:00:00Z'])('does not let a non-newer or untrusted move override removal: %s', time => {
+    const tombstone = move(move(original(), D1, D3), D3, D1, '10').find(d => d.date === D3)!;
+    const incoming = move(original(), D1, D3, '11').find(d => d.date === D3)!;
+    incoming.headings[0].items[0].historyLog[0].timestamp = time.length === 2 ? `${D1}T${time}:00:00Z` : time;
+    expect(mergeDailyDocument(null, tombstone, incoming, Date.parse(`${D1}T12:00:00Z`)).value!.headings[0].items).toEqual([]);
+  });
   it('keeps every moved field against an untouched offline carry, in both orders', () => {
     const moved = move(original(), D1, D3);
     Object.assign(moved[1].headings[0].items[0], { title: 'Renamed after move', status: 'blocked', description: 'Moved details' });

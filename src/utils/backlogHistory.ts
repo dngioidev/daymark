@@ -1,4 +1,10 @@
 import type { TaskHistoryItem } from '../types/daymark';
+import { canonicalJson } from './canonicalJson';
+
+// Legacy move ids repeat on later visits to the same destination. Preserve
+// distinct events, while retaining id-based identity for other history kinds.
+export const taskHistoryIdentity = (event: TaskHistoryItem): string =>
+  event.action === 'moved' && event.id.startsWith('hist-move-') ? canonicalJson(event) : event.id;
 
 export const BACKLOG_UNDO_PREFIX = 'hist-backlog-undo:';
 export const isBacklogUndoEvent = (event: TaskHistoryItem): boolean => !!event && event.action === 'moved' &&
@@ -14,13 +20,14 @@ export function mergeBacklogHistory(...histories: (TaskHistoryItem[] | undefined
   const edges = new Map<string, Set<string>>();
   const indegree = new Map<string, number>();
   for (const list of histories) for (const event of list ?? []) {
-    const previous = events.get(event.id);
-    if (!previous) events.set(event.id, event);
-    if (!edges.has(event.id)) { edges.set(event.id, new Set()); indegree.set(event.id, 0); }
+    const id = taskHistoryIdentity(event);
+    const previous = events.get(id);
+    if (!previous) events.set(id, event);
+    if (!edges.has(id)) { edges.set(id, new Set()); indegree.set(id, 0); }
   }
   if (!events.size) return histories[0];
   for (const list of histories) for (let index = 1; index < (list?.length ?? 0); index++) {
-    const from = list![index - 1].id, to = list![index].id;
+    const from = taskHistoryIdentity(list![index - 1]), to = taskHistoryIdentity(list![index]);
     if (from !== to && !edges.get(from)!.has(to)) {
       edges.get(from)!.add(to);
       indegree.set(to, indegree.get(to)! + 1);

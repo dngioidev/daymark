@@ -6,6 +6,26 @@ import { performDailyRollover } from '../../utils/lifecycleEngine';
 
 // Fixed release gate: do not reduce either the seeds or the operation count.
 const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
+it.each([false, true])('converges a newer move-in against an earlier move-away (later first: %s)', async laterFirst => {
+  const rig = await startSyncRig();
+  try {
+    const a = rig.device('A'), b = rig.device('B'), legacy = rig.device('legacy', { legacy: true });
+    a.vault.docs[0].headings = [{ name: 'Work', notesContent: '', items: [{ id: 'move-back', title: 'Keep every move', status: 'blocked',
+      createdDate: '2026-10-24', originalNoteDate: '2026-10-24', heading: 'Work', order: 1, historyLog: [] }] }];
+    await a.sync(); await b.sync(); await legacy.sync();
+    a.vault.docs = moveTaskToDate(a.vault.docs, 'move-back', '2026-10-24', '2026-10-26', ['Work'], '2026-10-24T09:00:00Z')!;
+    a.vault.docs = moveTaskToDate(a.vault.docs, 'move-back', '2026-10-26', '2026-10-24', ['Work'], '2026-10-24T10:00:00Z')!;
+    b.vault.docs = moveTaskToDate(b.vault.docs, 'move-back', '2026-10-24', '2026-10-26', ['Work'], '2026-10-24T11:00:00Z')!;
+    for (const device of laterFirst ? [b, a] : [a, b]) await device.sync();
+    for (const device of [a, b, legacy, a, b, legacy]) await device.sync();
+    for (const device of [a, b, legacy]) {
+      const copies = device.vault.docs.flatMap(d => d.headings.flatMap(h => h.items.map(task => ({ date: d.date, task }))));
+      expect(copies).toEqual([{ date: '2026-10-26', task: expect.objectContaining({ id: 'move-back', title: 'Keep every move', status: 'blocked' }) }]);
+      expect(copies[0].task.historyLog.map(e => e.timestamp)).toEqual(['2026-10-24T09:00:00Z', '2026-10-24T10:00:00Z', '2026-10-24T11:00:00Z']);
+      expect(normalizeVault(device.vault, { legacy: true })).toBe(normalizeVault(a.vault, { legacy: true }));
+    }
+  } finally { await rig.stop(); }
+});
 it.each(seeds)('converges without losing edits (seed %i)', async seed => {
   const rig = await startSyncRig();
   const ledger = new EditLedger();

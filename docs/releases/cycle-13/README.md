@@ -32,6 +32,8 @@ Every kind of data that syncs between devices was tested by simulating two or th
 | Two devices changed the same note's folder or title without a reported clash. | The newer change wins, and the clash is now reported. |
 | An untouched offline rollover copy could undo edits to a moved task. | The moved task keeps its title, status and other edits even when the server has no shared base. Genuine competing edits are reported by task and field; a completion is kept. |
 | Reset on Old-task warnings could undo itself after syncing. | Reset now explicitly selects All week for both counting groups when a choice already exists, so the reset reaches other devices and stays reset. Untouched devices keep the optional setting absent. |
+| An earlier move away could undo another device's later move into that day. | A later move of a task to a day is no longer undone by another device's earlier move away. Both devices settle on one copy at the later destination. |
+| Different moves to the same day shared a history ID and one could disappear. | Task history now keeps every distinct move, while identical repeated events appear once. |
 
 The fixes cover the tested races. Remaining limitations are listed below.
 
@@ -62,19 +64,20 @@ Devices on 1.9.1 or earlier keep syncing with updated devices in both directions
 - A lost server response while a note is in a text conflict can, rarely, create a second conflict copy.
 - If a large sync fails partway through its batches, retrying can create an extra conflict copy for a note in a text conflict. Successful earlier batches have already reached the server, while the client retries from its previous state.
 - Android widget severity thresholds stay fixed at 3 and 7 days; the widget uses the selected counting days but does not follow customized severity thresholds.
+- In a rare sequence where two devices toggle the same setting back and forth between syncs, one device's change can be overwritten without a conflict notice.
 
 ## Checks
 
-Final-wave checks run one suite at a time. Earlier controller checks are marked separately; browser results remain for the controller.
+Follow-up checks run one suite at a time. Browser results below are the controller's runs at `b4c4c1c`, before the O1/O2 follow-up; they were not rerun here.
 
 | Check | Observed result |
 | :--- | :--- |
 | `npm.cmd run lint` | Clean |
-| `npx.cmd vitest run --maxWorkers=2` | 147 files, 1,828 passed, 1 skipped |
-| Final pre-filter compatibility regression | 3 targeted tests passed after the full run, including the added legacy-history test |
-| Convergence (`--maxWorkers=2`) | 25 original seeds and 25 generated carry/move races passed |
+| `npx.cmd vitest run --maxWorkers=2` | 148 files, 1,843 passed, 1 skipped |
+| Convergence (`--maxWorkers=2`) | 52 passed: 25 original seeds, 25 carry/move races, and both O1 sync orders |
+| Exploratory seed 13 with carry fixture | No task/move losses; unchanged oracle still reports the known setting-toggle limitation above |
 | `npm run test:helpers` | Earlier controller run: 23 of 23 passed; not rerun in this wave |
 | `npm.cmd run build` | Built; existing Vite config-loader and chunk-size warnings |
-| `npm run test:sync` | controller to fill |
-| `npm run test:qa` | controller to fill |
+| `npm run test:sync` | Controller at `b4c4c1c`: 2 of 2 runs passed |
+| `npm run test:qa` | Controller at `b4c4c1c`: 0 failed of 822 checks |
 | `npm run validate:ai` | Earlier controller run: all checks passed, 0 failures; not rerun in this wave |

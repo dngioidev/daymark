@@ -1,6 +1,8 @@
 import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
-import { isBacklogUndoEvent, mergeBacklogHistory } from '../utils/backlogHistory';
+import { isBacklogUndoEvent, mergeBacklogHistory, taskHistoryIdentity } from '../utils/backlogHistory';
+import { canonicalJson } from '../utils/canonicalJson';
 import { trustedTime } from './clock';
+export { canonicalJson } from '../utils/canonicalJson';
 
 /**
  * Three-way merge used by both the sync server and the client.
@@ -26,20 +28,6 @@ export interface MergeResult<T> {
   conflicts: string[];
   /** Extra notes produced by conflicts (standalone notes only). */
   extraNotes?: StandaloneNote[];
-}
-
-/** Stable JSON so equality does not depend on key order. */
-export function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v) =>
-    v && typeof v === 'object' && !Array.isArray(v)
-      ? Object.keys(v)
-          .sort()
-          .reduce<Record<string, unknown>>((acc, k) => {
-            if (v[k] !== undefined) acc[k] = v[k];
-            return acc;
-          }, {})
-      : v
-  );
 }
 
 export const sameValue = (a: unknown, b: unknown): boolean => canonicalJson(a ?? null) === canonicalJson(b ?? null);
@@ -79,8 +67,7 @@ function tasksById(doc: DailyDocument | null): Map<string, TaskItem> {
 const STATUS_FIELDS = ['status', 'statusBeforeDone', 'completedDate', 'doneLaterDate', 'movedToBacklogDate'] as const;
 
 // Move ids encode the destination and can repeat on a later visit to that day.
-const historyIdentity = (event: TaskItem['historyLog'][number]) =>
-  event.action === 'moved' && event.id.startsWith('hist-move-') ? canonicalJson(event) : event.id;
+const historyIdentity = taskHistoryIdentity;
 
 /** `longer` is `shorter` plus later history, and `shorter` was last touched by a rollover. */
 function extendsCarry(longer: TaskItem, shorter: TaskItem): boolean {
@@ -172,7 +159,13 @@ export function mergeDailyDocument(
         // Older cancellations must not override a later ordinary deletion.
         const restoredAfterRemoval = restored && Array.isArray(restored.historyLog) && restored.historyLog.some(event =>
           isBacklogUndoEvent(event) && event.date === side.date && trustedTime(event.timestamp, now) >= trustedTime(side.updatedAt, now));
-        if (!restoredAfterRemoval) mergedTasks.delete(id);
+        // A later explicit move into this day is not the plain stale copy the
+        // tombstone removes. Compare trusted times; equal/invalid/future moves
+        // cannot override the removal. Keep backlog-undo restoration unchanged.
+        const movedInAfterRemoval = restored && Array.isArray(restored.historyLog) && restored.historyLog.some(event =>
+          event.action === 'moved' && event.id === `hist-move-${id}-${side.date}` && event.date !== side.date &&
+          trustedTime(event.timestamp, now) > trustedTime(side.updatedAt, now));
+        if (!restoredAfterRemoval && !movedInAfterRemoval) mergedTasks.delete(id);
       }
     }
   }
