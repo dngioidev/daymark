@@ -2,6 +2,7 @@
 import type { TaskItem } from '../../types/daymark';
 import { addBacklogItem, editBacklogItem, pickBacklogItem, visibleBacklog } from '../../utils/backlog';
 import { createFolder, moveNote, renameFolder } from '../../utils/noteFolders';
+import { moveTaskToDate } from '../../utils/taskActions';
 import { canonicalJson, sameValue } from '../merge';
 import { fromEntities, toEntities, type VaultData } from '../syncClient';
 import type { Device } from './devices';
@@ -56,7 +57,7 @@ function fields(vault: VaultData): Map<string, Field> {
     for (const heading of doc.headings) {
       // An empty heading text is the default, not a user edit.
       if (heading.notesContent) put(`heading:${doc.date}:${heading.name}`, 'notesContent', heading.notesContent);
-      for (const task of heading.items) { put(`task:${task.id}`, '$exists', true); object(`task:${task.id}`, task); }
+      for (const task of heading.items) { put(`task:${task.id}`, '$exists', true); put(`task:${task.id}`, '$date', doc.date); object(`task:${task.id}`, task); }
     }
   }
   for (const note of vault.notes) { put(`note:${note.id}`, '$exists', true); object(`note:${note.id}`, note); }
@@ -158,6 +159,12 @@ export class EditLedger {
       // A conflict must refer to this entity/field, not just some other push in the batch.
       const reported = outcome.conflicts.some(message => {
         if (old.entity === 'settings') return message.includes(`field "${old.field}"`);
+        if (old.entity.startsWith('note:')) {
+          // Titles can be duplicated or renamed. Require the stable note id and
+          // exact metadata field in this sync's explicit conflict report.
+          return !['$exists', 'content', 'createdAt', 'updatedAt'].includes(old.field) && message.startsWith('Note "') &&
+            message.endsWith(` (id: ${old.entity.slice(5)}): field "${old.field}" was changed on two devices; kept the latest change`);
+        }
         // Task and backlog messages name only the entity, so the field itself must show a
         // real disagreement: this device and the server held different values for it.
         if ((old.entity.startsWith('task:') || old.entity.startsWith('backlog:')) &&
@@ -169,7 +176,7 @@ export class EditLedger {
           const name = local.get(`${old.entity}\0name`)?.value ?? oldServer.get(`${old.entity}\0name`)?.value;
           return message.includes(`Habit "${name}"`);
         }
-        return false; // Notes preserve text in visible conflict copies instead.
+        return false; // Note content still requires a visible conflict copy.
       });
       if (!reported) continue;
       for (const successor of this.edits) {
@@ -184,11 +191,25 @@ export class EditLedger {
 
   losses(vault: VaultData): Omit<LedgerEdit, 'successors'>[] {
     const final = fields(vault);
+    // A merged edit on the moved copy survives; finding that edit on an extra
+    // stale copy must never hide a placement failure from the field map.
+    const counts = new Map<string, number>();
+    for (const doc of vault.docs) for (const h of doc.headings) for (const task of h.items) counts.set(`task:${task.id}`, (counts.get(`task:${task.id}`) ?? 0) + 1);
     const byOrder = new Map(this.edits.map(edit => [edit.order, edit]));
     const survives = (edit: LedgerEdit, visited = new Set<number>()): boolean => {
       if (visited.has(edit.order)) return false;
+      if ((counts.get(edit.entity) ?? 0) > 1) return false;
       const actual = final.get(keyOf(edit));
       if (actual && sameValue(actual.value, edit.value)) return true;
+      if (edit.entity.startsWith('task:') && edit.field === '$date') {
+        // Concurrent moves arbitrate by move timestamp, then destination. Only
+        // an actual recorded move at the surviving destination can vouch for it.
+        const id = edit.entity.slice(5);
+        const own = this.edits.find(e => e.entity === edit.entity && e.field === `history:hist-move-${id}-${edit.value}` && e.device === edit.device && e.order > edit.order)?.value as TaskItem['historyLog'][number] | undefined;
+        const winner = this.edits.find(e => e.entity === edit.entity && e.field === `history:hist-move-${id}-${actual?.value}` &&
+          final.has(keyOf(e)) && sameValue(final.get(keyOf(e))?.value, e.value))?.value as TaskItem['historyLog'][number] | undefined;
+        if (own && winner && (winner.timestamp > own.timestamp || (winner.timestamp === own.timestamp && String(actual?.value) > String(edit.value)))) return true;
+      }
       if (edit.restoresSyncedValue) return true;
       if (edit.field === '$exists' && edit.value === false && !actual) return true;
       if (edit.field === '$exists' && edit.value === false && actual?.value === true && /^(task|note):/.test(edit.entity)) {
@@ -229,14 +250,14 @@ export class EditLedger {
 
 export function randomEdit(rng: () => number, device: Device, ledger: EditLedger): void {
   const choose = <T>(values: T[]): T | undefined => values[Math.floor(rng() * values.length)];
-  const operation = Math.floor(rng() * 24);
+  const operation = Math.floor(rng() * 25);
   const serial = ledger.log.length + 1;
   const token = `${device.name}-${serial}`;
   const date = '2026-10-24';
   // Fixed, increasing operation timestamps: replay does not depend on machine speed.
   const stamp = new Date(Date.UTC(2026, 9, 24, 10, 0, serial)).toISOString();
   ledger.edit(device, `op=${operation} ${token}`, v => {
-    const doc = v.docs[0];
+    const doc = choose(v.docs)!;
     const task = choose(doc.headings.flatMap(h => h.items));
     const note = choose(v.notes.filter(n => !n.title.endsWith('(conflict copy)')));
     const habit = choose(v.habits.habits.filter(h => !h.removedOn));
@@ -313,6 +334,12 @@ export function randomEdit(rng: () => number, device: Device, ledger: EditLedger
         v.settings.alertDays = { ...current, [key]: days[(days.indexOf(current[key] ?? 'all') + 1 + (serial % 2)) % 3] };
         break;
       }
+      case 24:
+        if (task) {
+          const target = choose(['2026-10-24', '2026-10-25', '2026-10-26'].filter(d => d !== doc.date))!;
+          v.docs = moveTaskToDate(v.docs, task.id, doc.date, target, v.settings.defaultHeadings, stamp) ?? v.docs;
+        } else addTask();
+        break;
     }
     if (operation < 4) doc.updatedAt = stamp;
   });

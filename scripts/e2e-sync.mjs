@@ -104,8 +104,11 @@ try {
   await phone.getByRole('button', { name: /^mark ".*" done$/i }).first().click();
   await phone.getByRole('button', { name: /^new task$/i }).click();
   await phone.getByPlaceholder(/what do you need to do/i).fill('Written on the phone');
+  // Wait for the push that carries both the tick and the new task instead of guessing a delay
+  const phonePush = phone.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST'
+    && (r.request().postData() ?? '').includes('Written on the phone') && r.ok(), { timeout: 20000 });
   await phone.getByRole('button', { name: /^add task$/i }).click();
-  await phone.waitForTimeout(5000);
+  await phonePush;
   await shot(phone, 'sync-3-phone-today');
 
   // Laptop: sync and check both changes arrived

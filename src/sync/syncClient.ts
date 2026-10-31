@@ -1,6 +1,6 @@
 import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
 import { AppSettings, NoteMeta, EMPTY_NOTE_META, BacklogData, DailyDocument, HabitData, HabitDay, StandaloneNote } from '../types/daymark';
-import { canonicalJson, isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, mergeEntity, sameValue, SyncedSettings, toSyncedSettings } from './merge';
+import { canonicalJson, isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, mergeEntity, reconcileMovedTasks, sameValue, SyncedSettings, toSyncedSettings } from './merge';
 import { MAX_CHANGES_PER_SYNC, MAX_SYNC_BATCH_BYTES, SyncChange, SyncRequest, SyncResponse } from './protocol';
 import { EMPTY_BACKLOG, reconcileBacklogVault, uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
@@ -284,7 +284,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
   const next = fromEntities(now, current.settings);
   if (recovering && !receivedHabits) uneditedRecoveredHabits.add(next.habits);
   // A rollover made before this pull may have carried a task finished elsewhere
-  next.docs = dropStaleCarries(next.docs);
+  next.docs = reconcileMovedTasks(dropStaleCarries(next.docs), fromEntities(outcome.snapshot, current.settings).docs);
   const reconciled = reconcileBacklogVault(next.backlog, next.docs);
   next.backlog = reconciled.backlog;
   next.docs = reconciled.docs;

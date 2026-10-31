@@ -3,7 +3,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { reconcileBacklogVault } from '../src/utils/backlog';
 import type { DailyDocument } from '../src/types/daymark';
 import { isNoteMeta, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
-import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, sameValue } from '../src/sync/merge';
+import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, reconcileMovedTasks, sameValue } from '../src/sync/merge';
 import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
@@ -288,6 +288,16 @@ export function createApp(config: ServerConfig, store: FileStore) {
           touched.add(`note:${extra.id}`);
         }
         touched.add(change.key);
+      }
+
+      if (changedBacklogOrDoc) {
+        const keys = Object.keys(store.vault.entities).filter((key) => key.startsWith('doc:') && validValue(key, store.vault.entities[key].value));
+        const docs = keys.map((key) => store.vault.entities[key].value as DailyDocument);
+        const bases = changes.filter(c => c.key.startsWith('doc:') && validValue(c.key, c.base)).map(c => c.base as DailyDocument);
+        const fixed = reconcileMovedTasks(docs, bases);
+        keys.forEach((key, i) => {
+          if (!sameValue(docs[i], fixed[i])) { write(key, fixed[i]); touched.add(key); }
+        });
       }
 
       const backlog = store.vault.entities.backlog?.value;

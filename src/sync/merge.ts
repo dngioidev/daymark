@@ -78,6 +78,10 @@ function tasksById(doc: DailyDocument | null): Map<string, TaskItem> {
 // Completion fields change together; merging them one by one could pair a done status with no date.
 const STATUS_FIELDS = ['status', 'statusBeforeDone', 'completedDate', 'doneLaterDate', 'movedToBacklogDate'] as const;
 
+// Move ids encode the destination and can repeat on a later visit to that day.
+const historyIdentity = (event: TaskItem['historyLog'][number]) =>
+  event.action === 'moved' && event.id.startsWith('hist-move-') ? canonicalJson(event) : event.id;
+
 /** `longer` is `shorter` plus later history, and `shorter` was last touched by a rollover. */
 function extendsCarry(longer: TaskItem, shorter: TaskItem): boolean {
   const short = shorter.historyLog ?? [];
@@ -114,8 +118,8 @@ function mergeTask(base: TaskItem | undefined, ours: TaskItem, theirs: TaskItem)
   const history = pick3(base.historyLog, ours.historyLog, theirs.historyLog);
   if (history.kind === 'value') merged.historyLog = history.value ?? [];
   else {
-    const seen = new Set((ours.historyLog ?? []).map((e) => e.id));
-    merged.historyLog = [...(ours.historyLog ?? []), ...(theirs.historyLog ?? []).filter((e) => !seen.has(e.id))]
+    const seen = new Set((ours.historyLog ?? []).map(historyIdentity));
+    merged.historyLog = [...(ours.historyLog ?? []), ...(theirs.historyLog ?? []).filter((e) => !seen.has(historyIdentity(e)))]
       .map((e, i) => [e, i] as const)
       .sort(([a, ai], [b, bi]) => (Date.parse(a.timestamp) - Date.parse(b.timestamp)) || ai - bi)
       .map(([e]) => e);
@@ -230,6 +234,16 @@ export function mergeStandaloneNote(
   conflictId: () => string = () => `note-conflict-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   now: number = Date.now()
 ): MergeResult<StandaloneNote> {
+  const metadataConflicts = ours && theirs
+    ? [...new Set([...Object.keys(ours), ...Object.keys(theirs)])]
+      .filter(field => !['id', 'content', 'createdAt', 'updatedAt'].includes(field))
+      .filter(field => {
+        const key = field as keyof StandaloneNote;
+        return !sameValue(ours[key], theirs[key]) && (!base ||
+          (!sameValue(base[key], ours[key]) && !sameValue(base[key], theirs[key])));
+      })
+      .map(field => `Note "${theirs.title}" (id: ${theirs.id}): field "${field}" was changed on two devices; kept the latest change`)
+    : [];
   if (base && ours && theirs) {
     const newer = trustedTime(ours.updatedAt, now) > trustedTime(theirs.updatedAt, now) ? ours : theirs;
     const value = { ...ours };
@@ -242,12 +256,12 @@ export function mergeStandaloneNote(
     for (const field of new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)] as (keyof StandaloneNote)[])) mergeField(field);
     value.updatedAt = newer.updatedAt;
     const contentConflict = !sameValue(ours.content, theirs.content) && !sameValue(base.content, ours.content) && !sameValue(base.content, theirs.content);
-    if (!contentConflict) return { value, conflicts: [] };
+    if (!contentConflict) return { value, conflicts: metadataConflicts };
     const copy: StandaloneNote = { ...theirs, id: conflictId(), title: `${theirs.title} (conflict copy)` };
     return {
       value,
       extraNotes: [copy],
-      conflicts: [`Note "${theirs.title}" was edited on two devices; the other version was saved as "${copy.title}"`],
+      conflicts: [...metadataConflicts, `Note "${theirs.title}" was edited on two devices; the other version was saved as "${copy.title}"`],
     };
   }
   const r = pick3(base, ours, theirs);
@@ -256,13 +270,13 @@ export function mergeStandaloneNote(
   const t = theirs as StandaloneNote;
   if (o.content === t.content) {
     // Only metadata differs (title, tags, pin, folder): the incoming change wins
-    return { value: t, conflicts: [] };
+    return { value: t, conflicts: metadataConflicts };
   }
   const copy: StandaloneNote = { ...t, id: conflictId(), title: `${t.title} (conflict copy)` };
   return {
     value: o,
     extraNotes: [copy],
-    conflicts: [`Note "${t.title}" was edited on two devices; the other version was saved as "${copy.title}"`],
+    conflicts: [...metadataConflicts, `Note "${t.title}" was edited on two devices; the other version was saved as "${copy.title}"`],
   };
 }
 
@@ -492,4 +506,96 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
   return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
+}
+
+/**
+ * Reconcile placement after per-document merge. Remove a stale branch only with a live
+ * replacement; historical carries that observed the winning move remain in the ledger.
+ * Real bases distinguish unchanged stale fields from independent user edits.
+ */
+export function reconcileMovedTasks(docs: DailyDocument[], bases: DailyDocument[] = []): DailyDocument[] {
+  type Copy = { date: string; task: TaskItem };
+  type Move = { event: TaskItem['historyLog'][number]; to: string };
+  const eventKey = (e: TaskItem['historyLog'][number]) => canonicalJson(e);
+  const byId = new Map<string, Copy[]>();
+  for (const doc of docs) for (const task of tasksById(doc).values()) {
+    const copies = byId.get(task.id) ?? [];
+    copies.push({ date: doc.date, task });
+    byId.set(task.id, copies);
+  }
+  const byDate = new Map(docs.map(d => [d.date, d]));
+  for (const [id, copies] of byId) {
+    if (copies.length < 2) continue;
+    const moves = new Map<string, Move>();
+    for (const { task } of copies) for (const event of task.historyLog ?? []) {
+      const prefix = `hist-move-${id}-`;
+      const to = event.id.slice(prefix.length);
+      if (event.action === 'moved' && event.id.startsWith(prefix) && /^\d{4}-\d{2}-\d{2}$/.test(to) && event.date !== to) {
+        moves.set(eventKey(event), { event, to });
+      }
+    }
+    const has = (copy: Copy, move: Move) => (copy.task.historyLog ?? []).some(e => eventKey(e) === eventKey(move.event));
+    // Observed subsequent moves beat their ancestors, even with skewed clocks.
+    const superseded = new Set<string>();
+    for (const { task } of copies) {
+      const log = (task.historyLog ?? []).filter(e => moves.has(eventKey(e)));
+      for (const e of log.slice(0, -1)) superseded.add(eventKey(e));
+    }
+    const candidates = [...moves.values()].filter(m => !superseded.has(eventKey(m.event)) && copies.some(c => c.date === m.to && has(c, m)));
+    // Concurrent branches: timestamp, then destination/event lexical order, never array order.
+    candidates.sort((a, b) => a.event.timestamp.localeCompare(b.event.timestamp) || a.to.localeCompare(b.to) || eventKey(a.event).localeCompare(eventKey(b.event)));
+    const winner = candidates.at(-1);
+    if (!winner) continue;
+    const target = copies.find(c => c.date === winner.to && has(c, winner))!;
+    const related = new Set([winner.event.date, winner.to]);
+    let expanded = true;
+    while (expanded) {
+      const size = related.size;
+      for (const m of moves.values()) if (related.has(m.event.date) || related.has(m.to)) { related.add(m.event.date); related.add(m.to); }
+      for (const c of copies) if (c.task.carriedFromDate && related.has(c.task.carriedFromDate)) related.add(c.date);
+      expanded = size !== related.size;
+    }
+    const stale = copies.filter(c => c !== target && related.has(c.date) && !has(c, winner)).sort((a,b) => a.date.localeCompare(b.date));
+    if (!stale.length) continue;
+    let merged = target.task;
+    for (const c of stale) {
+      const base = [c.date, c.task.carriedFromDate].flatMap(date => bases.flatMap(d => d.date === date ? [...tasksById(d).values()] : [])).find(t => t.id === id);
+      // Recovery without a trustworthy base keeps the stale edit, matching the
+      // per-day deletion-versus-edit rule, while preserving winning placement.
+      const fallback = { ...merged, order: c.task.order };
+      const result = mergeTask(base ?? fallback, merged, c.task).task;
+      // A recovery carry with no base cannot prove that a completion was
+      // deliberately reopened. Keep the completion and all its coupled fields.
+      if (!base && merged.status === 'done' && c.task.status !== 'done') {
+        for (const key of STATUS_FIELDS) {
+          if (key === 'status') result.status = merged.status;
+          else if (merged[key] === undefined) delete result[key];
+          else result[key] = merged[key];
+        }
+      }
+      const history = new Map([...merged.historyLog, ...c.task.historyLog].map(e => [eventKey(e), e]));
+      const historyLog = [...history.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp) || eventKey(a).localeCompare(eventKey(b)));
+      // Preserve the resolved causal order if a later move has an earlier clock.
+      // Keep non-move events in their slots (dropStaleCarries uses the final carry).
+      const orderedMoves = historyLog.filter(e => moves.has(eventKey(e)) && eventKey(e) !== eventKey(winner.event));
+      orderedMoves.push(winner.event);
+      let moveIndex = 0;
+      merged = { ...result, order: target.task.order, carriedFromDate: target.task.carriedFromDate,
+        historyLog: historyLog.map(e => moves.has(eventKey(e)) ? orderedMoves[moveIndex++] : e) };
+    }
+    const targetDoc = byDate.get(target.date)!;
+    const headings = targetDoc.headings.map(h => ({ ...h, items: h.items.flatMap(t => t.id !== id ? [t] : h.name === merged.heading ? [merged] : []) }));
+    if (merged.heading !== target.task.heading) {
+      const heading = headings.find(h => h.name === merged.heading);
+      if (heading) heading.items.push(merged);
+      else headings.push({ name: merged.heading, items: [merged], notesContent: '' });
+    }
+    byDate.set(target.date, { ...targetDoc, headings });
+    for (const c of stale) {
+      const doc = byDate.get(c.date)!;
+      byDate.set(c.date, { ...doc, headings: doc.headings.map(h => ({ ...h, items: h.items.filter(t => t.id !== id) })),
+        removedTaskIds: [...new Set([...(doc.removedTaskIds ?? []), id])] });
+    }
+  }
+  return docs.map(d => byDate.get(d.date)!);
 }

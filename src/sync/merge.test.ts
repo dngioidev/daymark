@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DailyDocument, Habit, HabitDay, StandaloneNote, TaskItem } from '../types/daymark';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
 import type { BacklogItem } from '../types/daymark';
-import { isBacklogEntityKey, mergeBacklog } from './merge';
+import { isBacklogEntityKey, mergeBacklog, reconcileMovedTasks } from './merge';
 import type { SyncedSettings } from './merge';
 import {
   CONFLICT_SEPARATOR,
@@ -365,6 +365,8 @@ describe('mergeStandaloneNote', () => {
     const result = mergeStandaloneNote(base, { ...base, folder: 'Code', updatedAt: oursAt }, { ...base, folder: 'Projects', updatedAt: theirsAt });
     expect(result.value?.folder).toBe(folder);
     expect(result.extraNotes).toBeUndefined();
+    expect(result.conflicts).toEqual([expect.stringContaining('field "folder"')]);
+    expect(result.conflicts[0]).toContain('Ideas');
   });
 
   it('merges independent metadata and resolves competing metadata by the newer timestamp', () => {
@@ -373,7 +375,19 @@ describe('mergeStandaloneNote', () => {
       { ...base, title: 'Desktop', pinned: true, updatedAt: '2026-10-22T00:00:00Z' },
       { ...base, title: 'Phone', tags: ['java'], updatedAt: '2026-10-21T00:00:00Z' });
     expect(result.value).toMatchObject({ title: 'Desktop', tags: ['java'], pinned: true });
-    expect(result.conflicts).toEqual([]);
+    expect(result.conflicts).toEqual([expect.stringContaining('field "title"')]);
+  });
+
+  it('keeps exactly one content conflict copy and reports the concurrent folder clash', () => {
+    const base = note('original');
+    const result = mergeStandaloneNote(base,
+      { ...base, content: 'Desktop text', folder: 'Desktop', updatedAt: '2026-10-22T00:00:00Z' },
+      { ...base, content: 'Phone text', folder: 'Phone', updatedAt: '2026-10-21T00:00:00Z' }, () => 'copy-1');
+    expect(result.value).toMatchObject({ content: 'Desktop text', folder: 'Desktop' });
+    expect(result.extraNotes).toEqual([expect.objectContaining({ id: 'copy-1', content: 'Phone text', folder: 'Phone' })]);
+    expect(result.conflicts).toHaveLength(2);
+    expect(result.conflicts).toContainEqual(expect.stringContaining('field "folder"'));
+    expect(result.conflicts).toContainEqual(expect.stringContaining('conflict copy'));
   });
 
   it('combines a title rename with a content edit', () => {
@@ -497,5 +511,35 @@ describe('settings and helpers', () => {
     expect(isValidEntityKey('settings')).toBe(true);
     expect(isValidEntityKey('doc:../../etc')).toBe(false);
     expect(isValidEntityKey('__proto__')).toBe(false);
+  });
+});
+
+describe('reconcileMovedTasks', () => {
+  const mk = (id: string, extra: Partial<TaskItem> = {}): TaskItem => ({
+    id, title: 'T', status: 'in-progress', createdDate: '2026-10-24', originalNoteDate: '2026-10-24', heading: 'Work', order: 1, historyLog: [], ...extra,
+  });
+  const day = (date: string, items: TaskItem[]): DailyDocument => ({ date, type: 'daily', headings: [{ name: 'Work', items, notesContent: '' }], updatedAt: `${date}T08:00:00Z` });
+  const moveEvent = { id: 'hist-move-t1-2026-10-25', timestamp: '2026-10-24T09:00:00Z', date: '2026-10-24', action: 'moved' as const, details: 'Moved' };
+
+  it('folds an edit made on the old day into the moved copy and removes the stale copy', () => {
+    const docs = [day('2026-10-24', [mk('t1', { title: 'Edited' })]), day('2026-10-25', [mk('t1', { historyLog: [moveEvent] })])];
+    const [from, to] = reconcileMovedTasks(docs);
+    expect(from.headings[0].items).toEqual([]);
+    expect(from.removedTaskIds).toEqual(['t1']);
+    expect(to.headings[0].items).toHaveLength(1);
+    expect(to.headings[0].items[0]).toMatchObject({ id: 't1', title: 'Edited' });
+    expect(to.headings[0].items[0].historyLog).toEqual([moveEvent]);
+  });
+
+  it('leaves docs alone when the old-day copy already carries the move or there is no move', () => {
+    const settled = [day('2026-10-24', [mk('t1', { historyLog: [moveEvent] })]), day('2026-10-25', [mk('t1', { historyLog: [moveEvent] })])];
+    expect(reconcileMovedTasks(settled)).toEqual(settled);
+    const carried = [day('2026-10-24', [mk('t1')]), day('2026-10-25', [mk('t1')])];
+    expect(reconcileMovedTasks(carried)).toEqual(carried);
+  });
+
+  it('never touches other tasks on the old day', () => {
+    const docs = [day('2026-10-24', [mk('t1'), mk('t2', { order: 2 })]), day('2026-10-25', [mk('t1', { historyLog: [moveEvent] })])];
+    expect(reconcileMovedTasks(docs)[0].headings[0].items.map((t) => t.id)).toEqual(['t2']);
   });
 });
