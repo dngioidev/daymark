@@ -5,12 +5,14 @@
  *
  * Usage: npm run build && node scripts/e2e-sync.mjs [cycle-name]   (cycle name -> screenshots)
  */
+import { isDeepStrictEqual } from 'node:util';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { tsImport } from 'tsx/esm/api';
+import { createNotebook, writeTwoStrokes, readStored, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas } from './helpers/cycle-14-qa.mjs';
 import { signIn } from './helpers/server-session.mjs';
 
 const cycle = process.argv[2];
@@ -501,6 +503,53 @@ try {
   await settingsDialog(laptop).getByText('If you chose a photo on another device, add it here too.').scrollIntoViewIfNeeded();
   await shot(laptop, 'background-photo-settings');
   await closeSettings(laptop);
+
+  // Cycle 14: real browser pen input, persisted ink, and read-only sync to a phone.
+  await laptop.setViewportSize({ width: 1280, height: 800 });
+  await laptop.evaluate(() => localStorage.setItem('dm.ink.penSeen', '1'));
+  await laptop.reload({ waitUntil: 'networkidle' });
+  await createNotebook(laptop, 'Lined', 'Cycle 14 study notebook');
+  await writeTwoStrokes(laptop);
+  const notebook = (await readStored(laptop, 'notes')).find(n => n.title === 'Cycle 14 study notebook');
+  if (!notebook) throw new Error('created notebook was not persisted');
+  await waitInk(laptop, 2, notebook.id);
+  await touchDoesNotDraw(laptop, notebook.id);
+  check(true, 'tablet pen creates exactly two strokes; touch drag does not draw');
+  await syncNow(laptop); await syncNow(phone);
+  await openNotes(phone);
+  await phone.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('Cycle 14 study notebook');
+  await phone.getByRole('treeitem', { name: 'Cycle 14 study notebook', exact: true }).click();
+  await inkCanvas(phone).waitFor();
+  await waitInk(phone, 2, notebook.id);
+  const sentInk = (await readStored(laptop, 'ink')).filter(p => p.noteId === notebook.id);
+  const receivedInk = (await readStored(phone, 'ink')).filter(p => p.noteId === notebook.id);
+  check(isDeepStrictEqual(sentInk, receivedInk), 'phone receives both strokes with their ids and points intact');
+  check(await phone.getByRole('toolbar', { name: 'Writing tools', exact: true }).count() === 0
+    && await inkCanvas(phone).evaluate(el => getComputedStyle(el).touchAction === 'pan-y'), 'phone without pen shows a read-only handwritten page');
+  check(await inkCanvas(phone).evaluate(el => {
+    const pixels = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
+    return pixels.some((value, index) => index % 4 === 3 && value > 0);
+  }), 'received ink is rendered on the phone canvas');
+  await shot(phone, 'cycle-14-read-only-phone');
+
+  // A pen highlighter stroke snaps to crossed words; the mark and colour sync.
+  await openNotes(laptop);
+  await laptop.getByRole('button', { name: 'New note', exact: true }).click();
+  await laptop.getByRole('textbox', { name: 'Title', exact: true }).fill('Cycle 14 highlighted study');
+  await laptop.getByRole('textbox', { name: 'Note rich text', exact: true }).fill('Study these words today');
+  await highlightWords(laptop);
+  await syncNow(laptop); await syncNow(phone);
+  // Back returns the phone from its notebook to the navigation column.
+  await phone.getByRole('button', { name: 'Back to notes', exact: true }).click();
+  await phone.getByRole('searchbox', { name: 'Search notes', exact: true }).fill('Cycle 14 highlighted study');
+  await phone.getByRole('treeitem', { name: 'Cycle 14 highlighted study', exact: true }).click();
+  const mark = phone.getByRole('textbox', { name: 'Note rich text', exact: true }).locator('mark');
+  await mark.waitFor();
+  check(await mark.innerText() === 'these words'
+    && await mark.evaluate(el => getComputedStyle(el).backgroundColor) === 'rgb(134, 239, 172)', 'phone receives the crossed words highlighted in the chosen colour');
+  await shot(phone, 'cycle-14-highlight-phone');
+  // Restore Today for the existing dashboard/restart assertions below.
+  for (const page of [laptop, phone]) await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Today', exact: true }).click();
 
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();

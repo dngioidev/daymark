@@ -3,16 +3,20 @@ title: Notes
 order: 7
 ---
 ## Web
-The editor supports headings, lists, checkboxes, tables and code; content stays Markdown. Paste a picture to store it as a portable asset, use Mermaid code blocks for diagrams, and type double brackets to link a note. Focus mode hides navigation.
+The editor supports headings, lists, checkboxes, tables and code; content stays Markdown. Paste pictures, use Mermaid code blocks for diagrams, and type double brackets to link notes. Focus mode hides navigation.
 
-Notes has one navigation column: Search, then New note, New folder and a List | Graph switch, then a folder tree with each note shown by its title under its folder. Pinned notes sit on top; unfiled notes follow the top-level folders. Search filters the tree in place, shows "N notes match" and dims the open note when it does not match. The selected folder is where New note and New folder land. Drag a note onto a folder to file it, or onto the Move to top level strip that appears while dragging. Arrow keys, Home, End and Enter move through the tree; Shift+F10 or the Menu key opens folder actions (new, rename, move, delete; notes move up, never deleted).
+Notes has one column: Search, New note, New folder, List | Graph, then a folder tree. Pinned notes sit on top. Search filters the tree and dims an open note that does not match. The selected folder is where new notes and folders land. Drag notes into folders or the Move to top level strip. Arrow keys, Home, End and Enter navigate; Shift+F10 opens folder actions. Deleting a folder moves its notes up.
 
-Minimize notes column shrinks the column to a strip with Search, New note, New folder and up to eight folders plus a +N button. In windows narrower than 1100 pixels, the Notes button opens the column as a drawer.
+Minimize notes column leaves shortcuts; below 1100 pixels, Notes opens a drawer. Related suggests notes: Link adds a link, Not related hides a suggestion, Restore brings it back. Graph shows connections with folder and tag filters.
 
-With a note open, the Related panel suggests notes sharing distinctive words. Link adds a wiki link; Not related hides the pair until you Restore it under Hidden suggestions. Choose Graph to see links, suggestions and tag lines, filtered by folder, tag and Whole vault or Local.
+Open Note templates beside New note, choose Handwritten note, then lined or grid paper (blank is available too). Pen input enables writing tools: pens, highlighter, eraser, Undo and Redo. Add page extends the notebook. Devices without pen input show pages read only. Handwriting search is title only. ZIP and JSON backups include ink; Markdown export contains a placeholder.
+
+On a typed note, turn on Highlighter and choose a colour, then drag the pen across words. Highlights stay with the words through edits and sync. Turn it off for ordinary pen behaviour; mouse and finger drags never highlight.
 ## Mobile
-Tap Notes in the bottom bar. The column of folders and notes opens first: Search, New note, New folder, then the tree. Select a note to open its editor, and use Back to return to the column. The editor offers formatting controls for headings, lists, checkboxes and other Markdown. Notes can include pictures and Mermaid diagrams, and double-bracket links offer suggestions. Focus mode gives the editor more room; leaving it brings navigation back. Pictures belong to your vault assets, so include them in backups.
+Tap Notes in the bottom bar. Search and the folder tree open first. Select a note to edit; Back returns to the column. Formatting supports headings, lists, checkboxes and Markdown. Pictures and Mermaid diagrams work too; double-bracket links offer suggestions. Include pictures in backups.
 
-Folders nest. Tap a folder to open or close it; the actions button on a row creates, renames, moves or deletes (notes move up to the parent). Searching filters the tree in place and says how many notes match. Inside a note, Move to folder files it under any folder without dragging.
+Folders nest. Tap a folder to expand it. Its actions create, rename, move or delete folders; deletion moves notes up. Search filters the tree. Move to folder files an open note. Related opens suggestions: Link adds a link, Not related hides a pair, Restore brings it back. Graph needs a tablet or wider screen.
 
-The Related button, with its suggestion count, opens a sheet of notes that share distinctive words with this one. Link adds a wiki link; Not related hides it until you Restore it under Hidden suggestions. The graph, switched on with List | Graph in the column, needs a tablet or wider screen.
+For a handwritten note, open Note templates beside New note and choose Handwritten note, then lined or grid paper (blank is also available). An S Pen enables writing. Choose Pen, Highlighter or Eraser; eraser options offer area or whole-stroke removal. Undo and Redo recover stroke edits. Use Add page, Previous page and Next page. Pen pressure changes line width; palms and fingers do not draw. Finger scrolling on writable pages has no momentum; pinch zoom is off there. Without pen input, pages are read only. Handwriting search is title only; ink syncs and is included in ZIP and JSON backups.
+
+For typed notes, tap Highlighter, choose a colour and drag the S Pen across words. Highlights follow later edits and sync to other devices. Turn the tool off to select text normally. Update every device to Daymark 1.11 for highlight colours.

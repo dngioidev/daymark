@@ -12,22 +12,22 @@ export async function signIn(context, origin, password, extra = {}) {
 export async function resetServerVault(context, origin, accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const response = await context.request.post(origin + '/api/sync', {
-    headers, data: { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta'] },
+    headers, data: { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta', 'ink'] },
   });
   if (!response.ok()) throw new Error(`Read test vault failed: ${response.status()}`);
   const { entities } = await response.json();
   const changes = entities.filter((entity) => entity.value !== null).map(({ key, value }) => ({ key, base: value, value: null }));
   if (!changes.length) return;
-  const cleared = await context.request.post(origin + '/api/sync', { headers, data: { sinceRev: 0, changes, features: ['habits', 'backlog', 'notemeta'] } });
+  const cleared = await context.request.post(origin + '/api/sync', { headers, data: { sinceRev: 0, changes, features: ['habits', 'backlog', 'notemeta', 'ink'] } });
   if (!cleared.ok()) throw new Error(`Reset test vault failed: ${cleared.status()}`);
 }
 
 /** Seed storage before React/sync starts. The server app deliberately has no welcome/sample flow. */
-export async function seedVault(page, origin, { docs = [], notes = [], settings, habits, backlog } = {}) {
+export async function seedVault(page, origin, { docs = [], notes = [], settings, habits, backlog, ink } = {}) {
   const url = origin + '/__daymark_e2e_seed';
   await page.route(url, (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Test vault setup</title>' }));
   await page.goto(url);
-  await page.evaluate(async ({ docs, notes, settings, habits, backlog }) => {
+  await page.evaluate(async ({ docs, notes, settings, habits, backlog, ink }) => {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open('daymark', 1);
       request.onupgradeneeded = () => request.result.createObjectStore('kv');
@@ -44,11 +44,12 @@ export async function seedVault(page, origin, { docs = [], notes = [], settings,
         if (settings) store.put(settings, 'settings');
         if (habits !== undefined) store.put(habits, 'habits');
         if (backlog !== undefined) store.put(backlog, 'backlog');
+        if (ink !== undefined) store.put(ink, 'ink');
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
       });
     } finally { db.close(); }
-  }, { docs, notes, settings, habits, backlog });
+  }, { docs, notes, settings, habits, backlog, ink });
   await page.unroute(url);
 }
 

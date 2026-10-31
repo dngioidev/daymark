@@ -46,6 +46,13 @@ test('seedVault writes backlog only when explicitly provided', async () => {
   assert.deepEqual((await seeded({ backlog })).get('backlog'), backlog);
 });
 
+test('seedVault writes ink pages only when explicitly provided', async () => {
+  const ink = [{ noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: '2026-11-01T08:00:00Z' }];
+  assert.deepEqual((await seeded({ ink })).get('ink'), ink);
+  assert.equal((await seeded({})).has('ink'), false);
+  assert.deepEqual((await seeded({ ink: [] })).get('ink'), []);
+});
+
 test('resetServerVault reads and deletes every live entity with habits, backlog and note metadata support', async () => {
   const entities = [
     { key: 'habits', value: { habits: [] } },
@@ -53,6 +60,7 @@ test('resetServerVault reads and deletes every live entity with habits, backlog 
     { key: 'doc:2026-10-24', value: { date: '2026-10-24' } },
     { key: 'backlog', value: { items: [] } },
     { key: 'notemeta', value: { folders: [], dismissed: [] } },
+    { key: 'ink:study:0', value: { noteId: 'study', page: 0, strokes: [], removed: [] } },
     { key: 'note:deleted', value: null },
   ];
   const calls = [];
@@ -66,7 +74,7 @@ test('resetServerVault reads and deletes every live entity with habits, backlog 
   await resetServerVault(context, 'http://reset.test', 'test-token');
   assert.equal(calls.length, 2);
   assert.equal(calls[0].url, 'http://reset.test/api/sync');
-  assert.deepEqual(calls[0].data, { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta'] });
-  assert.deepEqual(calls[1].data, { sinceRev: 0, features: ['habits', 'backlog', 'notemeta'], changes: entities.slice(0, 5)
+  assert.deepEqual(calls[0].data, { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta', 'ink'] });
+  assert.deepEqual(calls[1].data, { sinceRev: 0, features: ['habits', 'backlog', 'notemeta', 'ink'], changes: entities.slice(0, 6)
     .map(({ key, value }) => ({ key, base: value, value: null })) });
 });

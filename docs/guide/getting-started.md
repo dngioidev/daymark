@@ -11,7 +11,7 @@ Download the Android APK from Daymark's release page. Android may ask you to all
 
 You can also install the web app from your phone's browser menu; it works offline.
 
-**One-time switch from debug to release:** sync or back up first, uninstall the debug-signed app, install the signed APK, then sign in again. Uninstalling deletes device-only data.
+**One-time switch from debug to release:** sync or back up first, uninstall the debug-signed app, install the signed APK, then sign in again. Uninstalling deletes device-only data. The new signing key requires this: Android refuses to update an app signed with a different key.
 
 ### Building signed Android releases
 Create the release key once, outside the repository:

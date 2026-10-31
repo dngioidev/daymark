@@ -7,6 +7,7 @@ import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedVault } from './helpers/server-session.mjs';
 import { cycle10Qa } from './helpers/cycle-10-qa.mjs';
 import { knowledgeGraphQa } from './helpers/knowledge-graph-qa.mjs';
+import { cycle14Qa } from './helpers/cycle-14-qa.mjs';
 import { cycle11Qa } from './helpers/cycle-11-qa.mjs';
 import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
 
@@ -1931,6 +1932,8 @@ for (const width of [1440, 1280, 1100, 900, 390]) for (const theme of ['light', 
     verify: (name, ok, detail = '') => check('C12-Responsive-' + width + '-' + theme + '-' + name, ok, name, detail) });
   check('C12-Responsive-' + width + '-' + theme + '-errors', errors.length === 0, 'no browser errors', errors.join(' | '));
 });
+
+await cycle14Qa({ run, fresh, check });
 
 await knowledgeGraphQa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, png });
 await cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, settingsClose, themeSaved });

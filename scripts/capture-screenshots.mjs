@@ -16,6 +16,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
+import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk } from './helpers/cycle-14-qa.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
 
 const args = process.argv.slice(2);
@@ -34,6 +35,8 @@ const outDir = path.resolve('docs', 'releases', cycle, 'images');
 fs.mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = {
+  tablet: { viewport: { width: 1280, height: 800 }, hasTouch: true },
+  tabletPortrait: { viewport: { width: 800, height: 1280 }, hasTouch: true },
   desktop: { viewport: { width: 1440, height: 900 } },
   wide: { viewport: { width: 1920, height: 1080 } },
   android: { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
@@ -184,7 +187,36 @@ const cycle12Graph = then(click('button', /^notes$/i), async (page) => {
   await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
   await page.getByText('Finding suggestions…').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
 });
+// Each ink scene creates its notebook through the same UI used by the owner.
+const cycle14Ink = (paper = 'Lined', phone = false) => async page => {
+  await page.evaluate(() => localStorage.setItem('dm.ink.penSeen', '1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.evaluate(() => document.documentElement.style.setProperty('--dm-safe-top', '24px'));
+  await createNotebook(page, paper, 'Field study notebook');
+  await writeTwoStrokes(page);
+  await waitInk(page, 2);
+  if (phone) {
+    await page.evaluate(() => localStorage.removeItem('dm.ink.penSeen'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    await openNotes(page);
+    await page.getByRole('treeitem', { name: 'Field study notebook', exact: true }).click();
+    await inkCanvas(page).waitFor();
+    if (await page.getByRole('toolbar', { name: 'Writing tools', exact: true }).count()) throw new Error('Phone screenshot must be read only');
+  }
+};
+const cycle14Highlight = async page => {
+  await openNotes(page);
+  await page.getByRole('treeitem', { name: 'Study reading', exact: true }).click();
+  await highlightWords(page);
+};
 const SHOTS = [
+  { name: 'tablet-layout', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink() },
+  { name: 'tablet-layout-portrait', viewport: 'tabletPortrait', cycles: ['cycle-14'], prepare: cycle14Ink() },
+  { name: 'handwritten-lined', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink('Lined') },
+  { name: 'handwritten-grid', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink('Grid') },
+  { name: 'typed-highlighter', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Highlight },
+  { name: 'handwritten-phone-read-only', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink('Lined', true) },
   { name: 'notes-column', viewport: 'wide', cycles: ['cycle-12'], prepare: cycle12Open('Java collectors') },
   { name: 'notes-search', viewport: 'wide', cycles: ['cycle-12'], prepare: then(cycle12Open('Java collectors'), async (page) => {
     await page.getByRole('searchbox', { name: 'Search notes' }).fill('stream');
@@ -392,7 +424,9 @@ try {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
-      if (cycle === 'cycle-7') {
+      if (cycle === 'cycle-14') {
+        await seedVault(page, baseUrl, { notes: [{ id: 'cycle14-reading', title: 'Study reading', content: 'Study these words today', folder: '', tags: [], pinned: false, createdAt: today + 'T08:00:00Z', updatedAt: today + 'T08:00:00Z' }] });
+      } else if (cycle === 'cycle-7') {
         await seedVault(page, baseUrl, cycle7Fixture(today));
       } else if (cycle === 'cycle-10' || cycle === 'cycle-10-1') {
         const vault = cycle7Fixture(today);
