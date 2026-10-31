@@ -156,7 +156,7 @@ describe('habit storage', () => {
       await syncOnce(async (_url, init) => {
         sent.push(JSON.parse(String(init?.body)));
         return Response.json({ rev: 2, entities: [], conflicts: [] });
-      }, { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
+      }, { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
         serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
         bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
       }, 'access');
@@ -466,7 +466,7 @@ it('damaged backlog resets only its sync base and cannot be pushed before backfi
     expect(uneditedRecoveredBacklog.has(recovered)).toBe(true);
     expect(store.loadSyncState()).toMatchObject({ backlogSynced: false, habitsSynced: true, bases: { habits: '{"habits":[]}' } });
     expect(store.loadSyncState()!.bases).not.toHaveProperty('backlog');
-    const local = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
+    const local = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
     const requests: { sinceRev: number; changes: { key: string }[] }[] = [];
     const outcome = await syncOnce(async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)));
@@ -589,4 +589,49 @@ it('damaged NoteMeta resets only its sync bookkeeping', async () => {
     expect(state).toMatchObject({ notemetaSynced: false, backlogSynced: true, habitsSynced: true, lastRev: 99 });
     expect(state.bases).toEqual({ backlog: JSON.stringify(backlog), habits: '{"habits":[]}' });
   }, false, '{bad json', 'daymark_notemeta_v1');
+});
+
+it.each([false, true])('ink saves debounce within 1s and flush on pagehide and hidden (IndexedDB: %s)', async indexed => {
+  const win = new EventTarget(), doc = new EventTarget();
+  vi.stubGlobal('window', win); vi.stubGlobal('document', doc);
+  await habitStoreTest(async ({ store, values, raw }) => {
+    vi.useFakeTimers();
+    try {
+      const page = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
+      store.saveInkPages([page]);
+      expect(await store.loadInkPages()).toEqual([page]);
+      const saved = () => indexed ? raw.get('ink') : values.has('daymark_ink_v1') ? JSON.parse(values.get('daymark_ink_v1')!) : undefined;
+      expect(saved()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(saved()).toEqual([page]);
+      const second = { ...page, page: 1 };
+      store.saveInkPages([page, second]);
+      win.dispatchEvent(new Event('pagehide'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(saved()).toEqual([page, second]);
+      store.saveInkPages([second]);
+      Object.defineProperty(doc, 'visibilityState', { value: 'visible', configurable: true });
+      doc.dispatchEvent(new Event('visibilitychange'));
+      expect(saved()).toEqual([page, second]);
+      Object.defineProperty(doc, 'visibilityState', { value: 'hidden', configurable: true });
+      doc.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(saved()).toEqual([second]);
+    } finally { vi.useRealTimers(); }
+  }, indexed);
+});
+it('JSON backup exports ink and restores the exact ink array', async () => {
+  await habitStoreTest(async ({ store }) => {
+    const ink = [{ noteId: 'study', page: 0, strokes: [], removed: ['erased'], updatedAt: 'now' }];
+    let captured: Blob | undefined;
+    vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { captured = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+    vi.stubGlobal('document', { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } });
+    await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, EMPTY_HABITS, undefined, undefined, undefined, ink);
+    const parsed = JSON.parse(await captured!.text());
+    expect(parsed.ink).toEqual(ink);
+    const { mergeRestoredInk } = await import('./vaultArchive');
+    expect(mergeRestoredInk([], parsed.ink)).toEqual(ink);
+    expect(mergeRestoredInk(ink, undefined)).toBe(ink);
+    expect(mergeRestoredInk(ink, [])).toEqual([]);
+  });
 });

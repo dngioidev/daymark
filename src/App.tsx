@@ -1,3 +1,4 @@
+import { useInkPages } from './hooks/useInkPages';
 import { resolveAlertDays } from './utils/alertDays';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppearance } from './hooks/useAppearance';
@@ -26,6 +27,7 @@ import {
   loadHabits,
   loadBacklog,
   loadNoteMeta,
+  readInkPages,
   saveNoteMeta,
   saveBacklog,
   saveHabits,
@@ -39,7 +41,7 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importBackupAssets, importVaultFromZip, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredInk, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
 import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, undoBacklogMove, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
@@ -127,6 +129,7 @@ export default function App() {
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
+  const { ink, setInk } = useInkPages();
   const [notemeta, setNoteMeta] = useState(loadNoteMeta);
   const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
   const backlogRef = React.useRef(backlog);
@@ -346,6 +349,7 @@ export default function App() {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
+        else if (key === 'ink') setInk(readInkPages());
         else if (key === 'notemeta') setNoteMeta(loadNoteMeta());
         else if (key === 'backlog') setBacklog(loadBacklog());
         else if (key === 'habits') setHabits(loadHabits());
@@ -642,7 +646,7 @@ export default function App() {
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
       let missingPictures = 0;
-      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog())) {
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, ink)) {
         setLastBackupAt(getLastBackupDate());
         showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
@@ -683,6 +687,10 @@ export default function App() {
     }
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
+    let restoredInk: typeof ink;
+    try { restoredInk = mergeRestoredInk(ink, parsed.ink); } catch (error) {
+      return alertDialog("This file can't be restored", (error as Error).message);
+    }
     if (!(await confirmReplaceVault())) return;
     let skippedPictures = 0;
     try {
@@ -693,6 +701,7 @@ export default function App() {
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
+    setInk(restoredInk);
     setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
     setHabits((current) => mergeRestoredHabits(current, isHabitData(parsed.habits) ? parsed.habits : undefined));
     setBacklog((current) => mergeRestoredBacklog(current, parsed.backlog));
@@ -710,6 +719,7 @@ export default function App() {
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
       setNotes(snapshot.notes);
+      setInk(current => mergeRestoredInk(current, snapshot.ink));
       setNoteMeta(current => mergeRestoredNoteMeta(current, snapshot.notemeta));
       setHabits((current) => mergeRestoredHabits(current, snapshot.habits));
       setBacklog((current) => mergeRestoredBacklog(current, snapshot.backlog));
@@ -730,6 +740,7 @@ export default function App() {
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
     setNotes(res.notes);
+    setInk(res.ink);
     setNoteMeta(res.notemeta);
     setHabits(res.habits);
     setBacklog(res.backlog);
@@ -749,7 +760,7 @@ export default function App() {
   };
 
   // Self-hosted sync: merges this vault with the server in the background
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta }), [dailyDocs, notes, settings, habits, backlog, notemeta]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, settings, habits, backlog, notemeta, ink]);
   const sync = useSync(
     vaultForSync,
     (next) => {
@@ -760,6 +771,7 @@ export default function App() {
       setHabits(next.habits);
       setBacklog(next.backlog);
       setNoteMeta(next.notemeta);
+      setInk(next.ink);
       setSettings((local) => mergeIncomingSettings(local, next.settings));
     },
     (conflicts) =>

@@ -24,7 +24,7 @@ export interface Device {
 function defaultVault(): VaultData {
   return structuredClone({
     docs: [{ date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T08:00:00Z' }],
-    notes: [], settings: DEFAULT_SETTINGS,
+    ink: [], notes: [], settings: DEFAULT_SETTINGS,
     habits: {
       habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-23', updatedAt: '2026-10-24T08:00:00Z' }],
       days: [
@@ -126,7 +126,9 @@ export async function startSyncRig(): Promise<{
           };
           const local = opts.legacy
             ? { ...device.vault, settings: withoutAlertDays(device.vault.settings) } : device.vault;
-          const outcome = await syncOnce(fetcher, local, { ...state, serverUrl: base }, accessToken);
+          // 1.10 note edits spread the note and its merge iterates unknown keys,
+          // so kind/paper survive unchanged. Only ink capability is absent.
+          const outcome = await syncOnce(fetcher, local, { ...state, serverUrl: base }, accessToken, opts.legacy ? new Set(['ink']) : new Set());
           const next = applySyncOutcome(device.vault, outcome);
           device.vault = opts.legacy ? { ...next, settings: withoutAlertDays(next.settings) } : next;
           state = outcome.state;

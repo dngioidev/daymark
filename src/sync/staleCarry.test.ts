@@ -112,7 +112,7 @@ describe('a task finished on one device stays finished', () => {
     const shared = [doc(D, [task()])];
     const finishedDay = done(shared[0]);
     finishedDay.headings[0].items[0].historyLog.at(-1)!.timestamp = '2026-10-20T15:00:00.000Z';
-    const vault: VaultData = { docs: rollover(shared, NEXT), notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: EMPTY_BACKLOG, notemeta: EMPTY_NOTE_META };
+    const vault: VaultData = { ink: [], docs: rollover(shared, NEXT), notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: EMPTY_BACKLOG, notemeta: EMPTY_NOTE_META };
     const outcome = { serverValues: new Map([[`doc:${D}`, finishedDay]]), snapshot: toEntities(vault) } as unknown as SyncOutcome;
     const next = applySyncOutcome(vault, outcome);
     expect(find(next.docs, D)?.status).toBe('done');

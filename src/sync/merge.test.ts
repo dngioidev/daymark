@@ -543,3 +543,16 @@ describe('reconcileMovedTasks', () => {
     expect(reconcileMovedTasks(docs)[0].headings[0].items.map((t) => t.id)).toEqual(['t2']);
   });
 });
+
+it('routes ink entities to stroke union and removal records', async () => {
+  const { isValidEntityKey, mergeEntity } = await import('./merge');
+  const p = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
+  expect(isValidEntityKey('ink:study:0')).toBe(true);
+  expect(isValidEntityKey('ink:study:-1')).toBe(false);
+  expect(mergeEntity('ink:study:0', null, p, { ...p, removed: ['erased'] }).value).toEqual({ ...p, removed: ['erased'] });
+});
+
+it('rejects noncanonical ink keys so a page cannot acquire duplicate entities', async () => {
+  const { isValidEntityKey } = await import('./merge');
+  for (const key of ['ink:study:00', 'ink:../study:0', 'ink:study:9007199254740992']) expect(isValidEntityKey(key)).toBe(false);
+});

@@ -8,6 +8,7 @@ vi.mock('react', async (original) => {
   const actual = await original<typeof React>();
   const hooks = {
     useState: (initial: unknown) => [typeof initial === 'function' ? initial() : initial, setState],
+    useCallback: (fn: unknown) => fn,
     useEffect: () => {}, useMemo: (fn: () => unknown) => fn(), useRef: (current: unknown) => ({ current }),
   };
   return { ...actual, ...hooks, default: { ...actual, ...hooks } };

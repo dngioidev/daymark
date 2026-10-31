@@ -1,3 +1,5 @@
+import type { InkPage } from '../types/daymark';
+import { isInkPage, isInkPages } from './vaultValidation';
 import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, StandaloneNote } from '../types/daymark';
 import { uneditedRecoveredNoteMeta } from './noteFolders';
 import { EMPTY_BACKLOG, uneditedRecoveredBacklog } from './backlog';
@@ -33,6 +35,7 @@ const KEYS = {
   HABITS: 'habits',
   BACKLOG: 'backlog',
   NOTE_META: 'notemeta',
+  INK: 'ink',
   SYNC_STATE: 'sync_state',
   ONBOARDED: 'onboarded',
 } as const;
@@ -45,6 +48,7 @@ const LEGACY_KEYS: Record<string, string> = {
   [KEYS.HABITS]: 'daymark_habits_v1',
   [KEYS.BACKLOG]: 'daymark_backlog_v1',
   [KEYS.NOTE_META]: 'daymark_notemeta_v1',
+  [KEYS.INK]: 'daymark_ink_v1',
   [KEYS.SYNC_STATE]: 'daymark_sync_state_v1',
 };
 
@@ -223,7 +227,7 @@ export async function initVaultStore(): Promise<void> {
   }
 }
 
-export type SharedKey = 'daily_docs' | 'notes' | 'settings' | 'habits' | 'backlog' | 'notemeta';
+export type SharedKey = 'daily_docs' | 'notes' | 'settings' | 'habits' | 'backlog' | 'notemeta' | 'ink';
 type ExternalListener = (key: SharedKey, value: unknown) => void;
 const externalListeners = new Set<ExternalListener>();
 const CHANNEL_NAME = 'daymark-vault';
@@ -236,6 +240,7 @@ export function parseVaultMessage(data: unknown): { key: SharedKey; value: unkno
   if ((key === 'daily_docs' || key === 'notes') && Array.isArray(value)) return { key, value };
   if (key === 'settings' && isSyncedSettings(value)) return { key, value };
   if (key === 'habits' && isHabitData(value)) return { key, value };
+  if (key === 'ink' && isInkPages(value)) return { key, value };
   if (key === 'notemeta' && isNoteMeta(value)) return { key, value };
   if (key === 'backlog' && isBacklogData(value)) return { key, value };
   return null;
@@ -265,15 +270,15 @@ export function subscribeExternalChanges(listener: ExternalListener): () => void
   return () => externalListeners.delete(listener);
 }
 
-function writeValue(key: string, value: unknown): Promise<void> {
+function writeValue(key: string, value: unknown, force = false): Promise<void> {
   if (wiping) return Promise.resolve();
   const previous = cache.get(key);
   // Loop guard: a value received from another tab is saved back by the same reference.
   // Settings are re-normalized into a new object, so they are compared by content.
-  if (value === previous && key !== KEYS.SYNC_STATE) return writeChain;
+  if (!force && value === previous && key !== KEYS.SYNC_STATE) return writeChain;
   if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return writeChain;
   cache.set(key, value);
-  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES || key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META) {
+  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES || key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META || key === KEYS.INK) {
     try {
       channel?.postMessage({ key, value });
     } catch {
@@ -445,10 +450,57 @@ export function saveSyncState(state: SyncState | null): Promise<void> {
   return writeValue(KEYS.SYNC_STATE, state);
 }
 
+let inkTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingInk: InkPage[] | undefined;
+const inkFlushTargets = new WeakSet<EventTarget>();
+
+/** Read the startup cache hydrated by initVaultStore, before the first sync. */
+export function readInkPages(): InkPage[] {
+  return loadValid(KEYS.INK, isInkPage, 'ink page');
+}
+
+export async function loadInkPages(): Promise<InkPage[]> {
+  return readInkPages();
+}
+
+function flushInkPages(): void {
+  if (inkTimer !== undefined) clearTimeout(inkTimer);
+  inkTimer = undefined;
+  if (!pendingInk || wiping) return;
+  const pages = pendingInk;
+  pendingInk = undefined;
+  void writeValue(KEYS.INK, pages, true).catch(() => undefined);
+}
+
+function installInkFlushHandlers(): void {
+  if (typeof window !== 'undefined' && !inkFlushTargets.has(window)) {
+    window.addEventListener('pagehide', flushInkPages);
+    inkFlushTargets.add(window);
+  }
+  if (typeof document !== 'undefined' && !inkFlushTargets.has(document)) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushInkPages();
+    });
+    inkFlushTargets.add(document);
+  }
+}
+
+/** Coalesce writes for at most 500ms, even during continuous handwriting. */
+export function saveInkPages(pages: InkPage[]): void {
+  if (wiping || cache.get(KEYS.INK) === pages) return;
+  installInkFlushHandlers();
+  cache.set(KEYS.INK, pages);
+  pendingInk = pages;
+  if (inkTimer === undefined) inkTimer = setTimeout(flushInkPages, 500);
+}
+
 /** Remove this browser's vault after its server session ends. */
 export function wipeLocalVault(): Promise<void> {
   if (wipePromise) return wipePromise;
   wiping = true;
+  if (inkTimer !== undefined) clearTimeout(inkTimer);
+  inkTimer = undefined;
+  pendingInk = undefined;
   cache.clear();
   wipePromise = (async () => {
     channel?.postMessage({ type: 'wipe' });
@@ -496,6 +548,7 @@ export function resetVaultToSeedData(): {
   habits: HabitData;
   backlog: BacklogData;
   notemeta: NoteMeta;
+  ink: InkPage[];
 } {
   saveSettings(DEFAULT_SETTINGS);
   saveDailyDocuments(SEED_DAILY_DOCUMENTS);
@@ -503,6 +556,7 @@ export function resetVaultToSeedData(): {
   saveHabits(EMPTY_HABITS);
   saveBacklog(EMPTY_BACKLOG);
   saveNoteMeta(EMPTY_NOTE_META);
+  saveInkPages([]);
   markOnboarded();
   return {
     settings: DEFAULT_SETTINGS,
@@ -511,6 +565,7 @@ export function resetVaultToSeedData(): {
     habits: EMPTY_HABITS,
     backlog: EMPTY_BACKLOG,
     notemeta: EMPTY_NOTE_META,
+    ink: [],
   };
 }
 
@@ -583,8 +638,9 @@ export async function exportVaultAsZip(
   onMissingPictures?: (count: number) => void,
   backlog: BacklogData = loadBacklog(),
   notemeta: NoteMeta = loadNoteMeta(),
+  ink: InkPage[] = readInkPages(),
 ): Promise<boolean> {
-  const bytes = await buildVaultZip(docs, notes, settings, habits, onMissingPictures, backlog, notemeta);
+  const bytes = await buildVaultZip(docs, notes, settings, habits, onMissingPictures, backlog, notemeta, ink);
   return recordBackup(await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`));
 }
 
@@ -599,6 +655,7 @@ export async function exportVaultAsJson(
   onMissingPictures?: (count: number) => void,
   backlog: BacklogData = loadBacklog(),
   notemeta: NoteMeta = loadNoteMeta(),
+  ink: InkPage[] = readInkPages(),
 ): Promise<boolean> {
   const bundle = {
     daymark_backup_version: '1.0',
@@ -610,6 +667,7 @@ export async function exportVaultAsJson(
     habits,
     backlog,
     notemeta,
+    ink,
   };
   return recordBackup(
     await downloadBlob(

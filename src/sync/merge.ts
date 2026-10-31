@@ -1,3 +1,5 @@
+import { isInkEntityKey, mergeInkPage } from '../ink/inkModel';
+import type { InkPage } from '../types/daymark';
 import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 import { isBacklogUndoEvent, mergeBacklogHistory, taskHistoryIdentity } from '../utils/backlogHistory';
 import { canonicalJson } from '../utils/canonicalJson';
@@ -473,6 +475,9 @@ export const isBacklogEntityKey = (key: string): boolean => key === 'backlog';
 export type EntityKey = string;
 
 export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs: unknown, now: number = Date.now()): MergeResult<unknown> {
+  if (isInkEntityKey(key)) {
+    return { value: mergeInkPage(base as InkPage | null, ours as InkPage | null, theirs as InkPage | null), conflicts: [] };
+  }
   if (isNoteMetaEntityKey(key)) {
     return mergeNoteMeta(base as NoteMeta | null, ours as NoteMeta | null, theirs as NoteMeta | null, now);
   }
@@ -498,7 +503,7 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 }
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
-  return typeof key === 'string' && (/^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
+  return typeof key === 'string' && (isInkEntityKey(key) && /^ink:[\w.-]{1,200}:(0|[1-9]\d*)$/.test(key) || /^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
 }
 
 /**

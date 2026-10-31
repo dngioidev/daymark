@@ -12,7 +12,7 @@ const habits: HabitData = {
   days: [{ date: '2026-10-23', ticks: { water: { done: true, at: '2026-10-23T08:00:00Z' } } },
     { date: '2026-10-24', ticks: { water: { done: false, at: '2026-10-24T08:00:00Z' } } }],
 };
-const vault: VaultData = { docs: [{ date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T08:00:00Z' }],
+const vault: VaultData = { ink: [], docs: [{ date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T08:00:00Z' }],
   notes: [], settings: DEFAULT_SETTINGS, habits, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
 const state: SyncState = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'test',
   lastRev: 0, bases: { notemeta: canonicalJson({ folders: [], dismissed: [] }) }, lastSyncAt: null };
@@ -41,7 +41,7 @@ describe('large pending pushes', () => {
   const largeVault: VaultData = { ...vault, notes: Array.from({ length: MAX_CHANGES_PER_SYNC + 1 }, (_, i) => ({
     id: `bulk-${i}`, title: `Note ${i}`, content: `Text ${i}`, folder: '', tags: [], createdAt: '2026-10-24T09:00:00Z', updatedAt: '2026-10-24T09:00:00Z',
   })) };
-  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
+  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true, inkSynced: true,
     bases: Object.fromEntries([...toEntities(vault)].map(([key, value]) => [key, canonicalJson(value)])) };
 
   it('backfills only the first batch, then pulls from its returned rev without missing cross-batch changes', async () => {
@@ -110,7 +110,7 @@ describe('large pending pushes', () => {
 
 describe('batching by size', () => {
   const bigNote = (id: string, size: number) => ({ id, title: id, content: 'x'.repeat(size), folder: '', tags: [], createdAt: '2026-10-24T09:00:00Z', updatedAt: '2026-10-24T09:00:00Z' });
-  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
+  const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true, inkSynced: true,
     bases: Object.fromEntries([...toEntities(vault)].map(([key, value]) => [key, canonicalJson(value)])) };
   const echo = (calls: { body: SyncRequest; bytes: number }[]) => async (_url: string, init?: RequestInit) => {
     const raw = String(init?.body);
@@ -154,7 +154,7 @@ describe('older server fallback', () => {
       return Response.json({ rev: 1, entities: body.changes.map((c) => ({ key: c.key, value: c.value, rev: 1 })), conflicts: [] });
     }, vault, { ...state, bases }, 'access');
     expect(calls).toHaveLength(2);
-    expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta']);
+    expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta', 'ink']);
     expect(calls[1].changes.some((c) => c.key.startsWith('habit'))).toBe(false);
     expect(calls[1].changes.some((c) => c.key === 'doc:2026-10-24')).toBe(true);
     expect(outcome.habitsUnsupported).toBe(true);
@@ -277,7 +277,7 @@ it('falls back on a 1.6 server without disabling habits and remembers it next ro
     return Response.json({ rev: 42, entities: body.changes.map(c => ({ ...c, rev: 42 })), conflicts: [] });
   };
   const first = await syncOnce(fetcher, { ...vault, backlog }, state, 'access');
-  expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta']);
+  expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta', 'ink']);
   expect(calls[1].changes.some(c => c.key === 'backlog')).toBe(false);
   expect(calls[1].changes.some(c => c.key === 'habits')).toBe(true);
   expect(calls[1].changes.some(c => c.key.startsWith('doc:'))).toBe(true);

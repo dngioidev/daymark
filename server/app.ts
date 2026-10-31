@@ -1,3 +1,5 @@
+import { isInkEntityKey, parseInkKey } from '../src/ink/inkModel';
+import { isInkPage } from '../src/utils/vaultValidation';
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { reconcileBacklogVault } from '../src/utils/backlog';
@@ -230,6 +232,10 @@ export function createApp(config: ServerConfig, store: FileStore) {
 
   /** Shape check for a sync value against its entity key. */
   const validValue = (key: string, value: unknown): boolean => {
+    if (isInkEntityKey(key)) {
+      const identity = parseInkKey(key)!;
+      return isInkPage(value) && value.noteId === identity.noteId && value.page === identity.page;
+    }
     if (key === 'notemeta') return isNoteMeta(value);
     if (key === 'backlog') return isBacklogData(value);
     if (key === 'habits') return typeof value === 'object' && value !== null && !Array.isArray(value) &&
@@ -252,6 +258,12 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
       if (changes.some((c) => !c || !isValidEntityKey(c.key))) {
         return res.status(400).json({ error: 'Invalid entity key in sync request.' });
+      }
+      if (changes.some(c => isInkEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('ink'))) {
+        return res.status(400).json({ error: 'Ink feature is required.' });
+      }
+      if (changes.some(c => isInkEntityKey(c.key) && c.base != null && !validValue(c.key, c.base))) {
+        return res.status(400).json({ error: 'Invalid ink base.' });
       }
       if (changes.some(c => isBacklogEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('backlog'))) {
         return res.status(400).json({ error: 'Backlog feature is required.' });
@@ -331,6 +343,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)
+        .filter(([key]) => (Array.isArray(body.features) && body.features.includes('ink')) || !isInkEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('notemeta')) || !isNoteMetaEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('habits')) || !isHabitEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('backlog')) || !isBacklogEntityKey(key))

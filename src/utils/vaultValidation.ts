@@ -1,3 +1,5 @@
+import { inkKey } from '../ink/inkModel';
+import type { InkPage } from '../types/daymark';
 import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
@@ -100,4 +102,21 @@ export function vaultProblem(docs: unknown, notes: unknown): string | null {
     if (!isStandaloneNote(notes[i])) return `This backup is damaged: note ${i + 1} can't be read.`;
   }
   return null;
+}
+
+/** Structural boundary validation shared by storage, restore and the server. */
+export function isInkPage(value: unknown): value is InkPage {
+  if (!isObject(value) || !isString(value.noteId) || !/^[\w.-]{1,200}$/.test(value.noteId) ||
+    !Number.isSafeInteger(value.page) || (value.page as number) < 0 || !isString(value.updatedAt) ||
+    !Array.isArray(value.removed) || !value.removed.every(isString) || !Array.isArray(value.strokes)) return false;
+  return value.strokes.every(s => isObject(s) && isString(s.id) &&
+    (s.tool === 'pen' || s.tool === 'highlighter') && isString(s.color) &&
+    typeof s.width === 'number' && Number.isFinite(s.width) && s.width > 0 &&
+    isString(s.createdAt) && isString(s.points) && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s.points));
+}
+
+export function isInkPages(value: unknown): value is InkPage[] {
+  if (!Array.isArray(value) || !value.every(isInkPage)) return false;
+  const keys = value.map(page => inkKey(page.noteId, page.page));
+  return new Set(keys).size === keys.length;
 }

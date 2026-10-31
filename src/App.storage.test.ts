@@ -12,6 +12,7 @@ vi.mock('react', async (original) => {
       const value = typeof initial === 'function' ? initial() : initial;
       return [value, value && typeof value === 'object' && 'folders' in value ? metaSet : vi.fn()];
     },
+    useCallback: (fn: unknown) => fn,
     useEffect: () => {}, useMemo: (fn: () => unknown) => fn(),
     useRef: (current: unknown) => { const ref = { current }; refs.push(ref); return ref; },
   };
@@ -46,8 +47,8 @@ function elements(node: React.ReactNode): React.ReactElement<Record<string, unkn
 }
 function settings() {
   refs.length = 0;
-  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
-  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('window', { addEventListener: vi.fn(), innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { addEventListener: vi.fn(), cookie: '' });
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
   return elements(App()).find(element => element.type === SettingsModal)!.props as unknown as React.ComponentProps<typeof SettingsModal>;
 }

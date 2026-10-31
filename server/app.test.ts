@@ -84,7 +84,7 @@ const note = (id: string, content: string): StandaloneNote => ({
   createdAt: '2026-10-20T00:00:00Z',
   updatedAt: '2026-10-20T00:00:00Z',
 });
-const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ ink: [], docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 
 it('skips move reconciliation for unique tasks but runs it for duplicate-day ids', async () => {
   const client = await connect('prefilter');
@@ -1084,4 +1084,18 @@ it('gates NoteMeta reads and writes including tombstones from legacy clients', a
   expect((await fresh.json()).entities).toContainEqual(expect.objectContaining({ key: 'notemeta', value }));
   const invalid = await post('/api/sync', { features: ['notemeta'], changes: [{ key: 'notemeta', base: value, value: { folders: [null], dismissed: [] } }] }, a.accessToken);
   expect((await invalid.json()).error).toBe('Invalid value for notemeta.');
+});
+
+it('requires ink capability, filters ink for legacy clients, and validates key identity and bases', async () => {
+  const client = await connect('ink');
+  const page = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
+  const change = { key: 'ink:study:0', base: null, value: page };
+  const send = (changes: unknown[], features?: string[]) => post('/api/sync', { sinceRev: 0, changes, features }, client.accessToken);
+  expect((await send([change])).status).toBe(400);
+  expect((await send([change], ['ink'])).status).toBe(200);
+  expect((await (await send([])).json()).entities.some((e: { key: string }) => e.key.startsWith('ink:'))).toBe(false);
+  expect((await send([{ ...change, value: { ...page, page: 1 } }], ['ink'])).status).toBe(400);
+  expect((await send([{ ...change, base: { ...page, strokes: [null] } }], ['ink'])).status).toBe(400);
+  expect((await send([{ ...change, value: { ...page, strokes: [{ id: 'bad' }] } }], ['ink'])).status).toBe(400);
+  expect((await send([{ ...change, value: null }])).status).toBe(400);
 });

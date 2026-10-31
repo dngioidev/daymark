@@ -9,7 +9,7 @@ import { SyncRequest } from './protocol';
 const empty: NoteMeta = { folders: [], dismissed: [] };
 const early = '2026-10-28T08:00:00Z', late = '2026-10-28T09:00:00Z';
 const meta: NoteMeta = { folders: [{ path: 'Tech/Java', updatedAt: early }], dismissed: [{ key: 'a|b', at: early }] };
-const vault = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: meta };
+const vault = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: meta };
 const state: SyncState = { serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 99, habitsSynced: true, backlogSynced: true, bases: {}, lastSyncAt: null };
 const merge = (base: NoteMeta | null, ours: NoteMeta | null, theirs: NoteMeta | null) => mergeEntity('notemeta', base, ours, theirs).value;
 
@@ -76,7 +76,7 @@ it.each([{ rejected: ['notemeta'] }, { rejected: ['notemeta', 'backlog'] }])('fa
     return Response.json({ rev: 100, entities: body.changes.map((c: object) => ({ ...c, rev: 100 })), conflicts: [] });
   };
   const first = await syncOnce(fetcher, vault, state, 'token');
-  expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta']);
+  expect(calls[0].features).toEqual(['habits', 'backlog', 'notemeta', 'ink']);
   expect([...first.unsupported]).toEqual(rejected);
   expect(first.state.habitsSynced).toBe(true);
   expect(first.state.backlogSynced).toBe(!rejected.includes('backlog'));

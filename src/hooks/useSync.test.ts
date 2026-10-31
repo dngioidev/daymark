@@ -36,7 +36,7 @@ vi.mock('../utils/vaultStore', () => ({
 
 const state = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'Browser',
   lastRev: 0, bases: {}, lastSyncAt: null };
-const vault: VaultData = { docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
+const vault: VaultData = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
 let fetchFn: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
 let replace: ReturnType<typeof vi.fn>;
 function render(next = vault) {
@@ -456,4 +456,14 @@ it.each([false, true])('persists incoming notemeta, including release of recover
   await useSync(local, onChange, vi.fn(), 'web').syncNow();
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ notemeta }));
   expect(uneditedRecoveredNoteMeta.has(onChange.mock.calls[0][0].notemeta)).toBe(false);
+});
+
+it('delivers an ink-only pull to vault state', async () => {
+  const page = { noteId: 'study', page: 0, strokes: [], removed: ['old'], updatedAt: 'now' };
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => url.endsWith('/sync')
+    ? Response.json({ rev: 2, entities: [{ key: 'ink:study:0', value: page, rev: 2 }], conflicts: [] }) : original(url, init));
+  const onChange = vi.fn(); hooks.index = 0;
+  await useSync({ ...vault, ink: [] }, onChange, vi.fn(), 'web').syncNow();
+  expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ ink: [page] }));
 });

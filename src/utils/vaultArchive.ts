@@ -1,3 +1,5 @@
+import type { InkPage } from '../types/daymark';
+import { isInkPages } from './vaultValidation';
 // JSZip is loaded on demand: it is only needed when exporting or importing
 const loadJSZip = async () => (await import('jszip')).default;
 import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, NoteAssetMeta, StandaloneNote } from '../types/daymark';
@@ -108,6 +110,7 @@ export interface VaultSnapshot {
   backlog?: BacklogData;
   notemeta?: NoteMeta;
   skippedPictures?: number;
+  ink?: InkPage[];
 }
 
 /** Older backups have no habits; restoring those must preserve the current data. */
@@ -123,6 +126,13 @@ export function mergeRestoredBacklog(current: BacklogData, restored?: unknown): 
 /** Missing or invalid metadata preserves the current vault; explicit empty replaces it. */
 export function mergeRestoredNoteMeta(current: NoteMeta, restored?: unknown): NoteMeta {
   return isNoteMeta(restored) ? restored : current;
+}
+
+/** Older backups leave ink intact; malformed ink must never silently replace it. */
+export function mergeRestoredInk(current: InkPage[], restored?: unknown): InkPage[] {
+  if (restored === undefined) return current;
+  if (!isInkPages(restored)) throw new Error('Damaged backup ink.');
+  return restored;
 }
 
 function backlogMarkdown(data: BacklogData): string {
@@ -162,12 +172,16 @@ export async function buildVaultZip(
   onMissingPictures?: (count: number) => void,
   backlog: BacklogData = EMPTY_BACKLOG,
   notemeta: NoteMeta = EMPTY_NOTE_META,
+  ink: InkPage[] = [],
 ): Promise<Uint8Array> {
   const assets = await collectBackupAssets(notes, onMissingPictures);
   const JSZip = await loadJSZip();
   const zip = new JSZip();
   const root = zip.folder('Daymark')!;
   const dailyFolder = root.folder('Daily')!;
+  for (const note of notes.filter(note => note.kind === 'handwritten')) {
+    root.file(`ink/${encodeURIComponent(note.id)}.json`, JSON.stringify(ink.filter(page => page.noteId === note.id)));
+  }
   root.file('Backlog.md', backlogMarkdown(backlog));
 
   for (const doc of docs) {
@@ -217,7 +231,7 @@ export async function buildVaultZip(
   );
   meta.file(
     'vault.json',
-    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, notemeta, assets: assets.map(asset => asset.meta) })
+    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, notemeta, ink, assets: assets.map(asset => asset.meta) })
   );
 
   return zip.generateAsync({ type: 'uint8array' });
@@ -245,6 +259,7 @@ export async function importVaultFromZip(
     if (Array.isArray(parsed.daily_documents) && Array.isArray(parsed.standalone_notes)) {
       const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
       if (problem) throw new Error(problem);
+      const ink = parsed.ink === undefined ? undefined : mergeRestoredInk([], parsed.ink);
       let skippedPictures = 0;
       if (parsed.assets !== undefined) {
         if (!Array.isArray(parsed.assets)) throw new Error('Damaged backup picture metadata.');
@@ -268,6 +283,7 @@ export async function importVaultFromZip(
         habits: isHabitData(parsed.habits) ? parsed.habits : undefined,
         backlog: isBacklogData(parsed.backlog) ? parsed.backlog : undefined,
         notemeta: isNoteMeta(parsed.notemeta) ? parsed.notemeta : undefined,
+        ink,
         skippedPictures,
       };
     }

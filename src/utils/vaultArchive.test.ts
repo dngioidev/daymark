@@ -147,3 +147,14 @@ it('ZIP uses nested canonical safe directories and case-insensitive unique filen
     'Daymark/Notes/Root.md', 'Daymark/Notes/Tech/Java/Same (2) (2).md']);
   for (let i = 0; i < names.length; i++) expect(await zip.file(names[i])!.async('string')).toBe('body-' + i);
 });
+
+it('round-trips ink and note markers exactly with a per-note ZIP sidecar', async () => {
+  const note = { ...SEED_STANDALONE_NOTES[0], id: 'study', kind: 'handwritten' as const, paper: 'grid' as const };
+  const ink = [0, 1].map(page => ({ noteId: note.id, page, strokes: [{ id: 's' + page, tool: 'pen' as const, color: '#000', width: 2, points: 'AAAA', createdAt: 'now' }], removed: ['old'], updatedAt: 'now' }));
+  const bytes = await buildVaultZip([], [note], DEFAULT_SETTINGS, undefined, undefined, undefined, undefined, ink);
+  const zip = await JSZip.loadAsync(bytes);
+  expect(JSON.parse(await zip.file('Daymark/ink/study.json')!.async('string'))).toEqual(ink);
+  const restored = await importVaultFromZip(bytes);
+  expect(restored.ink).toEqual(ink);
+  expect(restored.notes).toEqual([note]);
+});

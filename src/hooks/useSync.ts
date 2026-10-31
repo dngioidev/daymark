@@ -137,8 +137,10 @@ export function useSync(
           unsupported.current = outcome.unsupported;
           if (stateRef.current && ((unsupported.current.has('habits') && stateRef.current.habitsSynced) ||
             (unsupported.current.has('backlog') && stateRef.current.backlogSynced) ||
-            (unsupported.current.has('notemeta') && stateRef.current.notemetaSynced))) {
+            (unsupported.current.has('notemeta') && stateRef.current.notemetaSynced) ||
+            (unsupported.current.has('ink') && stateRef.current.inkSynced))) {
             await persistState({ ...stateRef.current,
+              inkSynced: unsupported.current.has('ink') ? false : stateRef.current.inkSynced,
               habitsSynced: unsupported.current.has('habits') ? false : stateRef.current.habitsSynced,
               backlogSynced: unsupported.current.has('backlog') ? false : stateRef.current.backlogSynced,
               notemetaSynced: unsupported.current.has('notemeta') ? false : stateRef.current.notemetaSynced });
@@ -156,6 +158,7 @@ export function useSync(
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
               canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased ||
               canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased ||
+              canonicalJson(next.ink) !== canonicalJson(before.ink) ||
               canonicalJson(next.notemeta) !== canonicalJson(before.notemeta) || recoveredNoteMetaReleased) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
@@ -201,7 +204,7 @@ export function useSync(
     if (!state) return;
     const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, vault.notemeta, state?.deviceId, run]);
+  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, vault.notemeta, vault.ink, state?.deviceId, run]);
 
   useEffect(() => {
     if (mode !== 'server' && !state?.deviceId) return;
@@ -238,10 +241,11 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta')), stateRef.current,
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), !unsupported.current.has('ink')), stateRef.current,
     !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
     !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog),
-    !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta)).length : 0;
+    !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta),
+    !unsupported.current.has('ink')).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';
