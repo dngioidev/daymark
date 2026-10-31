@@ -10,7 +10,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react';
-import { createHandwrittenNote } from '../ink/handwrittenNotes';
+import { createHandwrittenNote, pageCountLabel } from '../ink/handwrittenNotes';
 import type { InkPage } from '../types/daymark';
 import { EMPTY_NOTE_META, type NoteMeta, type StandaloneNote } from '../types/daymark';
 import { Menu } from './ui/Menu';
@@ -479,7 +479,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
             )}
           </div>
           <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
-            {activeNote.kind === 'handwritten' ? `Saved · ${Math.max(1, inkPagesForNote(activeNote.id).length)} pages · edited ${editedLabel}` : `Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
+            {activeNote.kind === 'handwritten' ? `Saved · ${pageCountLabel(inkPagesForNote(activeNote.id).length)} · edited ${editedLabel}` : `Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
           </footer>
         </>
       ) : (

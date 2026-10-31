@@ -8,6 +8,7 @@ import { Menu, type MenuItem } from '../ui/Menu';
 import type { FolderAction } from './folderActions';
 import { notesControlHeight } from './controlHeight';
 import { useTreeWindow } from './useTreeWindow';
+import { pageCountLabel } from '../../ink/handwrittenNotes';
 
 export interface NoteNavigationProps {
   notes: StandaloneNote[]; meta: NoteMeta; openNoteId?: string; currentFolder: string;
@@ -198,7 +199,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
       onDragOver={dragEnabled && folder ? event => event.preventDefault() : undefined} onDrop={dragEnabled && folder ? event => drop(event, row.path) : undefined}>
       {folder ? <>{row.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Folder size={14} className="shrink-0" /><span className="truncate flex-1">{row.name}</span><span aria-hidden="true" data-count={row.totalNotes} className="text-xs text-stone-500 after:content-[attr(data-count)]" />
         <span onClick={event => event.stopPropagation()}><Menu returnFocusTo={() => elements.current.get(key) ?? null} sheetTitle={row.path} items={(['new', 'rename', 'move', 'delete'] as const).map(action => ({ label: action === 'new' ? 'New folder inside' : `${action[0].toUpperCase()}${action.slice(1)} folder`, onSelect: () => props.onFolderAction(action, row.path) }))} trigger={trigger => <button type="button" {...trigger} tabIndex={-1} aria-label={`Actions for ${row.path}`} className={`${compact ? 'w-11 h-11' : 'w-7 h-8'} shrink-0 flex items-center justify-center`}><MoreHorizontal size={16} /></button>} /></span>
-      </> : <>{note?.kind === 'handwritten' && <PenLine size={14} aria-label="Handwritten note" className="shrink-0" />}<span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{note?.kind === 'handwritten' && <span className="shrink-0 text-xs text-stone-500">{Math.max(1, props.inkPagesForNote?.(note.id).length ?? 0)} pages</span>}{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
+      </> : <>{note?.kind === 'handwritten' && <PenLine size={14} aria-label="Handwritten note" className="shrink-0" />}<span className="min-w-0 flex-1 truncate">{highlighted(row.title, row.titleMatch)}{row.snippet && <span className="ml-2 text-xs text-stone-500">{row.snippet.before}<mark>{row.snippet.match}</mark>{row.snippet.after}</span>}</span>{note?.kind === 'handwritten' && <span className="shrink-0 text-xs text-stone-500">{pageCountLabel(props.inkPagesForNote?.(note.id).length ?? 0)}</span>}{row.pinned && <Pin size={12} aria-label="Pin" className="shrink-0" />}</>}
     </div>;
   };
   return <div data-notes-column className="flex flex-1 min-h-0 min-w-0 flex-col rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">

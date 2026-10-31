@@ -16,3 +16,8 @@ export function rememberPen(): void {
     if (!canWrite()) localStorage.setItem('dm.ink.penSeen', '1');
   } catch { /* Writing still works for this session. */ }
 }
+
+export function pageCountLabel(count: number): string {
+  const pages = Math.max(1, count);
+  return `${pages} ${pages === 1 ? 'page' : 'pages'}`;
+}
