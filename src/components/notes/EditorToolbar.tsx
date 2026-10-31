@@ -5,9 +5,13 @@ import { Menu } from '../ui/Menu';
 import { Dialog } from '../ui/Dialog';
 import { showToast } from '../ui/feedback';
 import { insertPictureFiles, isPictureSource } from './pictureNode';
-import { Bold, Italic, Strikethrough, Heading, List, ListOrdered, ListChecks, Quote, Code, Table, Link, Image, Network, FileCode } from 'lucide-react';
+import { Bold, Italic, Strikethrough, Heading, List, ListOrdered, ListChecks, Quote, Code, Table, Link, Image, Network, FileCode, Highlighter } from 'lucide-react';
+import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
 
-export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; onToggleMarkdown?: () => void }) {
+export function EditorToolbar({ editor, onToggleMarkdown, highlighterOn = false, highlighterColor = HIGHLIGHTER_COLORS[0], onToggleHighlighter, onHighlighterColor }: {
+  editor: Editor; onToggleMarkdown?: () => void; highlighterOn?: boolean; highlighterColor?: string;
+  onToggleHighlighter?: () => void; onHighlighterColor?: (color: string) => void;
+}) {
   const [placement, setPlacement] = useState({ phone: false, bottom: 0, visible: true });
   const [link, setLink] = useState<string | null>(null);
   const [pictureLink, setPictureLink] = useState<string | null>(null);
@@ -49,6 +53,8 @@ export function EditorToolbar({ editor, onToggleMarkdown }: { editor: Editor; on
   const bar = <div className="sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
     <div role="toolbar" aria-label="Formatting" className="flex items-center gap-1 overflow-x-auto px-2 py-1">
       <button type="button" aria-label="Markdown" title="Markdown" aria-pressed={false} className={button} onClick={onToggleMarkdown}><FileCode className="w-4 h-4" /></button>
+      <button type="button" aria-label="Highlighter" title="Highlighter" aria-pressed={highlighterOn} className={`${button} aria-pressed:bg-stone-200 dark:aria-pressed:bg-stone-700`} onMouseDown={event => event.preventDefault()} onClick={onToggleHighlighter}><Highlighter className="w-4 h-4" /></button>
+      {highlighterOn && HIGHLIGHTER_COLORS.map(color => <button key={color} type="button" aria-label={`Highlighter colour ${color}`} title={`Highlighter colour ${color}`} aria-pressed={highlighterColor === color} className={`${button} aria-pressed:ring-2 aria-pressed:ring-inset aria-pressed:ring-stone-500`} onMouseDown={event => event.preventDefault()} onClick={() => onHighlighterColor?.(color)}><span className="block h-5 w-5 rounded-full border border-stone-400" style={{ backgroundColor: color }} /></button>)}
       {actions.slice(0, 3).map(([label, Icon, run, active]) => <button key={label} type="button" aria-label={label} title={label} aria-pressed={active} className={button} onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon className="w-4 h-4" /></button>)}
       <Menu sheetTitle="Heading" items={([1, 2, 3] as const).map((level) => ({ label: `Heading ${level}`, active: editor.isActive('heading', { level }), onSelect: () => { editor.chain().focus().toggleHeading({ level }).run(); } }))} trigger={(props) => <button type="button" {...props} aria-label="Heading" title="Heading" className={button}><Heading className="w-4 h-4" /></button>} />
       {actions.slice(3).map(([label, Icon, run, active]) => <button key={label} type="button" aria-label={label} title={label} aria-pressed={active} className={button} onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon className="w-4 h-4" /></button>)}

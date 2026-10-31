@@ -1,4 +1,6 @@
 .dm-note-prose { line-height: 1.7; overflow-wrap: anywhere; }
+/* Override Highlight's inline color:inherit: all pen colours are bright pastels. */
+.dm-note-prose mark[data-color] { color: var(--color-stone-900) !important; }
 .dm-note-prose > * + * { margin-top: 0.8em; }
 .dm-note-prose h1, .dm-note-prose h2, .dm-note-prose h3,
 .dm-note-prose h4, .dm-note-prose h5, .dm-note-prose h6 { font-weight: 700; line-height: 1.3; margin-top: 1.2em; }

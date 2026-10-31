@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useImperativeHandle, useMemo } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, useMemo, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { noteClipboardProps } from './clipboard';
 import type { StandaloneNote } from '../../types/daymark';
@@ -10,6 +10,8 @@ import type { Editor } from '@tiptap/core';
 import { closeHistory, history } from '@tiptap/pm/history';
 import { addRelatedLink } from '../../utils/noteRelated';
 import './richNoteEditor.css';
+import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
+import { attachPenHighlighter } from './penHighlight';
 
 export interface RichNoteEditorProps {
   noteId: string;
@@ -63,6 +65,12 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
     },
   }, [noteId]);
   activeEditor.current = editor;
+  const [highlighter, setHighlighter] = useState<{ editor: Editor | null; on: boolean; color: string }>({ editor: null, on: false, color: HIGHLIGHTER_COLORS[0] });
+  const highlighterOn = highlighter.editor === editor && highlighter.on;
+  const highlighterColor = highlighter.editor === editor ? highlighter.color : HIGHLIGHTER_COLORS[0];
+  useEffect(() => {
+    if (editor && highlighterOn) return attachPenHighlighter(editor, highlighterColor);
+  }, [editor, highlighterOn, highlighterColor]);
   // Subscribe to selection and transactions so toolbar state follows shortcuts.
   useEditorState({ editor, selector: ({ transactionNumber }) => transactionNumber });
   useImperativeHandle(ref, () => ({
@@ -93,7 +101,9 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   }, [editor, markdown]);
   if (!editor) return <div className="p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>;
   return <div className="flex flex-1 min-h-0 min-w-0 flex-col">
-    <EditorToolbar editor={editor} onToggleMarkdown={onToggleMarkdown} />
+    <EditorToolbar editor={editor} onToggleMarkdown={onToggleMarkdown} highlighterOn={highlighterOn} highlighterColor={highlighterColor}
+      onToggleHighlighter={() => setHighlighter({ editor, on: !highlighterOn, color: highlighterColor })}
+      onHighlighterColor={color => setHighlighter({ editor, on: highlighterOn, color })} />
     <div className="min-h-0 min-w-0 flex-1 overflow-auto pb-16 md:pb-0"><EditorContent editor={editor} className="h-full min-w-0" /></div>
   </div>;
 }

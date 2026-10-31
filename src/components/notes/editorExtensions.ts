@@ -14,6 +14,41 @@ import { RawMarkdown, RawHtml, RawInline } from './rawMarkdownNode';
 import { preserveNoteText } from '../../utils/noteTextSerialization';
 import type { JSONContent } from '@tiptap/core';
 import { WikiLink } from './wikiLink';
+import Highlight from '@tiptap/extension-highlight';
+import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
+
+// Marked prepends tokenizers, so register after RawInline (lower priority) to
+// own mark HTML. Leave == syntax and keyboard shortcuts unchanged.
+const NoteHighlight = Highlight.extend({
+  priority: 90,
+  addInputRules: () => [],
+  addPasteRules: () => [],
+  addKeyboardShortcuts: () => ({}),
+  renderMarkdown(node, helpers) {
+    const color = /^#[\da-f]{6}$/i.test(node.attrs?.color ?? '') ? node.attrs!.color : HIGHLIGHTER_COLORS[0];
+    return `<mark data-color="${color}" style="background-color: ${color}">${helpers.renderChildren(node)}</mark>`;
+  },
+  parseMarkdown(token, helpers) {
+    // MarkdownManager applies marks to text only; keep our inline atoms marked
+    // as well, just as NoteStarterKit does for ordinary text formatting.
+    const visit = (node: JSONContent): JSONContent => ['rawInline', 'wikiLink', 'image'].includes(node.type ?? '')
+      ? { ...node, marks: [...(node.marks ?? []), { type: 'highlight', attrs: { color: token.color } }] }
+      : node.content ? { ...node, content: node.content.map(visit) } : node;
+    return helpers.applyMark('highlight', helpers.parseInline(token.tokens ?? []).map(visit), { color: token.color });
+  },
+  markdownTokenizer: {
+    name: 'highlight', level: 'inline',
+    start: source => source.indexOf('<mark'),
+    tokenize(source, _tokens, helpers) {
+      const match = /^<mark\b([^>]*)>([\s\S]*?)<\/mark>/i.exec(source);
+      if (!match) return undefined;
+      const color = /\bdata-color=["'](#[\da-f]{6})["']/i.exec(match[1])?.[1]
+        ?? /background-color:\s*(#[\da-f]{6})/i.exec(match[1])?.[1];
+      if (!color) return undefined;
+      return { type: 'highlight', raw: match[0], color, tokens: helpers.inlineTokens(match[2]) };
+    },
+  },
+}).configure({ multicolor: true });
 
 // TipTap's default paragraph parser unwraps lone images as block nodes.
 // Keep images inline so mixed text/image paragraphs also satisfy the schema.
@@ -57,6 +92,7 @@ const NoteMarkdown = Markdown.extend({
 });
 
 export const editorExtensions = [
+  NoteHighlight,
   NoteStarterKit.configure({ codeBlock: false, underline: false, link: { openOnClick: false }, heading: { levels: [1, 2, 3, 4, 5, 6] } }),
   CodeBlockLowlight.extend({
     renderHTML({ node, HTMLAttributes }) {

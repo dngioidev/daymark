@@ -16,6 +16,114 @@ function core(host: HTMLElement) {
   return (host.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
 }
 
+// jsdom has no PointerEvent/layout/capture. Keep the actual editor and DOM event path.
+function pointer(dom: HTMLElement, type: string, pointerType: string, x: number, id = 1) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.assign(event, { pointerType, pointerId: id, button: 0, clientX: x, clientY: 10 });
+  dom.dispatchEvent(event);
+  return event;
+}
+
+it('enables word-snapped pen highlighting per editor, previews, toggles and keeps typing plain', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const props = { noteId: 'pen', markdown: 'Study learning and taking notes', onChange: vi.fn(), onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new' };
+  await act(async () => root.render(React.createElement(RichNoteEditor, props)));
+  const editor = core(host); const dom = editor.view.dom;
+  vi.spyOn(editor.view, 'posAtCoords').mockImplementation(({ left }) => ({ pos: left, inside: 0 }));
+  dom.setPointerCapture = vi.fn(); dom.releasePointerCapture = vi.fn(); dom.hasPointerCapture = () => true;
+  const toggle = host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]');
+  expect(toggle).not.toBeNull(); expect(toggle!.getAttribute('aria-pressed')).toBe('false');
+  expect(pointer(dom, 'pointerdown', 'pen', 10).defaultPrevented).toBe(false);
+  pointer(dom, 'pointerup', 'pen', 29);
+  expect(props.onChange).not.toHaveBeenCalled();
+  await act(async () => toggle!.click());
+  expect(toggle!.getAttribute('aria-pressed')).toBe('true');
+  for (const type of ['mouse', 'touch']) {
+    expect(pointer(dom, 'pointerdown', type, 10).defaultPrevented).toBe(false);
+    pointer(dom, 'pointermove', type, 29); pointer(dom, 'pointerup', type, 29);
+  }
+  expect(props.onChange).not.toHaveBeenCalled();
+  await act(async () => {
+    expect(pointer(dom, 'pointerdown', 'pen', 10).defaultPrevented).toBe(true);
+    pointer(dom, 'pointermove', 'pen', 29);
+  });
+  expect(dom.querySelector('[data-pen-highlight-preview]')).not.toBeNull();
+  expect(props.onChange).not.toHaveBeenCalled();
+  await act(async () => { pointer(dom, 'pointerup', 'pen', 29); });
+  expect(dom.setPointerCapture).toHaveBeenCalledWith(1);
+  expect(dom.releasePointerCapture).toHaveBeenCalledWith(1);
+  expect(dom.querySelector('[data-pen-highlight-preview]')).toBeNull();
+  expect(editor.getMarkdown()).toBe('Study <mark data-color="#fde047" style="background-color: #fde047">learning and taking notes</mark>');
+  await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, 'pointerup', 'pen', 29); });
+  expect(editor.getMarkdown()).toBe(props.markdown);
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter colour #86efac"]')!.click());
+  await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, 'pointerup', 'pen', 11); });
+  expect(editor.getMarkdown()).toContain('<mark data-color="#86efac" style="background-color: #86efac">learning</mark>');
+  await act(async () => editor.commands.insertContentAt(editor.state.doc.content.size - 1, ' plain'));
+  expect(editor.getMarkdown()).toContain('notes plain');
+  await act(async () => editor.commands.undo());
+  expect(editor.getMarkdown()).not.toContain('notes plain');
+  await act(async () => editor.commands.undo());
+  expect(editor.getMarkdown()).toBe(props.markdown);
+  await act(async () => editor.commands.redo());
+  expect(editor.getMarkdown()).toContain('data-color="#86efac"');
+  await act(async () => root.render(React.createElement(RichNoteEditor, { ...props, noteId: 'other' })));
+  expect(host.querySelector('[aria-label="Highlighter"]')!.getAttribute('aria-pressed')).toBe('false');
+  await act(async () => root.unmount());
+});
+
+it('keeps simultaneous editors off independently and commits a returning drag but not a pen tap', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const onChange = vi.fn();
+  const props = { markdown: 'Study learning and taking notes', onChange, onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new' };
+  await act(async () => root.render(React.createElement(React.Fragment, null,
+    React.createElement('section', { id: 'first' }, React.createElement(RichNoteEditor, { ...props, noteId: 'first' })),
+    React.createElement('section', { id: 'second' }, React.createElement(RichNoteEditor, { ...props, noteId: 'second' })),
+  )));
+  const first = host.querySelector<HTMLElement>('#first')!; const second = host.querySelector<HTMLElement>('#second')!;
+  const editor = core(first); const dom = editor.view.dom;
+  vi.spyOn(editor.view, 'posAtCoords').mockImplementation(({ left }) => ({ pos: left, inside: 0 }));
+  dom.setPointerCapture = vi.fn(); dom.releasePointerCapture = vi.fn(); dom.hasPointerCapture = () => true;
+  await act(async () => first.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
+  expect(second.querySelector('[aria-label="Highlighter"]')!.getAttribute('aria-pressed')).toBe('false');
+  const secondHit = vi.spyOn(core(second).view, 'posAtCoords');
+  pointer(core(second).view.dom, 'pointerdown', 'pen', 10); pointer(core(second).view.dom, 'pointerup', 'pen', 29);
+  expect(secondHit).not.toHaveBeenCalled(); expect(onChange).not.toHaveBeenCalled();
+  await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, 'pointerup', 'pen', 10); });
+  expect(onChange).not.toHaveBeenCalled();
+  await act(async () => {
+    pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, 'pointermove', 'pen', 29); pointer(dom, 'pointerup', 'pen', 10);
+  });
+  expect(editor.getMarkdown()).toBe('Study <mark data-color="#fde047" style="background-color: #fde047">learning and taking notes</mark>');
+  await act(async () => root.unmount());
+});
+
+it('cancels pen preview without saving on pointer cancellation, loss, tool off or incoming sync', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const props = { noteId: 'cancel', markdown: 'Study learning', onChange: vi.fn(), onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new' };
+  await act(async () => root.render(React.createElement(RichNoteEditor, props)));
+  const editor = core(host); const dom = editor.view.dom;
+  vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 10, inside: 0 });
+  dom.setPointerCapture = vi.fn(); dom.releasePointerCapture = vi.fn(); dom.hasPointerCapture = () => true;
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
+  for (const end of ['pointercancel', 'lostpointercapture']) {
+    await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, end, 'pen', 10); pointer(dom, 'pointerup', 'pen', 10); });
+    expect(dom.querySelector('[data-pen-highlight-preview]')).toBeNull();
+    expect(props.onChange).not.toHaveBeenCalled();
+  }
+  await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); });
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
+  pointer(dom, 'pointerup', 'pen', 10);
+  expect(dom.querySelector('[data-pen-highlight-preview]')).toBeNull();
+  expect(props.onChange).not.toHaveBeenCalled();
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
+  await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); });
+  await act(async () => root.render(React.createElement(RichNoteEditor, { ...props, markdown: 'Incoming sync' })));
+  await act(async () => { pointer(dom, 'pointerup', 'pen', 10); });
+  expect(editor.getMarkdown()).toBe('Incoming sync'); expect(props.onChange).not.toHaveBeenCalled();
+  await act(async () => root.unmount());
+});
+
 it('does not undo a sync replacement or write stale content', async () => {
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host); const onChange = vi.fn();
