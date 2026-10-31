@@ -49,6 +49,25 @@ it('protects the Notes strip when it sits at the top edge', async () => {
   expectInset(host.querySelector('[aria-label="Notes shortcuts"]'));
 });
 
+it('offsets both Notes column toggle boxes below the tablet inset without padding the stacked strip twice', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+  await render(React.createElement(StandaloneNotesView, { notes, onUpdateNotes: noop }));
+  const expectToggleOffset = (label: string) => {
+    const toggle = host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+    // Padding protects the icon but leaves the button's hit box under the status
+    // bar. Margin must move the whole box; keep its normal 44px minimum height.
+    expect(toggle.classList.contains('mt-[var(--dm-safe-top)]')).toBe(true);
+    expect(toggle.classList.contains('min-h-11')).toBe(true);
+    expect(toggle.className).not.toContain('pt-[var(--dm-safe-top)]');
+    expect(toggle.className).not.toContain('min-h-[calc(2.75rem+var(--dm-safe-top))]');
+    return toggle;
+  };
+  const minimize = expectToggleOffset('Minimize notes column');
+  await act(async () => minimize.click());
+  expectToggleOffset('Expand notes column');
+  expect(host.querySelector('[aria-label="Notes shortcuts"]')?.className).not.toContain('--dm-safe-top');
+});
+
 it('lets the strip reuse the inset already reserved by the column header', async () => {
   await render(React.createElement(NotesStrip, { topInset: false, tree: [], onSearch: noop, onNewNote: noop, onNewFolder: noop, onFolder: noop, onExpand: noop }));
   expect(host.querySelector('[aria-label="Notes shortcuts"]')?.className).not.toContain('--dm-safe-top');

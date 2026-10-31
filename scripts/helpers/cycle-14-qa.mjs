@@ -83,6 +83,8 @@ export async function waitInk(page, count, noteId) {
 }
 
 export async function touchDoesNotDraw(page, noteId) {
+  // Flush pending pen strokes first so the baseline includes them.
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   const before = await readStored(page, 'ink');
   const box = await inkCanvas(page).boundingBox();
   const session = await page.context().newCDPSession(page);

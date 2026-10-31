@@ -39,6 +39,8 @@ test('every shipped guide topic includes usable Web and Mobile instructions', as
 test('Notes guide explains pen writing, read-only viewing and text highlighting on both platforms', async () => {
   const { loadGuide } = await import('./guide.mjs');
   const notes = loadGuide(new URL('../../docs/guide/', import.meta.url)).find(topic => topic.slug === 'notes');
+  for (const phrase of ['Related panel', 'Hidden suggestions']) assert.ok(notes.web.includes(phrase), `web: ${phrase}`);
+  for (const phrase of ['Related button', 'Hidden suggestions']) assert.ok(notes.mobile.includes(phrase), `mobile: ${phrase}`);
   for (const platform of ['web', 'mobile']) {
     assert.match(notes[platform], /handwritten note/i);
     assert.match(notes[platform], /lined.*grid/i);

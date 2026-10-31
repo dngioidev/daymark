@@ -34,12 +34,12 @@ describe('desktop side rail', () => {
     expect(nav.textContent).not.toContain(props.todayLabel);
     expect(nav.querySelector('kbd')).toBeNull();
   });
-  it('has five equal parts, active page, alert badge and accessible actions', () => {
+  it('has five parts, active page, alert badge and accessible actions', () => {
     const doc = document.createElement('div');
     doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, props));
     const nav = doc.querySelector('nav[aria-label="Main"]')!;
     expect(Array.from(nav.children).map(el => el.getAttribute('data-rail-part'))).toEqual(['title', 'today', 'calendar', 'notes', 'backlog']);
-    expect(nav.getAttribute('style')).toContain('grid-template-rows:repeat(5, 1fr)');
+    expect(nav.getAttribute('style')).toContain('grid-template-rows:minmax(min-content, 1fr) repeat(4, 1fr)');
     expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(nav.querySelector('[aria-current="page"]')!.textContent).toContain('Notes');
     expect(nav.querySelector('[aria-label="3 tasks need attention"]')!.textContent).toBe('3');
@@ -98,6 +98,18 @@ describe('desktop side rail', () => {
     expect(title.classList.contains('overflow-y-auto')).toBe(true);
     expect(title.classList.contains('justify-start')).toBe(true);
     expect(Array.from(title.children).every(el => el.classList.contains('shrink-0'))).toBe(true);
+  });
+  it('reserves the Title tools intrinsic height before sharing the remaining rail space', () => {
+    for (const collapsed of [false, true]) {
+      const doc = document.createElement('div');
+      doc.innerHTML = renderToStaticMarkup(React.createElement(SideRail, { ...props, collapsed }));
+      const nav = doc.querySelector('nav')!;
+      // A fixed fifth of the viewport can clip Settings once the safe inset is
+      // reserved. Browser focus/click scrolling would then move the other tools.
+      expect(nav.style.gridTemplateRows).toBe('minmax(min-content, 1fr) repeat(4, 1fr)');
+      expect(nav.children).toHaveLength(5);
+      expect(doc.querySelector('[data-rail-part="title"]')!.classList.contains('mt-[var(--dm-safe-top)]')).toBe(true);
+    }
   });
   it('uses readable Title labels and a usable Sync target without dimming the shortcut', () => {
     const doc = document.createElement('div');

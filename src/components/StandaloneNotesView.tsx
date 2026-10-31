@@ -508,7 +508,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">
           {!focusMode && !drawers && <div role="group" aria-label="Notes navigation" className="shrink-0 min-h-0 flex">
             <aside aria-label="Folder navigation" className={(treeMinimized ? 'w-14' : 'w-72') + ' shrink-0 min-h-0 flex flex-col border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1'}>
-              <button type="button" aria-label={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} title={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} className="min-h-[calc(2.75rem+var(--dm-safe-top))] pt-[var(--dm-safe-top)] shrink-0 w-full text-stone-700 dark:text-stone-200" onClick={() => {
+              <button type="button" aria-label={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} title={treeMinimized ? 'Expand notes column' : 'Minimize notes column'} className="mt-[var(--dm-safe-top)] min-h-11 shrink-0 w-full text-stone-700 dark:text-stone-200" onClick={() => {
                 focusSearch.current = false;
                 if (treeMinimized && prefs.tree === 'open') { setFolderFocus(undefined); setDrawer(true); return; }
                 const next = { ...loadPanePrefs(), tree: treeMinimized ? 'open' as const : 'min' as const }; setPrefs(next); savePanePrefs(next);
