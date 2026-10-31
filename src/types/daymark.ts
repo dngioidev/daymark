@@ -140,6 +140,27 @@ export interface StandaloneNote {
   createdAt: string;
   updatedAt: string;
   pinned?: boolean;
+  kind?: 'handwritten';
+  paper?: 'lined' | 'grid' | 'blank';
+}
+
+export type InkTool = 'pen' | 'highlighter';
+
+export interface InkStroke {
+  id: string;
+  tool: InkTool;
+  color: string;
+  width: number;
+  points: string;
+  createdAt: string;
+}
+
+export interface InkPage {
+  noteId: string;
+  page: number;
+  strokes: InkStroke[];
+  removed: string[];
+  updatedAt: string;
 }
 
 export interface NoteFolder {
