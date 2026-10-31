@@ -4,7 +4,7 @@ import { addStroke, decodePoints, encodePoints, eraseArea, eraseStrokes, PAGE_HE
 import { drawPage, drawStroke, touchesStroke, type InkPoint, type PointCache } from '../../ink/inkRender';
 import { classifyPointer } from '../../ink/pointerPolicy';
 import { InkPageView } from './InkPageView';
-import { paperStyle, sizeInkSurface } from './inkSurface';
+import { paperStyle, sizeInkSurface, startFingerScroll } from './inkSurface';
 
 export type EraserMode = 'area' | 'stroke';
 export interface InkCanvasProps {
@@ -54,7 +54,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     let scale = 1;
     const cache: PointCache = new Map();
     let rendered: InkStroke[] = [];
-    let touch: { id: number; x: number; y: number; target: HTMLElement } | null = null;
+    let touch: ReturnType<typeof startFingerScroll> | null = null;
     type Bounds = { x: number; y: number; width: number; height: number };
     let decoration: Bounds | null = null;
     let preview: InkPage | null = null;
@@ -210,16 +210,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       const p = latest.current;
       const action = classifyPointer({ penActive: !!live, allowMouse: p.allowMouse }, e).action;
       if (action === 'scroll' && !touch) {
-        let target = canvas.parentElement;
-        while (target) {
-          const style = getComputedStyle(target);
-          const overflowY = style.overflowY && style.overflowY !== 'visible' ? style.overflowY : style.overflow;
-          const overflowX = style.overflowX && style.overflowX !== 'visible' ? style.overflowX : style.overflow;
-          if ((/(auto|scroll|overlay)/.test(overflowY) && target.scrollHeight > target.clientHeight)
-            || (/(auto|scroll|overlay)/.test(overflowX) && target.scrollWidth > target.clientWidth)) break;
-          target = target.parentElement;
-        }
-        touch = { id: e.pointerId, x: e.clientX, y: e.clientY, target: target ?? (document.scrollingElement as HTMLElement | null) ?? document.documentElement };
+        touch = startFingerScroll(canvas, e);
         e.preventDefault(); canvas.setPointerCapture?.(e.pointerId); return;
       }
       if (live || action !== 'draw') return;
@@ -235,8 +226,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     const move = (e: PointerEvent) => {
       if (touch?.id === e.pointerId) {
         if (classifyPointer({ penActive: !!live }, e).action !== 'scroll') { touch = null; return; }
-        e.preventDefault(); touch.target.scrollLeft -= e.clientX - touch.x; touch.target.scrollTop -= e.clientY - touch.y;
-        touch.x = e.clientX; touch.y = e.clientY; return;
+        e.preventDefault(); touch.move(e); return;
       }
       if (!live || live.id !== e.pointerId) return;
       e.preventDefault();

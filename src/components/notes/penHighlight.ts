@@ -3,6 +3,8 @@ import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { closeHistory } from '@tiptap/pm/history';
+import { startFingerScroll } from '../ink/inkSurface';
+import { classifyPointer } from '../../ink/pointerPolicy';
 
 export function wordRangeForStroke(doc: Node, positions: number[]): { from: number; to: number } | null {
   let from = Infinity;
@@ -28,6 +30,10 @@ export function wordRangeForStroke(doc: Node, positions: number[]): { from: numb
 /** Installed only while the tool is on; ordinary editing has no pointer work. */
 export function attachPenHighlighter(editor: Editor, color: string): () => void {
   const dom = editor.view.dom;
+  // Decide gesture ownership before contact, so the browser cannot cancel a
+  // pen drag to pan. Touch pointers scroll manually while this tool is active.
+  const previousTouchAction = dom.style.touchAction;
+  dom.style.touchAction = 'none';
   const key = new PluginKey<DecorationSet>('penHighlightPreview');
   editor.registerPlugin(new Plugin({
     key,
@@ -38,6 +44,12 @@ export function attachPenHighlighter(editor: Editor, color: string): () => void 
     props: { decorations: state => key.getState(state) },
   }));
   let stroke: { id: number; positions: number[]; doc: Node; x: number; y: number; moved: boolean } | null = null;
+  let touch: ReturnType<typeof startFingerScroll> | null = null;
+  const stopTouch = () => {
+    const id = touch?.id;
+    touch = null;
+    if (id !== undefined && dom.hasPointerCapture?.(id)) dom.releasePointerCapture(id);
+  };
   const preview = (range: { from: number; to: number } | null) => {
     editor.view.dispatch(editor.state.tr.setMeta(key, range ? DecorationSet.create(editor.state.doc, [
       Decoration.inline(range.from, range.to, { 'data-pen-highlight-preview': '', style: `background-color: ${color}80` }),
@@ -60,19 +72,29 @@ export function attachPenHighlighter(editor: Editor, color: string): () => void 
     preview(wordRangeForStroke(editor.state.doc, stroke.positions));
   };
   const down = (event: PointerEvent) => {
+    if (classifyPointer({ penActive: !!stroke }, event).action === 'scroll' && !touch) {
+      touch = startFingerScroll(dom, event);
+      event.preventDefault(); dom.setPointerCapture?.(event.pointerId); return;
+    }
     if (event.pointerType !== 'pen' || event.button !== 0 || stroke || !editor.isEditable) return;
+    stopTouch();
     event.preventDefault();
     stroke = { id: event.pointerId, positions: [], doc: editor.state.doc, x: event.clientX, y: event.clientY, moved: false };
     dom.setPointerCapture(event.pointerId);
     collect(event);
   };
   const move = (event: PointerEvent) => {
+    if (touch?.id === event.pointerId) {
+      if (classifyPointer({ penActive: !!stroke }, event).action !== 'scroll') { stopTouch(); return; }
+      event.preventDefault(); touch.move(event); return;
+    }
     if (event.pointerType !== 'pen' || stroke?.id !== event.pointerId) return;
     event.preventDefault();
     if (stroke.doc !== editor.state.doc) { cancel(); return; }
     collect(event);
   };
   const up = (event: PointerEvent) => {
+    if (touch?.id === event.pointerId) { stopTouch(); return; }
     if (event.pointerType !== 'pen' || stroke?.id !== event.pointerId) return;
     event.preventDefault();
     if (stroke.doc !== editor.state.doc) { cancel(); return; }
@@ -97,14 +119,19 @@ export function attachPenHighlighter(editor: Editor, color: string): () => void 
     // Keep the next typing/stroke operation out of this stroke's Undo step.
     editor.view.dispatch(closeHistory(editor.state.tr));
   };
-  const interrupted = (event: PointerEvent) => { if (stroke?.id === event.pointerId) cancel(); };
+  const interrupted = (event: PointerEvent) => {
+    if (touch?.id === event.pointerId) stopTouch();
+    if (stroke?.id === event.pointerId) cancel();
+  };
   dom.addEventListener('pointerdown', down, true);
   dom.addEventListener('pointermove', move, true);
   dom.addEventListener('pointerup', up, true);
   dom.addEventListener('pointercancel', interrupted, true);
   dom.addEventListener('lostpointercapture', interrupted, true);
   return () => {
+    stopTouch();
     cancel();
+    dom.style.touchAction = previousTouchAction;
     dom.removeEventListener('pointerdown', down, true);
     dom.removeEventListener('pointermove', move, true);
     dom.removeEventListener('pointerup', up, true);

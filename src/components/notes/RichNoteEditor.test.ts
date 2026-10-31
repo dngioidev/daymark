@@ -17,9 +17,9 @@ function core(host: HTMLElement) {
 }
 
 // jsdom has no PointerEvent/layout/capture. Keep the actual editor and DOM event path.
-function pointer(dom: HTMLElement, type: string, pointerType: string, x: number, id = 1) {
+function pointer(dom: HTMLElement, type: string, pointerType: string, x: number, id = 1, y = 10) {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.assign(event, { pointerType, pointerId: id, button: 0, clientX: x, clientY: 10 });
+  Object.assign(event, { pointerType, pointerId: id, button: 0, clientX: x, clientY: y, isPrimary: true, width: 1, height: 1 });
   dom.dispatchEvent(event);
   return event;
 }
@@ -39,7 +39,7 @@ it('enables word-snapped pen highlighting per editor, previews, toggles and keep
   await act(async () => toggle!.click());
   expect(toggle!.getAttribute('aria-pressed')).toBe('true');
   for (const type of ['mouse', 'touch']) {
-    expect(pointer(dom, 'pointerdown', type, 10).defaultPrevented).toBe(false);
+    expect(pointer(dom, 'pointerdown', type, 10).defaultPrevented).toBe(type === 'touch');
     pointer(dom, 'pointermove', type, 29); pointer(dom, 'pointerup', type, 29);
   }
   expect(props.onChange).not.toHaveBeenCalled();
@@ -70,6 +70,67 @@ it('enables word-snapped pen highlighting per editor, previews, toggles and keep
   await act(async () => root.render(React.createElement(RichNoteEditor, { ...props, noteId: 'other' })));
   expect(host.querySelector('[aria-label="Highlighter"]')!.getAttribute('aria-pressed')).toBe('false');
   await act(async () => root.unmount());
+});
+
+it.each(['', 'pan-y'])('suppresses native gestures only while Highlighter is on and restores touch-action %j on off/unmount', async initial => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'gesture-style', markdown: 'Study learning', onChange: vi.fn(), onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new',
+  })));
+  const dom = core(host).view.dom;
+  dom.style.touchAction = initial;
+  const toggle = host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!;
+  expect(dom.style.touchAction).toBe(initial);
+  expect(pointer(dom, 'pointerdown', 'touch', 100).defaultPrevented).toBe(false);
+  await act(async () => toggle.click());
+  expect(dom.style.touchAction).toBe('none');
+  await act(async () => toggle.click());
+  expect(dom.style.touchAction).toBe(initial);
+  expect(pointer(dom, 'pointerdown', 'touch', 100).defaultPrevented).toBe(false);
+  await act(async () => toggle.click());
+  expect(dom.style.touchAction).toBe('none');
+  await act(async () => root.unmount());
+  expect(dom.style.touchAction).toBe(initial);
+});
+
+it('scrolls the nearest container with a finger while Highlighter is on, without highlighting', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const onChange = vi.fn();
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'finger-scroll', markdown: 'Study learning', onChange, onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new',
+  })));
+  const editor = core(host); const dom = editor.view.dom;
+  const scroller = dom.closest<HTMLElement>('.overflow-auto')!;
+  for (const element of [host, scroller]) {
+    element.style.overflow = 'auto';
+    Object.defineProperties(element, { scrollHeight: { value: 2400 }, clientHeight: { value: 500 }, scrollWidth: { value: 2000 }, clientWidth: { value: 600 } });
+    element.scrollTop = 100; element.scrollLeft = 80;
+  }
+  dom.setPointerCapture = vi.fn(); dom.releasePointerCapture = vi.fn(); dom.hasPointerCapture = () => true;
+  const hit = vi.spyOn(editor.view, 'posAtCoords');
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
+  expect(pointer(dom, 'pointerdown', 'touch', 100, 2, 100).defaultPrevented).toBe(true);
+  expect(pointer(dom, 'pointermove', 'touch', 70, 2, 60).defaultPrevented).toBe(true);
+  expect(scroller.scrollTop).toBe(140); expect(scroller.scrollLeft).toBe(110);
+  pointer(dom, 'pointermove', 'touch', 60, 2, 40);
+  expect(scroller.scrollTop).toBe(160); expect(scroller.scrollLeft).toBe(120);
+  pointer(dom, 'pointerup', 'touch', 60, 2, 40);
+  pointer(dom, 'pointermove', 'touch', 20, 2, 10);
+  expect(scroller.scrollTop).toBe(160); expect(scroller.scrollLeft).toBe(120);
+  expect(host.scrollTop).toBe(100); expect(host.scrollLeft).toBe(80);
+  expect(dom.setPointerCapture).toHaveBeenCalledWith(2); expect(dom.releasePointerCapture).toHaveBeenCalledWith(2);
+  expect(hit).not.toHaveBeenCalled(); expect(onChange).not.toHaveBeenCalled();
+  expect(editor.getMarkdown()).toBe('Study learning');
+  expect(dom.querySelector('[data-pen-highlight-preview]')).toBeNull();
+  pointer(dom, 'pointerdown', 'touch', 100, 3, 100);
+  pointer(dom, 'pointercancel', 'touch', 100, 3, 100);
+  pointer(dom, 'pointermove', 'touch', 70, 3, 60);
+  expect(scroller.scrollTop).toBe(160); expect(scroller.scrollLeft).toBe(120);
+  pointer(dom, 'pointerdown', 'touch', 100, 4, 100);
+  await act(async () => root.unmount());
+  expect(dom.releasePointerCapture).toHaveBeenCalledWith(4);
+  pointer(dom, 'pointermove', 'touch', 70, 4, 60);
+  expect(scroller.scrollTop).toBe(160); expect(scroller.scrollLeft).toBe(120);
 });
 
 it('keeps simultaneous editors off independently and commits a returning drag but not a pen tap', async () => {
@@ -107,8 +168,11 @@ it('cancels pen preview without saving on pointer cancellation, loss, tool off o
   dom.setPointerCapture = vi.fn(); dom.releasePointerCapture = vi.fn(); dom.hasPointerCapture = () => true;
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!.click());
   for (const end of ['pointercancel', 'lostpointercapture']) {
-    await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, end, 'pen', 10); pointer(dom, 'pointerup', 'pen', 10); });
+    await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); pointer(dom, 'pointermove', 'pen', 11); });
+    expect(dom.querySelector('[data-pen-highlight-preview]')).not.toBeNull();
+    await act(async () => { pointer(dom, end, 'pen', 11); pointer(dom, 'pointerup', 'pen', 11); });
     expect(dom.querySelector('[data-pen-highlight-preview]')).toBeNull();
+    expect(editor.getMarkdown()).toBe(props.markdown);
     expect(props.onChange).not.toHaveBeenCalled();
   }
   await act(async () => { pointer(dom, 'pointerdown', 'pen', 10); });
