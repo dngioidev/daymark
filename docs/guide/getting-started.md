@@ -9,6 +9,8 @@ You can install the web app from your browser's installation menu. After the fir
 ## Mobile
 Download the Android APK from Daymark's release page. Android may ask you to allow installation from your browser or file manager. Updates signed with the same key preserve local data. Connect to your server in Settings for sync. Back up before uninstalling or clearing app data.
 
+You can also install the web app from your phone's browser menu; it works offline.
+
 **One-time switch from debug to release:** sync or back up first, uninstall the debug-signed app, install the signed APK, then sign in again. Uninstalling deletes device-only data.
 
 ### Building signed Android releases

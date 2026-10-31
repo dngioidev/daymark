@@ -313,7 +313,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'ut
 const markdownFiles = [];
 function collectMarkdown(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['node_modules', '.git', 'dist'].includes(entry.name)) continue;
+    if (['node_modules', '.git', 'dist', '.superpowers'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) collectMarkdown(full);
     else if (entry.name.endsWith('.md')) markdownFiles.push(full);
