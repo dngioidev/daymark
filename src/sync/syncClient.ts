@@ -183,11 +183,12 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
   const notemetaRecovered = uneditedRecoveredNoteMeta.has(local.notemeta);
   const snapshot = toEntities(local, !unsupported.has('habits'), !unsupported.has('backlog'), !unsupported.has('notemeta'));
   let changes = collectChanges(snapshot, state, !unsupported.has('habits') && !habitsRecovered, !unsupported.has('backlog') && !backlogRecovered, !unsupported.has('notemeta') && !notemetaRecovered);
+  const needsBackfill = (!unsupported.has('habits') && !state.habitsSynced) || (!unsupported.has('backlog') && !state.backlogSynced) || (!unsupported.has('notemeta') && !state.notemetaSynced);
+  let sinceRev = needsBackfill ? 0 : state.lastRev;
   const send = (batch: SyncChange[]) => {
-    const needsBackfill = (!unsupported.has('habits') && !state.habitsSynced) || (!unsupported.has('backlog') && !state.backlogSynced) || (!unsupported.has('notemeta') && !state.notemetaSynced);
-    // Keep the original pull cursor across batches: a later server reconciliation
-    // may change an entity already pushed by an earlier batch.
-    const body: SyncRequest = { sinceRev: needsBackfill ? 0 : state.lastRev, changes: batch, features: ['habits', 'backlog', 'notemeta'] };
+    // Each response is retained below. Later reconciliation gets a newer revision
+    // and is pulled by the next batch without downloading the backfill again.
+    const body: SyncRequest = { sinceRev, changes: batch, features: ['habits', 'backlog', 'notemeta'] };
     return request<SyncResponse>(fetchFn, `${state.serverUrl}/api/sync`, { method: 'POST', body: JSON.stringify(body) }, accessToken);
   };
   let res: SyncResponse;
@@ -199,6 +200,7 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
     const batch = takeBatch(changes);
     try {
       res = await send(batch);
+      sinceRev = res.rev;
       for (const e of res.entities) {
         receivedKeys.add(e.key);
         if (!(unsupported.has('habits') && isHabitEntityKey(e.key)) && !(unsupported.has('backlog') && isBacklogEntityKey(e.key)) && !(unsupported.has('notemeta') && isNoteMetaEntityKey(e.key))) serverValues.set(e.key, e.value);
@@ -284,7 +286,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
   const next = fromEntities(now, current.settings);
   if (recovering && !receivedHabits) uneditedRecoveredHabits.add(next.habits);
   // A rollover made before this pull may have carried a task finished elsewhere
-  next.docs = reconcileMovedTasks(dropStaleCarries(next.docs), fromEntities(outcome.snapshot, current.settings).docs);
+  next.docs = reconcileMovedTasks(dropStaleCarries(next.docs), fromEntities(outcome.snapshot, current.settings).docs, outcome.conflicts);
   const reconciled = reconcileBacklogVault(next.backlog, next.docs);
   next.backlog = reconciled.backlog;
   next.docs = reconciled.docs;

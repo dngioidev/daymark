@@ -291,13 +291,31 @@ export function createApp(config: ServerConfig, store: FileStore) {
       }
 
       if (changedBacklogOrDoc) {
-        const keys = Object.keys(store.vault.entities).filter((key) => key.startsWith('doc:') && validValue(key, store.vault.entities[key].value));
-        const docs = keys.map((key) => store.vault.entities[key].value as DailyDocument);
-        const bases = changes.filter(c => c.key.startsWith('doc:') && validValue(c.key, c.base)).map(c => c.base as DailyDocument);
-        const fixed = reconcileMovedTasks(docs, bases);
-        keys.forEach((key, i) => {
-          if (!sameValue(docs[i], fixed[i])) { write(key, fixed[i]); touched.add(key); }
+        // Scan ids before validating/canonicalizing every stored day. A duplicate
+        // within one day is not a cross-day placement race.
+        const seen = new Map<string, string>();
+        const duplicate = Object.entries(store.vault.entities).some(([key, entry]) => {
+          if (!key.startsWith('doc:')) return false;
+          const doc = entry.value as Partial<DailyDocument> | null;
+          if (!Array.isArray(doc?.headings)) return false;
+          return doc.headings.some(h => Array.isArray(h?.items) && h.items.some(t => {
+            if (typeof t?.id !== 'string') return false;
+            const previous = seen.get(t.id);
+            seen.set(t.id, key);
+            return previous !== undefined && previous !== key;
+          }));
         });
+        const pushedMove = changes.some(c => c.key.startsWith('doc:') && (c.value as DailyDocument | null)?.headings.some(h =>
+          h.items.some(t => Array.isArray(t.historyLog) && t.historyLog.some(e => typeof e?.id === 'string' && e.id.startsWith('hist-move-')))));
+        if (duplicate || pushedMove) {
+          const keys = Object.keys(store.vault.entities).filter((key) => key.startsWith('doc:') && validValue(key, store.vault.entities[key].value));
+          const docs = keys.map((key) => store.vault.entities[key].value as DailyDocument);
+          const bases = changes.filter(c => c.key.startsWith('doc:') && validValue(c.key, c.base)).map(c => c.base as DailyDocument);
+          const fixed = reconcileMovedTasks(docs, bases, conflicts);
+          keys.forEach((key, i) => {
+            if (!sameValue(docs[i], fixed[i])) { write(key, fixed[i]); touched.add(key); }
+          });
+        }
       }
 
       const backlog = store.vault.entities.backlog?.value;

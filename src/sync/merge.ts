@@ -513,7 +513,7 @@ export function isValidEntityKey(key: unknown): key is EntityKey {
  * replacement; historical carries that observed the winning move remain in the ledger.
  * Real bases distinguish unchanged stale fields from independent user edits.
  */
-export function reconcileMovedTasks(docs: DailyDocument[], bases: DailyDocument[] = []): DailyDocument[] {
+export function reconcileMovedTasks(docs: DailyDocument[], bases: DailyDocument[] = [], conflicts: string[] = []): DailyDocument[] {
   type Copy = { date: string; task: TaskItem };
   type Move = { event: TaskItem['historyLog'][number]; to: string };
   const eventKey = (e: TaskItem['historyLog'][number]) => canonicalJson(e);
@@ -559,11 +559,39 @@ export function reconcileMovedTasks(docs: DailyDocument[], bases: DailyDocument[
     if (!stale.length) continue;
     let merged = target.task;
     for (const c of stale) {
-      const base = [c.date, c.task.carriedFromDate].flatMap(date => bases.flatMap(d => d.date === date ? [...tasksById(d).values()] : [])).find(t => t.id === id);
-      // Recovery without a trustworthy base keeps the stale edit, matching the
-      // per-day deletion-versus-edit rule, while preserving winning placement.
-      const fallback = { ...merged, order: c.task.order };
-      const result = mergeTask(base ?? fallback, merged, c.task).task;
+      const base = [c.date, c.task.carriedFromDate, ...related].flatMap(date => bases.flatMap(d => d.date === date ? [...tasksById(d).values()] : []))
+        .find(t => t.id === id && !(t.historyLog ?? []).some(e => eventKey(e) === eventKey(winner.event)));
+      // A rollover is not an edit, even when its clock is later than the move.
+      // Without an ancestor we cannot interpret every difference as a stale-side
+      // edit. Prefer the moved value and report ambiguous real edits per field.
+      const staleLog = c.task.historyLog ?? [];
+      const untouchedCarry = staleLog.at(-1)?.action === 'carried_forward';
+      const edits = (t: TaskItem) => (t.historyLog ?? []).filter(e => !['moved', 'carried_forward', 'created'].includes(e.action));
+      const movedEdits = edits(merged), staleEdits = edits(c.task);
+      // Causality requires observed history, not a later wall-clock timestamp.
+      const causallyLater = movedEdits.length > 0 && staleEdits.length > movedEdits.length &&
+        movedEdits.every((e, i) => eventKey(staleEdits[i]) === eventKey(e));
+      const result = base ? mergeTask(base, merged, c.task).task : { ...(causallyLater && !untouchedCarry ? c.task : merged) };
+      const fields = new Set([...Object.keys(merged), ...Object.keys(c.task)]);
+      for (const field of ['historyLog', 'order', 'carriedFromDate', 'id']) fields.delete(field);
+      for (const field of fields) {
+        const value = (t: TaskItem) => (t as unknown as Record<string, unknown>)[field];
+        if (sameValue(value(merged), value(c.task))) continue;
+        if (!base || pick3(value(base), value(merged), value(c.task)).kind === 'conflict') {
+          // Some legacy title/detail edits do not append history. Report even
+          // apparent carry differences so such an edit cannot disappear silently.
+          conflicts.push(`${target.date}: task "${id}" (${target.task.title}) field "${field}" differs between copies; resolved during move reconciliation`);
+        }
+      }
+      // Completion is evidence of a real user action, including legacy copies
+      // without history. Preserve its coupled fields even without an ancestor.
+      if (!base && c.task.status === 'done') {
+        for (const key of STATUS_FIELDS) {
+          if (key === 'status') result.status = c.task.status;
+          else if (c.task[key] === undefined) delete result[key];
+          else result[key] = c.task[key];
+        }
+      }
       // A recovery carry with no base cannot prove that a completion was
       // deliberately reopened. Keep the completion and all its coupled fields.
       if (!base && merged.status === 'done' && c.task.status !== 'done') {

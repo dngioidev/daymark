@@ -28,14 +28,20 @@ Every kind of data that syncs between devices was tested by simulating two or th
 | A damaged picture on the server was never repaired. | A broken picture stayed broken for every device. The server now notices damaged files and the next upload repairs them. The picture check also reuses earlier results, so it no longer re-reads every file on each poll. |
 | Merging a day renumbered task order. | The renumbering looked like fresh edits and could stop a deletion on another device from taking effect. Merging no longer invents order changes. |
 | Picking the same backlog item on two devices dropped its history. | The two copies of the task lost part of their history. Duplicate picks now keep it. |
+| Moving a task while another device edited it could leave it on two days. | The task now stays on the moved day and its edit is kept. |
+| Two devices changed the same note's folder or title without a reported clash. | The newer change wins, and the clash is now reported. |
+| An untouched offline rollover copy could undo edits to a moved task. | The moved task keeps its title, status and other edits even when the server has no shared base. Genuine competing edits are reported by task and field; a completion is kept. |
+| Reset on Old-task warnings could undo itself after syncing. | Reset now explicitly selects All week for both counting groups when a choice already exists, so the reset reaches other devices and stays reset. Untouched devices keep the optional setting absent. |
 
-Nothing found by the audit is left unfixed.
+The fixes cover the tested races. Remaining limitations are listed below.
 
 ## Scenarios now covered by tests
 
 Settings changed on two devices at once; habit and backlog field edits and clears; wrong-clock devices; backlog undo; a long backlog of pending changes; interrupted and retried uploads; damaged and missing server pictures; folder rename against move; note delete against edit; two devices syncing together; a lost response and retry; a late third device; old-version devices; the seeded three-device random test; and the browser two-device test below.
 
 The browser test (`npm run test:sync`) now also checks, using the real Settings screen on a laptop and a phone: both counting groups default to "All week"; two devices change different settings while offline and both changes survive; weekday counting chosen on one device is used on the other and changes a carried task from "7 days old" to "5 days old".
+
+An earlier browser run showed a duplicate carried task. Its likely cause (a move racing an edit on the old day) was found by reading the code and verified with a reproducing test. The cause was not caught live in the browser; subsequent browser runs passed. Browser verification of this final fix wave is for the controller.
 
 ## New: choose which days count for alerts
 
@@ -54,17 +60,21 @@ Devices on 1.9.1 or earlier keep syncing with updated devices in both directions
 
 - Background photos stay on the device where you chose them. They are not synced or backed up. A device with no photos shows a short hint to add the photo there too, and falls back to no photo without errors. The hint cannot tell whether you chose a photo elsewhere, so a device with no photos and None selected always shows it.
 - A lost server response while a note is in a text conflict can, rarely, create a second conflict copy.
+- If a large sync fails partway through its batches, retrying can create an extra conflict copy for a note in a text conflict. Successful earlier batches have already reached the server, while the client retries from its previous state.
+- Android widget severity thresholds stay fixed at 3 and 7 days; the widget uses the selected counting days but does not follow customized severity thresholds.
 
 ## Checks
 
-Numbers are from full runs on this branch, one suite at a time.
+Final-wave checks run one suite at a time. Earlier controller checks are marked separately; browser results remain for the controller.
 
 | Check | Observed result |
 | :--- | :--- |
-| `npm run lint` | Clean |
-| Vitest (`--maxWorkers=2`) | 145 files, 1,751 passed, 1 skipped |
-| `npm run test:helpers` | 23 of 23 passed |
-| `npm run build` | Built |
-| `npm run test:sync` | 44 checks passed (one early timing flake seen in 1 of 6 runs) |
-| `npm run test:qa` | 822 checks, 0 failed (first run had 1 timing failure and a crash cascade; the rerun was clean) |
-| `npm run validate:ai` | All checks passed, 0 failures |
+| `npm.cmd run lint` | Clean |
+| `npx.cmd vitest run --maxWorkers=2` | 147 files, 1,828 passed, 1 skipped |
+| Final pre-filter compatibility regression | 3 targeted tests passed after the full run, including the added legacy-history test |
+| Convergence (`--maxWorkers=2`) | 25 original seeds and 25 generated carry/move races passed |
+| `npm run test:helpers` | Earlier controller run: 23 of 23 passed; not rerun in this wave |
+| `npm.cmd run build` | Built; existing Vite config-loader and chunk-size warnings |
+| `npm run test:sync` | controller to fill |
+| `npm run test:qa` | controller to fill |
+| `npm run validate:ai` | Earlier controller run: all checks passed, 0 failures; not rerun in this wave |

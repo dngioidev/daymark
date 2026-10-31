@@ -11,14 +11,60 @@ const original = () => [day(D1, structuredClone(task))];
 const move = (docs: DailyDocument[], from: string, to: string, hour = '09') => moveTaskToDate(docs, 't', from, to, ['Work'], `${D1}T${hour}:00:00Z`)!;
 const copies = (docs: DailyDocument[]) => docs.flatMap(d => d.headings.flatMap(h => h.items.map(t => ({ date: d.date, task: t }))));
 function check(docs: DailyDocument[], date: string, title = 'Edited') {
-  const result = reconcileMovedTasks(docs);
+  // These placement cases have an agreed ancestor; no-base policy is tested below.
+  const result = reconcileMovedTasks(docs, original());
   expect(copies(result)).toEqual([{ date, task: expect.objectContaining({ id: 't', title }) }]);
   expect(reconcileMovedTasks(result)).toEqual(result);
-  expect(reconcileMovedTasks([...docs].reverse()).sort((a,b) => a.date.localeCompare(b.date))).toEqual([...result].sort((a,b) => a.date.localeCompare(b.date)));
+  expect(reconcileMovedTasks([...docs].reverse(), original()).sort((a,b) => a.date.localeCompare(b.date))).toEqual([...result].sort((a,b) => a.date.localeCompare(b.date)));
   expect(result.every(d => d.headings[0].notesContent === 'Keep journal' || d.headings[0].notesContent === '')).toBe(true);
   return result;
 }
 describe('move reconciliation edge cases', () => {
+  it('keeps every moved field against an untouched offline carry, in both orders', () => {
+    const moved = move(original(), D1, D3);
+    Object.assign(moved[1].headings[0].items[0], { title: 'Renamed after move', status: 'blocked', description: 'Moved details' });
+    const carry = performDailyRollover(D2, original(), DEFAULT_SETTINGS.statuses, ['Work']).updatedDocs.find(d => d.date === D2)!;
+    for (const docs of [[...moved, carry], [...moved, carry].reverse()]) {
+      const result = reconcileMovedTasks(docs);
+      expect(copies(result)).toEqual([{ date: D3, task: expect.objectContaining({ title: 'Renamed after move', status: 'blocked', description: 'Moved details' }) }]);
+      expect(reconcileMovedTasks(result)).toEqual(result);
+    }
+  });
+  it('reports genuine concurrent stale edits by task and field and prefers moved values', () => {
+    const moved = move(original(), D1, D3);
+    Object.assign(moved[1].headings[0].items[0], { title: 'Moved title', status: 'blocked' });
+    const stale = day(D1, { ...task, title: 'Stale edit', status: 'not-started' });
+    const conflicts: string[] = [];
+    const result = reconcileMovedTasks([...moved.filter(d => d.date !== D1), stale], [], conflicts);
+    expect(copies(result)[0].task).toMatchObject({ title: 'Moved title', status: 'blocked' });
+    expect(conflicts.some(c => c.includes('task "t"') && c.includes('title'))).toBe(true);
+    expect(conflicts.some(c => c.includes('task "t"') && c.includes('status'))).toBe(true);
+  });
+  it('reports differences even when a legacy title edit has no history after its carry', () => {
+    const moved = move(original(), D1, D3);
+    const carry = performDailyRollover(D2, original(), DEFAULT_SETTINGS.statuses, ['Work']).updatedDocs.find(d => d.date === D2)!;
+    carry.headings[0].items[0].title = 'Unlogged real edit';
+    const conflicts: string[] = [];
+    reconcileMovedTasks([...moved, carry], [], conflicts);
+    expect(conflicts.some(c => c.includes('task "t"') && c.includes('title'))).toBe(true);
+  });
+  it('keeps completion on a no-base stale copy and reports the status clash', () => {
+    const moved = move(original(), D1, D3);
+    const conflicts: string[] = [];
+    const result = reconcileMovedTasks([day(D1, { ...task, status: 'done', completedDate: D1 }), moved[1]], [], conflicts);
+    expect(copies(result)[0].task).toMatchObject({ status: 'done', completedDate: D1 });
+    expect(conflicts.some(c => c.includes('status'))).toBe(true);
+  });
+  it('accepts a stale edit only when it observed the moved-side edit history, despite skewed clocks', () => {
+    const observed = { id: 'edit-1', date: D1, timestamp: `${D1}T12:00:00Z`, action: 'status_changed' as const, details: 'Blocked' };
+    const later = { ...observed, id: 'edit-2', timestamp: `${D1}T08:00:00Z`, details: 'Waiting' };
+    const moved = move([day(D1, { ...task, status: 'blocked', historyLog: [observed] })], D1, D3);
+    const stale = day(D1, { ...task, status: 'waiting', historyLog: [observed, later] });
+    const conflicts: string[] = [];
+    const result = reconcileMovedTasks([stale, moved[1]], [], conflicts);
+    expect(copies(result)[0].task.status).toBe('waiting');
+    expect(conflicts.some(c => c.includes('status'))).toBe(true);
+  });
   it('follows the whole chain rather than matching only the destination event id', () => {
     const moved = move(move(original(), D1, D2), D2, D3, '10');
     check(moved.map(d => d.date === D1 ? day(D1, { ...task, title: 'Edited' }) : d), D3);

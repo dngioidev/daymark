@@ -523,7 +523,7 @@ describe('reconcileMovedTasks', () => {
 
   it('folds an edit made on the old day into the moved copy and removes the stale copy', () => {
     const docs = [day('2026-10-24', [mk('t1', { title: 'Edited' })]), day('2026-10-25', [mk('t1', { historyLog: [moveEvent] })])];
-    const [from, to] = reconcileMovedTasks(docs);
+    const [from, to] = reconcileMovedTasks(docs, [day('2026-10-24', [mk('t1')])]);
     expect(from.headings[0].items).toEqual([]);
     expect(from.removedTaskIds).toEqual(['t1']);
     expect(to.headings[0].items).toHaveLength(1);

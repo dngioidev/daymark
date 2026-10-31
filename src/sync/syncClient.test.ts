@@ -44,6 +44,27 @@ describe('large pending pushes', () => {
   const synced: SyncState = { ...state, lastRev: 10, habitsSynced: true, backlogSynced: true, notemetaSynced: true,
     bases: Object.fromEntries([...toEntities(vault)].map(([key, value]) => [key, canonicalJson(value)])) };
 
+  it('backfills only the first batch, then pulls from its returned rev without missing cross-batch changes', async () => {
+    const calls: SyncRequest[] = [];
+    const remote = { ...largeVault.notes[0], id: 'remote', content: 'Backfilled text' };
+    const updated = { ...largeVault.notes[0], content: 'Reconciled after first batch' };
+    const outcome = await syncOnce(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as SyncRequest;
+      calls.push(body);
+      const rev = calls.length === 1 ? 20 : 23;
+      return Response.json({ rev, conflicts: [], entities: [
+        ...body.changes.map(c => ({ key: c.key, value: c.value, rev })),
+        ...(calls.length === 1 ? [{ key: 'note:remote', value: remote, rev: 9 }] : [{ key: 'note:bulk-0', value: updated, rev: 22 }]),
+      ] });
+    }, largeVault, { ...synced, habitsSynced: false }, 'access');
+    expect(calls.map(c => c.sinceRev)).toEqual([0, 20]);
+    const applied = applySyncOutcome(largeVault, outcome);
+    expect(applied.notes.find(n => n.id === 'remote')?.content).toBe('Backfilled text');
+    expect(applied.notes.find(n => n.id === 'bulk-0')?.content).toBe('Reconciled after first batch');
+    expect(outcome.state.lastRev).toBe(23);
+    expect(collectChanges(toEntities(applied), outcome.state)).toEqual([]);
+  });
+
   it('splits pushes at the protocol limit and retains results and conflicts from every response', async () => {
     const calls: SyncRequest[] = [];
     const outcome = await syncOnce(async (_url, init) => {
@@ -57,7 +78,7 @@ describe('large pending pushes', () => {
       ] });
     }, largeVault, synced, 'access');
     expect(calls.map(c => c.changes.length)).toEqual([MAX_CHANGES_PER_SYNC, 1]);
-    expect(calls.map(c => c.sinceRev)).toEqual([10, 10]);
+    expect(calls.map(c => c.sinceRev)).toEqual([10, 11]);
     expect(outcome.pushed).toBe(MAX_CHANGES_PER_SYNC + 1);
     expect(outcome.state.lastRev).toBe(12);
     expect(outcome.conflicts).toEqual(['First batch conflict']);

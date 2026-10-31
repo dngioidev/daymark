@@ -14,6 +14,7 @@ import { checkRefreshToken, createApp } from './app';
 import { loadConfig } from './config';
 import { FileStore } from './store';
 import { hashRefreshToken, parseCookies, signToken, TokenPayload, verifyToken } from './auth';
+import * as syncMerge from '../src/sync/merge';
 
 const PASSWORD = 'correct horse battery';
 let dir: string;
@@ -84,6 +85,41 @@ const note = (id: string, content: string): StandaloneNote => ({
   updatedAt: '2026-10-20T00:00:00Z',
 });
 const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+
+it('skips move reconciliation for unique tasks but runs it for duplicate-day ids', async () => {
+  const client = await connect('prefilter');
+  const reconcile = vi.spyOn(syncMerge, 'reconcileMovedTasks');
+  try {
+    const original = day([task('unique')]);
+    const pushed = await post('/api/sync', { sinceRev: 0, changes: [{ key: `doc:${original.date}`, base: null, value: original }] }, client.accessToken);
+    expect(pushed.status).toBe(200);
+    expect(reconcile).not.toHaveBeenCalled();
+    const duplicate = { ...original, date: '2026-10-21' };
+    const next = await post('/api/sync', { sinceRev: 0, changes: [{ key: `doc:${duplicate.date}`, base: null, value: duplicate }] }, client.accessToken);
+    expect(next.status).toBe(200);
+    expect(reconcile).toHaveBeenCalledTimes(1);
+  } finally { reconcile.mockRestore(); }
+});
+
+it('runs move reconciliation for a pushed move event even without duplicate ids', async () => {
+  const client = await connect('move-prefilter');
+  const reconcile = vi.spyOn(syncMerge, 'reconcileMovedTasks');
+  try {
+    const moved = day([{ ...task('moving'), historyLog: [{ id: 'hist-move-moving-2026-10-20', date: '2026-10-19', timestamp: '2026-10-20T09:00:00Z', action: 'moved', details: 'Moved' }] }]);
+    const response = await post('/api/sync', { sinceRev: 0, changes: [{ key: `doc:${moved.date}`, base: null, value: moved }] }, client.accessToken);
+    expect(response.status).toBe(200);
+    expect(reconcile).toHaveBeenCalledTimes(1);
+  } finally { reconcile.mockRestore(); }
+});
+
+it('keeps move reconciliation pre-filter tolerant of legacy history shapes on unique tasks', async () => {
+  const client = await connect('legacy-history');
+  for (const historyLog of [[{ action: 'created' }], 'legacy history']) {
+    const legacy = { ...day([]), headings: [{ name: 'Work', items: [{ ...task('legacy-history'), historyLog }] }] };
+    const response = await post('/api/sync', { sinceRev: 0, changes: [{ key: `doc:${legacy.date}`, base: null, value: legacy }] }, client.accessToken);
+    expect(response.status).toBe(200);
+  }
+});
 
 describe('habit sync', () => {
   const list = { habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T08:00:00Z' }] };
