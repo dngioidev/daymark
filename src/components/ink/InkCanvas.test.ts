@@ -3,6 +3,7 @@ import React, { act, createRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { InkCanvas, type InkCanvasHandle, type InkCanvasProps } from './InkCanvas';
+import { InkPageView } from './InkPageView';
 import { decodePoints, encodePoints, visibleStrokes } from '../../ink/inkModel';
 import * as model from '../../ink/inkModel';
 import * as renderer from '../../ink/inkRender';
@@ -12,10 +13,12 @@ let host: HTMLDivElement, root: Root;
 let frames: FrameRequestCallback[];
 let contexts: WeakMap<HTMLCanvasElement, CanvasRenderingContext2D>;
 let unsupportedContext: 'throw' | 'null' | undefined;
+let unmounted: boolean;
 const blank = (): InkPage => ({ noteId: 'n', page: 0, strokes: [], removed: [], updatedAt: '' });
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   frames = [];
+  unmounted = false;
   vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.push(fn); return frames.length; });
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
   contexts = new WeakMap();
@@ -25,13 +28,13 @@ beforeEach(() => {
       if (unsupportedContext === 'throw') throw new Error('Context options unsupported');
       return null;
     }
-    if (!contexts.has(this)) contexts.set(this, { setTransform: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), arc: vi.fn(), stroke: vi.fn() } as unknown as CanvasRenderingContext2D);
+    if (!contexts.has(this)) contexts.set(this, { setTransform: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), arc: vi.fn(), stroke: vi.fn(), save: vi.fn(), rect: vi.fn(), clip: vi.fn(), restore: vi.fn() } as unknown as CanvasRenderingContext2D);
     return contexts.get(this)!;
   });
   vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 1000, height: 1414 } as DOMRect);
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
-afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { if (!unmounted) act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function mount(extra: Partial<InkCanvasProps> = {}) {
   const onChange = vi.fn(); const ref = createRef<InkCanvasHandle>();
   act(() => root.render(React.createElement(InkCanvas, { page: blank(), paper: 'lined', tool: 'pen', color: '#1c1917', width: 4, eraserMode: 'area', onChange, ...extra, ref })));
@@ -53,6 +56,41 @@ it('commits exactly once synchronously on pointerup, ignores palm, never commits
   const page = onChange.mock.calls[0][0];
   expect(page.strokes).toHaveLength(1);
   expect(decodePoints(page.strokes[0].points).map(p => p.x)).toEqual([10, 15, 20, 25]);
+});
+
+it('disables native gestures before writable contact and scrolls the nearest ancestor with touch', () => {
+  host.style.overflow = 'auto';
+  Object.defineProperties(host, { scrollHeight: { value: 2400 }, clientHeight: { value: 500 }, scrollWidth: { value: 2000 }, clientWidth: { value: 600 } });
+  host.scrollTop = 100; host.scrollLeft = 80;
+  const { canvas, onChange } = mount();
+  expect(canvas.style.touchAction).toBe('none');
+  pointer(canvas, 'pointerdown', { pointerType: 'touch', clientX: 100, clientY: 100 });
+  pointer(canvas, 'pointermove', { pointerType: 'touch', clientX: 70, clientY: 60 });
+  pointer(canvas, 'pointerup', { pointerType: 'touch', clientX: 70, clientY: 60 });
+  expect(host.scrollTop).toBe(140); expect(host.scrollLeft).toBe(110);
+  expect(onChange).not.toHaveBeenCalled();
+  pointer(canvas, 'pointerdown'); pointer(canvas, 'pointerup');
+  expect(canvas.style.touchAction).toBe('none');
+});
+
+it('keeps native touch scrolling on readOnly canvas', () => {
+  const { canvas, onChange } = mount({ readOnly: true });
+  expect(['pan-y', 'auto']).toContain(canvas.style.touchAction);
+  pointer(canvas, 'pointerdown', { pointerType: 'touch' });
+  pointer(canvas, 'pointermove', { pointerType: 'touch', clientY: 100 });
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it.each(['view', 'readOnly', 'editor'] as const)('bounds %s canvas allocations and releases all pixel buffers on unmount', mode => {
+  const create = vi.spyOn(document, 'createElement');
+  if (mode === 'view') act(() => root.render(React.createElement(InkPageView, { page: blank(), paper: 'lined' })));
+  else mount({ readOnly: mode === 'readOnly' });
+  const canvases = create.mock.results.map(r => r.value).filter((v): v is HTMLCanvasElement => v instanceof HTMLCanvasElement);
+  if (mode !== 'editor') expect(canvases).toHaveLength(1);
+  else { expect(canvases.length).toBeLessThanOrEqual(3); expect(canvases).toHaveLength(2); }
+  expect(canvases.length).toBeGreaterThan(0);
+  act(() => root.unmount()); unmounted = true;
+  for (const canvas of canvases) { expect(canvas.width).toBe(0); expect(canvas.height).toBe(0); }
 });
 it('commits the in-progress stroke on pagehide, including cancellation and unmount safety', () => {
   const { canvas, onChange } = mount();
@@ -115,7 +153,7 @@ it('draws pen segments synchronously, batches predicted tails, and never rebuild
   expect(decode).toHaveBeenCalledTimes(initialDecodes);
   expect(canvas.style.touchAction).toBe('none');
   pointer(canvas, 'pointerup');
-  expect(canvas.style.touchAction).toBe('pan-y');
+  expect(canvas.style.touchAction).toBe('none');
 });
 
 it.each(['throw', 'null'] as const)('falls back to normal live 2d context when desynchronized options %s', failure => {
@@ -138,25 +176,26 @@ it.each(['pen', 'highlighter'] as const)('draws %s on move before any rAF callba
   expect(context.lineTo).toHaveBeenCalled();
   expect(frames).toHaveLength(1);
   expect(live.style.opacity).toBe(tool === 'highlighter' ? '0.35' : '1');
+  expect(live.style.zIndex).toBe(tool === 'highlighter' ? '0' : '2');
   expect(onChange).not.toHaveBeenCalled();
 });
 
-it('keeps actual ink while replacing only predicted tails on the next frame', () => {
+it('clears only the predicted region and restores actual ink on the shared live canvas', () => {
   const { canvas, onChange } = mount();
   const actual = host.querySelector<HTMLCanvasElement>('[data-ink-live]')!.getContext('2d')!;
-  const tail = host.querySelector<HTMLCanvasElement>('[data-ink-tail]')!.getContext('2d')!;
   const flush = () => { const pending = frames.splice(0); act(() => { for (const fn of pending) fn(0); }); };
   flush(); pointer(canvas, 'pointerdown');
   pointer(canvas, 'pointermove', { clientX: 20, getPredictedEvents: () => [{ clientX: 99, clientY: 10, pressure: 0.5 }] });
   const actualFills = vi.mocked(actual.fill).mock.calls.length;
   const actualClears = vi.mocked(actual.clearRect).mock.calls.length;
-  const tailFills = vi.mocked(tail.fill).mock.calls.length;
   flush();
-  expect(tail.fill).toHaveBeenCalledTimes(tailFills + 1);
-  expect(actual.fill).toHaveBeenCalledTimes(actualFills);
+  expect(actual.fill).toHaveBeenCalledTimes(actualFills + 1);
   expect(actual.clearRect).toHaveBeenCalledTimes(actualClears);
   pointer(canvas, 'pointermove', { clientX: 30 }); flush();
-  expect(tail.fill).toHaveBeenCalledTimes(tailFills + 1);
+  expect(actual.clip).toHaveBeenCalled();
+  const clear = vi.mocked(actual.clearRect).mock.calls.at(-1)!;
+  expect(clear[2]).toBeLessThan(1000); expect(clear[3]).toBeLessThan(1414);
+  expect(vi.mocked(actual.fill).mock.calls.length).toBeGreaterThan(actualFills + 2);
   pointer(canvas, 'pointerup', { clientX: 40 });
   expect(decodePoints(onChange.mock.calls[0][0].strokes[0].points).map(p => p.x)).toEqual([10, 20, 30, 40]);
 });
@@ -169,12 +208,12 @@ it('preserves partial ink on pointercancel and ignores further moves/up', () => 
   expect(decodePoints(onChange.mock.calls[0][0].strokes[0].points).map(p => p.x)).toEqual([10, 40]);
 });
 
-it('sizes backing pixels for DPR and uses scaled CSS rules for paper', () => {
-  vi.stubGlobal('devicePixelRatio', 2);
+it.each([2, 4])('bounds backing pixels at DPR 2 for device DPR %s and uses scaled CSS paper', dpr => {
+  vi.stubGlobal('devicePixelRatio', dpr);
   const { canvas } = mount({ paper: 'grid' });
   expect(canvas.width).toBe(2000); expect(canvas.height).toBe(2828);
-  expect(canvas.style.backgroundSize).toBe('32px 32px');
-  expect(canvas.style.backgroundImage).toContain('to right');
+  expect(canvas.parentElement!.style.backgroundSize).toBe('32px 32px');
+  expect(canvas.parentElement!.style.backgroundImage).toContain('to right');
 });
 
 it('appends a committed pen to its cached layer without repainting existing strokes', () => {
@@ -205,7 +244,7 @@ it.each(['stroke', 'area'] as const)('previews %s erasure and cursor before poin
   expect(remaining).toHaveLength(eraserMode === 'stroke' ? 0 : 2);
   expect(remaining.some(s => s.id === 'hit')).toBe(false);
   expect(onChange).not.toHaveBeenCalled();
-  const tail = host.querySelector<HTMLCanvasElement>('[data-ink-tail]')!.getContext('2d')!;
+  const tail = host.querySelector<HTMLCanvasElement>('[data-ink-live]')!.getContext('2d')!;
   expect(tail.arc).toHaveBeenLastCalledWith(50, 10, 10, 0, Math.PI * 2);
   pointer(canvas, 'pointerup', { clientX: 50 });
   expect(onChange).toHaveBeenCalledTimes(1);

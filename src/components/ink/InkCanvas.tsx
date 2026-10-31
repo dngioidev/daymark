@@ -3,6 +3,8 @@ import type { InkPage, InkStroke, InkTool, StandaloneNote } from '../../types/da
 import { addStroke, decodePoints, encodePoints, eraseArea, eraseStrokes, PAGE_HEIGHT, PAGE_WIDTH, visibleStrokes } from '../../ink/inkModel';
 import { drawPage, drawStroke, touchesStroke, type InkPoint, type PointCache } from '../../ink/inkRender';
 import { classifyPointer } from '../../ink/pointerPolicy';
+import { InkPageView } from './InkPageView';
+import { paperStyle, sizeInkSurface } from './inkSurface';
 
 export type EraserMode = 'area' | 'stroke';
 export interface InkCanvasProps {
@@ -22,10 +24,14 @@ type Change = { before: InkPage; after: InkPage };
 type Live = { id: number; points: InkPoint[]; predictions: InkPoint[]; tool: InkCanvasProps['tool']; color: string; width: number; eraserMode: EraserMode };
 
 export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function InkCanvas(props, ref) {
+  const editor = useRef<InkCanvasHandle>(null);
+  useImperativeHandle(ref, () => ({ undo: () => editor.current?.undo(), redo: () => editor.current?.redo() }), []);
+  return props.readOnly ? <InkPageView page={props.page} paper={props.paper} /> : <WritableInkCanvas {...props} ref={editor} />;
+});
+
+const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function WritableInkCanvas(props, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
-  const tailRef = useRef<HTMLCanvasElement>(null);
-  const penRef = useRef<HTMLCanvasElement>(null);
   const latest = useRef(props);
   const api = useRef<InkCanvasHandle>({ undo() {}, redo() {} });
   const synchronize = useRef<() => void>(() => {});
@@ -39,19 +45,18 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     let liveCtx: CanvasRenderingContext2D | null = null;
     try { liveCtx = liveCanvas.getContext('2d', { desynchronized: true, alpha: true }); } catch { /* Older WebViews can reject context options. */ }
     liveCtx ??= liveCanvas.getContext('2d');
-    const tailCanvas = tailRef.current!, penCanvas = penRef.current!;
-    const tailCtx = tailCanvas.getContext('2d'), penCtx = penCanvas.getContext('2d');
-    if (!ctx || !liveCtx || !tailCtx || !penCtx) return;
+    if (!ctx || !liveCtx) return () => { canvas.width = canvas.height = liveCanvas.width = liveCanvas.height = 0; };
     const actualCtx = liveCtx;
-    const layers = [document.createElement('canvas'), document.createElement('canvas')];
-    const contexts = layers.map(layer => layer.getContext('2d')!);
     let page = latest.current.page;
     let live: Live | null = null;
     let frame = 0;
     let rect = canvas.getBoundingClientRect();
     let scale = 1;
     const cache: PointCache = new Map();
-    const rendered: InkStroke[][] = [[], []];
+    let rendered: InkStroke[] = [];
+    let touch: { id: number; x: number; y: number; target: HTMLElement } | null = null;
+    type Bounds = { x: number; y: number; width: number; height: number };
+    let decoration: Bounds | null = null;
     let preview: InkPage | null = null;
     let previewBase: InkPage | null = null;
     let previewProcessed = 0;
@@ -59,29 +64,45 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     let previewDirty = false;
     const undo: Change[] = [], redo: Change[] = [];
     const historyChanged = () => latest.current.onHistoryChange?.(undo.length > 0, redo.length > 0);
-    const present = () => {
-      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-      penCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-      ctx.drawImage(layers[0], 0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-      (live?.tool === 'highlighter' ? penCtx : ctx).drawImage(layers[1], 0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+    const clearDecoration = () => {
+      if (!decoration) return;
+      const bounds = decoration; decoration = null;
+      actualCtx.save(); actualCtx.beginPath(); actualCtx.rect(bounds.x, bounds.y, bounds.width, bounds.height); actualCtx.clip();
+      actualCtx.clearRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      // Restore only actual segments intersecting the old tail, never the entire stroke.
+      if (live && live.tool !== 'eraser') {
+        const margin = live.width * 0.75;
+        for (let i = 0; i < live.points.length; i++) {
+          const a = live.points[Math.max(0, i - 1)], b = live.points[i];
+          if (Math.max(a.x, b.x) + margin < bounds.x || Math.min(a.x, b.x) - margin > bounds.x + bounds.width
+            || Math.max(a.y, b.y) + margin < bounds.y || Math.min(a.y, b.y) - margin > bounds.y + bounds.height) continue;
+          drawStroke(actualCtx, i ? [a, b] : [b], { ...live, tool: live.tool }, 1);
+        }
+      }
+      actualCtx.restore();
     };
     const paint = () => {
       frame = 0;
-      tailCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      clearDecoration();
       if (live?.tool === 'eraser') {
         updatePreview();
         if (previewDirty && preview) {
           ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-          penCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
           drawPage(ctx, preview, previewCache);
           previewDirty = false;
         }
         const center = live.points.at(-1)!;
-        tailCtx.globalAlpha = 1; tailCtx.strokeStyle = '#78716c'; tailCtx.lineWidth = 1 / scale;
-        tailCtx.beginPath(); tailCtx.arc(center.x, center.y, Math.max(1, live.width / 2), 0, Math.PI * 2); tailCtx.stroke();
+        const radius = Math.max(1, live.width / 2), margin = 2 / scale;
+        actualCtx.globalAlpha = 1; actualCtx.strokeStyle = '#78716c'; actualCtx.lineWidth = 1 / scale;
+        actualCtx.beginPath(); actualCtx.arc(center.x, center.y, radius, 0, Math.PI * 2); actualCtx.stroke();
+        decoration = { x: center.x - radius - margin, y: center.y - radius - margin, width: (radius + margin) * 2, height: (radius + margin) * 2 };
       } else if (live && live.predictions.length) {
         // Only the predicted tail is cleared/redrawn in rAF; actual ink is synchronous.
-        drawStroke(tailCtx, [live.points.at(-1)!, ...live.predictions], { ...live, tool: live.tool }, 1);
+        const points = [live.points.at(-1)!, ...live.predictions];
+        drawStroke(actualCtx, points, { ...live, tool: live.tool }, 1);
+        const margin = live.width * 0.75 + 2 / scale;
+        const xs = points.map(p => p.x), ys = points.map(p => p.y);
+        decoration = { x: Math.min(...xs) - margin, y: Math.min(...ys) - margin, width: Math.max(...xs) - Math.min(...xs) + margin * 2, height: Math.max(...ys) - Math.min(...ys) + margin * 2 };
       }
       // Separate diagnostic from synchronous inkdraw: this is the next rAF, not scanout.
       if (import.meta.env.DEV) canvas.dispatchEvent(new CustomEvent('inkframe', { detail: performance.now() }));
@@ -89,29 +110,21 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
     const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
     const rebuild = (force = false) => {
       const visible = visibleStrokes(page);
-      contexts.forEach((context, i) => {
-        const strokes = visible.filter(s => s.tool === (i === 0 ? 'highlighter' : 'pen'));
-        const previous = rendered[i];
-        const append = !force && previous.length <= strokes.length && previous.every((s, index) => s === strokes[index]);
-        if (!append) context.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-        drawPage(context, { ...page, strokes: append ? strokes.slice(previous.length) : strokes, removed: [] }, cache);
-        rendered[i] = strokes;
-      });
+      const append = !force && rendered.length <= visible.length && rendered.every((s, index) => s === visible[index]);
+      if (!append) ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      drawPage(ctx, { ...page, strokes: append ? visible.slice(rendered.length) : visible, removed: [] }, cache);
+      rendered = visible;
       const ids = new Set(page.strokes.map(s => s.id));
       for (const id of cache.keys()) if (!ids.has(id)) cache.delete(id);
-      present();
       schedule();
     };
     const resize = () => {
       rect = canvas.getBoundingClientRect();
       scale = Math.max(1, rect.width) / PAGE_WIDTH;
-      const dpr = window.devicePixelRatio || 1;
-      for (const layer of [canvas, liveCanvas, tailCanvas, penCanvas, ...layers]) {
-        layer.width = Math.max(1, Math.round(rect.width * dpr));
-        layer.height = Math.max(1, Math.round(rect.width * PAGE_HEIGHT / PAGE_WIDTH * dpr));
-        layer.getContext('2d')!.setTransform(layer.width / PAGE_WIDTH, 0, 0, layer.height / PAGE_HEIGHT, 0, 0);
-      }
-      canvas.style.backgroundSize = `${32 * scale}px ${32 * scale}px`;
+      const resized = [canvas, liveCanvas].map(layer => sizeInkSurface(layer, rect.width)).some(Boolean);
+      canvas.parentElement!.style.backgroundSize = `${32 * scale}px ${32 * scale}px`;
+      if (!resized) return;
+      decoration = null;
       rebuild(true);
       // Resizing clears all backing pixels; replay actual segments only in this case.
       if (live && live.tool !== 'eraser') {
@@ -172,10 +185,10 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
       if (next !== preview) { preview = next; previewDirty = true; }
     };
     const finish = () => {
+      touch = null;
       if (!live) return;
       updatePreview();
       const stroke = live; live = null;
-      canvas.style.touchAction = 'pan-y';
       if (canvas.hasPointerCapture?.(stroke.id)) canvas.releasePointerCapture(stroke.id);
       const now = new Date().toISOString();
       let next = page;
@@ -187,27 +200,47 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
         // Reuse decoded preview pieces when they become committed strokes.
         for (const [id, points] of previewCache) cache.set(id, points);
       }
-      record(next); present();
+      record(next);
       actualCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-      tailCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      decoration = null;
       preview = null; previewBase = null; previewCache.clear();
       schedule();
     };
     const down = (e: PointerEvent) => {
       const p = latest.current;
-      if (p.readOnly || live || classifyPointer({ penActive: false, allowMouse: p.allowMouse }, e).action !== 'draw') return;
+      const action = classifyPointer({ penActive: !!live, allowMouse: p.allowMouse }, e).action;
+      if (action === 'scroll' && !touch) {
+        let target = canvas.parentElement;
+        while (target) {
+          const style = getComputedStyle(target);
+          const overflowY = style.overflowY && style.overflowY !== 'visible' ? style.overflowY : style.overflow;
+          const overflowX = style.overflowX && style.overflowX !== 'visible' ? style.overflowX : style.overflow;
+          if ((/(auto|scroll|overlay)/.test(overflowY) && target.scrollHeight > target.clientHeight)
+            || (/(auto|scroll|overlay)/.test(overflowX) && target.scrollWidth > target.clientWidth)) break;
+          target = target.parentElement;
+        }
+        touch = { id: e.pointerId, x: e.clientX, y: e.clientY, target: target ?? (document.scrollingElement as HTMLElement | null) ?? document.documentElement };
+        e.preventDefault(); canvas.setPointerCapture?.(e.pointerId); return;
+      }
+      if (live || action !== 'draw') return;
+      touch = null;
       e.preventDefault(); rect = canvas.getBoundingClientRect(); scale = Math.max(1, rect.width) / PAGE_WIDTH;
       live = { id: e.pointerId, points: [point(e)], predictions: [], tool: p.tool, color: p.color, width: p.width, eraserMode: p.eraserMode ?? 'area' };
       // Composite live highlighters once, avoiding darker overlaps between segments.
-      liveCanvas.style.opacity = tailCanvas.style.opacity = p.tool === 'highlighter' ? '0.35' : '1';
-      present();
+      liveCanvas.style.opacity = p.tool === 'highlighter' ? '0.35' : '1';
+      liveCanvas.style.zIndex = p.tool === 'highlighter' ? '0' : '2';
       if (live.tool !== 'eraser') drawStroke(actualCtx, live.points, { ...live, tool: live.tool }, 1);
-      canvas.style.touchAction = 'none';
       canvas.setPointerCapture?.(e.pointerId); schedule();
     };
     const move = (e: PointerEvent) => {
+      if (touch?.id === e.pointerId) {
+        if (classifyPointer({ penActive: !!live }, e).action !== 'scroll') { touch = null; return; }
+        e.preventDefault(); touch.target.scrollLeft -= e.clientX - touch.x; touch.target.scrollTop -= e.clientY - touch.y;
+        touch.x = e.clientX; touch.y = e.clientY; return;
+      }
       if (!live || live.id !== e.pointerId) return;
       e.preventDefault();
+      clearDecoration();
       const samples = e.getCoalescedEvents?.();
       for (const sample of samples?.length ? samples : [e]) {
         const previous = live.points.at(-1)!, next = point(sample);
@@ -220,10 +253,11 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
       schedule();
     };
     const up = (e: PointerEvent) => {
+      if (touch?.id === e.pointerId) { touch = null; return; }
       if (!live || live.id !== e.pointerId) return;
       live.points.push(point(e)); finish();
     };
-    const cancel = (e: PointerEvent) => { if (live?.id === e.pointerId) finish(); };
+    const cancel = (e: PointerEvent) => { if (touch?.id === e.pointerId) touch = null; if (live?.id === e.pointerId) finish(); };
     synchronize.current = () => {
       const incoming = latest.current.page;
       if (incoming !== page) {
@@ -250,15 +284,14 @@ export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function In
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up);
       canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('lostpointercapture', cancel);
       synchronize.current = () => {};
+      canvas.width = canvas.height = liveCanvas.width = liveCanvas.height = 0;
+      cache.clear(); previewCache.clear();
     };
   }, []);
 
-  const line = 'linear-gradient(to bottom, #d6d3d1 1px, transparent 1px)';
   const overlay = { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', pointerEvents: 'none' as const };
-  return <div style={{ position: 'relative' }}>
-    <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'pan-y', backgroundColor: '#fafaf9', backgroundImage: props.paper === 'grid' ? `${line}, linear-gradient(to right, #d6d3d1 1px, transparent 1px)` : props.paper === 'lined' ? line : undefined }} />
+  return <div style={{ position: 'relative', isolation: 'isolate', ...paperStyle(props.paper) }}>
+    <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ position: 'relative', zIndex: 1, display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'none' }} />
     <canvas ref={liveRef} data-ink-live aria-hidden="true" style={overlay} />
-    <canvas ref={tailRef} data-ink-tail aria-hidden="true" style={overlay} />
-    <canvas ref={penRef} aria-hidden="true" style={overlay} />
   </div>;
 });
