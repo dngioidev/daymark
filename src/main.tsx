@@ -32,4 +32,10 @@ async function start() {
   }
 }
 
-void start();
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('inkbench')) {
+  void import('./ink/InkBench').then(({ default: InkBench }) => {
+    createRoot(document.getElementById('root')!).render(<InkBench />);
+  });
+} else {
+  void start();
+}
