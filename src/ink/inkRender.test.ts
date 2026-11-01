@@ -61,3 +61,16 @@ it('repaints only the inserted area, snapped to device pixels, in canonical orde
   expect(x).toBeLessThanOrEqual(100 - 4); expect(x + w).toBeGreaterThanOrEqual(120 + 4);
   expect(ctx.clip).toHaveBeenCalled(); expect(ctx.restore).toHaveBeenCalled();
 });
+
+it('snaps the repaint area to whole device pixels on each axis with its own scale', async () => {
+  const { redrawInserted } = await import('./inkRender');
+  const ctx = { save: vi.fn(), restore: vi.fn(), rect: vi.fn(), clip: vi.fn(), clearRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), fillStyle: '', globalAlpha: 1 } as unknown as CanvasRenderingContext2D;
+  // A 924 x 1306 px backing store: x and y scales differ after rounding (0.924 vs 0.92362...).
+  const kx = 924 / 1000, ky = 1306 / 1414;
+  redrawInserted(ctx, [stroke('h', 'highlighter', 333.3, 777.7)], [stroke('h', 'highlighter', 333.3, 777.7)], new Map(), kx, ky);
+  const [x, y, w, h] = vi.mocked(ctx.clearRect).mock.calls[0];
+  const whole = (v: number, k: number) => Math.abs(v * k - Math.round(v * k)) < 1e-9;
+  expect(whole(x, kx) && whole(x + w, kx)).toBe(true);
+  expect(whole(y, ky) && whole(y + h, ky)).toBe(true);
+  expect(vi.mocked(ctx.rect).mock.calls[0]).toEqual([x, y, w, h]);
+});

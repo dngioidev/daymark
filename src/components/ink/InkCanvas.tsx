@@ -24,8 +24,8 @@ type Change = { before: InkPage; after: InkPage };
 type Live = { id: number; points: InkPoint[]; predictions: InkPoint[]; tool: InkCanvasProps['tool']; color: string; width: number; eraserMode: EraserMode;
   /** Pen/highlighter style for drawStroke, built once per stroke instead of per segment. */
   style: { tool: InkTool; color: string; width: number };
-  /** Newest drawn sample time, and the positions drawn at exactly that time (see `fresh`). */
-  lastAt: number; atLast: Set<string> };
+  /** Sample time of each point (parallel to `points`) and the samples already taken (see `take`). */
+  times: number[]; seen: Set<string> };
 type Sample = Pick<PointerEvent, 'clientX' | 'clientY' | 'pressure' | 'timeStamp'>;
 /** Benchmarks (scripts/ink-app-bench.mjs) may set this to time each synchronous segment draw. */
 const drawProbe = () => (globalThis as { __daymarkInkDrawn?: () => void }).__daymarkInkDrawn?.();
@@ -120,7 +120,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       const append = !force && rendered.length <= visible.length && rendered.every((s, index) => s === visible[index]);
       // A new highlighter sorts under existing pen ink: repaint just its area, not the page.
       const inserted = append || force ? null : insertedStrokes(rendered, visible);
-      if (inserted) redrawInserted(ctx, visible, inserted, cache, canvas.width / PAGE_WIDTH);
+      if (inserted) redrawInserted(ctx, visible, inserted, cache, canvas.width / PAGE_WIDTH, canvas.height / PAGE_HEIGHT);
       else {
         if (!append) ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
         drawPage(ctx, { ...page, strokes: append ? visible.slice(rendered.length) : visible, removed: [] }, cache);
@@ -230,7 +230,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       touch = null;
       e.preventDefault(); rect = canvas.getBoundingClientRect(); scale = Math.max(1, rect.width) / PAGE_WIDTH;
       live = { id: e.pointerId, points: [point(e)], predictions: [], tool: p.tool, color: p.color, width: p.width, eraserMode: p.eraserMode ?? 'area',
-        style: { tool: p.tool === 'eraser' ? 'pen' : p.tool, color: p.color, width: p.width }, lastAt: -Infinity, atLast: new Set() };
+        style: { tool: p.tool === 'eraser' ? 'pen' : p.tool, color: p.color, width: p.width }, times: [Number.isFinite(e.timeStamp) ? e.timeStamp : -Infinity], seen: new Set() };
       // Raw updates arrive as soon as the pen moves, not aligned to the next frame like pointermove.
       // Listened to only during a stroke, so S Pen hover does not get a second event stream.
       canvas.addEventListener('pointerrawupdate', raw);
@@ -251,29 +251,38 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       live.predictions = (e.getPredictedEvents?.() ?? []).map(point);
       schedule();
     };
-    // pointerrawupdate and pointermove each deliver every sample once, in time order, but either
-    // may come first. Draw each sample exactly once: skip older samples and repeats of a position
-    // at the newest time (distinct samples may share a coarse timestamp).
-    const fresh = (current: Live, sample: Sample) => {
+    // pointerrawupdate and pointermove both deliver every sample, and either may come first (raw is
+    // only listened to from pen-down, so a stroke's first samples can arrive by pointermove after a
+    // newer raw one). Each sample (time + position) is stored once; a late one is inserted in time
+    // order, so the committed stroke has every sample in order. Returns where it was stored, or -1.
+    const take = (current: Live, sample: Sample): number => {
       const at = sample.timeStamp;
-      if (!Number.isFinite(at)) return true;
-      if (at < current.lastAt) return false;
-      const key = `${sample.clientX},${sample.clientY},${sample.pressure}`;
-      if (at > current.lastAt) { current.lastAt = at; current.atLast.clear(); }
-      else if (current.atLast.has(key)) return false;
-      current.atLast.add(key);
-      return true;
+      if (Number.isFinite(at)) {
+        const key = `${at},${sample.clientX},${sample.clientY},${sample.pressure}`;
+        if (current.seen.has(key)) return -1;
+        current.seen.add(key);
+      }
+      const time = Number.isFinite(at) ? at : Infinity;
+      let index = current.points.length;
+      // The eraser sweeps points in arrival order, so it only ever appends.
+      if (current.tool !== 'eraser') while (index > 1 && current.times[index - 1] > time) index--;
+      current.points.splice(index, 0, point(sample));
+      current.times.splice(index, 0, Number.isFinite(at) ? at : current.times[index - 1] ?? -Infinity);
+      return index;
     };
     const append = (e: PointerEvent) => {
       const current = live!;
       const coalesced = e.getCoalescedEvents?.();
       let drawn = false;
       for (const sample of (coalesced?.length ? coalesced : [e]) as Sample[]) {
-        if (!fresh(current, sample)) continue;
+        const index = take(current, sample);
+        if (index < 0) continue;
         if (!drawn) { clearDecoration(); drawn = true; }
-        const previous = current.points.at(-1)!, next = point(sample);
-        current.points.push(next);
-        if (current.tool !== 'eraser') drawStroke(actualCtx, [previous, next], current.style, 1);
+        if (current.tool === 'eraser') continue;
+        const points = current.points;
+        drawStroke(actualCtx, [points[index - 1], points[index]], current.style, 1);
+        // A late sample also joins the newer point after it.
+        if (index + 1 < points.length) drawStroke(actualCtx, [points[index], points[index + 1]], current.style, 1);
       }
       if (!drawn || current.tool === 'eraser') return;
       // Signal only after this event's actual segments have been drawn, never at receipt.
@@ -289,7 +298,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     const up = (e: PointerEvent) => {
       if (touch?.id === e.pointerId) { touch = null; return; }
       if (!live || live.id !== e.pointerId) return;
-      live.points.push(point(e)); finish();
+      live.points.push(point(e)); live.times.push(Infinity); finish();
     };
     const cancel = (e: PointerEvent) => { if (touch?.id === e.pointerId) touch = null; if (live?.id === e.pointerId) finish(); };
     synchronize.current = () => {

@@ -42,7 +42,9 @@ function mount(extra: Partial<InkCanvasProps> = {}) {
 }
 function pointer(canvas: HTMLCanvasElement, type: string, extra: Record<string, unknown> = {}) {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.assign(event, { pointerType: 'pen', pointerId: 1, isPrimary: true, width: 1, height: 1, clientX: 10, clientY: 10, pressure: 0.5, ...extra });
+  const { timeStamp, ...pointerExtra } = extra;
+  if (timeStamp !== undefined) Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+  Object.assign(event, { pointerType: 'pen', pointerId: 1, isPrimary: true, width: 1, height: 1, clientX: 10, clientY: 10, pressure: 0.5, ...pointerExtra });
   act(() => { canvas.dispatchEvent(event); });
 }
 it('commits exactly once synchronously on pointerup, ignores palm, never commits predictions', () => {
@@ -320,4 +322,17 @@ it('commits a highlighter under existing pen ink by repainting only its area', (
   expect(repainted).toEqual(['#fde047', '#1c1917']);
   const area = vi.mocked(committed.clearRect).mock.calls.slice(clears).find(([, , w]) => w < 1000)!;
   expect(area[2]).toBeLessThan(200);
+});
+
+it('stores every sample once and in time order when pointermove delivers earlier samples after newer raw ones', () => {
+  const { canvas, onChange } = mount();
+  const sample = (clientX: number, timeStamp: number) => ({ clientX, clientY: 10, pressure: 0.5, timeStamp });
+  pointer(canvas, 'pointerdown');
+  // The raw listener is attached at pen-down: the first samples only come with the frame's pointermove.
+  pointer(canvas, 'pointerrawupdate', { getCoalescedEvents: () => [sample(40, 4)] });
+  pointer(canvas, 'pointermove', { getCoalescedEvents: () => [sample(20, 2), sample(30, 3), sample(40, 4)] });
+  pointer(canvas, 'pointerrawupdate', { getCoalescedEvents: () => [sample(50, 5), sample(60, 6)] });
+  pointer(canvas, 'pointermove', { getCoalescedEvents: () => [sample(50, 5), sample(60, 6)] });
+  pointer(canvas, 'pointerup', { clientX: 70 });
+  expect(decodePoints(onChange.mock.calls[0][0].strokes[0].points).map(p => p.x)).toEqual([10, 20, 30, 40, 50, 60, 70]);
 });

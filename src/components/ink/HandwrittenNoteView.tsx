@@ -1,11 +1,12 @@
 import { useCallback, useContext, useRef, useState, useSyncExternalStore } from 'react';
+import { ChevronLeft, ChevronRight, FilePlus2 } from 'lucide-react';
 import type { InkPage, InkTool, StandaloneNote } from '../../types/daymark';
 import { canWrite, rememberPen } from '../../ink/handwrittenNotes';
 import { InkStoreContext } from '../../ink/inkStore';
 import { HIGHLIGHTER_COLORS, PEN_COLORS } from '../../ink/inkColors';
 import { InkCanvas, type EraserMode, type InkCanvasHandle } from './InkCanvas';
 import { InkPageView } from './InkPageView';
-import { InkToolbar, readEraserMode } from './InkToolbar';
+import { InkToolbar, inkToolbarButton, inkToolbarSurface, readEraserMode } from './InkToolbar';
 
 export { canWrite, createHandwrittenNote, HANDWRITTEN_PLACEHOLDER } from '../../ink/handwrittenNotes';
 
@@ -43,31 +44,36 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage }: Ha
   };
   const color = tool === 'highlighter' ? highlightColor : penColor;
   const width = tool === 'highlighter' ? highlightWidth : tool === 'eraser' ? 24 : penWidth;
+  const pageControls = <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-stone-300 pl-2 dark:border-stone-700">
+    <button type="button" aria-label="Previous page" title="Previous page" className={inkToolbarButton} disabled={number === 0} onClick={() => navigate(number - 1)}><ChevronLeft size={20} aria-hidden="true" /></button>
+    <span role="status" className="whitespace-nowrap text-xs tabular-nums">
+      <span aria-hidden="true">{number + 1} / {count}</span><span className="sr-only">Page {number + 1} of {count}</span>
+    </span>
+    <button type="button" aria-label="Next page" title="Next page" className={inkToolbarButton} disabled={number >= count - 1} onClick={() => navigate(number + 1)}><ChevronRight size={20} aria-hidden="true" /></button>
+    {writable && <button type="button" aria-label="Add page" title="Add page" className={inkToolbarButton} onClick={() => {
+      if (!pages.some(page => page.page === number)) onUpdatePage(page);
+      onUpdatePage({ ...emptyPage(count), updatedAt: new Date().toISOString() });
+      navigate(count);
+    }}><FilePlus2 size={20} aria-hidden="true" /></button>}
+  </div>;
   return <section aria-label="Handwritten notebook" className="flex flex-1 min-h-0 min-w-0 flex-col text-stone-900 dark:text-stone-100"
     onPointerDownCapture={event => {
       if (event.pointerType === 'pen' && !writable) { rememberPen(); setWritable(true); }
     }}>
-    {writable && <InkToolbar tool={tool} color={color} width={width}
-      onToolChange={setTool} onColorChange={tool === 'highlighter' ? setHighlightColor : setPenColor}
-      onWidthChange={tool === 'highlighter' ? setHighlightWidth : setPenWidth}
-      onEraserModeChange={setEraserMode} onUndo={() => canvas.current?.undo()} onRedo={() => canvas.current?.redo()}
-      canUndo={history.undo} canRedo={history.redo} />}
-    <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-stone-200 dark:border-stone-800 p-2">
-      <button type="button" className="min-h-11 px-2" disabled={number === 0} onClick={() => navigate(number - 1)}>Previous page</button>
-      <span role="status">Page {number + 1} of {count}</span>
-      <button type="button" className="min-h-11 px-2" disabled={number >= count - 1} onClick={() => navigate(number + 1)}>Next page</button>
-      {writable && <button type="button" className="min-h-11 px-2" onClick={() => {
-        if (!pages.some(page => page.page === number)) onUpdatePage(page);
-        onUpdatePage({ ...emptyPage(count), updatedAt: new Date().toISOString() });
-        navigate(count);
-      }}>Add page</button>}
-    </div>
-    <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto p-2">
-      {/* A single fixed page is mounted; turning pages releases its canvas buffers. */}
-      {writable ? <InkCanvas key={`${note.id}:${number}`} ref={canvas} page={page} paper={note.paper}
-        tool={tool} color={color} width={width} eraserMode={eraserMode} onChange={onUpdatePage}
-        onHistoryChange={(undo, redo) => setHistory({ undo, redo })} />
-        : <InkPageView key={`${note.id}:${number}`} page={page} paper={note.paper} />}
+    <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto">
+      {writable ? <InkToolbar tool={tool} color={color} width={width}
+        onToolChange={setTool} onColorChange={tool === 'highlighter' ? setHighlightColor : setPenColor}
+        onWidthChange={tool === 'highlighter' ? setHighlightWidth : setPenWidth}
+        onEraserModeChange={setEraserMode} onUndo={() => canvas.current?.undo()} onRedo={() => canvas.current?.redo()}
+        canUndo={history.undo} canRedo={history.redo} pageControls={pageControls} />
+        : <div role="toolbar" aria-label="Page navigation" className={inkToolbarSurface}><div className="flex flex-nowrap items-center overflow-x-auto p-2">{pageControls}</div></div>}
+      <div className="p-2">
+        {/* A single fixed page is mounted; turning pages releases its canvas buffers. */}
+        {writable ? <InkCanvas key={`${note.id}:${number}`} ref={canvas} page={page} paper={note.paper}
+          tool={tool} color={color} width={width} eraserMode={eraserMode} onChange={onUpdatePage}
+          onHistoryChange={(undo, redo) => setHistory({ undo, redo })} />
+          : <InkPageView key={`${note.id}:${number}`} page={page} paper={note.paper} />}
+      </div>
     </div>
   </section>;
 }

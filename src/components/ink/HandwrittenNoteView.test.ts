@@ -20,7 +20,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); });
-function click(label: string) { const button = [...host.querySelectorAll('button')].find(b => b.textContent === label)!; expect(button).toBeDefined(); act(() => button.click()); }
+function click(label: string) { const button = [...host.querySelectorAll('button')].find(b => (b.getAttribute('aria-label') || b.textContent) === label)!; expect(button).toBeDefined(); act(() => button.click()); }
 function mount(count = 0) {
   const n = note(); let pages: InkPage[] = Array.from({ length: count }, (_, i) => ({ noteId: n.id, page: i, strokes: [], removed: [], updatedAt: n.updatedAt }));
   const update = vi.fn((page: InkPage) => { pages = [...pages.filter(p => p.page !== page.page), page]; draw(); });
@@ -92,7 +92,9 @@ it('persists real canvas strokes and routes toolbar undo/redo to the visible pag
   click('Undo'); expect(visibleStrokes(pages()[0])).toHaveLength(0);
   click('Redo'); expect(visibleStrokes(pages()[0])).toHaveLength(1);
   click('Eraser');
-  expect(host.querySelector<HTMLSelectElement>('[aria-label="Eraser mode"]')!.value).toBe('stroke');
+  click('Eraser');
+  expect(host.querySelector('[aria-label="Erase by stroke"]')!.getAttribute('aria-pressed')).toBe('true');
+  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   draw(); expect(visibleStrokes(pages()[0])).toHaveLength(0);
 });
 
@@ -114,4 +116,29 @@ it('follows App ink store pages and never hands a stale pages prop to the canvas
   click('Add page');
   expect(host.textContent).toContain('Page 3 of 3');
   expect(update.mock.calls.map(([p]) => p.page)).toEqual([2]);
+});
+
+it('keeps page controls in the writing row above the page, with a sticky opaque surface', () => {
+  localStorage.setItem('dm.ink.penSeen', '1'); mount(5);
+  const toolbar = host.querySelector('[aria-label="Writing tools"]')!;
+  for (const label of ['Previous page', 'Next page', 'Add page']) expect(toolbar.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+  expect(toolbar.textContent).toContain('1 / 5');
+  expect(toolbar.className).toContain('sticky'); expect(toolbar.className).toContain('bg-stone-50');
+  expect(toolbar.parentElement!.className).toContain('overflow-y-auto');
+  expect(toolbar.nextElementSibling!.querySelector('canvas')).not.toBeNull();
+});
+it('keeps read-only page navigation together without writing controls', () => {
+  mount(2);
+  const toolbar = host.querySelector('[aria-label="Page navigation"]')!; expect(toolbar).not.toBeNull();
+  expect(toolbar.querySelector('[aria-label="Previous page"]')).not.toBeNull(); expect(toolbar.querySelector('[aria-label="Next page"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Pen"]')).toBeNull(); expect(host.querySelector('[aria-label="Add page"]')).toBeNull();
+});
+it('opens and closes settings without rendering the notebook or its canvas', () => {
+  localStorage.setItem('dm.ink.penSeen', '1');
+  const n = note(); const paper = vi.fn(() => 'grid' as const); Object.defineProperty(n, 'paper', { get: paper });
+  act(() => root.render(React.createElement(HandwrittenNoteView, { note: n, pages: [], onUpdatePage: vi.fn() })));
+  const reads = paper.mock.calls.length; const canvas = host.querySelector('canvas');
+  click('Pen'); expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(paper).toHaveBeenCalledTimes(reads); expect(host.querySelector('canvas')).toBe(canvas);
 });

@@ -77,16 +77,17 @@ function strokeBounds(stroke: InkStroke, cache: PointCache): Bounds {
 /**
  * Repaints only the area of the `inserted` strokes, in the page's canonical order (`visible`):
  * highlighters stay under pen ink without redrawing the whole page. The area is snapped to whole
- * device pixels (`pixelsPerUnit`), so its pixels equal a full redraw and the rest are untouched.
+ * device pixels on each axis (`pixelsX`/`pixelsY` per page unit, which differ after the backing
+ * store is rounded), so its pixels equal a full redraw and the rest are untouched.
  */
-export function redrawInserted(ctx: CanvasRenderingContext2D, visible: readonly InkStroke[], inserted: readonly InkStroke[], cache: PointCache, pixelsPerUnit: number) {
+export function redrawInserted(ctx: CanvasRenderingContext2D, visible: readonly InkStroke[], inserted: readonly InkStroke[], cache: PointCache, pixelsX: number, pixelsY = pixelsX) {
   if (!inserted.length) return;
   const area = inserted.map(stroke => strokeBounds(stroke, cache)).reduce((a, b) => ({
     minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY),
   }));
-  const k = pixelsPerUnit > 0 ? pixelsPerUnit : 1;
-  const x0 = Math.floor(area.minX * k) / k, y0 = Math.floor(area.minY * k) / k;
-  const x1 = Math.ceil(area.maxX * k) / k, y1 = Math.ceil(area.maxY * k) / k;
+  const kx = pixelsX > 0 ? pixelsX : 1, ky = pixelsY > 0 ? pixelsY : 1;
+  const x0 = Math.floor(area.minX * kx) / kx, y0 = Math.floor(area.minY * ky) / ky;
+  const x1 = Math.ceil(area.maxX * kx) / kx, y1 = Math.ceil(area.maxY * ky) / ky;
   ctx.save();
   ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
   ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
