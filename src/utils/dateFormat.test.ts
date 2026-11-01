@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { formatAge, formatDay, formatDayParts, formatLongDate, formatShortDate } from './dateFormat';
 
 describe('dateFormat', () => {
@@ -34,4 +34,24 @@ describe('dateFormat', () => {
   it('is stable across a daylight-saving change', () => {
     expect(formatDay('2026-03-28', '2026-03-29')).toBe('Yesterday');
   });
+});
+
+it('formats short dates exactly like toLocaleDateString while building each formatter once', () => {
+  const spy = vi.spyOn(Intl, 'DateTimeFormat');
+  for (const locale of [undefined, 'en-GB', 'en-US', 'vi-VN']) {
+    for (const [date, today] of [['2026-03-05', '2026-11-01'], ['2025-12-31', '2026-11-01'], ['2026-03-05', undefined]] as const) {
+      const sameYear = !today || today.slice(0, 4) === date.slice(0, 4);
+      const [y, m, d] = date.split('-').map(Number);
+      const expected = new Date(y, m - 1, d).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) }).replace(/,/g, '');
+      expect(formatShortDate(date, today, locale)).toBe(expected);
+    }
+  }
+  const built = spy.mock.calls.length;
+  for (let i = 0; i < 50; i++) formatShortDate('2026-03-05', '2026-11-01', 'en-GB');
+  expect(spy.mock.calls.length).toBe(built);
+  spy.mockRestore();
+});
+
+it('keeps "Invalid Date" for an unparsable short date instead of throwing', () => {
+  expect(formatShortDate('not-a-date', '2026-11-01')).toBe(new Date(NaN).toLocaleDateString());
 });

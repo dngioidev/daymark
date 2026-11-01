@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState, useSyncExternalStore } from 'react';
 import type { InkPage, InkTool, StandaloneNote } from '../../types/daymark';
 import { canWrite, rememberPen } from '../../ink/handwrittenNotes';
+import { InkStoreContext } from '../../ink/inkStore';
 import { HIGHLIGHTER_COLORS, PEN_COLORS } from '../../ink/inkColors';
 import { InkCanvas, type EraserMode, type InkCanvasHandle } from './InkCanvas';
 import { InkPageView } from './InkPageView';
@@ -14,7 +15,12 @@ export interface HandwrittenNoteViewProps {
   onUpdatePage(page: InkPage): void;
 }
 
-export function HandwrittenNoteView({ note, pages, onUpdatePage }: HandwrittenNoteViewProps) {
+export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage }: HandwrittenNoteViewProps) {
+  // With App's ink store, follow the live pages: App re-renders only after a writing pause, and a
+  // stale `pages` prop must never reach the canvas (it would replace newer strokes).
+  const store = useContext(InkStoreContext);
+  const subscribe = useCallback((listener: () => void) => store ? store.subscribe(listener) : () => {}, [store]);
+  const pages = useSyncExternalStore(subscribe, () => store ? store.pagesFor(note.id) : pagesProp);
   const [writable, setWritable] = useState(canWrite);
   const [selected, setSelected] = useState(0);
   const [tool, setTool] = useState<InkTool | 'eraser'>('pen');

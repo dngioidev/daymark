@@ -22,15 +22,22 @@ try {
     const canvas = document.querySelector('canvas');
     const pendingDraw = [], pendingFrame = [], samples = [], frameSamples = [], longTasks = [];
     window.inkBenchResults = { samples, frameSamples, longTasks, moves: 0 };
-    // Capture runs before InkCanvas's listener, including handler cost in the measurement.
-    canvas.addEventListener('pointermove', e => {
-      if (e.pointerType === 'pen' && e.buttons) {
-        const coalesced = e.getCoalescedEvents?.();
-        const samples = coalesced?.length ? coalesced : [e];
-        for (const sample of samples) { pendingDraw.push(sample.timeStamp); pendingFrame.push(sample.timeStamp); }
-        window.inkBenchResults.moves += samples.length;
+    // Capture runs before InkCanvas's listener, including handler cost in the measurement. InkCanvas
+    // draws from pointerrawupdate (before the frame-aligned pointermove repeats the same samples), so
+    // each sample is stamped once, by whichever event delivers it first.
+    const seen = new Set();
+    const stamp = e => {
+      if (e.pointerType !== 'pen' || !e.buttons) return;
+      const coalesced = e.getCoalescedEvents?.();
+      for (const sample of coalesced?.length ? coalesced : [e]) {
+        const key = `${sample.timeStamp},${sample.clientX},${sample.clientY}`;
+        if (seen.has(key)) continue;
+        seen.add(key); pendingDraw.push(sample.timeStamp); pendingFrame.push(sample.timeStamp);
+        window.inkBenchResults.moves++;
       }
-    }, { capture: true });
+    };
+    canvas.addEventListener('pointerrawupdate', stamp, { capture: true });
+    canvas.addEventListener('pointermove', stamp, { capture: true });
     canvas.addEventListener('inkdraw', e => {
       const now = e.detail;
       for (const received of pendingDraw.splice(0)) samples.push(now - received);

@@ -50,3 +50,50 @@ export function touchesStroke(points: readonly InkPoint[], center: InkPoint, rad
     return (a.x + t * dx - center.x) ** 2 + (a.y + t * dy - center.y) ** 2 <= radius ** 2;
   });
 }
+
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+
+/** Strokes inserted into `before` to give `after` (same objects, same relative order), or null if anything else changed. */
+export function insertedStrokes(before: readonly InkStroke[], after: readonly InkStroke[], limit = 8): InkStroke[] | null {
+  if (after.length < before.length || after.length - before.length > limit) return null;
+  const inserted: InkStroke[] = [];
+  let kept = 0;
+  for (const stroke of after) {
+    if (kept < before.length && before[kept] === stroke) kept++;
+    else inserted.push(stroke);
+  }
+  return kept === before.length ? inserted : null;
+}
+
+function strokeBounds(stroke: InkStroke, cache: PointCache): Bounds {
+  let points = cache.get(stroke.id);
+  if (!points) { points = decodePoints(stroke.points); cache.set(stroke.id, points); }
+  const { minX, minY, maxX, maxY } = cacheStrokeGeometry(stroke, points);
+  // The widest pen radius (full pressure) plus a pixel of antialiasing.
+  const pad = Math.max(0, stroke.width) * 0.75 + 1;
+  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+}
+
+/**
+ * Repaints only the area of the `inserted` strokes, in the page's canonical order (`visible`):
+ * highlighters stay under pen ink without redrawing the whole page. The area is snapped to whole
+ * device pixels (`pixelsPerUnit`), so its pixels equal a full redraw and the rest are untouched.
+ */
+export function redrawInserted(ctx: CanvasRenderingContext2D, visible: readonly InkStroke[], inserted: readonly InkStroke[], cache: PointCache, pixelsPerUnit: number) {
+  if (!inserted.length) return;
+  const area = inserted.map(stroke => strokeBounds(stroke, cache)).reduce((a, b) => ({
+    minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY),
+  }));
+  const k = pixelsPerUnit > 0 ? pixelsPerUnit : 1;
+  const x0 = Math.floor(area.minX * k) / k, y0 = Math.floor(area.minY * k) / k;
+  const x1 = Math.ceil(area.maxX * k) / k, y1 = Math.ceil(area.maxY * k) / k;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
+  ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
+  for (const stroke of visible) {
+    const b = strokeBounds(stroke, cache);
+    if (b.maxX < x0 || b.minX > x1 || b.maxY < y0 || b.minY > y1) continue;
+    drawStroke(ctx, cache.get(stroke.id)!, stroke);
+  }
+  ctx.restore();
+}

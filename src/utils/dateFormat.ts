@@ -33,13 +33,26 @@ export function formatDayParts(date: string, today: string, locale?: string): { 
   };
 }
 
+// Building a DateTimeFormat is the slow part of toLocaleDateString; the notes list formats a date
+// for every row on each render, so reuse one formatter per locale and shape (same output).
+const shortFormats = new Map<string, Intl.DateTimeFormat>();
+const shortFormat = (locale: string | undefined, withYear: boolean): Intl.DateTimeFormat => {
+  const key = `${locale ?? ''}|${withYear}`;
+  let format = shortFormats.get(key);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) });
+    shortFormats.set(key, format);
+  }
+  return format;
+};
+
 /** "Fri 16 Oct", with the year when it is not the current one. */
 export function formatShortDate(date: string, today?: string, locale?: string): string {
-  const d = parse(date);
   const sameYear = !today || today.slice(0, 4) === date.slice(0, 4);
-  return d
-    .toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })
-    .replace(/,/g, '');
+  const d = parse(date);
+  // An unparsable date keeps toLocaleDateString's "Invalid Date" (format() would throw).
+  if (Number.isNaN(d.getTime())) return d.toLocaleDateString(locale).replace(/,/g, '');
+  return shortFormat(locale, !sameYear).format(d).replace(/,/g, '');
 }
 
 /** "Tuesday, October 20, 2026" / "Tuesday 20 October 2026" (locale order and punctuation). */

@@ -468,6 +468,27 @@ it('delivers an ink-only pull to vault state', async () => {
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ ink: [page] }));
 });
 
+it('sends and merges the live ink, never the stale snapshot in vault state', async () => {
+  const stroke = (id: string) => ({ id, tool: 'pen' as const, color: '#000', width: 2, points: 'AAAA', createdAt: '2026-11-01' });
+  const rendered = { noteId: 'study', page: 0, strokes: [stroke('a')], removed: [], updatedAt: '1' };
+  let live = { ...rendered, strokes: [stroke('a'), stroke('b')], updatedAt: '2' };
+  const remote = { ...rendered, strokes: [stroke('a'), stroke('r')], updatedAt: '3' };
+  const sent: unknown[] = [];
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    sent.push(...JSON.parse(String(init?.body)).changes);
+    // A stroke is written while the request is in flight.
+    live = { ...live, strokes: [...live.strokes, stroke('c')], updatedAt: '4' };
+    return Response.json({ rev: 2, entities: [{ key: 'ink:study:0', value: remote, rev: 2 }], conflicts: [] });
+  });
+  const onChange = vi.fn(); hooks.index = 0;
+  await useSync({ ...vault, ink: [rendered] }, onChange, vi.fn(), 'web', (v) => ({ ...v, ink: [live] })).syncNow();
+  expect(sent).toContainEqual(expect.objectContaining({ key: 'ink:study:0', value: expect.objectContaining({ strokes: [stroke('a'), stroke('b')] }) }));
+  const merged = onChange.mock.calls[0][0].ink[0];
+  expect(merged.strokes.map((s: { id: string }) => s.id).sort()).toEqual(['a', 'b', 'c', 'r']);
+});
+
 it('warns once for unsupported ink, counts local-only pages, and requires sign-out confirmation', async () => {
   const local = { ...vault, ink: [{ noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' }] };
   const original = fetchFn.getMockImplementation()!;

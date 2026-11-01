@@ -266,3 +266,58 @@ it('collapses transient area eraser pieces at gesture finish and preserves origi
   expect(committed.removed.every(id => original.strokes.some(s => s.id === id))).toBe(true);
   expect(committed.strokes.filter(s => !original.strokes.some(o => o.id === s.id)).every(s => s.createdAt === '2026-10-01')).toBe(true);
 });
+
+it('draws pen pointerrawupdate samples at once, never redraws them on pointermove, and fills only newer gaps', () => {
+  const { canvas, onChange } = mount();
+  const live = host.querySelector<HTMLCanvasElement>('[data-ink-live]')!.getContext('2d')!;
+  const sample = (clientX: number, timeStamp: number) => ({ clientX, clientY: 10, pressure: 0.5, timeStamp });
+  pointer(canvas, 'pointerdown');
+  const fills = vi.mocked(live.fill).mock.calls.length;
+  pointer(canvas, 'pointerrawupdate', { getCoalescedEvents: () => [sample(15, 1), sample(20, 2)] });
+  expect(live.fill).toHaveBeenCalledTimes(fills + 2);
+  // The frame-aligned pointermove repeats both samples and adds one raw has not delivered yet.
+  pointer(canvas, 'pointermove', { getCoalescedEvents: () => [sample(15, 1), sample(20, 2), sample(25, 3)] });
+  expect(live.fill).toHaveBeenCalledTimes(fills + 3);
+  pointer(canvas, 'pointerup', { clientX: 30 });
+  expect(decodePoints(onChange.mock.calls[0][0].strokes[0].points).map(p => p.x)).toEqual([10, 15, 20, 25, 30]);
+});
+
+it('listens to raw updates only during a pen stroke, so hover and touch never draw through them', () => {
+  const { canvas, onChange } = mount();
+  const live = host.querySelector<HTMLCanvasElement>('[data-ink-live]')!.getContext('2d')!;
+  const add = vi.spyOn(canvas, 'addEventListener'), remove = vi.spyOn(canvas, 'removeEventListener');
+  pointer(canvas, 'pointerrawupdate', { clientX: 40, buttons: 0, pressure: 0 });
+  expect(live.fill).not.toHaveBeenCalled();
+  pointer(canvas, 'pointerdown', { pointerType: 'touch', pointerId: 2 });
+  pointer(canvas, 'pointerrawupdate', { pointerType: 'touch', pointerId: 2, clientX: 40 });
+  expect(add).not.toHaveBeenCalledWith('pointerrawupdate', expect.anything());
+  pointer(canvas, 'pointerup', { pointerType: 'touch', pointerId: 2 });
+  pointer(canvas, 'pointerdown');
+  expect(add).toHaveBeenCalledWith('pointerrawupdate', expect.any(Function));
+  pointer(canvas, 'pointerup');
+  expect(remove).toHaveBeenCalledWith('pointerrawupdate', add.mock.calls.find(([type]) => type === 'pointerrawupdate')![1]);
+  const fills = vi.mocked(live.fill).mock.calls.length;
+  pointer(canvas, 'pointerrawupdate', { clientX: 60, buttons: 0, pressure: 0 });
+  expect(live.fill).toHaveBeenCalledTimes(fills);
+  expect(onChange).toHaveBeenCalledTimes(1);
+});
+
+it('commits a highlighter under existing pen ink by repainting only its area', () => {
+  const page = blank();
+  const pen = (id: string, x: number, y: number) => ({ id, tool: 'pen' as const, color: '#1c1917', width: 4, createdAt: '2026-01-01', points: encodePoints([{ x, y, p: 0.5 }, { x: x + 30, y, p: 0.5 }]) });
+  page.strokes.push(pen('crossed', 10, 10), pen('far', 600, 900));
+  const draw = vi.spyOn(renderer, 'drawPage');
+  const { canvas, onChange } = mount({ page, tool: 'highlighter', color: '#fde047', width: 24 });
+  draw.mockClear();
+  const committed = host.querySelector('canvas')!.getContext('2d')!;
+  const repainted: string[] = [];
+  vi.mocked(committed.fill).mockImplementation(function(this: CanvasRenderingContext2D) { repainted.push(String(this.fillStyle)); });
+  const clears = vi.mocked(committed.clearRect).mock.calls.length;
+  pointer(canvas, 'pointerdown', { clientX: 10, clientY: 10 }); pointer(canvas, 'pointerup', { clientX: 40, clientY: 10 });
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(draw).not.toHaveBeenCalled();
+  // The new highlighter, then the pen stroke it crosses on top; the distant pen is not repainted.
+  expect(repainted).toEqual(['#fde047', '#1c1917']);
+  const area = vi.mocked(committed.clearRect).mock.calls.slice(clears).find(([, , w]) => w < 1000)!;
+  expect(area[2]).toBeLessThan(200);
+});

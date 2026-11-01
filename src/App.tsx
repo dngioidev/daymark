@@ -1,4 +1,5 @@
 import { useInkPages } from './hooks/useInkPages';
+import { InkStoreContext } from './ink/inkStore';
 import { rememberPen } from './ink/handwrittenNotes';
 import { resolveAlertDays } from './utils/alertDays';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -130,7 +131,7 @@ export default function App() {
   notesRef.current = notes;
   const richEditorHandleRef = React.useRef<RichNoteEditorHandle>(null);
   const [pictureCleanupSignal, setPictureCleanupSignal] = useState(0);
-  const { ink, setInk, inkPagesForNote, updateInkPage } = useInkPages();
+  const { ink, setInk, inkPagesForNote, updateInkPage, inkStore } = useInkPages();
   const [notemeta, setNoteMeta] = useState(loadNoteMeta);
   const [backlog, setBacklog] = useState<BacklogData>(loadBacklog);
   const backlogRef = React.useRef(backlog);
@@ -281,7 +282,6 @@ export default function App() {
     void waitForSync(syncing.syncNow).then(() => { if (!cancelled) rollOver(); });
     return () => { cancelled = true; };
     // Runs when the effective date changes; performDailyRollover is idempotent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
 
   // Android Back closes the topmost dialog first
@@ -300,7 +300,6 @@ export default function App() {
     if (activeDesktopTab === 'calendar' && calendarSelectedDate <= today && !dailyDocs.some((d) => d.date === calendarSelectedDate)) {
       setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDesktopTab]);
 
   // Deep links from the PWA manifest shortcuts (?action=capture); on a first launch the
@@ -647,7 +646,7 @@ export default function App() {
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
       let missingPictures = 0;
-      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, ink)) {
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, inkStore.get())) {
         setLastBackupAt(getLastBackupDate());
         showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
@@ -688,8 +687,8 @@ export default function App() {
     }
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
-    let restoredInk: typeof ink;
-    try { restoredInk = mergeRestoredInk(ink, parsed.ink); } catch (error) {
+    // Validate now; merge into the live pages at the end so strokes written meanwhile stay.
+    try { mergeRestoredInk(inkStore.get(), parsed.ink); } catch (error) {
       return alertDialog("This file can't be restored", (error as Error).message);
     }
     if (!(await confirmReplaceVault())) return;
@@ -702,7 +701,7 @@ export default function App() {
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
     setNotes(parsed.standalone_notes);
-    setInk(restoredInk);
+    setInk(current => mergeRestoredInk(current, parsed.ink));
     setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
     setHabits((current) => mergeRestoredHabits(current, isHabitData(parsed.habits) ? parsed.habits : undefined));
     setBacklog((current) => mergeRestoredBacklog(current, parsed.backlog));
@@ -761,7 +760,10 @@ export default function App() {
   };
 
   // Self-hosted sync: merges this vault with the server in the background
+  // `ink` is App's snapshot (refreshed after a writing pause), so it only schedules the debounced
+  // sync; the sync itself sends and merges against the live pages, never a snapshot missing strokes.
   const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, settings, habits, backlog, notemeta, ink]);
+  const liveVault = React.useCallback((vault: typeof vaultForSync) => ({ ...vault, ink: inkStore.get() }), [inkStore]);
   const sync = useSync(
     vaultForSync,
     (next) => {
@@ -777,7 +779,8 @@ export default function App() {
     },
     (conflicts) =>
       showToast(conflicts.length === 1 ? conflicts[0] : `${conflicts.length} edits made on two devices were merged; nothing was lost.`),
-    isNativeApp() ? 'android' : 'web'
+    isNativeApp() ? 'android' : 'web',
+    liveVault
   );
   syncRef.current = sync;
   const defaultDeviceName = useMemo(() => {
@@ -859,6 +862,7 @@ export default function App() {
 
   return (
     <div onPointerDownCapture={event => { if (event.pointerType === 'pen') rememberPen(); }} className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
+    <InkStoreContext.Provider value={inkStore}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
         <div className={`flex flex-row w-full ${activeDesktopTab === 'notes' ? 'h-dvh overflow-hidden' : 'min-h-screen'}`}>
@@ -1071,6 +1075,7 @@ export default function App() {
       />
 
       <FeedbackHost />
+    </InkStoreContext.Provider>
     </div>
   );
 }

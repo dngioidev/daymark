@@ -95,3 +95,23 @@ it('persists real canvas strokes and routes toolbar undo/redo to the visible pag
   expect(host.querySelector<HTMLSelectElement>('[aria-label="Eraser mode"]')!.value).toBe('stroke');
   draw(); expect(visibleStrokes(pages()[0])).toHaveLength(0);
 });
+
+it('follows App ink store pages and never hands a stale pages prop to the canvas', async () => {
+  const { InkStoreContext, createInkStore } = await import('../../ink/inkStore');
+  localStorage.setItem('dm.ink.penSeen', '1');
+  const n = note();
+  const stale: InkPage[] = [{ noteId: n.id, page: 0, strokes: [], removed: [], updatedAt: 'stale' }];
+  const store = createInkStore(stale);
+  const update = vi.fn((page: InkPage) => { store.upsert(page); });
+  const view = () => React.createElement(InkStoreContext.Provider, { value: store }, React.createElement(HandwrittenNoteView, { note: n, pages: stale, onUpdatePage: update }));
+  act(() => root.render(view()));
+  // Pages reach the store without the parent re-rendering; the view follows them anyway.
+  act(() => { store.upsert({ ...stale[0], page: 1, updatedAt: 'newer' }); });
+  expect(host.textContent).toContain('Page 1 of 2');
+  // A parent re-render with the stale prop must not take precedence over the store.
+  act(() => root.render(view()));
+  expect(host.textContent).toContain('Page 1 of 2');
+  click('Add page');
+  expect(host.textContent).toContain('Page 3 of 3');
+  expect(update.mock.calls.map(([p]) => p.page)).toEqual([2]);
+});

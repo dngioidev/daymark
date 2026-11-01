@@ -39,12 +39,17 @@ export interface UseSyncResult {
 const AUTO_SYNC_DEBOUNCE_MS = 2500;
 const PERIODIC_SYNC_MS = 60_000;
 
-/** Sync on start, local changes, reconnect, foreground and once a minute. */
+/**
+ * Sync on start, local changes, reconnect, foreground and once a minute. `vault` identities
+ * schedule the debounced sync; `live` (optional) returns the newest data to send and merge, for
+ * state that reaches `vault` later than it changes (ink strokes, see useInkPages).
+ */
 export function useSync(
   vault: VaultData,
   onVaultChange: (next: VaultData) => void,
   onConflicts: (messages: string[]) => void,
-  platform: string
+  platform: string,
+  live?: (vault: VaultData) => VaultData
 ): UseSyncResult {
   const [mode] = useState(getHostMode);
   const [state, setState] = useState<SyncState | null>(() => mode === 'local-web' ? null : loadSyncState());
@@ -53,6 +58,9 @@ export function useSync(
   const manager = useRef<TokenManager | null>(null);
   const vaultRef = useRef(vault);
   vaultRef.current = vault;
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const latest = () => liveRef.current ? liveRef.current(vaultRef.current) : vaultRef.current;
   const stateRef = useRef(state);
   stateRef.current = state;
   const callbacks = useRef({ onVaultChange, onConflicts });
@@ -134,7 +142,7 @@ export function useSync(
           const accessToken = await tokenManager().getAccessToken();
           if (blocked.current || closing.current) return false;
           const current = stateRef.current!;
-          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, unsupported.current);
+          const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), latest(), current, accessToken, unsupported.current);
           if (blocked.current || closing.current) return false;
           unsupported.current = outcome.unsupported;
           if (unsupported.current.has('ink') && !inkNoticeShown.current) {
@@ -156,7 +164,7 @@ export function useSync(
             continue;
           }
           if (outcome.serverValues.size > 0) {
-            const before = vaultRef.current;
+            const before = latest();
             const next = applySyncOutcome(before, outcome);
             const recoveredHabitsReleased = uneditedRecoveredHabits.has(before.habits) && !uneditedRecoveredHabits.has(next.habits);
             const recoveredNoteMetaReleased = uneditedRecoveredNoteMeta.has(before.notemeta) && !uneditedRecoveredNoteMeta.has(next.notemeta);
@@ -176,7 +184,7 @@ export function useSync(
           // Pictures follow successful note sync, independently of its status/latency.
           if (!assetRun.current && !closing.current && !blocked.current) {
             const assetEpoch = epoch.current;
-            assetRun.current = syncNoteAssets(vaultRef.current.notes, authFetch,
+            assetRun.current = syncNoteAssets(latest().notes, authFetch,
               () => !closing.current && !blocked.current && assetEpoch === epoch.current)
               .catch(() => undefined).finally(() => { assetRun.current = null; });
           }
@@ -248,7 +256,7 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), true), stateRef.current,
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(latest(), !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), true), stateRef.current,
     !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
     !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog),
     !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta),
