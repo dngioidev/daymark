@@ -16,6 +16,7 @@ import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
 import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
+import { pollUntil } from './helpers/poll.mjs';
 
 const require = createRequire(import.meta.url);
 // A step that fails mid-test can leave a waitForEvent promise behind; don't let it kill the run
@@ -102,14 +103,14 @@ async function open(env, { scheme = 'light', start = 'sample', url = BASE } = {}
     await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
     const appearance = page.getByRole('dialog', { name: 'Settings', exact: true });
     await appearance.getByRole('button', { name: /Dark$/ }).click();
-    await page.waitForFunction(async (theme) => {
+    await pollUntil(page, async (theme) => {
       if (JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme !== theme) return false;
       const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
       try {
         const settings = await new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get('settings'); r.onsuccess = () => resolve(r.result); });
         return settings?.appearance?.theme === theme && document.documentElement.classList.contains('dark') === (theme === 'dark');
       } finally { db.close(); }
-    }, scheme);
+    }, scheme, { message: 'theme saved in IndexedDB and applied' });
     await appearance.getByRole('button', { name: 'Close', exact: true }).click();
   }
   await page.waitForTimeout(400);
@@ -1181,7 +1182,7 @@ async function functional() {
     await page.getByRole('textbox', { name: 'Note rich text', exact: true }).fill('Body text');
     await page.getByRole('button', { name: 'Markdown', exact: true }).click();
     expect(await page.getByLabel('Note text (Markdown)', { exact: true }).inputValue() === 'Body text', 'body not saved as Markdown');
-    await page.waitForFunction(async () => {
+    await pollUntil(page, async () => {
       const db = await new Promise((resolve, reject) => {
         const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
       });
@@ -1191,7 +1192,7 @@ async function functional() {
         });
         return notes?.some((note) => note.title === 'Persisted note' && note.content === 'Body text');
       } finally { db.close(); }
-    });
+    }, undefined, { message: 'Persisted note title and body committed before reload' });
     await page.reload({ waitUntil: 'networkidle' });
     await btn(page, /^notes$/i).click();
     await page.getByRole('tree', { name: 'Notes', exact: true }).getByRole('treeitem').filter({ has: page.getByText('Persisted note', { exact: true }) }).first().click();

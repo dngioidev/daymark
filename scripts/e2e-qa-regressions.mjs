@@ -10,6 +10,7 @@ import { knowledgeGraphQa } from './helpers/knowledge-graph-qa.mjs';
 import { cycle14Qa } from './helpers/cycle-14-qa.mjs';
 import { cycle11Qa } from './helpers/cycle-11-qa.mjs';
 import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
+import { pollUntil } from './helpers/poll.mjs';
 
 const PORT = 3111;
 const base = `http://localhost:${PORT}`;
@@ -685,7 +686,7 @@ const settingsBox = (page) => page.getByRole('dialog', { name: 'Settings', exact
 const settingsOpen = (page) => page.getByRole('button', { name: 'Settings', exact: true }).first().click();
 const settingsClose = (page) => settingsBox(page).getByRole('button', { name: 'Close', exact: true }).click();
 // Evaluate a predicate against committed IDB data, closing every polling connection.
-const persisted = (page, key, predicate, arg) => page.waitForFunction(async ({ key, predicate, arg }) => {
+const persisted = (page, key, predicate, arg) => pollUntil(page, async ({ key, predicate, arg }) => {
   const db = await new Promise((resolve, reject) => {
     const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
   });
@@ -695,7 +696,7 @@ const persisted = (page, key, predicate, arg) => page.waitForFunction(async ({ k
     });
     return new Function('value', 'arg', `return (${predicate})(value, arg)`)(value, arg);
   } finally { db.close(); }
-}, { key, predicate: predicate.toString(), arg });
+}, { key, predicate: predicate.toString(), arg }, { message: `committed ${key} matches the persistence predicate` });
 const themeSaved = async (page, theme) => {
   await persisted(page, 'settings', (s, t) => s?.appearance?.theme === t, theme);
   await page.waitForFunction((t) => document.documentElement.classList.contains('dark') === (t === 'dark')
@@ -738,8 +739,8 @@ await run('D3', async () => {
     await persisted(page, `bgPhoto:${i}`, (v) => v instanceof Blob);
     await persisted(page, `bgThumb:${i}`, (v) => v instanceof Blob);
   }
-  const originalPhoto = await (await persisted(page, 'bgPhoto:1', async (v) =>
-    v instanceof Blob && [...new Uint8Array(await v.arrayBuffer())].join(','))).jsonValue();
+  const originalPhoto = await persisted(page, 'bgPhoto:1', async (v) =>
+    v instanceof Blob && [...new Uint8Array(await v.arrayBuffer())].join(','));
   await input.setInputFiles(await png(page, 5));
   const replace = page.getByRole('dialog', { name: 'Replace which photo?', exact: true });
   await replace.waitFor();
@@ -1219,7 +1220,8 @@ await run('F2', async () => {
   await rich(page).click();
   await page.keyboard.type('## ');
   await page.keyboard.type('Field observations');
-  await savedNote(page, seeded.id, (n) => n?.content === '## Field observations');
+  // The editor keeps a trailing empty paragraph; compare the Markdown without trailing whitespace.
+  await savedNote(page, seeded.id, (n) => n?.content?.trimEnd() === '## Field observations');
   check('F2', await rich(page).locator('h2').innerText() === 'Field observations', 'typing ## space creates a heading saved as Markdown');
 });
 

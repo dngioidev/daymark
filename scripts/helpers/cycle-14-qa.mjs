@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { pollUntil } from './poll.mjs';
 
 export const inkCanvas = page => page.getByRole('img', { name: 'Handwritten page', exact: true });
 export const noteTitle = page => page.getByRole('textbox', { name: 'Title', exact: true });
@@ -75,13 +76,17 @@ export async function readStored(page, key) {
 // Polls committed IndexedDB ink. page.waitForFunction cannot be used here: it does not await an
 // async predicate, so the pending Promise counts as truthy and the wait passes at once.
 export async function waitInk(page, count, noteId, timeout = 20000) {
-  const matches = pages => (pages ?? []).some(p => (!noteId || p.noteId === noteId) && p.strokes.filter(s => !p.removed.includes(s.id)).length === count);
-  const end = Date.now() + timeout;
-  for (;;) {
-    if (matches(await readStored(page, 'ink'))) return;
-    if (Date.now() > end) throw new Error(`Timed out waiting for ${count} stored strokes`);
-    await page.waitForTimeout(50);
-  }
+  await pollUntil(page, async ({ count, noteId }) => {
+    const db = await new Promise((resolve, reject) => {
+      const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+    });
+    try {
+      const pages = await new Promise((resolve, reject) => {
+        const r = db.transaction('kv').objectStore('kv').get('ink'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+      });
+      return (pages ?? []).some(p => (!noteId || p.noteId === noteId) && p.strokes.filter(s => !p.removed.includes(s.id)).length === count);
+    } finally { db.close(); }
+  }, { count, noteId }, { timeout, message: `waiting for ${count} stored strokes` });
 }
 
 export async function touchDoesNotDraw(page, noteId) {

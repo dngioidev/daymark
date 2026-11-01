@@ -14,6 +14,7 @@ import { chromium } from 'playwright-core';
 import { tsImport } from 'tsx/esm/api';
 import { createNotebook, writeTwoStrokes, readStored, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas } from './helpers/cycle-14-qa.mjs';
 import { signIn } from './helpers/server-session.mjs';
+import { pollUntil } from './helpers/poll.mjs';
 
 const cycle = process.argv[2];
 const outDir = cycle ? path.resolve('docs', 'releases', cycle, 'images') : null;
@@ -143,7 +144,7 @@ try {
   await syncNow(phone);
   await phone.waitForFunction(() => document.documentElement.classList.contains('dark')
     && JSON.parse(localStorage.getItem('daymark_theme') || 'null')?.theme === 'dark');
-  const moved = await phone.waitForFunction(async () => {
+  const moved = await pollUntil(phone, async () => {
     const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
     try {
       const get = (key) => new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); });
@@ -155,8 +156,8 @@ try {
       return settings?.appearance?.theme === 'dark' && copies.length === 1 && copies[0].date === tomorrow
         && docs.find((d) => d.date === today)?.removedTaskIds?.includes(copies[0].id);
     } finally { db.close(); }
-  });
-  check(await moved.jsonValue(), 'phone receives Dark appearance and exactly one moved task on tomorrow with source removal preserved');
+  }, undefined, { message: 'phone receives Dark appearance and exactly one moved task with source removal' });
+  check(moved, 'phone receives Dark appearance and exactly one moved task on tomorrow with source removal preserved');
 
   // Cycle 7: independent same-day offline ticks must merge, not replace the day.
   const bar = (page) => page.getByRole('region', { name: 'Daily habits', exact: true });
@@ -183,14 +184,14 @@ try {
   await bar(phone).getByRole('checkbox', { name: 'Habit Y', exact: true }).check();
   // Freeze the pre-sync divergence and wait for each tick to reach local storage.
   for (const [page, name, other] of [[laptop, 'Habit X', 'Habit Y'], [phone, 'Habit Y', 'Habit X']]) {
-    await page.waitForFunction(async (name) => {
+    await pollUntil(page, async (name) => {
       const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
       try {
         const data = await new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get('habits'); r.onsuccess = () => resolve(r.result); });
         const habit = data?.habits.find((h) => h.name === name);
         return habit && data.days.find((d) => d.date === habit.addedOn)?.ticks[habit.id]?.done === true;
       } finally { db.close(); }
-    }, name);
+    }, name, { message: `${name} tick committed before reconnect` });
     check(!await bar(page).getByRole('checkbox', { name: other, exact: true }).isChecked(), `${name} device has only its own tick before reconnect`);
   }
   await laptopCtx.setOffline(false);
