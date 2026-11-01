@@ -1,10 +1,57 @@
 import type { Node } from '@tiptap/pm/model';
 import type { Editor } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { closeHistory } from '@tiptap/pm/history';
 import { startFingerScroll } from '../ink/inkSurface';
 import { classifyPointer } from '../../ink/pointerPolicy';
+
+const wordPattern = /[\p{L}\p{N}\p{M}_]+(?:['’][\p{L}\p{N}\p{M}_]+)*/gu;
+
+/** Selection ends are exclusive; whitespace alone never pulls in a neighbour. */
+export function wordRangeForSelection(doc: Node, start: number, end: number): { from: number; to: number } | null {
+  let from = Infinity;
+  let to = -Infinity;
+  doc.nodesBetween(start, end, (node, position) => {
+    if (!node.isTextblock || node.type.spec.code) return;
+    const text = node.textBetween(0, node.content.size, '', '\ufffc');
+    for (const word of text.matchAll(wordPattern)) {
+      const wordStart = position + 1 + word.index;
+      const wordEnd = wordStart + word[0].length;
+      if (wordStart < end && wordEnd > start) {
+        from = Math.min(from, wordStart);
+        to = Math.max(to, wordEnd);
+      }
+    }
+    return false;
+  });
+  return from < to ? { from, to } : null;
+}
+
+function applyHighlightRange(editor: Editor, range: { from: number; to: number }, color: string, toggle: boolean) {
+  let sameColor = true;
+  editor.state.doc.nodesBetween(range.from, range.to, node => {
+    if (node.isText && !node.marks.some(mark => mark.type.name === 'highlight' && mark.attrs.color === color)) sameColor = false;
+  });
+  const { selection, storedMarks } = editor.state;
+  const chain = editor.chain().setTextSelection(range);
+  if (toggle && sameColor) chain.unsetHighlight();
+  else chain.setHighlight({ color });
+  chain.command(({ tr }) => {
+    tr.setSelection(selection.map(tr.doc, tr.mapping)).setStoredMarks(storedMarks);
+    closeHistory(tr);
+    return true;
+  }).run();
+  // Keep the next typing/stroke operation out of this highlight's Undo step.
+  editor.view.dispatch(closeHistory(editor.state.tr));
+}
+
+export function highlightSelection(editor: Editor, color: string, toggle = true): void {
+  const { selection, doc } = editor.state;
+  if (!editor.isEditable || !(selection instanceof TextSelection) || selection.empty) return;
+  const range = wordRangeForSelection(doc, selection.from, selection.to);
+  if (range) applyHighlightRange(editor, range, color, toggle);
+}
 
 export function wordRangeForStroke(doc: Node, positions: number[]): { from: number; to: number } | null {
   let from = Infinity;
@@ -15,7 +62,7 @@ export function wordRangeForStroke(doc: Node, positions: number[]): { from: numb
     if (!resolved.parent.isTextblock || resolved.parent.type.spec.code) continue;
     // textBetween preserves position offsets across marks and inline atoms.
     const text = resolved.parent.textBetween(0, resolved.parent.content.size, '', '\ufffc');
-    for (const word of text.matchAll(/[\p{L}\p{N}\p{M}_]+(?:['’][\p{L}\p{N}\p{M}_]+)*/gu)) {
+    for (const word of text.matchAll(wordPattern)) {
       const end = word.index + word[0].length;
       if (resolved.parentOffset >= word.index && (resolved.parentOffset < end || (end === text.length && resolved.parentOffset === end))) {
         from = Math.min(from, resolved.start() + word.index);
@@ -103,21 +150,7 @@ export function attachPenHighlighter(editor: Editor, color: string): () => void 
     const dragged = stroke.moved;
     cancel();
     if (!range || !dragged) return;
-    let sameColor = true;
-    editor.state.doc.nodesBetween(range.from, range.to, node => {
-      if (node.isText && !node.marks.some(mark => mark.type.name === 'highlight' && mark.attrs.color === color)) sameColor = false;
-    });
-    const { selection, storedMarks } = editor.state;
-    const chain = editor.chain().setTextSelection(range);
-    if (sameColor) chain.unsetHighlight();
-    else chain.setHighlight({ color });
-    chain.command(({ tr }) => {
-      tr.setSelection(selection.map(tr.doc, tr.mapping)).setStoredMarks(storedMarks);
-      closeHistory(tr);
-      return true;
-    }).run();
-    // Keep the next typing/stroke operation out of this stroke's Undo step.
-    editor.view.dispatch(closeHistory(editor.state.tr));
+    applyHighlightRange(editor, range, color, true);
   };
   const interrupted = (event: PointerEvent) => {
     if (touch?.id === event.pointerId) stopTouch();

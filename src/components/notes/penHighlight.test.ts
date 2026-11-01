@@ -9,6 +9,20 @@ const makeEditor = (content: string, legacy = false) => new Editor({
   content, contentType: 'markdown',
 });
 
+it.each([
+  ['Study learning and taking notes', 9, 23, 'learning and taking'],
+  ['Study learning and taking notes', 6, 26, 'learning and taking'],
+  ['Study **learn**ing\n\nand taking notes', 9, 26, 'learning and taking'],
+  ['Study learning', 6, 7, null],
+  ['```\nlearning\n```', 1, 5, null],
+] as const)('snaps selection words in %s (%i..%i)', async (content, from, to, expected) => {
+  const { wordRangeForSelection } = await import('./penHighlight');
+  const editor = makeEditor(content);
+  const range = wordRangeForSelection(editor.state.doc, from, to);
+  expect(range ? editor.state.doc.textBetween(range.from, range.to, ' ') : null).toBe(expected);
+  editor.destroy();
+});
+
 it('snaps middle-of-word endpoints and a single word, in either direction', async () => {
   const { wordRangeForStroke } = await import('./penHighlight');
   const editor = makeEditor('Study learning and taking notes');

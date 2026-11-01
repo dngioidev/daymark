@@ -11,7 +11,7 @@ import { closeHistory, history } from '@tiptap/pm/history';
 import { addRelatedLink } from '../../utils/noteRelated';
 import './richNoteEditor.css';
 import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
-import { attachPenHighlighter } from './penHighlight';
+import { attachPenHighlighter, highlightSelection } from './penHighlight';
 
 export interface RichNoteEditorProps {
   noteId: string;
@@ -102,8 +102,14 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   if (!editor) return <div className="p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>;
   return <div className="flex flex-1 min-h-0 min-w-0 flex-col">
     <EditorToolbar editor={editor} onToggleMarkdown={onToggleMarkdown} highlighterOn={highlighterOn} highlighterColor={highlighterColor}
-      onToggleHighlighter={() => setHighlighter({ editor, on: !highlighterOn, color: highlighterColor })}
-      onHighlighterColor={color => setHighlighter({ editor, on: highlighterOn, color })} />
+      onToggleHighlighter={() => {
+        if (!editor.state.selection.empty) highlightSelection(editor, highlighterColor);
+        else setHighlighter({ editor, on: !highlighterOn, color: highlighterColor });
+      }}
+      onHighlighterColor={color => {
+        setHighlighter({ editor, on: highlighterOn, color });
+        highlightSelection(editor, color, false);
+      }} />
     <div className="min-h-0 min-w-0 flex-1 overflow-auto pb-16 md:pb-0"><EditorContent editor={editor} className="h-full min-w-0" /></div>
   </div>;
 }

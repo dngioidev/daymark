@@ -24,6 +24,63 @@ function pointer(dom: HTMLElement, type: string, pointerType: string, x: number,
   return event;
 }
 
+it.each([1024, 390])('toggles and recolours a word-snapped selection without enabling the pen at width %i', async width => {
+  vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(width);
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([new DOMRect()] as unknown as DOMRectList);
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const onChange = vi.fn();
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'selection', markdown: 'Study learning and taking notes', onChange, onOpenLink() {}, notes: [], onCreateNote: () => '',
+  })));
+  const editor = core(host);
+  const button = () => document.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!;
+  const dot = () => document.querySelector<HTMLButtonElement>('[aria-label="Highlighter colour #86efac"]');
+  expect(dot()).toBeNull();
+  // Endpoints inside the first/last words must expand, without including "notes".
+  await act(async () => editor.commands.setTextSelection({ from: 9, to: 23 }));
+  expect(dot()).not.toBeNull();
+  if (width === 390) expect(button().closest('.fixed')).not.toBeNull();
+  expect(pointer(button(), 'pointerdown', 'touch', 0).defaultPrevented).toBe(true);
+  expect(button().dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))).toBe(false);
+  await act(async () => button().click());
+  const yellow = 'Study <mark data-color="#fde047" style="background-color: #fde047">learning and taking</mark> notes';
+  expect(editor.getMarkdown()).toBe(yellow);
+  expect(onChange).toHaveBeenLastCalledWith(yellow);
+  expect(button().getAttribute('aria-pressed')).toBe('false');
+  expect(editor.state.selection.from).toBe(9); expect(editor.state.selection.to).toBe(23);
+  await act(async () => button().click());
+  expect(editor.getMarkdown()).toBe('Study learning and taking notes');
+  expect(pointer(dot()!, 'pointerdown', 'touch', 0).defaultPrevented).toBe(true);
+  await act(async () => dot()!.click());
+  const green = 'Study <mark data-color="#86efac" style="background-color: #86efac">learning and taking</mark> notes';
+  expect(editor.getMarkdown()).toBe(green);
+  expect(button().getAttribute('aria-pressed')).toBe('false');
+  expect(dot()!.getAttribute('aria-pressed')).toBe('true');
+  await act(async () => dot()!.click());
+  expect(editor.getMarkdown()).toBe(green); // Colour dots apply, never toggle off.
+  await act(async () => editor.commands.setContent(green, { contentType: 'markdown' }));
+  expect(editor.getMarkdown()).toBe(green);
+  expect(editor.view.dom.querySelector('mark')?.textContent).toBe('learning and taking');
+  await act(async () => editor.commands.setTextSelection({ from: 7, to: 26 })); // Exclusive end at next word.
+  button().focus();
+  // Native Enter/Space activation dispatches click; jsdom has no native key default actions.
+  await act(async () => button().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+  expect(editor.getMarkdown()).toBe('Study learning and taking notes');
+  await act(async () => editor.commands.setTextSelection(1));
+  expect(dot()).toBeNull();
+  await act(async () => button().click());
+  expect(button().getAttribute('aria-pressed')).toBe('true');
+  expect(dot()!.getAttribute('aria-pressed')).toBe('true');
+  await act(async () => editor.commands.setTextSelection({ from: 7, to: 25 }));
+  await act(async () => button().click());
+  expect(editor.getMarkdown()).toBe(green);
+  expect(button().getAttribute('aria-pressed')).toBe('true');
+  await act(async () => button().click());
+  expect(editor.getMarkdown()).toBe('Study learning and taking notes');
+  expect(button().getAttribute('aria-pressed')).toBe('true');
+  await act(async () => root.unmount());
+});
+
 it('enables word-snapped pen highlighting per editor, previews, toggles and keeps typing plain', async () => {
   const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
   const props = { noteId: 'pen', markdown: 'Study learning and taking notes', onChange: vi.fn(), onOpenLink: vi.fn(), notes: [], onCreateNote: () => 'new' };
