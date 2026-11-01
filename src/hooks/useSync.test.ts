@@ -467,3 +467,22 @@ it('delivers an ink-only pull to vault state', async () => {
   await useSync({ ...vault, ink: [] }, onChange, vi.fn(), 'web').syncNow();
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ ink: [page] }));
 });
+
+it('warns once for unsupported ink, counts local-only pages, and requires sign-out confirmation', async () => {
+  const local = { ...vault, ink: [{ noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' }] };
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    const body = JSON.parse(String(init?.body));
+    if (body.changes.some((c: { key: string }) => c.key.startsWith('ink:'))) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    return Response.json({ rev: 2, entities: body.changes.map((c: object) => ({ ...c, rev: 2 })), conflicts: [] });
+  });
+  const notice = vi.fn();
+  const run = () => { hooks.index = 0; return useSync(local, vi.fn(), notice, 'web'); };
+  await run().syncNow(); await run().syncNow();
+  expect(run().pendingChanges()).toBe(1);
+  expect(notice).toHaveBeenCalledTimes(1);
+  expect(notice).toHaveBeenCalledWith(['Handwritten pages stay on this device until the server is updated to Daymark 1.11']);
+  expect(await run().signOut()).toBe('needs-confirm');
+  expect(wipeLocalVault).not.toHaveBeenCalled();
+});

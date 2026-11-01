@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import type { InkPage, InkStroke, InkTool, StandaloneNote } from '../../types/daymark';
-import { addStroke, decodePoints, encodePoints, eraseArea, eraseStrokes, PAGE_HEIGHT, PAGE_WIDTH, visibleStrokes } from '../../ink/inkModel';
+import { addStroke, collapseInkGesture, decodePoints, encodePoints, eraseArea, eraseStrokes, PAGE_HEIGHT, PAGE_WIDTH, visibleStrokes } from '../../ink/inkModel';
 import { drawPage, drawStroke, touchesStroke, type InkPoint, type PointCache } from '../../ink/inkRender';
 import { classifyPointer } from '../../ink/pointerPolicy';
 import { InkPageView } from './InkPageView';
@@ -196,7 +196,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         const ink: InkStroke = { id: crypto.randomUUID(), tool: stroke.tool, color: stroke.color, width: stroke.width, points: encodePoints(stroke.points), createdAt: now };
         next = addStroke(page, ink, now);
       } else {
-        next = preview!;
+        next = collapseInkGesture(page, preview!);
         // Reuse decoded preview pieces when they become committed strokes.
         for (const [id, points] of previewCache) cache.set(id, points);
       }

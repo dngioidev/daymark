@@ -8,17 +8,19 @@ Handwritten study pages now live beside your typed notes and travel through your
 
 - **Handwritten notebooks:** open Note templates beside New note, choose Handwritten note, then lined, grid or blank paper. Use pressure-sensitive pens, a highlighter and an eraser with area and whole-stroke modes. Undo, Redo and page controls keep writing manageable. Notes keep their folders, titles and pins; the column shows a pen icon and page count.
 - **Read on your other devices:** devices without pen input open handwritten pages read only. Pen input enables writing tools. Ink syncs page by page; concurrent strokes are kept together. ZIP and JSON backups include ink; Markdown export carries a short placeholder. Older apps keep syncing without erasing the ink, but need updating to view it.
-- **Highlight typed notes with the S Pen:** turn on Highlighter in the note toolbar, choose a colour and drag across words. The highlight snaps to those words and stays with them through edits and sync. Turn the tool off for ordinary pen behaviour. Finger and mouse drags keep their usual behaviour.
+- **Highlight typed notes with the S Pen:** turn on Highlighter in the note toolbar, choose a colour and drag across words. The highlight snaps to those words and stays with them through edits and sync. Turn the tool off for ordinary pen behaviour. With the highlighter on, a finger only scrolls the note; mouse behaviour stays as usual. Turn the tool off to tap or select text with a finger.
 - **Tablet controls clear the status bar:** top controls reserve the Android inset in portrait and landscape, including Notes navigation, dialogs and the graph.
 - **Widgets follow your warning settings:** task widgets use Needs attention after, Urgent after, the aging warnings switch and counting days, so their warnings agree with the app. Older widget data still uses the usual 3- and 7-day defaults when settings are missing.
 - **Signed Android releases:** future updates use a stable release signing key. The first switch needs the steps below.
 
 ## One-time switch to the signed APK
 
-1. **Sync (or make a backup) first.** Make sure your latest notes have reached the server, or save a ZIP or JSON backup somewhere outside the app. Uninstalling deletes anything stored only in the app.
-2. **Uninstall the old app.**
-3. **Install the signed APK**, `daymark-1.11.0.apk`, from the release. `SHA256SUMS` accompanies it.
-4. **Sign in again** to your sync server. If you used a backup instead of sync, restore it.
+1. **Update the server to 1.11 first.** Older servers keep handwriting on the tablet only; handwritten pages sync through Daymark 1.11 or later.
+2. **Sync (or make a backup) first.** Make sure your latest notes have reached the server, or save a ZIP or JSON backup somewhere outside the app. Uninstalling deletes anything stored only in the app.
+3. **Uninstall the old app.** This also removes its home-screen widgets.
+4. **Install the signed APK**, `daymark-1.11.0.apk`, from the release. `SHA256SUMS` accompanies it.
+5. **Sign in again** to your sync server. If you used a backup instead of sync, restore it.
+6. **Re-add your home-screen widgets.**
 
 There is a new signing key. Android refuses to update an app signed with a different key, which is why uninstalling is necessary once. Later updates signed with this same key can install over the app.
 
@@ -38,6 +40,9 @@ Screenshots come from `node scripts/capture-screenshots.mjs cycle-14` in a deskt
 | Read-only handwritten note at phone width | ![Handwritten page on a phone without writing tools](./images/handwritten-phone-read-only.png) |
 
 ## Known limits
+
+- The first pen touch on a read-only page switches it to writing; that touch does not draw. Touch again to start writing.
+- With the typed-note highlighter on, a finger only scrolls the note. Turn it off to tap or select text with a finger.
 
 - Ink drawing runs in the app's WebView. The owner's trial on the Samsung tablet is the final acceptance, and the APK has not been tried on a real device. Browser pointer checks cannot establish real S Pen latency or palm rejection.
 - Daymark 1.10.0 keeps typed-note highlights when it edits a note, but shows them as raw `<mark>` tags instead of colours; update every device to 1.11.

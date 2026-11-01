@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { InkPage, InkStroke } from '../types/daymark';
 import {
   addStroke, decodePoints, encodePoints, eraseArea, eraseStrokes, inkKey,
@@ -170,4 +170,23 @@ it('serializes 2,000 strokes x 60 points below 1,000,000 bytes with realistic wr
   const bytes = new TextEncoder().encode(JSON.stringify(page(strokes))).length;
   expect(bytes).toBeLessThan(1_000_000);
   console.info(`Ink page fixture: ${bytes} bytes`);
+});
+
+it('reuses stroke bounds so miss-only sweeps do not decode any points again', () => {
+  const original = page([stroke('cached-bounds')]);
+  eraseArea(original, { x: 900, y: 900 }, 3, () => '', now);
+  const decode = vi.spyOn(globalThis, 'atob');
+  try {
+    for (let i = 0; i < 10; i++) eraseArea(original, { x: 900 + i, y: 900 }, 3, () => '', now);
+    expect(decode).not.toHaveBeenCalled();
+  } finally { decode.mockRestore(); }
+});
+
+it('keeps surviving area-eraser pieces in their original layer below later pen strokes', () => {
+  const original = page([stroke('old'), stroke('later', [point(0, 105), point(100, 105)], { createdAt: now })]);
+  let id = 0;
+  const erased = eraseArea(original, { x: 50, y: 100 }, 3, () => 'piece-' + ++id, '2026-11-02');
+  const visible = visibleStrokes(erased);
+  expect(visible.map(s => s.id)).toEqual(['piece-1', 'piece-2', 'later']);
+  expect(visible.slice(0, 2).map(s => s.createdAt)).toEqual([before, before]);
 });

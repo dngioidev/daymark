@@ -1,3 +1,4 @@
+import { inkPageVersion } from '../ink/inkVersion';
 import type { InkPage } from '../types/daymark';
 import { isInkPage, isInkPages } from './vaultValidation';
 import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, StandaloneNote } from '../types/daymark';
@@ -215,9 +216,10 @@ export async function initVaultStore(): Promise<void> {
       }
     }
 
-    await replayInkJournal(db);
-    // What IndexedDB holds now counts as committed, so an early close copies only new edits.
-    lastCommittedInk = readInkPages();
+    await migrateInkPages();
+    hydrateInkCache();
+    await replayInkJournal();
+    hydrateSyncInkBases();
 
     // Ask the browser not to evict the vault under storage pressure
     navigator.storage?.persist?.().catch(() => undefined);
@@ -228,6 +230,29 @@ export async function initVaultStore(): Promise<void> {
       const legacy = readLegacyLocalStorage(key);
       if (legacy !== undefined) cache.set(key, legacy);
     }
+    // Enumeration can itself be blocked in private/security-restricted contexts.
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('daymark_ink:') || key?.startsWith('daymark_syncbase:')) {
+          try { cache.set(key.slice(8), JSON.parse(localStorage.getItem(key)!)); } catch { /* damaged entry remains available for repair */ }
+        }
+      }
+    } catch { /* continue with in-memory/legacy survivors */ }
+    hydrateInkCache();
+    const oldInk = cache.get(KEYS.INK);
+    if (Array.isArray(oldInk)) {
+      const migrated: InkPage[] = [];
+      for (const page of oldInk.filter(isInkPage)) if (!inkPages.has(inkKey(page.noteId, page.page))) {
+        const key = inkKey(page.noteId, page.page); cache.set(key, page); inkPages.set(key, page); migrated.push(page);
+      }
+      try {
+        for (const page of migrated) localStorage.setItem('daymark_' + inkKey(page.noteId, page.page), JSON.stringify(page));
+        localStorage.removeItem(LEGACY_KEYS[KEYS.INK]); cache.delete(KEYS.INK);
+      } catch (error) { reportError('Could not migrate your handwriting; keeping the original stored copy.', error); }
+    }
+    try { await replayInkJournal(); } catch (error) { reportError('Could not save recovered handwriting; keeping its unload copy.', error); }
+    hydrateSyncInkBases();
     reportError('Browser storage (IndexedDB) is unavailable; using limited fallback storage.', err);
   }
 }
@@ -239,13 +264,17 @@ const CHANNEL_NAME = 'daymark-vault';
 const channel: BroadcastChannel | null = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME);
 
 /** Accepts only well-formed messages for the shared keys; anything else is ignored. */
-export function parseVaultMessage(data: unknown): { key: SharedKey; value: unknown } | null {
+export function parseVaultMessage(data: unknown): { key: SharedKey; value: unknown; deleted?: string[] } | null {
   if (!data || typeof data !== 'object') return null;
   const { key, value } = data as { key?: unknown; value?: unknown };
   if ((key === 'daily_docs' || key === 'notes') && Array.isArray(value)) return { key, value };
   if (key === 'settings' && isSyncedSettings(value)) return { key, value };
   if (key === 'habits' && isHabitData(value)) return { key, value };
-  if (key === 'ink' && isInkPages(value)) return { key, value };
+  if (key === 'ink' && isInkPages(value)) {
+    const deleted = (data as { deleted?: unknown }).deleted;
+    if (deleted !== undefined && !(Array.isArray(deleted) && deleted.every(k => typeof k === 'string' && k.startsWith('ink:')))) return null;
+    return { key, value, ...(deleted ? { deleted: deleted as string[] } : {}) };
+  }
   if (key === 'notemeta' && isNoteMeta(value)) return { key, value };
   if (key === 'backlog' && isBacklogData(value)) return { key, value };
   return null;
@@ -261,7 +290,17 @@ if (channel) {
     const msg = parseVaultMessage(event.data);
     if (!msg) return;
     try {
-      cache.set(msg.key, msg.value);
+      if (msg.key === 'ink') {
+        for (const key of msg.deleted ?? []) { inkPages.delete(key); cache.delete(key); }
+        for (const page of msg.value as InkPage[]) {
+          const key = inkKey(page.noteId, page.page), mine = inkPages.get(key);
+          // A peer must not overwrite local strokes waiting for this tab's flush.
+          const next = mine && uncommittedInk.has(key) ? mergeInkPage(null, mine, page)! : page;
+          inkPages.set(key, next); cache.set(key, next);
+          if (uncommittedInk.has(key)) queueInkPage(key, next);
+        }
+        inkSnapshot = undefined;
+      } else cache.set(msg.key, msg.value);
       externalListeners.forEach((l) => l(msg.key, msg.value));
     } catch (err) {
       console.error('Could not apply a change from another tab', err);
@@ -291,7 +330,7 @@ function writeValue(key: string, value: unknown, force = false): Promise<void> {
     }
   }
   if (storageMode === 'localstorage' || !db) {
-    const legacyKey = LEGACY_KEYS[key];
+    const legacyKey = LEGACY_KEYS[key] ?? (key.startsWith('ink:') || key.startsWith('syncbase:') ? 'daymark_' + key : undefined);
     if (!legacyKey) return Promise.resolve();
     try {
       localStorage.setItem(legacyKey, JSON.stringify(value));
@@ -452,134 +491,174 @@ export function loadSyncState(): SyncState | null {
 }
 
 export function saveSyncState(state: SyncState | null): Promise<void> {
-  return writeValue(KEYS.SYNC_STATE, state);
+  const bases = state?.bases ?? {};
+  const writes: Promise<void>[] = [];
+  for (const [key, value] of Object.entries(bases)) if (key.startsWith('ink:') && persistedInkBases.get(key) !== value) {
+    writes.push(writeValue('syncbase:' + key, value, true).then(() => { persistedInkBases.set(key, value); }));
+  }
+  for (const key of persistedInkBases.keys()) if (!(key in bases)) {
+    writes.push(removeStoredValue('syncbase:' + key).then(() => { persistedInkBases.delete(key); }));
+  }
+  const compact = state ? { ...state, bases: Object.fromEntries(Object.entries(bases).filter(([key]) => !key.startsWith('ink:'))) } : null;
+  writes.push(writeValue(KEYS.SYNC_STATE, compact));
+  cache.set(KEYS.SYNC_STATE, state);
+  return Promise.all(writes).then(() => undefined);
+}
+
+const persistedInkBases = new Map<string, string>();
+function hydrateSyncInkBases(): void {
+  const state = loadSyncState();
+  if (!state) return;
+  const bases = { ...state.bases };
+  for (const [key, value] of cache) if (key.startsWith('syncbase:ink:') && typeof value === 'string') {
+    bases[key.slice(9)] = value; persistedInkBases.set(key.slice(9), value);
+  }
+  cache.set(KEYS.SYNC_STATE, { ...state, bases });
+}
+
+function removeStoredValue(key: string): Promise<void> {
+  cache.delete(key);
+  if (storageMode === 'localstorage' || !db) {
+    localStorage.removeItem(LEGACY_KEYS[key] ?? 'daymark_' + key);
+    return Promise.resolve();
+  }
+  const database = db;
+  const written = writeChain.then(() => new Promise<void>((resolve, reject) => {
+    if (wiping) return resolve();
+    const tx = database.transaction(STORE, 'readwrite'); tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  }));
+  writeChain = written.catch(err => reportError('Could not save your changes: browser storage is full or blocked.', err));
+  return written;
+}
+
+const inkPages = new Map<string, InkPage>();
+let inkSnapshot: InkPage[] | undefined;
+function hydrateInkCache(): void {
+  inkPages.clear(); inkSnapshot = undefined;
+  for (const [key, value] of cache) if (key.startsWith('ink:') && isInkPage(value)) inkPages.set(key, value);
+}
+async function migrateInkPages(): Promise<void> {
+  const legacy = cache.get(KEYS.INK);
+  if (!Array.isArray(legacy)) return;
+  // Leave the array intact until every page has committed; restart safely retries a partial migration.
+  for (const page of legacy.filter(isInkPage)) {
+    const key = inkKey(page.noteId, page.page), existing = cache.get(key);
+    await writeValue(key, isInkPage(existing) ? mergeInkPage(null, existing, page)! : page);
+  }
+  await removeStoredValue(KEYS.INK);
 }
 
 let inkTimer: ReturnType<typeof setTimeout> | undefined;
-let pendingInk: InkPage[] | undefined;
+const pendingInk = new Map<string, { page: InkPage | null; seq: number }>();
+const uncommittedInk = new Map<string, { page: InkPage | null; seq: number }>();
 const inkFlushTargets = new WeakSet<EventTarget>();
-// A browser aborts IndexedDB transactions that have not committed when the document unloads,
-// so the pagehide/hidden flush alone can lose the last strokes on a reload or close.
-// Before the page goes away, the uncommitted pages are copied synchronously to localStorage;
-// the next start merges them back (stroke union, erasures kept) and then drops the copy.
 const INK_JOURNAL_KEY = 'daymark_ink_unsaved_v1';
-let lastWrittenInk: InkPage[] | undefined;
-let lastCommittedInk: InkPage[] | undefined;
+const INK_DELETIONS_KEY = 'daymark_ink_deleted_v1';
 let inkWriteSeq = 0;
-let journaledSeq = 0;
+const journaledSeq = new Map<string, number>();
 
 function readInkJournal(): InkPage[] | null {
-  try {
-    const raw = localStorage.getItem(INK_JOURNAL_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isInkPage) : null;
-  } catch {
-    return null;
-  }
+  try { const raw = localStorage.getItem(INK_JOURNAL_KEY); if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw); return Array.isArray(parsed) ? parsed.filter(isInkPage) : null;
+  } catch { return null; }
 }
-
-function removeInkJournal(): void {
-  try { localStorage.removeItem(INK_JOURNAL_KEY); } catch { /* storage blocked; the copy is merged harmlessly */ }
+function readInkDeletions(): string[] {
+  try { const parsed: unknown = JSON.parse(localStorage.getItem(INK_DELETIONS_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === 'string' && key.startsWith('ink:')) : [];
+  } catch { return []; }
 }
-
+function saveJournal(pages: InkPage[], deleted: string[]): void {
+  if (pages.length) localStorage.setItem(INK_JOURNAL_KEY, JSON.stringify(pages)); else localStorage.removeItem(INK_JOURNAL_KEY);
+  if (deleted.length) localStorage.setItem(INK_DELETIONS_KEY, JSON.stringify(deleted)); else localStorage.removeItem(INK_DELETIONS_KEY);
+}
 /** Merges unload copies page by page; strokes are a union and erasures stay erased. */
 export function mergeInkJournal(stored: InkPage[], journal: InkPage[]): InkPage[] {
-  const out = [...stored];
+  const out = new Map(stored.map(page => [inkKey(page.noteId, page.page), page]));
   for (const page of journal) {
-    const index = out.findIndex(p => inkKey(p.noteId, p.page) === inkKey(page.noteId, page.page));
-    if (index < 0) out.push(page);
-    else out[index] = mergeInkPage(null, page, out[index]) ?? out[index];
+    const key = inkKey(page.noteId, page.page), previous = out.get(key);
+    out.set(key, previous ? mergeInkPage(null, previous, page)! : page);
   }
-  return out;
+  return [...out.values()];
 }
-
-async function replayInkJournal(database: IDBDatabase): Promise<void> {
-  const journal = readInkJournal();
-  if (journal === null) return;
-  if (journal.length) {
-    const stored = cache.get(KEYS.INK);
-    const merged = mergeInkJournal(Array.isArray(stored) ? stored.filter(isInkPage) : [], journal);
-    cache.set(KEYS.INK, merged);
-    await putValue(database, KEYS.INK, merged);
+async function replayInkJournal(): Promise<void> {
+  const journal = readInkJournal(), deleted = readInkDeletions();
+  for (const key of deleted) { await removeStoredValue(key); inkPages.delete(key); }
+  for (const page of journal ?? []) {
+    const key = inkKey(page.noteId, page.page), previous = inkPages.get(key);
+    const next = previous ? mergeInkPage(null, previous, page)! : page;
+    inkPages.set(key, next); inkSnapshot = undefined;
+    await writeValue(key, next);
   }
-  removeInkJournal();
+  inkSnapshot = undefined;
+  if (journal !== null || deleted.length) saveJournal([], []);
 }
-
-/** Synchronously keeps the pages not yet committed to IndexedDB, for the next start. */
+/** Synchronous unload copy contains only uncommitted pages, never the whole notebook. */
 function journalUncommittedInk(): void {
-  const latest = lastWrittenInk;
-  if (!latest || latest === lastCommittedInk || storageMode !== 'indexeddb') return;
-  // Compare by page and edit time, not identity: a sync can rebuild unchanged page objects,
-  // and copying every page of a large notebook could exceed the localStorage quota.
-  const version = (page: InkPage) => `${inkKey(page.noteId, page.page)}@${page.updatedAt}`;
-  const committed = new Set((lastCommittedInk ?? []).map(version));
-  const changed = latest.filter(page => !committed.has(version(page)));
-  if (!changed.length) return;
+  if (!uncommittedInk.size || storageMode !== 'indexeddb') return;
   try {
-    const earlier = readInkJournal() ?? [];
-    localStorage.setItem(INK_JOURNAL_KEY, JSON.stringify(mergeInkJournal(earlier, changed)));
-    journaledSeq = inkWriteSeq;
-  } catch (err) {
-    console.error('Could not keep a copy of the last handwriting before closing.', err);
+    let earlier = readInkJournal() ?? []; const deleted = new Set(readInkDeletions());
+    for (const [key, { page, seq }] of uncommittedInk) {
+      if (page) { earlier = mergeInkJournal(earlier, [page]); deleted.delete(key); }
+      else { earlier = earlier.filter(p => inkKey(p.noteId, p.page) !== key); deleted.add(key); }
+      journaledSeq.set(key, seq);
+    }
+    saveJournal(earlier, [...deleted]);
+  } catch (err) { console.error('Could not keep a copy of the last handwriting before closing.', err); }
+}
+function inkCommitted(key: string, seq: number): void {
+  if ((uncommittedInk.get(key)?.seq ?? Infinity) <= seq) uncommittedInk.delete(key);
+  const copied = journaledSeq.get(key);
+  if (copied !== undefined && seq >= copied) {
+    journaledSeq.delete(key);
+    try { saveJournal((readInkJournal() ?? []).filter(p => inkKey(p.noteId, p.page) !== key), readInkDeletions().filter(k => k !== key)); } catch { /* replay remains safe */ }
   }
 }
-
-function inkCommitted(pages: InkPage[], seq: number): void {
-  lastCommittedInk = pages;
-  // Only this write (or a later one) contains everything the copy holds.
-  if (journaledSeq && seq >= journaledSeq) {
-    journaledSeq = 0;
-    removeInkJournal();
-  }
-}
-
-/** Read the startup cache hydrated by initVaultStore, before the first sync. */
+/** Read the cache hydrated before React's first render. No revalidation of untouched pages. */
 export function readInkPages(): InkPage[] {
-  return loadValid(KEYS.INK, isInkPage, 'ink page');
+  return inkSnapshot ??= [...inkPages.values()];
 }
-
-export async function loadInkPages(): Promise<InkPage[]> {
-  return readInkPages();
+export async function loadInkPages(): Promise<InkPage[]> { return readInkPages(); }
+function queueInkPage(key: string, page: InkPage | null): void {
+  const change = { page, seq: ++inkWriteSeq };
+  pendingInk.set(key, change); uncommittedInk.set(key, change);
+  if (inkTimer === undefined) inkTimer = setTimeout(flushInkPages, 500);
 }
-
 function flushInkPages(): void {
-  if (inkTimer !== undefined) clearTimeout(inkTimer);
-  inkTimer = undefined;
-  if (!pendingInk || wiping) return;
-  const pages = pendingInk;
-  pendingInk = undefined;
-  const seq = ++inkWriteSeq;
-  lastWrittenInk = pages;
-  void writeValue(KEYS.INK, pages, true).then(() => inkCommitted(pages, seq), () => undefined);
+  if (inkTimer !== undefined) clearTimeout(inkTimer); inkTimer = undefined;
+  if (!pendingInk.size || wiping) return;
+  const batch = [...pendingInk]; pendingInk.clear();
+  try { channel?.postMessage({ key: 'ink', value: batch.flatMap(([, c]) => c.page ? [c.page] : []), deleted: batch.filter(([, c]) => !c.page).map(([key]) => key) }); } catch { /* reload reads committed storage */ }
+  for (const [key, { page, seq }] of batch) {
+    const written = page ? writeValue(key, page, true) : removeStoredValue(key);
+    void written.then(() => inkCommitted(key, seq), () => undefined);
+  }
 }
-
-/** The page may be unloaded next: start the write and keep a synchronous copy until it commits. */
-function flushInkBeforeHide(): void {
-  flushInkPages();
-  if (!wiping) journalUncommittedInk();
-}
-
+function flushInkBeforeHide(): void { flushInkPages(); if (!wiping) journalUncommittedInk(); }
 function installInkFlushHandlers(): void {
   if (typeof window !== 'undefined' && !inkFlushTargets.has(window)) {
-    window.addEventListener('pagehide', flushInkBeforeHide);
-    inkFlushTargets.add(window);
+    window.addEventListener('pagehide', flushInkBeforeHide); inkFlushTargets.add(window);
   }
   if (typeof document !== 'undefined' && !inkFlushTargets.has(document)) {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') flushInkBeforeHide();
-    });
-    inkFlushTargets.add(document);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushInkBeforeHide(); }); inkFlushTargets.add(document);
   }
 }
-
-/** Coalesce writes for at most 500ms, even during continuous handwriting. */
+/** Coalesce at most 500ms, cloning and posting only page versions that changed. */
 export function saveInkPages(pages: InkPage[]): void {
-  if (wiping || cache.get(KEYS.INK) === pages) return;
-  installInkFlushHandlers();
-  cache.set(KEYS.INK, pages);
-  pendingInk = pages;
-  if (inkTimer === undefined) inkTimer = setTimeout(flushInkPages, 500);
+  if (wiping || inkSnapshot === pages) return;
+  const keys = new Set<string>(); let changed = false;
+  for (const page of pages) {
+    const key = inkKey(page.noteId, page.page); keys.add(key);
+    const previous = inkPages.get(key);
+    if (previous && inkPageVersion(previous) === inkPageVersion(page)) continue;
+    inkPages.set(key, page); cache.set(key, page); queueInkPage(key, page); changed = true;
+  }
+  for (const key of inkPages.keys()) if (!keys.has(key)) {
+    inkPages.delete(key); cache.delete(key); queueInkPage(key, null); changed = true;
+  }
+  if (!changed) return;
+  inkSnapshot = undefined; installInkFlushHandlers();
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') flushInkBeforeHide();
 }
 
 /** Remove this browser's vault after its server session ends. */
@@ -588,7 +667,7 @@ export function wipeLocalVault(): Promise<void> {
   wiping = true;
   if (inkTimer !== undefined) clearTimeout(inkTimer);
   inkTimer = undefined;
-  pendingInk = undefined;
+  pendingInk.clear(); uncommittedInk.clear(); journaledSeq.clear(); inkPages.clear(); inkSnapshot = undefined;
   cache.clear();
   wipePromise = (async () => {
     channel?.postMessage({ type: 'wipe' });

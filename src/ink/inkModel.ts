@@ -85,6 +85,32 @@ export function visibleStrokes(page: InkPage): InkStroke[] {
     Number(a.tool === 'pen') - Number(b.tool === 'pen') || compare(a.createdAt, b.createdAt) || compare(a.id, b.id));
 }
 
+type StrokeGeometry = { points: Point[]; minX: number; minY: number; maxX: number; maxY: number };
+// Immutable stroke objects own their cache lifetime; ids alone can collide across devices.
+const geometry = new WeakMap<InkStroke, StrokeGeometry>();
+export function cacheStrokeGeometry(stroke: InkStroke, points: Point[]): StrokeGeometry {
+  const cached = geometry.get(stroke);
+  if (cached) return cached;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+  const value = { points, minX, minY, maxX, maxY };
+  geometry.set(stroke, value);
+  return value;
+}
+
+/** Intermediate pieces never left this gesture, so neither they nor their tombstones need syncing. */
+export function collapseInkGesture(before: InkPage, after: InkPage): InkPage {
+  if (before === after) return after;
+  const originals = new Set(before.strokes.map(s => s.id));
+  const previousRemovals = new Set(before.removed);
+  const removed = new Set(after.removed);
+  return { ...after, strokes: after.strokes.filter(s => originals.has(s.id) || !removed.has(s.id)),
+    removed: after.removed.filter(id => originals.has(id) || previousRemovals.has(id)) };
+}
+
 export function eraseArea(page: InkPage, center: { x: number; y: number }, radius: number, newId: () => string, now: string): InkPage {
   if (!Number.isFinite(radius) || radius <= 0) return page;
   const removed = new Set(page.removed);
@@ -94,14 +120,11 @@ export function eraseArea(page: InkPage, center: { x: number; y: number }, radiu
   const radiusSquared = radius ** 2;
   for (const stroke of page.strokes) {
     if (removed.has(stroke.id)) continue;
-    const points = decodePoints(stroke.points);
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of points) {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-    }
-    // Broad phase: miss the bounding box, skip all segment intersection work.
+    const bounds = geometry.get(stroke) ?? cacheStrokeGeometry(stroke, decodePoints(stroke.points));
+    // Rendering primes bounds/points; all later miss-only sweeps stop here without decoding.
+    const { minX, minY, maxX, maxY } = bounds;
     if (maxX < center.x - radius || minX > center.x + radius || maxY < center.y - radius || minY > center.y + radius) continue;
+    const points = bounds.points;
     const runs: Point[][] = [];
     let run: Point[] = [];
     let hit = false;
@@ -141,7 +164,7 @@ export function eraseArea(page: InkPage, center: { x: number; y: number }, radiu
     changed = true;
     removed.add(stroke.id);
     for (const surviving of runs) {
-      pieces.push({ ...stroke, id: newId(), points: encodePoints(surviving), createdAt: now });
+      pieces.push({ ...stroke, id: newId(), points: encodePoints(surviving), createdAt: stroke.createdAt });
     }
   }
   return changed ? { ...page, strokes: [...page.strokes, ...pieces], removed: [...removed], updatedAt: now } : page;

@@ -1,3 +1,4 @@
+import { sameInkPage } from '../ink/inkVersion';
 import { inkKey, isInkEntityKey } from '../ink/inkModel';
 import type { InkPage } from '../types/daymark';
 import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
@@ -90,8 +91,23 @@ export function fromEntities(map: EntityMap, localSettings: AppSettings): VaultD
   return { docs, notes, settings, habits, backlog, notemeta, ink };
 }
 
-const parseBase = (state: SyncState, key: string): unknown | null =>
-  key in state.bases ? JSON.parse(state.bases[key]) : null;
+const inkBaseCache = new Map<string, { json: string; page: InkPage }>();
+const inkJsonCache = new WeakMap<InkPage, string>();
+function parseBase(state: SyncState, key: string): unknown | null {
+  const json = state.bases[key];
+  if (json === undefined) return null;
+  if (!isInkEntityKey(key)) return JSON.parse(json);
+  const cached = inkBaseCache.get(key);
+  if (cached?.json === json) return cached.page;
+  const page = JSON.parse(json) as InkPage;
+  inkBaseCache.set(key, { json, page }); inkJsonCache.set(page, json);
+  return page;
+}
+function serializeInkPage(page: InkPage): string {
+  let json = inkJsonCache.get(page);
+  if (json === undefined) { json = canonicalJson(page); inkJsonCache.set(page, json); }
+  return json;
+}
 
 /** Entities that differ from what was last agreed with the server (new, edited or deleted). */
 export function collectChanges(local: EntityMap, state: SyncState, includeHabits = true, includeBacklog = true, includeNoteMeta = true, includeInk = true): SyncChange[] {
@@ -104,7 +120,13 @@ export function collectChanges(local: EntityMap, state: SyncState, includeHabits
     if (!includeNoteMeta && isNoteMetaEntityKey(key)) continue;
     const value = local.has(key) ? local.get(key)! : null;
     const base = parseBase(state, key);
-    if (!sameValue(value, base)) changes.push({ key, base, value });
+    if (isInkEntityKey(key)) {
+      if (!sameInkPage(value as InkPage | null, base as InkPage | null)) {
+        // Cache only the edited page; untouched pages never enter canonicalJson.
+        if (value) serializeInkPage(value as InkPage);
+        changes.push({ key, base, value });
+      }
+    } else if (!sameValue(value, base)) changes.push({ key, base, value });
   }
   return changes;
 }
@@ -239,7 +261,11 @@ export async function syncOnce(fetchFn: FetchLike, local: VaultData, state: Sync
   const bases = { ...state.bases };
   for (const [key, value] of serverValues) {
     if (value === null) delete bases[key];
-    else bases[key] = canonicalJson(value);
+    else if (isInkEntityKey(key)) {
+      const page = value as InkPage, previous = parseBase(state, key) as InkPage | null;
+      bases[key] = sameInkPage(page, previous) ? state.bases[key] : serializeInkPage(page);
+      inkBaseCache.set(key, { json: bases[key], page }); inkJsonCache.set(page, bases[key]);
+    } else bases[key] = canonicalJson(value);
   }
   return {
     unsupported,
@@ -280,7 +306,7 @@ export function applySyncOutcome(current: VaultData, outcome: SyncOutcome): Vaul
     const recoveredNoteMeta = (recoveringNoteMeta || outcome.notemetaRecovered) && isNoteMetaEntityKey(key);
     if (recoveredNoteMeta) receivedNoteMeta = true;
     const recovered = recoveredHabit || recoveredBacklog || recoveredNoteMeta;
-    if (!recovered && sameValue(mine, sent)) {
+    if (!recovered && (isInkEntityKey(key) ? sameInkPage(mine as InkPage | null, sent as InkPage | null) : sameValue(mine, sent))) {
       if (serverValue === null) now.delete(key);
       else now.set(key, serverValue);
     } else {

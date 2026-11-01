@@ -72,6 +72,7 @@ async function habitStoreTest(run: (env: {
           advance();
           return request;
         },
+        delete: (key: string) => { if (!aborting) raw.delete(key); },
         put: (value: unknown, key: string) => { if (!aborting) raw.set(key, value); },
       }),
       set oncomplete(fn: () => void) { if (mode === 'readwrite' && !aborting) queueMicrotask(fn); },
@@ -603,7 +604,11 @@ it.each([false, true])('ink saves debounce within 1s and flush on pagehide and h
       const page = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
       store.saveInkPages([page]);
       expect(await store.loadInkPages()).toEqual([page]);
-      const saved = () => indexed ? raw.get('ink') : values.has('daymark_ink_v1') ? JSON.parse(values.get('daymark_ink_v1')!) : undefined;
+      const saved = () => {
+        const pages = indexed ? [...raw].filter(([key]) => key.startsWith('ink:')).map(([, value]) => value)
+          : [...values].filter(([key]) => key.startsWith('daymark_ink:')).map(([, value]) => JSON.parse(value));
+        return pages.length ? pages : undefined;
+      };
       expect(saved()).toBeUndefined();
       await vi.advanceTimersByTimeAsync(1000);
       expect(saved()).toEqual([page]);
@@ -641,11 +646,11 @@ describe('ink written just before the page unloads', () => {
       win.dispatchEvent(new Event('pagehide'));
       unload(); // the browser tears the document down before the flush transaction commits
       await new Promise(resolve => setTimeout(resolve, 0));
-      expect(raw.get('ink')).toBeUndefined();
+      expect(raw.get('ink:study:0')).toBeUndefined();
       unload(false);
       const next = await reopen();
       expect(next.readInkPages()).toEqual([page(['a', 'b'])]);
-      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a', 'b'])]));
+      await vi.waitFor(() => expect(raw.get('ink:study:0')).toEqual(page(['a', 'b'])));
     }, true);
   });
 
@@ -673,11 +678,11 @@ describe('ink written just before the page unloads', () => {
       store.saveInkPages([page(['a', 'b'])]);
       Object.defineProperty(doc, 'visibilityState', { value: 'hidden', configurable: true });
       doc.dispatchEvent(new Event('visibilitychange')); // app backgrounded; this time the write commits
-      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a', 'b'])]));
+      await vi.waitFor(() => expect(raw.get('ink:study:0')).toEqual(page(['a', 'b'])));
       store.saveInkPages([page(['a'])]); // whole-page replacement on the same device
       win.dispatchEvent(new Event('pagehide'));
-      await vi.waitFor(() => expect(raw.get('ink')).toEqual([page(['a'])]));
-      expect([...values.keys()].filter(key => key.includes('ink'))).toEqual([]);
+      await vi.waitFor(() => expect(raw.get('ink:study:0')).toEqual(page(['a'])));
+      expect([...values.keys()].filter(key => key.includes('unsaved') || key.includes('deleted'))).toEqual([]);
       const next = await reopen();
       expect(next.readInkPages()).toEqual([page(['a'])]);
     }, true);
@@ -730,4 +735,74 @@ it('JSON backup exports ink and restores the exact ink array', async () => {
     expect(mergeRestoredInk(ink, undefined)).toBe(ink);
     expect(mergeRestoredInk(ink, [])).toEqual([]);
   });
+});
+
+it('migrates aggregate ink to page keys, saves/broadcasts only dirty pages, and replaces removed keys', async () => {
+  const win = new EventTarget(); vi.stubGlobal('window', win);
+  await habitStoreTest(async ({ raw, messages }) => {
+    const pages = [0, 1].map(page => ({ noteId: 'study', page, strokes: [], removed: [], updatedAt: 'now' }));
+    raw.set('ink', pages);
+    vi.resetModules(); const store = await import('./vaultStore'); await store.initVaultStore();
+    expect(raw.has('ink')).toBe(false);
+    expect(store.readInkPages()).toEqual(pages);
+    expect(raw.get('ink:study:1')).toEqual(pages[1]);
+    messages.length = 0;
+    store.saveInkPages([pages[0], { ...pages[1], updatedAt: 'later' }]);
+    win.dispatchEvent(new Event('pagehide')); await store.kvGetRaw('ink:study:1');
+    expect(messages).toContainEqual({ key: 'ink', value: [{ ...pages[1], updatedAt: 'later' }], deleted: [] });
+    store.saveInkPages([pages[0]]); win.dispatchEvent(new Event('pagehide'));
+    await store.kvGetRaw('ink:study:0');
+    expect(raw.has('ink:study:1')).toBe(false);
+  }, true);
+});
+
+it('keeps sync ink bases per page and rehydrates the complete sync state', async () => {
+  await habitStoreTest(async ({ store, raw }) => {
+    const page = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
+    const state = { serverUrl: 'https://sync', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 2, lastSyncAt: null,
+      bases: { 'ink:study:0': JSON.stringify(page), settings: '{}' } };
+    await store.saveSyncState(state);
+    expect(raw.get('sync_state')).toEqual({ ...state, bases: { settings: '{}' } });
+    expect(raw.get('syncbase:ink:study:0')).toBe(state.bases['ink:study:0']);
+    vi.resetModules(); const next = await import('./vaultStore'); await next.initVaultStore();
+    expect(next.loadSyncState()).toEqual(state);
+    await next.saveSyncState({ ...state, bases: {} });
+    expect(raw.has('syncbase:ink:study:0')).toBe(false);
+  }, true);
+});
+
+it('applies cross-tab ink deltas without dropping other pages or a pending local stroke', async () => {
+  const win = new EventTarget(); vi.stubGlobal('window', win);
+  await habitStoreTest(async ({ store, peers }) => {
+    const stroke = (id: string) => ({ id, tool: 'pen' as const, points: 'AAAA', color: '#000', width: 2, createdAt: 'now' });
+    const page = (n: number, ids: string[]) => ({ noteId: 'study', page: n, strokes: ids.map(stroke), removed: [], updatedAt: 'now' });
+    store.saveInkPages([page(0, ['local']), page(1, ['other-page'])]);
+    peers[0].onmessage?.({ data: { key: 'ink', value: [page(0, ['remote'])], deleted: [] } });
+    expect(store.readInkPages()[0].strokes.map(s => s.id)).toEqual(['local', 'remote']);
+    expect(store.readInkPages()[1]).toEqual(page(1, ['other-page']));
+    win.dispatchEvent(new Event('pagehide')); await store.kvGetRaw('ink:study:0');
+  }, true);
+});
+
+it('replays an interrupted whole-vault replacement without resurrecting removed page keys', async () => {
+  const win = new EventTarget(); vi.stubGlobal('window', win);
+  await habitStoreTest(async ({ store, raw, unload }) => {
+    const page = { noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' };
+    store.saveInkPages([page]); win.dispatchEvent(new Event('pagehide'));
+    await store.kvGetRaw('ink:study:0');
+    expect(raw.has('ink:study:0')).toBe(true);
+    store.saveInkPages([]); unload(); win.dispatchEvent(new Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0)); unload(false);
+    vi.resetModules(); const next = await import('./vaultStore'); await next.initVaultStore();
+    expect(next.readInkPages()).toEqual([]);
+    expect(raw.has('ink:study:0')).toBe(false);
+  }, true);
+});
+
+it('still opens when both IndexedDB and localStorage enumeration are blocked', async () => {
+  vi.resetModules(); vi.stubGlobal('indexedDB', undefined); vi.stubGlobal('navigator', {});
+  vi.stubGlobal('localStorage', { getItem: () => null, get length() { throw new Error('storage denied'); } });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try { const store = await import('./vaultStore'); await expect(store.initVaultStore()).resolves.toBeUndefined(); }
+  finally { error.mockRestore(); vi.unstubAllGlobals(); }
 });

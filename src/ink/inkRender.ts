@@ -1,5 +1,5 @@
 import type { InkPage, InkStroke, InkTool } from '../types/daymark';
-import { decodePoints, visibleStrokes } from './inkModel';
+import { cacheStrokeGeometry, decodePoints, visibleStrokes } from './inkModel';
 
 export type InkPoint = ReturnType<typeof decodePoints>[number];
 export type PointCache = Map<string, InkPoint[]>;
@@ -36,6 +36,7 @@ export function drawPage(ctx: CanvasRenderingContext2D, page: InkPage, cache: Po
     if (tool && stroke.tool !== tool) continue;
     let points = cache.get(stroke.id);
     if (!points) { points = decodePoints(stroke.points); cache.set(stroke.id, points); }
+    cacheStrokeGeometry(stroke, points);
     drawStroke(ctx, points, stroke);
   }
 }

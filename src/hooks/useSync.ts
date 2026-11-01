@@ -1,3 +1,4 @@
+import { sameInkPages } from '../ink/inkVersion';
 import { uneditedRecoveredNoteMeta } from '../utils/noteFolders';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalJson } from '../sync/merge';
@@ -63,6 +64,7 @@ export function useSync(
   const closing = useRef(false);
   const wiped = useRef<Promise<void> | null>(null);
   const epoch = useRef(0); // stale in-flight results are dropped after replacing the vault
+  const inkNoticeShown = useRef(false);
   const unsupported = useRef(new Set<SyncFeature>()); // capability fallback belongs to this session, never persisted
 
   const persistState = (next: SyncState | null) => {
@@ -135,6 +137,10 @@ export function useSync(
           const outcome = await syncOnce((url, init) => authFetch(url.slice(current.serverUrl.length), init), vaultRef.current, current, accessToken, unsupported.current);
           if (blocked.current || closing.current) return false;
           unsupported.current = outcome.unsupported;
+          if (unsupported.current.has('ink') && !inkNoticeShown.current) {
+            inkNoticeShown.current = true;
+            callbacks.current.onConflicts(['Handwritten pages stay on this device until the server is updated to Daymark 1.11']);
+          }
           if (stateRef.current && ((unsupported.current.has('habits') && stateRef.current.habitsSynced) ||
             (unsupported.current.has('backlog') && stateRef.current.backlogSynced) ||
             (unsupported.current.has('notemeta') && stateRef.current.notemetaSynced) ||
@@ -158,7 +164,7 @@ export function useSync(
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
               canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased ||
               canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased ||
-              canonicalJson(next.ink) !== canonicalJson(before.ink) ||
+              !sameInkPages(next.ink, before.ink) ||
               canonicalJson(next.notemeta) !== canonicalJson(before.notemeta) || recoveredNoteMetaReleased) {
               vaultRef.current = next;
               callbacks.current.onVaultChange(next);
@@ -228,6 +234,7 @@ export function useSync(
       const session = await signIn(fetch, serverUrl, 'body', { username, password, deviceName, platform, installId: getInstallId() });
       manager.current = null;
       unsupported.current = new Set();
+      inkNoticeShown.current = false;
       blocked.current = false;
       closing.current = false;
       await persistState({ serverUrl: normalizeServerUrl(serverUrl), username: session.username,
@@ -241,11 +248,11 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), !unsupported.current.has('ink')), stateRef.current,
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(vaultRef.current, !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), true), stateRef.current,
     !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
     !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog),
     !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta),
-    !unsupported.current.has('ink')).length : 0;
+    true).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';
@@ -256,6 +263,7 @@ export function useSync(
       if (!opts?.force && failed) return 'needs-confirm-unreachable';
       if (!opts?.force && pendingChanges() > 0) return 'needs-confirm';
     }
+    if (mode === 'native' && !opts?.force && unsupported.current.has('ink') && pendingChanges() > 0) return 'needs-confirm';
     closing.current = true;
     epoch.current++;
     let logoutFailed = false;

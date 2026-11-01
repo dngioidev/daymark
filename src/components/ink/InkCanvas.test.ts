@@ -251,3 +251,18 @@ it.each(['stroke', 'area'] as const)('previews %s erasure and cursor before poin
   expect(page.removed).toEqual([]);
   expect(visibleStrokes(onChange.mock.calls[0][0])).toHaveLength(eraserMode === 'stroke' ? 0 : 2);
 });
+
+it('collapses transient area eraser pieces at gesture finish and preserves original z-order', () => {
+  const original: InkPage = { ...blank(), strokes: Array.from({ length: 40 }, (_, i) => ({ id: 'word-' + i, tool: 'pen', color: '#000', width: 2, createdAt: '2026-10-01', points: encodePoints(Array.from({ length: 60 }, (_, j) => ({ x: 10 + i * 24 + j * 0.35, y: 100 + Math.sin(j) * 2, p: 0.5 }))) })) };
+  const { canvas, onChange } = mount({ page: original, tool: 'eraser', width: 8, eraserMode: 'area' });
+  pointer(canvas, 'pointerdown', { clientX: 10, clientY: 100 });
+  for (let pass = 0; pass < 3; pass++) {
+    for (let x = 10; x < 980; x += 4) { pointer(canvas, 'pointermove', { clientX: pass % 2 ? 990 - x : x, clientY: 100 }); const pending = frames.splice(0); for (const frame of pending) act(() => frame(0)); }
+  }
+  pointer(canvas, 'pointerup', { clientX: 980, clientY: 100 });
+  const committed: InkPage = onChange.mock.calls[0][0];
+  console.info('Eraser bytes before/after:', JSON.stringify(original).length, JSON.stringify(committed).length);
+  expect(JSON.stringify(committed).length).toBeLessThanOrEqual(JSON.stringify(original).length * 2);
+  expect(committed.removed.every(id => original.strokes.some(s => s.id === id))).toBe(true);
+  expect(committed.strokes.filter(s => !original.strokes.some(o => o.id === s.id)).every(s => s.createdAt === '2026-10-01')).toBe(true);
+});
