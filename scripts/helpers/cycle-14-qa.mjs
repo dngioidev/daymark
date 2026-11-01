@@ -142,6 +142,30 @@ export async function assertSafeControls(page, state) {
 }
 
 export async function cycle14Qa({ run, fresh, check }) {
+  // Without a pen: select words with the mouse, then tap Highlighter.
+  await run('C14-SelectHighlight', async () => {
+    const now = new Date().toISOString();
+    const { page, errors } = await fresh({ notes: [{ id: 'c14-select', title: 'Select reading', content: 'Study these words today', folder: '', tags: [], pinned: false, createdAt: now, updatedAt: now }] });
+    await openNotes(page);
+    await page.getByRole('treeitem', { name: 'Select reading', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Note rich text', exact: true });
+    const [from, to] = await editor.evaluate(el => {
+      const text = [...el.querySelectorAll('p')].find(p => p.textContent.includes('Study these words today')).firstChild;
+      const edge = (offset, side) => { const range = document.createRange(); range.setStart(text, offset); range.setEnd(text, offset + 1); const r = range.getBoundingClientRect(); return { x: side === 'left' ? r.left + 1 : r.right - 1, y: r.y + r.height / 2 }; };
+      return [edge(6, 'left'), edge(16, 'right')];
+    });
+    await page.mouse.move(from.x, from.y); await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 8 }); await page.mouse.up();
+    check('C14-SelectHighlight', await editor.locator('mark').count() === 0, 'a mouse drag alone never highlights');
+    const highlighter = page.getByRole('button', { name: 'Highlighter', exact: true });
+    await highlighter.click();
+    await editor.locator('mark').waitFor();
+    check('C14-SelectHighlight', await editor.locator('mark').innerText() === 'these words', 'Highlighter highlights the selected words');
+    check('C14-SelectHighlight', await highlighter.getAttribute('aria-pressed') === 'false', 'highlighting a selection leaves the pen tool off');
+    await highlighter.click();
+    await editor.locator('mark').waitFor({ state: 'detached' });
+    check('C14-SelectHighlight', true, 'Highlighter on the same highlighted selection removes it');
+    check('C14-SelectHighlight-errors', errors.length === 0, 'no browser errors', errors.join(' | '));
+  });
   for (const viewport of [{ width: 1280, height: 800 }, { width: 800, height: 1280 }]) {
     await run(`C14-Inset-${viewport.width}`, async () => {
       const { page, errors } = await fresh();
