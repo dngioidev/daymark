@@ -82,17 +82,30 @@ export async function waitInk(page, count, noteId, timeout = 20000) {
     });
     try {
       const pages = await new Promise((resolve, reject) => {
-        const r = db.transaction('kv').objectStore('kv').get('ink'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+        // Ink is stored one IndexedDB key per page: ink:<noteId>:<page>.
+        const store = db.transaction('kv').objectStore('kv'); const keys = store.getAllKeys(); const values = store.getAll();
+        values.onsuccess = () => resolve(keys.result.map((key, i) => [key, values.result[i]]).filter(([key]) => String(key).startsWith('ink:')).map(([, value]) => value)); values.onerror = () => reject(values.error);
       });
       return (pages ?? []).some(p => (!noteId || p.noteId === noteId) && p.strokes.filter(s => !p.removed.includes(s.id)).length === count);
     } finally { db.close(); }
   }, { count, noteId }, { timeout, message: `waiting for ${count} stored strokes` });
 }
 
+/** All stored ink pages, collected from the per-page keys. */
+export async function readInk(page) {
+  return page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+    try { return await new Promise((resolve, reject) => {
+      const store = db.transaction('kv').objectStore('kv'); const keys = store.getAllKeys(); const values = store.getAll();
+      values.onsuccess = () => resolve(keys.result.map((key, i) => [key, values.result[i]]).filter(([key]) => String(key).startsWith('ink:')).map(([, value]) => value)); values.onerror = () => reject(values.error);
+    }); } finally { db.close(); }
+  });
+}
+
 export async function touchDoesNotDraw(page, noteId) {
   // Flush pending pen strokes first so the baseline includes them.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-  const before = await readStored(page, 'ink');
+  const before = await readInk(page);
   const box = await inkCanvas(page).boundingBox();
   const session = await page.context().newCDPSession(page);
   try {
@@ -102,7 +115,7 @@ export async function touchDoesNotDraw(page, noteId) {
   } finally { await session.detach(); }
   // Flush debounced ink writes before comparing, without a timing guess.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-  assert.deepEqual((await readStored(page, 'ink')).filter(p => p.noteId === noteId), before.filter(p => p.noteId === noteId), 'touch drag must not change ink');
+  assert.deepEqual((await readInk(page)).filter(p => p.noteId === noteId), before.filter(p => p.noteId === noteId), 'touch drag must not change ink');
 }
 
 export async function highlightWords(page) {

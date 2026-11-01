@@ -263,7 +263,6 @@ export function useSync(
       if (!opts?.force && failed) return 'needs-confirm-unreachable';
       if (!opts?.force && pendingChanges() > 0) return 'needs-confirm';
     }
-    if (mode === 'native' && !opts?.force && unsupported.current.has('ink') && pendingChanges() > 0) return 'needs-confirm';
     closing.current = true;
     epoch.current++;
     let logoutFailed = false;

@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { tsImport } from 'tsx/esm/api';
-import { createNotebook, writeTwoStrokes, readStored, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas } from './helpers/cycle-14-qa.mjs';
+import { createNotebook, writeTwoStrokes, readStored, readInk, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas } from './helpers/cycle-14-qa.mjs';
 import { signIn } from './helpers/server-session.mjs';
 import { pollUntil } from './helpers/poll.mjs';
 
@@ -522,8 +522,11 @@ try {
   await phone.getByRole('treeitem', { name: 'Cycle 14 study notebook', exact: true }).click();
   await inkCanvas(phone).waitFor();
   await waitInk(phone, 2, notebook.id);
-  const sentInk = (await readStored(laptop, 'ink')).filter(p => p.noteId === notebook.id);
-  const receivedInk = (await readStored(phone, 'ink')).filter(p => p.noteId === notebook.id);
+  await waitInk(laptop, 2, notebook.id); // the laptop's own save may still be inside its write window
+  // A union merge may store strokes in a different order; compare them by id.
+  const byId = pages => pages.filter(p => p.noteId === notebook.id).map(p => ({ ...p, strokes: [...p.strokes].sort((x, y) => x.id.localeCompare(y.id)) }));
+  const sentInk = byId(await readInk(laptop));
+  const receivedInk = byId(await readInk(phone));
   check(isDeepStrictEqual(sentInk, receivedInk), 'phone receives both strokes with their ids and points intact');
   check(await phone.getByRole('toolbar', { name: 'Writing tools', exact: true }).count() === 0
     && await inkCanvas(phone).evaluate(el => getComputedStyle(el).touchAction === 'pan-y'), 'phone without pen shows a read-only handwritten page');

@@ -486,3 +486,23 @@ it('warns once for unsupported ink, counts local-only pages, and requires sign-o
   expect(await run().signOut()).toBe('needs-confirm');
   expect(wipeLocalVault).not.toHaveBeenCalled();
 });
+
+it('native disconnect with unsupported ink completes and keeps the local vault, ink included', async () => {
+  vi.mocked(getHostMode).mockReturnValue('native');
+  vi.mocked(loadSyncState).mockReturnValue({ ...state, refreshToken: 'native-refresh' });
+  const local = { ...vault, ink: [{ noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: 'now' }] };
+  const original = fetchFn.getMockImplementation()!;
+  fetchFn.mockImplementation(async (url, init) => {
+    if (!url.endsWith('/sync')) return original(url, init);
+    const body = JSON.parse(String(init?.body));
+    if (body.changes.some((c: { key: string }) => c.key.startsWith('ink:'))) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    return Response.json({ rev: 2, entities: body.changes.map((c: object) => ({ ...c, rev: 2 })), conflicts: [] });
+  });
+  const run = () => { hooks.index = 0; return useSync(local, vi.fn(), vi.fn(), 'android'); };
+  await run().syncNow();
+  expect(run().pendingChanges()).toBe(1);
+  // Native disconnect keeps local data, so there is nothing to confirm; it must not silently do nothing.
+  expect(await run().signOut()).toBe('done');
+  expect(saveSyncState).toHaveBeenLastCalledWith(null);
+  expect(wipeLocalVault).not.toHaveBeenCalled();
+});
