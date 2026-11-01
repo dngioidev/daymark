@@ -1,8 +1,15 @@
 # Cycle 14: write with the pen, read everywhere
 
-Date: 2026-11-01 · Release: 1.11.0
+Date: 2026-11-01 · Release: 1.11.0, updated in 1.11.1
 
 Handwritten study pages now live beside your typed notes and travel through your own sync server.
+
+## 1.11.1 update
+
+- **Smoother pen writing:** saving a stroke no longer redraws the whole app, ink is drawn from the pen's raw position updates as they arrive, and a highlighter stroke repaints only its own area. In a test that slows the CPU four times to roughly match a tablet, 95% of pen points now appear within about 8 ms (was 15.5 ms) and pauses longer than 50 ms dropped from 8 to 1–3 per 20 strokes. No strokes are lost.
+- **New writing toolbar, like Samsung Notes:** one compact row with pen, highlighter and eraser icons, undo and redo, quick colours and page controls. Tap the active tool again for all colours and sizes, or the eraser mode. On narrow panes the page controls stay visible and only the colours scroll.
+- **Highlight without a pen:** on a laptop, phone or tablet, select words and tap **Highlighter** in the typed-note toolbar. Tap it again on the same words to remove the highlight; with text selected, a colour dot recolours it. With nothing selected, Highlighter still switches the S Pen drag mode on or off.
+- **Upgrading:** install `daymark-1.11.1.apk` over 1.11.0; no uninstall is needed (same signing key). Deploy the server as usual.
 
 ## What's changed
 
