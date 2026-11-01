@@ -59,3 +59,19 @@ it('persists eraser mode and reapplies the stored mode when selecting eraser', (
   click('Eraser'); expect(button('Erase by stroke', dialog()).getAttribute('aria-pressed')).toBe('true');
   click('Erase by area', dialog()); expect(readEraserMode()).toBe('area'); expect(p.onEraserModeChange).toHaveBeenLastCalledWith('area');
 });
+
+it('scrolls tools and history before quick colours while keeping page controls outside the scroller', () => {
+  const pageControls = React.createElement('div', { 'data-page-controls': true }, React.createElement('button', { 'aria-label': 'Add page' }));
+  act(() => root.render(React.createElement(InkToolbar, { ...props(), pageControls })));
+  const scroller = host.querySelector('.overflow-x-auto')!;
+  expect(scroller.contains(button('Add page'))).toBe(false);
+  expect(scroller.nextElementSibling).toBe(host.querySelector('[data-page-controls]'));
+  expect(scroller.classList.contains('min-w-0')).toBe(true);
+  expect(scroller.classList.contains('flex-1')).toBe(true);
+  expect([...scroller.querySelectorAll('button')].map(b => b.getAttribute('aria-label'))).toEqual([
+    'Pen', 'Highlighter', 'Eraser', 'Undo', 'Redo',
+    'Colour #1c1917', 'Colour #1d4ed8', 'Colour #b91c1c', 'Colour #15803d',
+  ]);
+  click('Pen');
+  expect(scroller.contains(dialog())).toBe(false);
+});

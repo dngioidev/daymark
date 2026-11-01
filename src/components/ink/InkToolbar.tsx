@@ -18,7 +18,7 @@ export function readEraserMode(): EraserMode {
   try { return localStorage.getItem('dm.ink.eraserMode') === 'stroke' ? 'stroke' : 'area'; } catch { return 'area'; }
 }
 
-export const inkToolbarSurface = 'sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 pt-[var(--dm-safe-top,0px)] text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100';
+export const inkToolbarSurface = 'sticky top-0 z-10 shrink-0 border-b border-stone-200 bg-stone-50 text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100';
 export const inkToolbarButton = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-500 disabled:opacity-30 dark:hover:bg-stone-800';
 const selectedStyle = 'bg-stone-200 dark:bg-stone-700';
 const tools = [{ tool: 'pen', label: 'Pen', Icon: PenLine }, { tool: 'highlighter', label: 'Highlighter', Icon: Highlighter }, { tool: 'eraser', label: 'Eraser', Icon: Eraser }] as const;
@@ -53,23 +53,25 @@ export function InkToolbar(props: InkToolbarProps) {
     <span aria-hidden="true" className={`h-5 w-5 rounded-full border border-stone-400 ${props.color === color ? 'ring-2 ring-stone-500 ring-offset-2 ring-offset-stone-50 dark:ring-stone-300 dark:ring-offset-stone-900' : ''}`} style={{ backgroundColor: color }} />
   </button>);
   return <div ref={surface} role="toolbar" aria-label="Writing tools" className={inkToolbarSurface}>
-    <div className="flex flex-nowrap items-center gap-1 overflow-x-auto p-2">
-      <div className="flex shrink-0 items-center gap-1">
-        {tools.map(({ tool, label, Icon }) => <button key={tool} type="button" aria-label={label} title={label} aria-pressed={props.tool === tool}
-          aria-haspopup="dialog" aria-expanded={props.tool === tool && open} aria-controls={props.tool === tool && open ? id : undefined}
-          className={`${inkToolbarButton} ${props.tool === tool ? selectedStyle : ''}`}
-          onClick={event => {
-            if (props.tool !== tool) { setSettings(null); props.onToolChange(tool); if (tool === 'eraser') props.onEraserModeChange(mode); return; }
-            if (open) { close(); return; }
-            trigger.current = event.currentTarget;
-            const left = event.currentTarget.getBoundingClientRect().left - (surface.current?.getBoundingClientRect().left ?? 0);
-            setSettings({ tool, left: Math.max(0, Math.min(left, (surface.current?.clientWidth ?? 240) - 240)) });
-          }}><Icon size={21} aria-hidden="true" /></button>)}
-      </div>
-      {props.tool !== 'eraser' && <div className="flex shrink-0 items-center border-l border-stone-300 pl-1 dark:border-stone-700">{colorButtons()}</div>}
-      <div className="flex shrink-0 items-center border-l border-stone-300 pl-1 dark:border-stone-700">
-        <button type="button" aria-label="Undo" title="Undo" className={inkToolbarButton} disabled={!props.canUndo} onClick={props.onUndo}><Undo2 size={20} aria-hidden="true" /></button>
-        <button type="button" aria-label="Redo" title="Redo" className={inkToolbarButton} disabled={!props.canRedo} onClick={props.onRedo}><Redo2 size={20} aria-hidden="true" /></button>
+    <div className="flex flex-nowrap items-center gap-1 p-2">
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto">
+        <div className="flex shrink-0 items-center gap-1">
+          {tools.map(({ tool, label, Icon }) => <button key={tool} type="button" aria-label={label} title={label} aria-pressed={props.tool === tool}
+            aria-haspopup="dialog" aria-expanded={props.tool === tool && open} aria-controls={props.tool === tool && open ? id : undefined}
+            className={`${inkToolbarButton} ${props.tool === tool ? selectedStyle : ''}`}
+            onClick={event => {
+              if (props.tool !== tool) { setSettings(null); props.onToolChange(tool); if (tool === 'eraser') props.onEraserModeChange(mode); return; }
+              if (open) { close(); return; }
+              trigger.current = event.currentTarget;
+              const left = event.currentTarget.getBoundingClientRect().left - (surface.current?.getBoundingClientRect().left ?? 0);
+              setSettings({ tool, left: Math.max(0, Math.min(left, (surface.current?.clientWidth ?? 240) - 240)) });
+            }}><Icon size={21} aria-hidden="true" /></button>)}
+        </div>
+        <div className="flex shrink-0 items-center border-l border-stone-300 pl-1 dark:border-stone-700">
+          <button type="button" aria-label="Undo" title="Undo" className={inkToolbarButton} disabled={!props.canUndo} onClick={props.onUndo}><Undo2 size={20} aria-hidden="true" /></button>
+          <button type="button" aria-label="Redo" title="Redo" className={inkToolbarButton} disabled={!props.canRedo} onClick={props.onRedo}><Redo2 size={20} aria-hidden="true" /></button>
+        </div>
+        {props.tool !== 'eraser' && <div className="flex shrink-0 items-center border-l border-stone-300 pl-1 dark:border-stone-700">{colorButtons()}</div>}
       </div>
       {props.pageControls}
     </div>

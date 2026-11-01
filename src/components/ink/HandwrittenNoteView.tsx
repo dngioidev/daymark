@@ -44,7 +44,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage }: Ha
   };
   const color = tool === 'highlighter' ? highlightColor : penColor;
   const width = tool === 'highlighter' ? highlightWidth : tool === 'eraser' ? 24 : penWidth;
-  const pageControls = <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-stone-300 pl-2 dark:border-stone-700">
+  const pageControls = <div className="flex shrink-0 items-center gap-1 border-l border-stone-300 pl-2 dark:border-stone-700">
     <button type="button" aria-label="Previous page" title="Previous page" className={inkToolbarButton} disabled={number === 0} onClick={() => navigate(number - 1)}><ChevronLeft size={20} aria-hidden="true" /></button>
     <span role="status" className="whitespace-nowrap text-xs tabular-nums">
       <span aria-hidden="true">{number + 1} / {count}</span><span className="sr-only">Page {number + 1} of {count}</span>
@@ -66,7 +66,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage }: Ha
         onWidthChange={tool === 'highlighter' ? setHighlightWidth : setPenWidth}
         onEraserModeChange={setEraserMode} onUndo={() => canvas.current?.undo()} onRedo={() => canvas.current?.redo()}
         canUndo={history.undo} canRedo={history.redo} pageControls={pageControls} />
-        : <div role="toolbar" aria-label="Page navigation" className={inkToolbarSurface}><div className="flex flex-nowrap items-center overflow-x-auto p-2">{pageControls}</div></div>}
+        : <div role="toolbar" aria-label="Page navigation" className={inkToolbarSurface}><div className="flex flex-nowrap items-center justify-end p-2">{pageControls}</div></div>}
       <div className="p-2">
         {/* A single fixed page is mounted; turning pages releases its canvas buffers. */}
         {writable ? <InkCanvas key={`${note.id}:${number}`} ref={canvas} page={page} paper={note.paper}

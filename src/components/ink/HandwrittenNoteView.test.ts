@@ -121,7 +121,12 @@ it('follows App ink store pages and never hands a stale pages prop to the canvas
 it('keeps page controls in the writing row above the page, with a sticky opaque surface', () => {
   localStorage.setItem('dm.ink.penSeen', '1'); mount(5);
   const toolbar = host.querySelector('[aria-label="Writing tools"]')!;
-  for (const label of ['Previous page', 'Next page', 'Add page']) expect(toolbar.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+  for (const label of ['Previous page', 'Next page', 'Add page']) {
+    const control = toolbar.querySelector(`[aria-label="${label}"]`);
+    expect(control).not.toBeNull();
+    expect(control!.closest('.overflow-x-auto')).toBeNull();
+  }
+  expect(toolbar.querySelector('[role="status"]')!.closest('.overflow-x-auto')).toBeNull();
   expect(toolbar.textContent).toContain('1 / 5');
   expect(toolbar.className).toContain('sticky'); expect(toolbar.className).toContain('bg-stone-50');
   expect(toolbar.parentElement!.className).toContain('overflow-y-auto');
@@ -141,4 +146,14 @@ it('opens and closes settings without rendering the notebook or its canvas', () 
   click('Pen'); expect(host.querySelector('[role="dialog"]')).not.toBeNull();
   act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   expect(paper).toHaveBeenCalledTimes(reads); expect(host.querySelector('canvas')).toBe(canvas);
+});
+
+it.each([false, true])('reserves no extra safe-top band in the embedded toolbar (writable=%s)', writable => {
+  if (writable) localStorage.setItem('dm.ink.penSeen', '1');
+  host.style.setProperty('--dm-safe-top', '23px');
+  mount(2);
+  const toolbar = host.querySelector<HTMLElement>('[role="toolbar"]')!;
+  expect(toolbar.className).not.toContain('--dm-safe-top');
+  expect(toolbar.style.paddingTop).toBe('');
+  expect(toolbar.classList.contains('top-0')).toBe(true);
 });
