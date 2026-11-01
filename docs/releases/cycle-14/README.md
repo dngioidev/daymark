@@ -26,7 +26,7 @@ For the person building releases: back up the keystore and its passwords securel
 
 ## Screenshots
 
-These image paths are produced by `node scripts/capture-screenshots.mjs cycle-14`. Capture and visual review are pending the controller's run; browser scenes are not evidence of real-device writing feel.
+Screenshots come from `node scripts/capture-screenshots.mjs cycle-14` in a desktop browser; they show the layout, not how writing feels on a real tablet.
 
 | Screen | Image |
 | :--- | :--- |

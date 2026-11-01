@@ -574,7 +574,9 @@ async function functional() {
         return { width: r.width, content: m.width, rows: [...nav.children].map(el => el.getBoundingClientRect().height), overlap: r.right - m.left, overflow: document.documentElement.scrollWidth - innerWidth };
       });
       expect(layout.width === 168 && layout.content >= ENVS[env].viewport.width - 169 && layout.overlap <= 1 && layout.overflow <= 1, JSON.stringify(layout));
-      expect(layout.rows.length === 5 && Math.max(...layout.rows) - Math.min(...layout.rows) <= 1, `unequal rail rows: ${JSON.stringify(layout.rows)}`);
+      // The four lower parts stay equal; Title may grow only to fit its tools and the safe inset (cycle 14).
+      const lower = layout.rows.slice(1);
+      expect(layout.rows.length === 5 && Math.max(...lower) - Math.min(...lower) <= 1 && layout.rows[0] >= Math.min(...lower) - 1 && layout.rows[0] - Math.min(...lower) <= 8, `unequal rail rows: ${JSON.stringify(layout.rows)}`);
       await openSettings(page, 'Appearance');
       await dialog(page, 'Settings').getByRole('button', { name: 'Right', exact: true }).click();
       await dialog(page, 'Settings').getByRole('button', { name: 'Close', exact: true }).click();

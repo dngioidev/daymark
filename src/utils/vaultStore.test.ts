@@ -683,6 +683,23 @@ describe('ink written just before the page unloads', () => {
     }, true);
   });
 
+  it('copies only the pages edited since start, even when a sync rebuilt the page objects', async () => {
+    const win = new EventTarget();
+    vi.stubGlobal('window', win);
+    await habitStoreTest(async ({ raw, values, unload }) => {
+      const notebook = Array.from({ length: 50 }, (_, n) => ({ ...page(['a']), page: n }));
+      raw.set('ink', notebook);
+      const store = await reopen();
+      // Every page is a fresh object (as after a sync); only page 7 has a new edit.
+      store.saveInkPages(notebook.map(p => p.page === 7 ? { ...page(['a', 'b']), page: 7, updatedAt: 'later' } : { ...p }));
+      unload();
+      win.dispatchEvent(new Event('pagehide'));
+      const copy = JSON.parse(values.get('daymark_ink_unsaved_v1') as string);
+      expect(copy.map((p: { page: number }) => p.page)).toEqual([7]);
+      unload(false);
+    }, true);
+  });
+
   it('merges the unload copy with newer stored ink instead of replacing it', async () => {
     const win = new EventTarget();
     vi.stubGlobal('window', win);

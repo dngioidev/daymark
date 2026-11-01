@@ -216,6 +216,8 @@ export async function initVaultStore(): Promise<void> {
     }
 
     await replayInkJournal(db);
+    // What IndexedDB holds now counts as committed, so an early close copies only new edits.
+    lastCommittedInk = readInkPages();
 
     // Ask the browser not to evict the vault under storage pressure
     navigator.storage?.persist?.().catch(() => undefined);
@@ -508,8 +510,11 @@ async function replayInkJournal(database: IDBDatabase): Promise<void> {
 function journalUncommittedInk(): void {
   const latest = lastWrittenInk;
   if (!latest || latest === lastCommittedInk || storageMode !== 'indexeddb') return;
-  const committed = new Set(lastCommittedInk ?? []);
-  const changed = latest.filter(page => !committed.has(page));
+  // Compare by page and edit time, not identity: a sync can rebuild unchanged page objects,
+  // and copying every page of a large notebook could exceed the localStorage quota.
+  const version = (page: InkPage) => `${inkKey(page.noteId, page.page)}@${page.updatedAt}`;
+  const committed = new Set((lastCommittedInk ?? []).map(version));
+  const changed = latest.filter(page => !committed.has(version(page)));
   if (!changed.length) return;
   try {
     const earlier = readInkJournal() ?? [];
