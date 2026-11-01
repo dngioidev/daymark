@@ -22,6 +22,7 @@ COPY --from=build /app/server.ts ./
 COPY --from=build /app/src/sync ./src/sync
 COPY --from=build /app/src/types ./src/types
 COPY --from=build /app/src/utils ./src/utils
+COPY --from=build /app/src/ink ./src/ink
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]
