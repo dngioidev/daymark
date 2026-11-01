@@ -1,6 +1,6 @@
 import type { Node } from '@tiptap/pm/model';
 import type { Editor } from '@tiptap/core';
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { AllSelection, Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { closeHistory } from '@tiptap/pm/history';
 import { startFingerScroll } from '../ink/inkSurface';
@@ -10,10 +10,16 @@ const wordPattern = /[\p{L}\p{N}\p{M}_]+(?:['’][\p{L}\p{N}\p{M}_]+)*/gu;
 
 /** Selection ends are exclusive; whitespace alone never pulls in a neighbour. */
 export function wordRangeForSelection(doc: Node, start: number, end: number): { from: number; to: number } | null {
-  let from = Infinity;
-  let to = -Infinity;
+  const ranges = wordRangesForSelection(doc, start, end);
+  return ranges.length ? { from: ranges[0].from, to: ranges[ranges.length - 1].to } : null;
+}
+
+function wordRangesForSelection(doc: Node, start: number, end: number): { from: number; to: number }[] {
+  const ranges: { from: number; to: number }[] = [];
   doc.nodesBetween(start, end, (node, position) => {
     if (!node.isTextblock || node.type.spec.code) return;
+    let from = Infinity;
+    let to = -Infinity;
     const text = node.textBetween(0, node.content.size, '', '\ufffc');
     for (const word of text.matchAll(wordPattern)) {
       const wordStart = position + 1 + word.index;
@@ -23,20 +29,33 @@ export function wordRangeForSelection(doc: Node, start: number, end: number): { 
         to = Math.max(to, wordEnd);
       }
     }
+    if (from < to) ranges.push({ from, to });
     return false;
   });
-  return from < to ? { from, to } : null;
+  return ranges;
 }
 
-function applyHighlightRange(editor: Editor, range: { from: number; to: number }, color: string, toggle: boolean) {
+function selectionHighlightRanges({ selection, doc }: EditorState) {
+  if (selection.empty || !(selection instanceof TextSelection || selection instanceof AllSelection)) return [];
+  return wordRangesForSelection(doc, selection.from, selection.to);
+}
+
+export function hasHighlightableSelection(editor: Editor): boolean {
+  return selectionHighlightRanges(editor.state).length > 0;
+}
+
+function applyHighlightRanges(editor: Editor, ranges: { from: number; to: number }[], color: string, toggle: boolean) {
   let sameColor = true;
-  editor.state.doc.nodesBetween(range.from, range.to, node => {
+  for (const range of ranges) editor.state.doc.nodesBetween(range.from, range.to, node => {
     if (node.isText && !node.marks.some(mark => mark.type.name === 'highlight' && mark.attrs.color === color)) sameColor = false;
   });
   const { selection, storedMarks } = editor.state;
-  const chain = editor.chain().setTextSelection(range);
-  if (toggle && sameColor) chain.unsetHighlight();
-  else chain.setHighlight({ color });
+  const chain = editor.chain();
+  for (const range of ranges) {
+    chain.setTextSelection(range);
+    if (toggle && sameColor) chain.unsetHighlight();
+    else chain.setHighlight({ color });
+  }
   chain.command(({ tr }) => {
     tr.setSelection(selection.map(tr.doc, tr.mapping)).setStoredMarks(storedMarks);
     closeHistory(tr);
@@ -46,11 +65,13 @@ function applyHighlightRange(editor: Editor, range: { from: number; to: number }
   editor.view.dispatch(closeHistory(editor.state.tr));
 }
 
-export function highlightSelection(editor: Editor, color: string, toggle = true): void {
-  const { selection, doc } = editor.state;
-  if (!editor.isEditable || !(selection instanceof TextSelection) || selection.empty) return;
-  const range = wordRangeForSelection(doc, selection.from, selection.to);
-  if (range) applyHighlightRange(editor, range, color, toggle);
+export function highlightSelection(editor: Editor, color: string, toggle = true): boolean {
+  if (!editor.isEditable) return false;
+  const ranges = selectionHighlightRanges(editor.state);
+  if (!ranges.length) return false;
+  // Keep separate block ranges so select-all never marks intervening code blocks.
+  applyHighlightRanges(editor, ranges, color, toggle);
+  return true;
 }
 
 export function wordRangeForStroke(doc: Node, positions: number[]): { from: number; to: number } | null {
@@ -150,7 +171,7 @@ export function attachPenHighlighter(editor: Editor, color: string): () => void 
     const dragged = stroke.moved;
     cancel();
     if (!range || !dragged) return;
-    applyHighlightRange(editor, range, color, true);
+    applyHighlightRanges(editor, [range], color, true);
   };
   const interrupted = (event: PointerEvent) => {
     if (touch?.id === event.pointerId) stopTouch();

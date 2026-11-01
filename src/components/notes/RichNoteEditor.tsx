@@ -103,8 +103,8 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   return <div className="flex flex-1 min-h-0 min-w-0 flex-col">
     <EditorToolbar editor={editor} onToggleMarkdown={onToggleMarkdown} highlighterOn={highlighterOn} highlighterColor={highlighterColor}
       onToggleHighlighter={() => {
-        if (!editor.state.selection.empty) highlightSelection(editor, highlighterColor);
-        else setHighlighter({ editor, on: !highlighterOn, color: highlighterColor });
+        if (highlighterOn) setHighlighter({ editor, on: false, color: highlighterColor });
+        else if (!highlightSelection(editor, highlighterColor)) setHighlighter({ editor, on: true, color: highlighterColor });
       }}
       onHighlighterColor={color => {
         setHighlighter({ editor, on: highlighterOn, color });

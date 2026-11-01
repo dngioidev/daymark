@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import RichNoteEditor from './RichNoteEditor';
 import type { Editor } from '@tiptap/core';
+import { AllSelection, NodeSelection } from '@tiptap/pm/state';
 import { readFileSync } from 'node:fs';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -72,12 +73,60 @@ it.each([1024, 390])('toggles and recolours a word-snapped selection without ena
   expect(button().getAttribute('aria-pressed')).toBe('true');
   expect(dot()!.getAttribute('aria-pressed')).toBe('true');
   await act(async () => editor.commands.setTextSelection({ from: 7, to: 25 }));
-  await act(async () => button().click());
+  await act(async () => dot()!.click());
   expect(editor.getMarkdown()).toBe(green);
   expect(button().getAttribute('aria-pressed')).toBe('true');
+  await act(async () => editor.commands.undo());
+  expect(editor.getMarkdown()).toBe('Study learning and taking notes');
   await act(async () => button().click());
   expect(editor.getMarkdown()).toBe('Study learning and taking notes');
-  expect(button().getAttribute('aria-pressed')).toBe('true');
+  expect(button().getAttribute('aria-pressed')).toBe('false');
+  await act(async () => button().click());
+  expect(editor.getMarkdown()).toBe(green);
+  expect(button().getAttribute('aria-pressed')).toBe('false');
+  await act(async () => root.unmount());
+});
+
+it('highlights AllSelection across textblocks while skipping code, with one-step undo', async () => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const markdown = 'First words\n\n```\nleave code plain\n```\n\nLast words';
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: 'select-all', markdown, onChange() {}, onOpenLink() {}, notes: [], onCreateNote: () => '',
+  })));
+  const editor = core(host);
+  await act(async () => editor.view.dispatch(editor.state.tr.setSelection(new AllSelection(editor.state.doc))));
+  const button = host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!;
+  expect(host.querySelector('[aria-label="Highlighter colour #86efac"]')).not.toBeNull();
+  await act(async () => button.click());
+  expect(editor.view.dom.querySelectorAll('mark')).toHaveLength(2);
+  expect(editor.view.dom.querySelector('pre mark')).toBeNull();
+  expect(editor.getMarkdown()).toBe('<mark data-color="#fde047" style="background-color: #fde047">First words</mark>\n\n```\nleave code plain\n```\n\n<mark data-color="#fde047" style="background-color: #fde047">Last words</mark>');
+  expect(editor.state.selection).toBeInstanceOf(AllSelection);
+  expect(button.getAttribute('aria-pressed')).toBe('false');
+  await act(async () => editor.commands.undo());
+  expect(editor.getMarkdown()).toBe(markdown);
+  await act(async () => root.unmount());
+});
+
+it.each(['node', 'whitespace', 'code'] as const)('toggles pen mode for a non-highlightable %s selection with dots hidden while off', async kind => {
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const markdown = kind === 'node' ? '---\n\nWords' : kind === 'code' ? '```\ncode words\n```\n\nPlain tail' : 'Study learning';
+  await act(async () => root.render(React.createElement(RichNoteEditor, {
+    noteId: kind, markdown, onChange() {}, onOpenLink() {}, notes: [], onCreateNote: () => '',
+  })));
+  const editor = core(host);
+  await act(async () => {
+    if (kind === 'node') editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 0)));
+    else editor.commands.setTextSelection(kind === 'code' ? { from: 1, to: 11 } : { from: 6, to: 7 });
+  });
+  const button = host.querySelector<HTMLButtonElement>('[aria-label="Highlighter"]')!;
+  expect(host.querySelector('[aria-label="Highlighter colour #86efac"]')).toBeNull();
+  await act(async () => button.click());
+  expect(button.getAttribute('aria-pressed')).toBe('true');
+  await act(async () => button.click());
+  expect(button.getAttribute('aria-pressed')).toBe('false');
+  expect(host.querySelector('[aria-label="Highlighter colour #86efac"]')).toBeNull();
+  expect(editor.getMarkdown()).toBe(markdown);
   await act(async () => root.unmount());
 });
 
