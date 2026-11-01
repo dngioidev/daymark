@@ -6,7 +6,7 @@ Handwritten study pages now live beside your typed notes and travel through your
 
 ## What's changed
 
-- **Handwritten notebooks:** open Note templates beside New note, choose Handwritten note, then lined, grid or blank paper. Use pressure-sensitive pens, a highlighter and an eraser with area and whole-stroke modes. Undo, Redo and page controls keep writing manageable. Notes keep their folders, titles and pins; the column shows a pen icon and page count.
+- **Handwritten notebooks:** open the ▾ menu beside New note, choose Handwritten note, then lined, grid or blank paper. Use pressure-sensitive pens, a highlighter and an eraser with area and whole-stroke modes. Undo, Redo and page controls keep writing manageable. Notes keep their folders, titles and pins; the column shows a pen icon and page count.
 - **Read on your other devices:** devices without pen input open handwritten pages read only. Pen input enables writing tools. Ink syncs page by page; concurrent strokes are kept together. ZIP and JSON backups include ink; Markdown export carries a short placeholder. Older apps keep syncing without erasing the ink, but need updating to view it.
 - **Highlight typed notes with the S Pen:** turn on Highlighter in the note toolbar, choose a colour and drag across words. The highlight snaps to those words and stays with them through edits and sync. Turn the tool off for ordinary pen behaviour. With the highlighter on, a finger only scrolls the note; mouse behaviour stays as usual. Turn the tool off to tap or select text with a finger.
 - **Tablet controls clear the status bar:** top controls reserve the Android inset in portrait and landscape, including Notes navigation, dialogs and the graph.
@@ -43,7 +43,6 @@ Screenshots come from `node scripts/capture-screenshots.mjs cycle-14` in a deskt
 
 - The first pen touch on a read-only page switches it to writing; that touch does not draw. Touch again to start writing.
 - With the typed-note highlighter on, a finger only scrolls the note. Turn it off to tap or select text with a finger.
-
 - Ink drawing runs in the app's WebView. The owner's trial on the Samsung tablet is the final acceptance, and the APK has not been tried on a real device. Browser pointer checks cannot establish real S Pen latency or palm rejection.
 - Daymark 1.10.0 keeps typed-note highlights when it edits a note, but shows them as raw `<mark>` tags instead of colours; update every device to 1.11.
 - Finger scrolling on a page you can write on has no momentum, and pinch zoom is off on writable pages.
