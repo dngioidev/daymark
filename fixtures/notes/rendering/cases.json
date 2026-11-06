@@ -1,0 +1,1442 @@
+[
+  {
+    "id": "divider-dash3",
+    "family": "dividers",
+    "sourceFile": "divider-dash3.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "divider-dash4",
+    "family": "dividers",
+    "sourceFile": "divider-dash4.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "divider-star",
+    "family": "dividers",
+    "sourceFile": "divider-star.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "divider-underscore",
+    "family": "dividers",
+    "sourceFile": "divider-underscore.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "divider-spaced",
+    "family": "dividers",
+    "sourceFile": "divider-spaced.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First section",
+        "Last section"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "First section",
+        "Last section"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "divider-middle",
+    "family": "dividers",
+    "sourceFile": "divider-middle.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Intro",
+        "Time: noon",
+        "End"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": [
+        "Time: noon"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Intro",
+        "Time: noon",
+        "End"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Intro",
+        "Time: noon",
+        "End"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "setext-heading",
+    "family": "headings",
+    "sourceFile": "setext-heading.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Title",
+        "Body under setext"
+      ],
+      "elements": [
+        {
+          "selector": "h2",
+          "count": 1
+        },
+        {
+          "selector": "hr",
+          "count": 0
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Title",
+        "Body under setext"
+      ],
+      "elements": [
+        {
+          "selector": "h2",
+          "count": 1
+        },
+        {
+          "selector": "hr",
+          "count": 0
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Title",
+        "Body under setext"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-closed",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-closed.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Body after header"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "title: Example"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Body after header",
+        "Example"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Body after header"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-unclosed",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-unclosed.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Unclosed header",
+        "Keep this note"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Unclosed header",
+        "Keep this note"
+      ],
+      "elements": [
+        {
+          "selector": "hr",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "title: Unclosed header",
+        "Keep this note"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-prose-line",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-prose-line.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "title: Example",
+        "ordinary prose",
+        "Body"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "title: Example",
+        "ordinary prose",
+        "Body"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "ordinary prose",
+        "Body"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-space-key",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-space-key.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Body"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "note title: Keep me"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Body",
+        "Keep me"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Body"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-unicode-key",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-unicode-key.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Thân bài"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "tiêu đề: Giữ nguyên"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Thân bài",
+        "Giữ nguyên"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Thân bài"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-crlf",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-crlf.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Body crlf"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "title: CRLF"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Body crlf",
+        "CRLF"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Body crlf"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "frontmatter-dots-close",
+    "family": "frontmatter",
+    "sourceFile": "frontmatter-dots-close.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Body dots"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "title: Dots"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Body dots",
+        "Dots"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Body dots"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "text-headings",
+    "family": "text",
+    "sourceFile": "text-headings.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Heading one",
+        "Heading two",
+        "Heading six",
+        "Paragraph one.",
+        "Việt Nam",
+        "😀",
+        "5 < 6 & 7 > 3"
+      ],
+      "elements": [
+        {
+          "selector": "h1",
+          "count": 1
+        },
+        {
+          "selector": "h2",
+          "count": 1
+        },
+        {
+          "selector": "h6",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "Heading one",
+        "Heading two",
+        "Heading six",
+        "Paragraph one.",
+        "Việt Nam",
+        "😀",
+        "5 < 6 & 7 > 3"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Heading one",
+        "Heading two",
+        "Heading six",
+        "Paragraph one.",
+        "Việt Nam",
+        "😀",
+        "5 < 6 & 7 > 3"
+      ],
+      "elements": [
+        {
+          "selector": "h1",
+          "count": 1
+        },
+        {
+          "selector": "h2",
+          "count": 1
+        },
+        {
+          "selector": "h6",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Heading one",
+        "Heading two",
+        "Heading six",
+        "Paragraph one.",
+        "Việt Nam",
+        "😀",
+        "5 < 6 & 7 > 3"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "line-breaks",
+    "family": "text",
+    "sourceFile": "line-breaks.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Line one",
+        "Line two soft",
+        "Hard break above"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Line one",
+        "Line two soft",
+        "Hard break above"
+      ],
+      "elements": [
+        {
+          "selector": "br",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Line one",
+        "Hard break above"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "inline-marks",
+    "family": "inline",
+    "sourceFile": "inline-marks.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Bold",
+        "italic",
+        "strike",
+        "code",
+        "snake_case_word",
+        "*escaped*"
+      ],
+      "elements": [
+        {
+          "selector": "strong",
+          "count": 2
+        },
+        {
+          "selector": "em",
+          "count": 2
+        },
+        {
+          "selector": "s",
+          "count": 1
+        },
+        {
+          "selector": "code",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "snake_case_word"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Bold",
+        "snake_case_word",
+        "*escaped*"
+      ],
+      "elements": [
+        {
+          "selector": "strong",
+          "count": 2
+        },
+        {
+          "selector": "em",
+          "count": 2
+        },
+        {
+          "selector": "code",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Bold",
+        "snake_case_word"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "lists",
+    "family": "lists",
+    "sourceFile": "lists.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "First",
+        "Nested",
+        "Deep",
+        "Three",
+        "Four"
+      ],
+      "elements": [
+        {
+          "selector": "ul",
+          "count": 3
+        },
+        {
+          "selector": "ol[start=\"3\"]",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "First",
+        "Nested",
+        "Deep",
+        "Three",
+        "Four"
+      ],
+      "elements": [
+        {
+          "selector": "ul",
+          "count": 3
+        },
+        {
+          "selector": "ol[start=\"3\"]",
+          "count": 1
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Nested",
+        "Deep",
+        "Three"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "checklist",
+    "family": "checklists",
+    "sourceFile": "checklist.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Todo",
+        "Nested done",
+        "Done"
+      ],
+      "elements": [
+        {
+          "selector": "li[data-checked]",
+          "count": 3
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Todo",
+        "Nested done",
+        "Done"
+      ],
+      "elements": [
+        {
+          "selector": "input[type=\"checkbox\"]",
+          "count": 3
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Todo",
+        "Nested done"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "blockquote",
+    "family": "blockquotes",
+    "sourceFile": "blockquote.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Quote line one",
+        "second line",
+        "nested quote"
+      ],
+      "elements": [
+        {
+          "selector": "blockquote",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Quote line one",
+        "second line",
+        "nested quote"
+      ],
+      "elements": [
+        {
+          "selector": "blockquote",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "nested quote"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "callouts",
+    "family": "callouts",
+    "sourceFile": "callouts.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Custom title",
+        "Body of note",
+        "Careful"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "> [!NOTE] Custom title",
+        "> [!WARNING]"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Custom title",
+        "Body of note",
+        "Warning",
+        "Careful"
+      ],
+      "elements": [
+        {
+          "selector": ".daymark-callout",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "Body of note",
+        "Careful"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "links",
+    "family": "links",
+    "sourceFile": "links.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Safe",
+        "mail",
+        "anchor",
+        "rel",
+        "bad"
+      ],
+      "elements": [
+        {
+          "selector": "a[href=\"https://example.com\"]",
+          "count": 1
+        },
+        {
+          "selector": "a[href^=\"javascript:\"]",
+          "count": 0
+        }
+      ],
+      "sourceTokens": [
+        "https://example.com",
+        "mailto:a@b.co"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Safe",
+        "mail",
+        "anchor",
+        "rel",
+        "bad"
+      ],
+      "elements": [
+        {
+          "selector": "a[href=\"https://example.com\"]",
+          "count": 1
+        },
+        {
+          "selector": "a[href^=\"javascript:\"]",
+          "count": 0
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "https://example.com",
+        "mailto:a@b.co"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "wikilinks",
+    "family": "wiki links",
+    "sourceFile": "wikilinks.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Another Note",
+        "2026-10-25",
+        "alias",
+        "Bold Link",
+        "[[Literal Code]]"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "[[Another Note]]",
+        "[[2026-10-25]]",
+        "[[Note|alias]]",
+        "`[[Literal Code]]`"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Another Note",
+        "2026-10-25",
+        "Bold Link",
+        "[[Literal Code]]"
+      ],
+      "elements": [
+        {
+          "selector": "button[data-internal-note]",
+          "count": 4
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "[[Another Note]]",
+        "[[Note|alias]]",
+        "`[[Literal Code]]`"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "images",
+    "family": "images",
+    "sourceFile": "images.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Picture unavailable"
+      ],
+      "elements": [
+        {
+          "selector": "img:not(.ProseMirror-separator)",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "daymark-asset:missing-1",
+        "https://example.invalid/pic.png"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [],
+      "elements": [
+        {
+          "selector": "img",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "daymark-asset:missing-1"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "tables",
+    "family": "tables",
+    "sourceFile": "tables.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Left",
+        "Center",
+        "Right",
+        "a",
+        "b",
+        "pipe"
+      ],
+      "elements": [
+        {
+          "selector": "table",
+          "count": 1
+        },
+        {
+          "selector": "th",
+          "count": 3
+        },
+        {
+          "selector": "td",
+          "count": 3
+        }
+      ],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Left",
+        "Center",
+        "Right",
+        "a",
+        "b",
+        "pipe"
+      ],
+      "elements": [
+        {
+          "selector": "table",
+          "count": 1
+        },
+        {
+          "selector": "th",
+          "count": 3
+        },
+        {
+          "selector": "td",
+          "count": 3
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "| Left | Center | Right |"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "code",
+    "family": "code",
+    "sourceFile": "code.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "const answer = 42;",
+        "exact syntax",
+        "tilde fence",
+        "> [!NOTE] not a callout",
+        "[[Not Link]]"
+      ],
+      "elements": [
+        {
+          "selector": ".daymark-callout",
+          "count": 0
+        }
+      ],
+      "sourceTokens": [
+        "```unknown-language extra=keep",
+        "  exact syntax",
+        "[[Not Link]]"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "const answer = 42;",
+        "exact syntax",
+        "tilde fence",
+        "> [!NOTE] not a callout",
+        "[[Not Link]]"
+      ],
+      "elements": [
+        {
+          "selector": "pre",
+          "count": 4
+        },
+        {
+          "selector": ".daymark-callout",
+          "count": 0
+        },
+        {
+          "selector": "button[data-internal-note]",
+          "count": 0
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "const answer = 42;",
+        "exact syntax",
+        "tilde fence",
+        "> [!NOTE] not a callout",
+        "[[Not Link]]"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "mermaid",
+    "family": "mermaid",
+    "sourceFile": "mermaid.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "After diagram.",
+        "After invalid."
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "graph TD; A-->B",
+        "this is not valid ((( mermaid"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "After diagram.",
+        "After invalid."
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "graph TD; A-->B",
+        "After invalid."
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "highlights",
+    "family": "highlights",
+    "sourceFile": "highlights.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "highlight",
+        "coloured"
+      ],
+      "elements": [
+        {
+          "selector": "mark",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "<mark>highlight</mark>",
+        "background-color: #fde68a"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "highlight",
+        "coloured"
+      ],
+      "elements": [
+        {
+          "selector": "mark",
+          "count": 2
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "<mark>highlight</mark>",
+        "background-color: #fde68a"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "raw-html",
+    "family": "raw html",
+    "sourceFile": "raw-html.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Keep HTML"
+      ],
+      "elements": [
+        {
+          "selector": "script",
+          "count": 0
+        },
+        {
+          "selector": "[onerror]",
+          "count": 0
+        }
+      ],
+      "sourceTokens": [
+        "<div data-custom=\"yes\">",
+        "<!-- plain comment -->"
+      ]
+    },
+    "preview": {
+      "mode": "restricted",
+      "visibleText": [
+        "Keep HTML"
+      ],
+      "elements": [
+        {
+          "selector": "script",
+          "count": 0
+        },
+        {
+          "selector": "[onerror]",
+          "count": 0
+        }
+      ],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "<div data-custom=\"yes\">",
+        "<!-- plain comment -->"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "extensions",
+    "family": "extensions",
+    "sourceFile": "extensions.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "preserved-source",
+      "visibleText": [
+        "Keep footnote",
+        "#tag",
+        "![[Embed]]"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "[^1]: Keep footnote\n    and indentation",
+        "![[Embed]]",
+        "$x^2$"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "#tag",
+        "Keep footnote"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "[^1]: Keep footnote",
+        "![[Embed]]",
+        "$x^2$"
+      ],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "empty",
+    "family": "empty",
+    "sourceFile": "empty.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "whitespace",
+    "family": "empty",
+    "sourceFile": "whitespace.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [],
+      "taskIds": []
+    }
+  },
+  {
+    "id": "partial",
+    "family": "empty",
+    "sourceFile": "partial.md",
+    "fidelity": "semantic",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "unfinished bold",
+        "unclosed fence"
+      ],
+      "elements": [],
+      "sourceTokens": [
+        "unclosed fence"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "unfinished bold",
+        "unclosed fence"
+      ],
+      "elements": [],
+      "sourceTokens": []
+    },
+    "daily": {
+      "sourceTokens": [
+        "unfinished bold",
+        "unclosed fence"
+      ],
+      "taskIds": []
+    }
+  }
+]

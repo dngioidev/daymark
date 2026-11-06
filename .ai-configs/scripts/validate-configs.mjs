@@ -347,7 +347,7 @@ for (const adapter of rootAdapters) {
 
 // 8c. Relative links in README.md, docs/ and release docs must resolve
 const outsideConfigs = markdownFiles.filter(
-  (f) => !f.startsWith(AI_CONFIGS_DIR) && !rootAdapters.includes(path.basename(f))
+  (f) => !f.startsWith(AI_CONFIGS_DIR) && !rootAdapters.includes(path.basename(f)) && !f.startsWith(path.join(REPO_ROOT, 'fixtures') + path.sep) // fixtures deliberately hold broken links
 );
 let docLinkFailures = 0;
 for (const file of outsideConfigs) {

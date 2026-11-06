@@ -1,0 +1,4603 @@
+{
+ "generatedAt": "2026-11-06T09:09:32.193Z",
+ "baseline": "2c84344",
+ "summary": {
+  "pass": 456,
+  "not-applicable": 24,
+  "blocked": 18,
+  "fail": 12
+ },
+ "fatal": null,
+ "records": [
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "not-applicable",
+   "detail": "fixture design: the Edit-elsewhere sentinel sits inside the unclosed fence (CommonMark), so the end-of-note edit position is not a paragraph"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('treeitem', { name: /^Fixture mixed-note/ }).first()\u001b[22m\n"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "empty",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "setext-heading",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "fail",
+   "detail": "missing text \"title: Example\"; missing text \"ordinary prose\""
+  },
+  {
+   "caseId": "frontmatter-prose-line",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "frontmatter-crlf",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "text-headings",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "raw-html",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "empty",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "whitespace",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "not-applicable",
+   "detail": "empty note: the section shows no preview block"
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "partial",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "blocked",
+   "detail": "no screenshot"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  }
+ ]
+}
