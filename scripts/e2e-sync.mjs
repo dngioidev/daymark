@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { tsImport } from 'tsx/esm/api';
-import { createNotebook, writeTwoStrokes, readStored, readInk, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas } from './helpers/cycle-14-qa.mjs';
+import { createNotebook, writeTwoStrokes, readStored, readInk, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas, penDrag } from './helpers/cycle-14-qa.mjs';
 import { signIn } from './helpers/server-session.mjs';
 import { pollUntil } from './helpers/poll.mjs';
 
@@ -77,7 +77,7 @@ try {
   const laptopCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const phoneCtx = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   await signIn(laptopCtx, base, PASSWORD);
-  await signIn(phoneCtx, base, PASSWORD);
+  const phoneSession = await signIn(phoneCtx, base, PASSWORD);
   const laptop = await laptopCtx.newPage();
   const phone = await phoneCtx.newPage();
 
@@ -505,7 +505,7 @@ try {
   await shot(laptop, 'background-photo-settings');
   await closeSettings(laptop);
 
-  // Cycle 14: real browser pen input, persisted ink, and read-only sync to a phone.
+  // Cycle 14/17: real browser pen input, persisted ink, and keyboard-capable phone sync.
   await laptop.setViewportSize({ width: 1280, height: 800 });
   await laptop.evaluate(() => localStorage.setItem('dm.ink.penSeen', '1'));
   await laptop.reload({ waitUntil: 'networkidle' });
@@ -528,13 +528,62 @@ try {
   const sentInk = byId(await readInk(laptop));
   const receivedInk = byId(await readInk(phone));
   check(isDeepStrictEqual(sentInk, receivedInk), 'phone receives both strokes with their ids and points intact');
-  check(await phone.getByRole('toolbar', { name: 'Writing tools', exact: true }).count() === 0
-    && await inkCanvas(phone).evaluate(el => getComputedStyle(el).touchAction === 'pan-y'), 'phone without pen shows a read-only handwritten page');
+  check(await phone.getByRole('button', { name: 'Text', exact: true }).isVisible()
+    && await phone.getByRole('button', { name: 'Add page', exact: true }).isVisible(), 'phone without pen offers Text and page controls');
+  await touchDoesNotDraw(phone, notebook.id);
   check(await inkCanvas(phone).evaluate(el => {
     const pixels = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
     return pixels.some((value, index) => index % 4 === 3 && value > 0);
   }), 'received ink is rendered on the phone canvas');
   await shot(phone, 'cycle-14-read-only-phone');
+
+  // Cycle 17: A runs this build; B runs the frozen 1.11 validator/merge via its
+  // authenticated HTTP session. No modern B app sync may mask a legacy data loss.
+  await phone.route('**/api/sync', route => route.abort());
+  try {
+    const { legacyMergeInkPage, legacyIsInkPage, encodePoints } = await tsImport('../src/ink/fixtures/legacyInk111.ts', import.meta.url);
+    const key = `ink:${notebook.id}:0`;
+    const legacySync = async (changes = []) => {
+      const response = await phoneCtx.request.post(`${base}/api/sync`, {
+        headers: { Authorization: `Bearer ${phoneSession.accessToken}`, 'X-Daymark-Client': 'web' },
+        data: { sinceRev: 0, changes, features: ['ink'] },
+      });
+      if (!response.ok()) throw new Error(`1.11 sync failed: ${response.status()} ${await response.text()}`);
+      const result = await response.json();
+      const entity = result.entities.find(e => e.key === key);
+      if (!entity?.value || !legacyIsInkPage(entity.value)) throw new Error('1.11 did not receive a valid ink page');
+      return entity.value;
+    };
+    const legacyBase = await legacySync();
+    await laptop.getByRole('button', { name: 'Text', exact: true }).click();
+    const canvasBox = await inkCanvas(laptop).boundingBox();
+    await penDrag(laptop, [{ x: canvasBox.x + 40, y: canvasBox.y + 180 }]);
+    const text = 'Cycle 17 box survives 1.11\nSecond line';
+    await laptop.getByRole('textbox', { name: 'Text box', exact: true }).fill(text);
+    await laptop.getByRole('textbox', { name: 'Title', exact: true }).click();
+    await waitInk(laptop, 3, notebook.id);
+    await syncNow(laptop);
+    const incoming = await legacySync();
+    const box = incoming.strokes.find(s => s.text === text && !incoming.removed.includes(s.id));
+    check(!!box, 'A text box reaches B through the real server and passes the 1.11 validator');
+    if (!box) throw new Error('text box missing on legacy device');
+    const now = new Date().toISOString();
+    const legacyStroke = { id: 'cycle17-legacy-pen', tool: 'pen', color: '#292524', width: 4,
+      points: encodePoints([{ x: 350, y: 350, p: 0.5 }, { x: 450, y: 360, p: 0.5 }]), createdAt: now };
+    const offlineB = { ...legacyBase, strokes: [...legacyBase.strokes, legacyStroke], updatedAt: now };
+    const mergedB = legacyMergeInkPage(legacyBase, offlineB, incoming);
+    check(isDeepStrictEqual(mergedB.strokes.find(s => s.id === box.id), box), 'frozen 1.11 merge preserves every text-box field');
+    const pushedB = await legacySync([{ key, base: legacyBase, value: mergedB }]);
+    check(isDeepStrictEqual(pushedB.strokes.find(s => s.id === box.id), box), 'B legacy push retains the text box on the real server');
+    await syncNow(laptop);
+    await waitInk(laptop, 4, notebook.id);
+    const roundtrip = (await readInk(laptop)).find(p => p.noteId === notebook.id && p.page === 0);
+    check(isDeepStrictEqual(roundtrip.strokes.find(s => s.id === box.id), box)
+      && roundtrip.strokes.some(s => s.id === legacyStroke.id && !roundtrip.removed.includes(s.id)),
+      'A receives B ink and its own intact text box after the legacy merge');
+    check(await laptop.locator('[data-ink-text]').innerText() === text, 'round-tripped text box remains rendered on A');
+  } finally { await phone.unroute('**/api/sync'); }
+  await syncNow(phone);
 
   // A pen highlighter stroke snaps to crossed words; the mark and colour sync.
   await openNotes(laptop);
