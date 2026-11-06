@@ -405,7 +405,7 @@
     "id": "frontmatter-prose-line",
     "family": "frontmatter",
     "sourceFile": "frontmatter-prose-line.md",
-    "fidelity": "verbatim",
+    "fidelity": "semantic",
     "notes": {
       "mode": "native",
       "visibleText": [

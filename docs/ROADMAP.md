@@ -2,11 +2,9 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
-## Planned Cycle 15: test all Markdown rendering paths
+## Cycles 15 and 16: Markdown rendering audit and fixes
 
-**Status: written for review; not executed.** Run shared scenarios across all useful Markdown features in Notes and Daily Notes, including editing, saving, reopening, mode switches, clipboard, archives and desktop/phone/tablet rendering. Preserve the product baseline and record passing behavior, reproducible defects and coverage gaps; no product fixes in this cycle. Deliver the full results, reviewed screenshots and a testing-cycle release report. See the [testing specification](./superpowers/specs/2026-11-03-cycle-15-markdown-rendering-design.md) and [testing plan](./superpowers/plans/2026-11-03-cycle-15-markdown-rendering.md).
-
-**Conditional Cycle 16:** review the confirmed failures, write a defect-specific spec/plan, implement approved corrections and rerun the same failed scenarios plus the full regression corpus. Passing features require no changes. Skip the fix cycle if no defects are confirmed. No execution or publication approval is implied by this roadmap entry.
+**Status: executed, not released or tagged.** Cycle 15 audited all Markdown families on the 1.11.1 baseline (testing only) and confirmed defects D1–D7 ([ledger](./testing/markdown-rendering.md), [report](./releases/cycle-15/README.md)). Cycle 16 fixed D1–D6 and reclassified D7; the audit suites and the six-configuration browser matrix now pass ([report](./releases/cycle-16/README.md)). Specs and plans: [Cycle 15](./superpowers/specs/2026-11-03-cycle-15-markdown-rendering-design.md), [Cycle 16](./superpowers/specs/2026-11-06-cycle-16-markdown-fixes-design.md). Actual session and token totals are unavailable to this runtime. Publishing a version remains a separate decision.
 
 ## Cycle 10 continuation
 

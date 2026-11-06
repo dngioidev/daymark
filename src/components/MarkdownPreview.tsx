@@ -33,11 +33,10 @@ interface ParsedFrontmatter {
 function extractFrontmatter(raw: string): ParsedFrontmatter {
   if (!raw) return { attributes: {}, body: '' };
 
-  const trimmed = raw.trimStart();
-  const header = matchFrontmatter(trimmed);
+  const header = matchFrontmatter(raw);
   if (header) {
     const frontmatterText = header[1].trim();
-    const body = trimmed.substring(header[0].length).trimStart();
+    const body = raw.substring(header[0].length).trimStart();
     const attributes: Record<string, string> = {};
 
     const lines = frontmatterText.split('\n');

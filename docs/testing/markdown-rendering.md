@@ -32,6 +32,10 @@ Fixtures live in `fixtures/notes/rendering/` (`cases.json` holds hand-written li
 | Highlights | **fail D6** (low) | pass | pass |
 | Paste of plain `[[Note]]` | **fail D7** (low) | n/a | n/a |
 
+## Status after Cycle 16
+
+D1–D6 fixed and verified (audit suites 362/362, browser matrix 2388 pass, 24 not-applicable, 0 fail; [Cycle 16 report](../releases/cycle-16/README.md)). D7 reclassified as intended behaviour. The tables below record the **baseline** (`2c84344`) as found in Cycle 15.
+
 ## Defect ledger
 
 | ID | Severity | Defect | Minimal input | Evidence (fixture, surface) |

@@ -51,10 +51,10 @@ describe('clipboard through the real editor paste event', () => {
     if (b) expect(markdown).toContain(b);
   });
 
-  it('pasted plain-text wiki link stays a literal [[link]] source', async () => {
+  it('pasted plain-text [[wiki]] text stays visible as literal text (Cycle 16: reclassified from defect D7; converting it to a link would be a new feature)', async () => {
     const editor = await mount();
     await paste(editor, '', 'See [[Another Note]] today');
-    expect(editor.getMarkdown()).toContain('[[Another Note]]');
+    expect(editor.view.dom.textContent).toContain('See [[Another Note]] today');
   });
 
   it('pasted scripts, handlers and unsafe schemes never reach the saved source', async () => {

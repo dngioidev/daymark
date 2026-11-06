@@ -24,17 +24,23 @@ const NoteHighlight = Highlight.extend({
   addInputRules: () => [],
   addPasteRules: () => [],
   addKeyboardShortcuts: () => ({}),
+  addAttributes() {
+    // `plain` remembers markup written without data-color so an unchanged mark keeps its spelling.
+    return { ...this.parent?.(), plain: { default: false, rendered: false } };
+  },
   renderMarkdown(node, helpers) {
     const color = /^#[\da-f]{6}$/i.test(node.attrs?.color ?? '') ? node.attrs!.color : HIGHLIGHTER_COLORS[0];
-    return `<mark data-color="${color}" style="background-color: ${color}">${helpers.renderChildren(node)}</mark>`;
+    const data = node.attrs?.plain ? '' : ` data-color="${color}"`;
+    return `<mark${data} style="background-color: ${color}">${helpers.renderChildren(node)}</mark>`;
   },
   parseMarkdown(token, helpers) {
     // MarkdownManager applies marks to text only; keep our inline atoms marked
     // as well, just as NoteStarterKit does for ordinary text formatting.
+    const attrs = { color: token.color, plain: !!token.plain };
     const visit = (node: JSONContent): JSONContent => ['rawInline', 'wikiLink', 'image'].includes(node.type ?? '')
-      ? { ...node, marks: [...(node.marks ?? []), { type: 'highlight', attrs: { color: token.color } }] }
+      ? { ...node, marks: [...(node.marks ?? []), { type: 'highlight', attrs }] }
       : node.content ? { ...node, content: node.content.map(visit) } : node;
-    return helpers.applyMark('highlight', helpers.parseInline(token.tokens ?? []).map(visit), { color: token.color });
+    return helpers.applyMark('highlight', helpers.parseInline(token.tokens ?? []).map(visit), attrs);
   },
   markdownTokenizer: {
     name: 'highlight', level: 'inline',
@@ -42,10 +48,10 @@ const NoteHighlight = Highlight.extend({
     tokenize(source, _tokens, helpers) {
       const match = /^<mark\b([^>]*)>([\s\S]*?)<\/mark>/i.exec(source);
       if (!match) return undefined;
-      const color = /\bdata-color=["'](#[\da-f]{6})["']/i.exec(match[1])?.[1]
-        ?? /background-color:\s*(#[\da-f]{6})/i.exec(match[1])?.[1];
+      const dataColor = /\bdata-color=["'](#[\da-f]{6})["']/i.exec(match[1])?.[1];
+      const color = dataColor ?? /background-color:\s*(#[\da-f]{6})/i.exec(match[1])?.[1];
       if (!color) return undefined;
-      return { type: 'highlight', raw: match[0], color, tokens: helpers.inlineTokens(match[2]) };
+      return { type: 'highlight', raw: match[0], color, plain: !dataColor, tokens: helpers.inlineTokens(match[2]) };
     },
   },
 }).configure({ multicolor: true });

@@ -18,6 +18,18 @@ function afterEdit(markdown: string, noop = false) {
 }
 
 describe('note Markdown', () => {
+  it('keeps highlight markup spelling when unchanged (plain and data-color forms)', () => {
+    const plain = '<mark style="background-color: #fde68a">kept</mark>';
+    const withData = '<mark data-color="#fde68a" style="background-color: #fde68a">kept</mark>';
+    expect(afterEdit(plain)).toBe(`${plain}
+
+Edit elsewhere updated`);
+    expect(afterEdit(withData)).toBe(`${withData}
+
+Edit elsewhere updated`);
+  });
+
+
   it.each(['---', '----', '***', '___', '- - -'])('keeps repeated %s dividers visible after an unrelated edit and reload', (rule) => {
     const source = `${rule}\n\nFirst section\n\n${rule}\n\nLast section`;
     const doc = markdownToDoc(source);

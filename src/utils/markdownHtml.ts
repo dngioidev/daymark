@@ -23,6 +23,14 @@ export function renderMarkdownHtml(body: string, interactive: boolean): string {
   // Clean Daymark HTML machine comments from rendered output
   text = text.replace(/<!--\s*daymark:[\s\S]*?-->/gi, '');
 
+  // Literal code must never turn into callouts or links: park code spans and
+  // fenced blocks behind placeholders while the rewrites below run.
+  const parked: string[] = [];
+  const park = (code: string) => { parked.push(code); return `\u0000code${parked.length - 1}\u0000`; };
+  const FENCE = /^( {0,3})(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\2[`~]*[ \t]*$|(?![\s\S]))/gm;
+  const INLINE_CODE = /(`+)(?!`)[^\n]*?[^`\n]\1(?!`)/g;
+  text = text.replace(FENCE, park).replace(INLINE_CODE, park);
+
   // Support Obsidian-style callouts:
   // > [!NOTE] text -> custom callout
   // > [!TIP] text
@@ -47,6 +55,8 @@ export function renderMarkdownHtml(body: string, interactive: boolean): string {
       trimmed
     )}" class="daymark-internal-link inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 underline decoration-amber-400/60 decoration-1 underline-offset-2 px-1 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer"><span>📝</span><span>${escapeHtml(trimmed)}</span></button>`;
   });
+
+  text = text.replace(/\u0000code(\d+)\u0000/g, (_match, index: string) => parked[Number(index)]);
 
   let html: string;
   try {
