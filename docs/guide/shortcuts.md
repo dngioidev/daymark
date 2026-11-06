@@ -1,6 +1,6 @@
 ---
 title: Shortcuts and gestures
-order: 13
+order: 14
 ---
 ## Web
 Use Ctrl or Command plus K to open New task. Ctrl or Command plus Shift and F opens Search, and slash opens it when you are not typing in a field. The shortcut help lists the available combinations. Press g, then b, to open Backlog through the same navigation shortcut family as the other main pages.

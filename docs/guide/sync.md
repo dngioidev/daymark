@@ -1,6 +1,6 @@
 ---
 title: Sync and the server
-order: 9
+order: 10
 ---
 ## Web
 Sign in to your Daymark server in the browser. The browser automatically syncs with the server that serves the app; there is no server-address field to configure. Open Settings and choose Sync to inspect status or request Sync now. Each browser profile keeps a local vault. A web build hosted on another origin is local-only; use backups to transfer its data.

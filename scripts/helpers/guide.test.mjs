@@ -25,7 +25,7 @@ test('guide loader parses metadata, splits platforms and sorts topics', async ()
 test('every shipped guide topic includes usable Web and Mobile instructions', async () => {
   const { loadGuide } = await import('./guide.mjs');
   const topics = loadGuide(new URL('../../docs/guide/', import.meta.url));
-  assert.equal(topics.length, 13);
+  assert.equal(topics.length, 14);
   assert.equal(topics[0].title, 'Getting started and install');
   assert.equal(topics.at(-1).title, 'Shortcuts and gestures');
   for (const topic of topics) {
@@ -41,14 +41,17 @@ test('Notes guide explains full screen, writing tools and text highlighting on b
   const notes = loadGuide(new URL('../../docs/guide/', import.meta.url)).find(topic => topic.slug === 'notes');
   for (const phrase of ['Related panel', 'Hidden suggestions']) assert.ok(notes.web.includes(phrase), `web: ${phrase}`);
   for (const phrase of ['Related button', 'Hidden suggestions']) assert.ok(notes.mobile.includes(phrase), `mobile: ${phrase}`);
+  const pen = loadGuide(new URL('../../docs/guide/', import.meta.url)).find(topic => topic.slug === 'handwriting');
   for (const platform of ['web', 'mobile']) {
-    assert.match(notes[platform], /handwritten note/i);
-    assert.match(notes[platform], /lined.*grid/i);
-    for (const phrase of [/Full screen/, /side rail/, /Move rail to right/, /S Pen button/, /Select/, /loop/, /resize/, /action bar/, /Text boxes work without a pen/, /Draw-and-hold/, /mouse drawing/]) {
-      assert.match(notes[platform], phrase);
-    }
+    assert.match(notes[platform], /Full screen/);
     assert.match(notes[platform], /highlighter/i);
-    assert.match(notes[platform], /title.only|title only/i);
+    assert.match(notes[platform], /Handwriting and pen/);
+    assert.match(pen[platform], /handwritten note/i);
+    assert.match(pen[platform], /lined.*grid/i);
+    for (const phrase of [/Full screen/, /side rail/, /Move rail to right/, /S Pen button/, /Select/, /loop/, /resize/, /action bar/, /Text boxes work without a pen/, /Draw-and-hold/, /mouse drawing/]) {
+      assert.match(pen[platform], phrase);
+    }
+    assert.match(pen[platform], /title.only|title only/i);
   }
 });
 

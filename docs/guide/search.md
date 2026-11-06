@@ -1,6 +1,6 @@
 ---
 title: Search
-order: 8
+order: 9
 ---
 ## Web
 Use Search in the side menu to find work across your vault. The keyboard shortcuts Ctrl or Command plus Shift and F, or slash when you are not typing in a field, open the same search. Enter words from a title or note and inspect the labelled results before choosing one.

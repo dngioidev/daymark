@@ -1,6 +1,6 @@
 ---
 title: Widgets (Android)
-order: 12
+order: 13
 ---
 ## Web
 Home-screen widgets are provided by the Android app. A desktop browser or installed web app does not expose the native Android widgets. If you want tasks or habits visible on your phone's home screen, install the Android APK, open it, and connect the same sync server used by your browser.

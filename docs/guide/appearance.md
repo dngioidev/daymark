@@ -1,6 +1,6 @@
 ---
 title: Appearance
-order: 11
+order: 12
 ---
 ## Web
 Open Settings using the icon next to Search in the desktop side menu Title part, then choose Appearance to adjust the theme, text size and colours. Changes preview immediately through the existing settings controls. Choose colours with enough contrast to keep labels and tasks readable. The header colours also apply to the desktop side menu, so inspect that menu when changing them.
