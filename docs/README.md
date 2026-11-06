@@ -7,6 +7,7 @@ Project knowledge lives in [`.ai-configs/project/`](../.ai-configs/project/) (si
 | Web and mobile user guide (also bundled in Settings → Help) | [`guide/`](./guide/) · [Website Guide](https://dngioidev.github.io/daymark/guide.html) |
 | Roadmap and cycle estimates | [`ROADMAP.md`](./ROADMAP.md) |
 | Per-cycle release docs with screenshots | [`releases/`](./releases/) |
+| Proposed Cycle 15: all-feature Markdown testing; Cycle 16: confirmed fixes (awaiting execution approval) | [Testing spec](./superpowers/specs/2026-11-03-cycle-15-markdown-rendering-design.md) · [Testing-cycle plan](./superpowers/plans/2026-11-03-cycle-15-markdown-rendering.md) |
 | Cycle 12: one-column Notes navigation | [`releases/cycle-12/README.md`](./releases/cycle-12/README.md) |
 | Cycle 11: note folders, Related notes and the knowledge graph | [`releases/cycle-11/README.md`](./releases/cycle-11/README.md) |
 | Architecture | [`.ai-configs/project/architecture.md`](../.ai-configs/project/architecture.md) |
