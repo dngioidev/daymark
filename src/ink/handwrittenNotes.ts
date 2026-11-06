@@ -7,6 +7,7 @@ export function createHandwrittenNote(folder: string, paper: NonNullable<Standal
     content: HANDWRITTEN_PLACEHOLDER, tags: [], pinned: false, createdAt: now, updatedAt: now };
 }
 
+/** Pen capability remembered on this device; text and mouse tools do not require it. */
 export function canWrite(): boolean {
   try { return localStorage.getItem('dm.ink.penSeen') === '1'; } catch { return false; }
 }

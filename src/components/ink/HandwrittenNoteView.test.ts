@@ -2,7 +2,7 @@
 import JSZip from 'jszip';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HandwrittenNoteView, canWrite, createHandwrittenNote } from './HandwrittenNoteView';
 import type { InkPage } from '../../types/daymark';
 import { searchVault } from '../../utils/search';
@@ -10,6 +10,7 @@ import { buildNoteIndex } from '../../utils/noteRelated';
 import { buildVaultZip } from '../../utils/vaultArchive';
 import { DEFAULT_SETTINGS } from '../../utils/defaultData';
 import { visibleStrokes } from '../../ink/inkModel';
+import { visibleTextBoxes } from '../../ink/inkText';
 
 let root: Root; let host: HTMLDivElement;
 const note = () => createHandwrittenNote('Study', 'grid', '2026-11-01T00:00:00Z');
@@ -27,20 +28,21 @@ function mount(count = 0) {
   function draw() { root.render(React.createElement(HandwrittenNoteView, { note: n, pages, onUpdatePage: update })); }
   act(draw); return { update, pages: () => pages };
 }
-it('starts with a width-scaled read-only page without tools or mutation', () => {
+it('starts with a width-scaled writable page and tools without mutation', () => {
   const { update } = mount();
   expect(host.textContent).toContain('Page 1 of 1');
-  expect(host.querySelector('[aria-label="Writing tools"]')).toBeNull();
-  expect(host.textContent).not.toContain('Add page');
+  expect(host.querySelector('[aria-label="Writing tools"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Add page"]')).not.toBeNull();
   expect(host.querySelector<HTMLCanvasElement>('canvas')?.style.width).toBe('100%');
   expect(update).not.toHaveBeenCalled(); expect(canWrite()).toBe(false);
 });
-it('unlocks only on a pen pointerdown and remembers it for the device', () => {
+it('keeps tools available and remembers only a pen pointerdown for the device', () => {
   mount();
   for (const pointerType of ['touch', 'mouse', 'pen']) {
     const e = new Event('pointerdown', { bubbles: true }); Object.defineProperty(e, 'pointerType', { value: pointerType });
     act(() => host.querySelector('canvas')!.dispatchEvent(e));
-    expect(!!host.querySelector('[aria-label="Writing tools"]')).toBe(pointerType === 'pen');
+    expect(host.querySelector('[aria-label="Writing tools"]')).not.toBeNull();
+    expect(canWrite()).toBe(pointerType === 'pen');
   }
   expect(localStorage.getItem('dm.ink.penSeen')).toBe('1'); expect(canWrite()).toBe(true);
 });
@@ -132,11 +134,11 @@ it('keeps page controls in the writing row above the page, with a sticky opaque 
   expect(toolbar.parentElement!.className).toContain('overflow-y-auto');
   expect(toolbar.nextElementSibling!.querySelector('canvas')).not.toBeNull();
 });
-it('keeps read-only page navigation together without writing controls', () => {
+it('keeps page navigation and writing controls available without a pen', () => {
   mount(2);
-  const toolbar = host.querySelector('[aria-label="Page navigation"]')!; expect(toolbar).not.toBeNull();
+  const toolbar = host.querySelector('[aria-label="Writing tools"]')!; expect(toolbar).not.toBeNull();
   expect(toolbar.querySelector('[aria-label="Previous page"]')).not.toBeNull(); expect(toolbar.querySelector('[aria-label="Next page"]')).not.toBeNull();
-  expect(host.querySelector('[aria-label="Pen"]')).toBeNull(); expect(host.querySelector('[aria-label="Add page"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Pen"]')).not.toBeNull(); expect(host.querySelector('[aria-label="Add page"]')).not.toBeNull();
 });
 it('opens and closes settings without rendering the notebook or its canvas', () => {
   localStorage.setItem('dm.ink.penSeen', '1');
@@ -156,4 +158,74 @@ it.each([false, true])('reserves no extra safe-top band in the embedded toolbar 
   expect(toolbar.className).not.toContain('--dm-safe-top');
   expect(toolbar.style.paddingTop).toBe('');
   expect(toolbar.classList.contains('top-0')).toBe(true);
+});
+
+describe('writing on any device', () => {
+  beforeEach(() => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    localStorage.clear();
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      setTransform: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), beginPath: vi.fn(),
+      moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), arc: vi.fn(),
+      stroke: vi.fn(), save: vi.fn(), rect: vi.fn(), clip: vi.fn(), restore: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 1000, height: 1414 } as DOMRect);
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  function mount() {
+    const onUpdatePage = vi.fn<(page: InkPage) => void>();
+    const note = createHandwrittenNote('', 'lined', '2026-11-06T00:00:00.000Z');
+    act(() => root.render(React.createElement(HandwrittenNoteView, { note, pages: [], onUpdatePage })));
+    return onUpdatePage;
+  }
+  function choose(label: string) {
+    const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    expect(button, `${label} is available`).not.toBeNull();
+    act(() => button!.click());
+  }
+  function pointer(type: string, pointerType: string, clientX = 10) {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerType, pointerId: 1, isPrimary: true, buttons: 1, width: 1, height: 1, clientX, clientY: 10, pressure: 0.5 });
+    act(() => host.querySelector('canvas')!.dispatchEvent(event));
+  }
+  function drag(pointerType: string) {
+    pointer('pointerdown', pointerType); pointer('pointermove', pointerType, 40); pointer('pointerup', pointerType, 50);
+  }
+
+  it('without a pen, the Text tool is available and a mouse tap creates a text box', () => {
+    const update = mount(); choose('Text');
+    pointer('pointerdown', 'mouse'); pointer('pointerup', 'mouse');
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text box"]');
+    expect(input).not.toBeNull();
+    act(() => { input!.value = 'hello'; input!.dispatchEvent(new Event('input', { bubbles: true })); input!.blur(); });
+    expect(visibleTextBoxes(update.mock.calls.at(-1)![0]).map(box => box.text)).toEqual(['hello']);
+    expect(host.querySelector('button[aria-label="Add page"]')).not.toBeNull();
+  });
+
+  it('without a pen, after choosing Pen, a mouse drag draws', () => {
+    const update = mount(); choose('Pen'); drag('mouse');
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(visibleStrokes(update.mock.calls[0][0])).toHaveLength(1);
+  });
+
+  it('after a pen was seen, a mouse drag does not draw', () => {
+    localStorage.setItem('dm.ink.penSeen', '1');
+    const update = mount(); choose('Pen'); drag('mouse');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('touch drag never draws', () => {
+    const update = mount(); choose('Pen'); drag('touch');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('seeing a pen disables mouse drawing immediately and remembers the device', () => {
+    const update = mount(); choose('Pen'); drag('pen');
+    expect(localStorage.getItem('dm.ink.penSeen')).toBe('1');
+    expect(update).toHaveBeenCalledTimes(1);
+    drag('mouse');
+    expect(update).toHaveBeenCalledTimes(1);
+  });
 });

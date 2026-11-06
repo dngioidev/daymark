@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { StandaloneNote } from '../types/daymark';
 
-const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as (() => unknown)[] }));
+const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as (() => unknown)[], cleanups: [] as (() => void)[] }));
 const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn() }));
 vi.mock('./ui/feedback', () => ({ confirmDialog: feedback.confirm, showToast: feedback.toast }));
 vi.mock('react', async (original) => ({
@@ -15,7 +15,11 @@ vi.mock('react', async (original) => ({
       hooks.values[index] = typeof next === 'function' ? next(hooks.values[index]) : next;
     }];
   },
-  useEffect: (effect: () => unknown) => hooks.effects.push(effect),
+  useEffect: (effect: () => unknown) => hooks.effects.push(() => {
+    const cleanup = effect();
+    if (typeof cleanup === 'function') hooks.cleanups.push(cleanup as () => void);
+    return cleanup;
+  }),
   useMemo: (fn: () => unknown) => fn(),
   useRef: (initial: unknown) => {
     const index = hooks.index++;
@@ -125,7 +129,7 @@ function find(element: React.ReactNode, predicate: (el: React.ReactElement<Recor
   }
 }
 beforeEach(() => { hooks.values = []; update.mockClear(); feedback.confirm.mockReset().mockResolvedValue(true); feedback.toast.mockClear(); });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { hooks.cleanups.splice(0).reverse().forEach(cleanup => cleanup()); vi.unstubAllGlobals(); });
 
 it('provides a focus toggle and restores the list with the same button', () => {
   let tree = render();
