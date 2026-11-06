@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MermaidDiagram } from './notes/mermaidDiagram';
 import { renderMarkdownHtml } from '../utils/markdownHtml';
+import { matchFrontmatter } from '../utils/frontmatter';
 import {
   Check,
   Copy,
@@ -33,25 +34,23 @@ function extractFrontmatter(raw: string): ParsedFrontmatter {
   if (!raw) return { attributes: {}, body: '' };
 
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('---')) {
-    const endMatch = trimmed.indexOf('\n---', 3);
-    if (endMatch !== -1) {
-      const frontmatterText = trimmed.substring(3, endMatch).trim();
-      const body = trimmed.substring(endMatch + 4).trimStart();
-      const attributes: Record<string, string> = {};
+  const header = matchFrontmatter(trimmed);
+  if (header) {
+    const frontmatterText = header[1].trim();
+    const body = trimmed.substring(header[0].length).trimStart();
+    const attributes: Record<string, string> = {};
 
-      const lines = frontmatterText.split('\n');
-      for (const line of lines) {
-        const colonIdx = line.indexOf(':');
-        if (colonIdx !== -1) {
-          const key = line.substring(0, colonIdx).trim();
-          const val = line.substring(colonIdx + 1).trim().replace(/^["']|["']$/g, '');
-          if (key) attributes[key] = val;
-        }
+    const lines = frontmatterText.split('\n');
+    for (const line of lines) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx !== -1) {
+        const key = line.substring(0, colonIdx).trim();
+        const val = line.substring(colonIdx + 1).trim().replace(/^["']|["']$/g, '');
+        if (key) attributes[key] = val;
       }
-
-      return { attributes, body };
     }
+
+    return { attributes, body };
   }
 
   return { attributes: {}, body: raw };

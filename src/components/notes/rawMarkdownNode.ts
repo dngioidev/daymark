@@ -1,5 +1,6 @@
 import { Extension, Node } from '@tiptap/core';
 import { Lexer } from 'marked';
+import { matchFrontmatter } from '../../utils/frontmatter';
 
 // Languages we can represent losslessly as ordinary code blocks. Unknown info
 // strings (including fence options) stay raw until a later extension owns them.
@@ -24,8 +25,8 @@ export const RawMarkdown = Node.create({
       const index = src.search(/\n(?=---[ \t]*(?:\n|$)|[^\n]*\[\^[^\]\n]+\]| {0,3}`{3,}| {0,3}~{3,})/);
       return index < 0 ? -1 : index + 1;
     },
-    tokenize: (src) => {
-      const frontmatter = src.match(/^---[ \t]*\n[\s\S]*?\n(?:---|\.\.\.)[ \t]*(?=\n|$)/);
+    tokenize: (src, tokens) => {
+      const frontmatter = tokens.length === 0 ? matchFrontmatter(src) : null;
       const footnote = src.match(/^\[\^[^\]]+\]:[^\n]*(?:\n(?:[ \t]+[^\n]*|(?=\n[ \t]+)\n[ \t]+[^\n]*))*/);
       const fence = src.match(/^ {0,3}(`{3,}|~{3,})([^\n]*)\n/);
       let source = frontmatter?.[0] ?? footnote?.[0];

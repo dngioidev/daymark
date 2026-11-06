@@ -1,4 +1,5 @@
 import { DailyDocument, HeadingSection, TaskItem } from '../types/daymark';
+import { matchFrontmatter } from './frontmatter';
 
 /**
  * Serializes a DailyDocument into canonical, human-readable standard Markdown.
@@ -83,22 +84,8 @@ export function parseDailyDocument(markdown: string, date: string, defaultHeadin
   // Sections introduced by an explicit "# Heading" line are kept even when empty
   let currentSectionExplicit = false;
 
-  let inFrontmatter = false;
-  let lineIdx = 0;
-
-  // Check frontmatter
-  if (lines[0]?.trim() === '---') {
-    inFrontmatter = true;
-    lineIdx = 1;
-    while (lineIdx < lines.length) {
-      if (lines[lineIdx].trim() === '---') {
-        inFrontmatter = false;
-        lineIdx++;
-        break;
-      }
-      lineIdx++;
-    }
-  }
+  const header = matchFrontmatter(markdown);
+  let lineIdx = header ? header[0].split(/\r?\n/).length : 0;
 
   const freeNotesBuffer: string[] = [];
   let sectionHeadingLevel: number | undefined;

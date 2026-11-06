@@ -12,7 +12,7 @@ import { Markdown, type MarkdownExtensionOptions } from '@tiptap/markdown';
 import { Marked } from 'marked';
 import { RawMarkdown, RawHtml, RawInline } from './rawMarkdownNode';
 import { preserveNoteText } from '../../utils/noteTextSerialization';
-import type { JSONContent } from '@tiptap/core';
+import type { JSONContent, MarkdownToken, MarkdownParseHelpers } from '@tiptap/core';
 import { WikiLink } from './wikiLink';
 import Highlight from '@tiptap/extension-highlight';
 import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
@@ -55,6 +55,11 @@ const NoteHighlight = Highlight.extend({
 const NoteStarterKit = StarterKit.extend({
   addExtensions() {
     return (this.parent?.() ?? []).map((extension) => {
+      if (extension.name === 'horizontalRule') return extension.extend({
+        addAttributes: () => ({ source: { default: null, rendered: false } }),
+        parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => helpers.createNode('horizontalRule', { source: token.raw?.trim() ?? null }),
+        renderMarkdown: (node: JSONContent) => node.attrs?.source ?? '---',
+      });
       if (['bold', 'italic', 'strike', 'link'].includes(extension.name)) return extension.extend({
         parseMarkdown(token, helpers) {
           const result = this.parent?.(token, helpers);

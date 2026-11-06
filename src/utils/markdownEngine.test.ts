@@ -59,6 +59,11 @@ describe('markdown round trip', () => {
 });
 
 describe('markdown parsing edge cases', () => {
+  it.each(['---\n\nKeep this note', '---\n\nKeep this note\n\n---\n\nAnd this too', '---\ntitle: Unclosed header\n\nKeep this note', '----\n\nKeep this note\n\n----'])('preserves opening dividers instead of consuming note text as frontmatter: %s', (source) => {
+    const parsed = parseDailyDocument(source, sample.date);
+    expect(parsed.headings[0].notesContent).toBe(source);
+  });
+
   const roundTrip = (description = '', notesContent = '') => {
     const doc: DailyDocument = {
       ...sample,

@@ -18,6 +18,24 @@ function afterEdit(markdown: string, noop = false) {
 }
 
 describe('note Markdown', () => {
+  it.each(['---', '----', '***', '___', '- - -'])('keeps repeated %s dividers visible after an unrelated edit and reload', (rule) => {
+    const source = `${rule}\n\nFirst section\n\n${rule}\n\nLast section`;
+    const doc = markdownToDoc(source);
+    expect(doc.content?.filter(node => node.type === 'horizontalRule')).toHaveLength(2);
+    const edited = afterEdit(source);
+    expect(edited).toBe(`${source}\n\nEdit elsewhere updated`);
+    const reloaded = markdownToDoc(edited);
+    expect(reloaded.content?.filter(node => node.type === 'horizontalRule')).toHaveLength(2);
+    expect(JSON.stringify(reloaded)).toContain('First section');
+  });
+
+  it('does not treat dividers later in a note as a metadata header', () => {
+    const source = 'Intro\n\n---\n\nTime: noon\n\n---\n\nEnd';
+    const doc = markdownToDoc(source);
+    expect(doc.content?.filter(node => node.type === 'horizontalRule')).toHaveLength(2);
+    expect(afterEdit(source)).toBe(`${source}\n\nEdit elsewhere updated`);
+  });
+
   it.each([
     'a <span>x</span> b', '<mark>hl</mark> <kbd>K</kbd>', '<u>under</u>',
     '[[X]]', '[[2026-10-25]]', '[[Note|alias]]', '![[Embed]]', '> [!NOTE]',
@@ -77,6 +95,8 @@ describe('note Markdown', () => {
 
   it.each([
     '---\ntitle: Unchanged\n---',
+    '---\nnote title: Keep me\n---',
+    '---\ntiêu đề: Giữ nguyên\n---',
     '<div data-custom="yes">\n  <em>Keep HTML</em>\n</div>',
     '[^one]: Keep footnote\n    and indentation',
     '```unknown-language extra=keep\n  exact syntax\n```',
