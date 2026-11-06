@@ -336,3 +336,159 @@ it('stores every sample once and in time order when pointermove delivers earlier
   pointer(canvas, 'pointerup', { clientX: 70 });
   expect(decodePoints(onChange.mock.calls[0][0].strokes[0].points).map(p => p.x)).toEqual([10, 20, 30, 40, 50, 60, 70]);
 });
+
+const linePage = () => ({ ...blank(), strokes: [{ id: 'line', tool: 'pen' as const, color: '#1c1917', width: 4, createdAt: '', points: encodePoints([{ x: 30, y: 30, p: 0.5 }, { x: 70, y: 70, p: 0.5 }]) }] });
+const lastPage = (onChange: ReturnType<typeof vi.fn>): InkPage => onChange.mock.calls.at(-1)![0];
+function loop(canvas: HTMLCanvasElement) {
+  pointer(canvas, 'pointerdown', { clientX: 20, clientY: 20 });
+  for (const [clientX, clientY] of [[80, 20], [80, 80], [20, 80], [20, 20]]) pointer(canvas, 'pointermove', { clientX, clientY });
+  pointer(canvas, 'pointerup', { clientX: 20, clientY: 20 });
+}
+function box(canvas: HTMLCanvasElement) {
+  pointer(canvas, 'pointerdown', { clientX: 100, clientY: 100, timeStamp: performance.now() });
+  for (const [clientX, clientY] of [[150, 100], [200, 100], [200, 150], [200, 200], [150, 200], [100, 200], [100, 150], [100, 100]]) {
+    pointer(canvas, 'pointermove', { clientX, clientY, timeStamp: performance.now() });
+  }
+}
+it('pen with buttons=3 erases a stroke under it and the next plain stroke draws', () => {
+  const { canvas, onChange } = mount({ page: linePage(), eraserMode: 'stroke' });
+  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50, buttons: 3 });
+  pointer(canvas, 'pointerup', { clientX: 50, clientY: 50 });
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+  pointer(canvas, 'pointerdown', { buttons: 1 }); pointer(canvas, 'pointerup', { clientX: 25 });
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+});
+it('select tool loop then drag moves the strokes; one undo restores', () => {
+  const onSelectionChange = vi.fn();
+  const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select', onSelectionChange });
+  loop(canvas);
+  expect(onSelectionChange).toHaveBeenLastCalledWith(['line']);
+  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50 });
+  pointer(canvas, 'pointermove', { clientX: 150, clientY: 150 });
+  pointer(canvas, 'pointerup', { clientX: 150, clientY: 150 });
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)[0]).toMatchObject({ x: 130, y: 130 });
+  act(() => ref.current!.undo());
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+  expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)[0]).toMatchObject({ x: 30, y: 30 });
+});
+it('text tool mouse tap, type hello, blur creates one text box; editing and undo keep one box', () => {
+  const { canvas, onChange, ref } = mount({ tool: 'text', textColor: '#44403c' });
+  pointer(canvas, 'pointerdown', { pointerType: 'mouse' }); pointer(canvas, 'pointerup', { pointerType: 'mouse' });
+  const input = host.querySelector('textarea')!;
+  expect(input).not.toBeNull();
+  act(() => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, 'hello'); input.dispatchEvent(new Event('input', { bubbles: true })); input.blur(); });
+  expect(lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id))).toMatchObject([{ text: 'hello', color: '#44403c' }]);
+  const text = host.querySelector<HTMLElement>('[data-ink-text]')!;
+  pointer(text as HTMLCanvasElement, 'pointerdown', { pointerType: 'mouse' }); pointer(text as HTMLCanvasElement, 'pointerup', { pointerType: 'mouse' });
+  const edit = host.querySelector('textarea')!;
+  act(() => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(edit, 'world'); edit.dispatchEvent(new Event('input', { bubbles: true })); edit.blur(); });
+  act(() => ref.current!.undo());
+  const page = lastPage(onChange);
+  expect(page.strokes.filter(s => !page.removed.includes(s.id)).map(s => s.text)).toEqual(['hello']);
+});
+it('held stroke shaped like a box becomes a 5-point rectangle; undo restores freehand', () => {
+  vi.useFakeTimers();
+  try {
+    const { canvas, onChange, ref } = mount(); box(canvas);
+    act(() => vi.advanceTimersByTime(700));
+    pointer(canvas, 'pointerup', { clientX: 100, clientY: 100 });
+    expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)).toHaveLength(5);
+    act(() => ref.current!.undo());
+    expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points).length).toBeGreaterThan(5);
+  } finally { vi.useRealTimers(); }
+});
+it('quick box stroke without hold stays freehand', () => {
+  const { canvas, onChange } = mount(); box(canvas);
+  pointer(canvas, 'pointerup', { clientX: 100, clientY: 100 });
+  expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points).length).toBeGreaterThan(5);
+});
+it.each(['select', 'text'] as const)('finger touch with %s tool does not select or create', tool => {
+  const onSelectionChange = vi.fn();
+  const { canvas, onChange } = mount({ tool, page: linePage(), onSelectionChange });
+  pointer(canvas, 'pointerdown', { pointerType: 'touch' }); pointer(canvas, 'pointerup', { pointerType: 'touch' });
+  expect(onChange).not.toHaveBeenCalled(); expect(host.querySelector('textarea')).toBeNull();
+  expect(onSelectionChange.mock.calls.flat(2)).not.toContain('line');
+});
+
+it('ends temporary erasing on button release during contact; hover never erases', () => {
+  const { canvas, onChange } = mount({ page: linePage(), eraserMode: 'stroke' });
+  pointer(canvas, 'pointermove', { buttons: 3, pressure: 0, clientX: 50, clientY: 50 });
+  expect(onChange).not.toHaveBeenCalled();
+  pointer(canvas, 'pointerdown', { buttons: 3, clientX: 50, clientY: 50 });
+  pointer(canvas, 'pointermove', { buttons: 1, clientX: 60, clientY: 60 });
+  expect(onChange).toHaveBeenCalledTimes(1);
+  pointer(canvas, 'pointerup', { buttons: 0 });
+  pointer(canvas, 'pointerdown', { buttons: 1 }); pointer(canvas, 'pointerup', { clientX: 25 });
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+});
+it('selection corner resize locks aspect ratio and is one undo step', () => {
+  const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select' }); loop(canvas);
+  pointer(canvas, 'pointerdown', { clientX: 70, clientY: 70 });
+  pointer(canvas, 'pointermove', { clientX: 110, clientY: 110 });
+  pointer(canvas, 'pointerup', { clientX: 110, clientY: 110 });
+  expect(onChange).toHaveBeenCalledTimes(1);
+  const stroke = visibleStrokes(lastPage(onChange))[0];
+  expect(decodePoints(stroke.points)).toMatchObject([{ x: 30, y: 30 }, { x: 110, y: 110 }]);
+  expect(stroke.width).toBe(8);
+  act(() => ref.current!.undo());
+  expect(visibleStrokes(lastPage(onChange))[0].width).toBe(4);
+});
+it('selection recolor, delete and duplicate each undo without duplicates', () => {
+  const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select' }); loop(canvas);
+  act(() => ref.current!.recolorSelection('#78716c'));
+  expect(visibleStrokes(lastPage(onChange))[0].color).toBe('#78716c');
+  act(() => ref.current!.undo());
+  expect(visibleStrokes(lastPage(onChange))[0].color).toBe('#1c1917');
+  loop(canvas); act(() => ref.current!.duplicateSelection());
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(2);
+  act(() => ref.current!.undo()); expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+  loop(canvas); act(() => ref.current!.deleteSelection());
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+  act(() => ref.current!.undo()); expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+});
+it('device clipboard survives a page change; cut and paste are undoable', () => {
+  const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select' }); loop(canvas);
+  act(() => ref.current!.cutSelection()); expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+  const next = { ...blank(), page: 1 };
+  act(() => root.render(React.createElement(InkCanvas, { page: next, paper: 'lined', tool: 'select', color: '#1c1917', width: 4, onChange, ref })));
+  act(() => ref.current!.paste());
+  expect(lastPage(onChange).page).toBe(1);
+  expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)[0]).toMatchObject({ x: 50, y: 50 });
+  act(() => ref.current!.undo()); expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+});
+it('undoing snap then drawing removes the whole stroke; redo restores the shape', () => {
+  vi.useFakeTimers();
+  try {
+    const { canvas, onChange, ref } = mount(); box(canvas); act(() => vi.advanceTimersByTime(700));
+    pointer(canvas, 'pointerup', { clientX: 100, clientY: 100 });
+    act(() => ref.current!.undo()); act(() => ref.current!.undo());
+    expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+    act(() => ref.current!.redo()); act(() => ref.current!.redo());
+    expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+    expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)).toHaveLength(5);
+  } finally { vi.useRealTimers(); }
+});
+it('text drag returning to its start does not place a box; empty blur cancels a tap', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown'); pointer(canvas, 'pointermove', { clientX: 100 }); pointer(canvas, 'pointerup');
+  expect(host.querySelector('textarea')).toBeNull();
+  pointer(canvas, 'pointerdown'); pointer(canvas, 'pointerup');
+  expect(host.querySelector('textarea')).not.toBeNull();
+  act(() => host.querySelector('textarea')!.blur());
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it('select moves a text-only selection and undo restores its text and anchor', () => {
+  const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
+  const { canvas, onChange, ref } = mount({ page, tool: 'select' }); loop(canvas);
+  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50 });
+  pointer(canvas, 'pointermove', { clientX: 150, clientY: 150 }); pointer(canvas, 'pointerup', { clientX: 150, clientY: 150 });
+  let visible = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
+  expect(visible).toHaveLength(1); expect(visible[0].text).toBe('hello');
+  expect(decodePoints(visible[0].points)[0]).toMatchObject({ x: 150, y: 150 });
+  act(() => ref.current!.undo());
+  visible = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
+  expect(visible).toHaveLength(1); expect(visible[0].text).toBe('hello');
+  expect(decodePoints(visible[0].points)[0]).toMatchObject({ x: 50, y: 50 });
+});
