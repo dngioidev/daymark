@@ -1,0 +1,1162 @@
+{
+ "generatedAt": "2026-11-06T09:40:54.937Z",
+ "baseline": "cycle-16-fix",
+ "summary": {
+  "pass": 126
+ },
+ "fatal": null,
+ "records": [
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-desktop-light.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-desktop-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-desktop-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-desktop-dark.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 894 vs clientWidth 894"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-desktop-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 562 vs clientWidth 562"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1440 vs 1440"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-desktop-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-phone-light.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-phone-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-phone-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-phone-dark.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 364 vs clientWidth 364"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-phone-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 332 vs clientWidth 332"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 390 vs 390"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-phone-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "phone",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-tablet-light.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-tablet-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-tablet-light.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "light",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-no-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "edit-save",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "undo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "redo",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-notes-tablet-dark.png"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "reopen-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-mode-shows-saved-source",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "markdown-to-rich",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "*",
+   "surface": "notes",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 790 vs clientWidth 790"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-today-tablet-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "today",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "open-render",
+   "status": "pass",
+   "detail": ""
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "section-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 354 vs clientWidth 354"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-overflow",
+   "status": "pass",
+   "detail": "scrollWidth 1024 vs 1024"
+  },
+  {
+   "caseId": "mixed-note",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "screenshot",
+   "status": "pass",
+   "detail": "",
+   "screenshot": "docs/releases/cycle-16/images/md-calendar-tablet-dark.png"
+  },
+  {
+   "caseId": "*",
+   "surface": "calendar",
+   "viewport": "tablet",
+   "scheme": "dark",
+   "transition": "page-errors",
+   "status": "pass",
+   "detail": ""
+  }
+ ]
+}

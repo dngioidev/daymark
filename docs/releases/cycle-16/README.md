@@ -46,3 +46,6 @@ Actual session and token totals are unavailable to this runtime.
 
 ## Next cycle
 Not planned. Publishing 1.11.2 (or folding into the next release) is a separate decision: [ROADMAP](../../ROADMAP.md).
+
+## Evidence note
+A superseded browser run from earlier in the session kept running in the background and, when it finished, overwrote the committed Cycle 15 results and some screenshots; those files were restored from git. Because it overlapped other runs, the Cycle 16 screenshots were regenerated in a single clean run (`shots-check.json`, 126 records, all pass). The Cycle 15 baseline screenshots were written while that stale run overlapped; both used the same baseline build, but treat them as lower-confidence evidence than the assertion results.

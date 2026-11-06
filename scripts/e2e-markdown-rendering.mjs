@@ -15,7 +15,7 @@ const arg = (name) => process.argv.find(a => a.startsWith(`--${name}=`))?.split(
 const onlyCase = arg('case'), onlyViewport = arg('viewport'), onlyScheme = arg('scheme');
 const OUT = arg('out') ?? 'docs/releases/cycle-15/rendering-results.json';
 const SHOTS = !process.argv.includes('--no-shots');
-const IMG_DIR = 'docs/releases/cycle-15/images';
+const IMG_DIR = arg('img') ?? 'docs/releases/cycle-15/images';
 const PORT = 3151 + Math.floor(Math.random() * 40);
 const base = `http://localhost:${PORT}`;
 const PASSWORD = 'md-audit-pass-123';
