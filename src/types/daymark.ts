@@ -153,6 +153,7 @@ export interface InkStroke {
   width: number;
   points: string;
   createdAt: string;
+  text?: string;
 }
 
 export interface InkPage {

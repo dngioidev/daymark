@@ -81,7 +81,7 @@ export function eraseStrokes(page: InkPage, ids: string[], now: string): InkPage
 
 export function visibleStrokes(page: InkPage): InkStroke[] {
   const removed = new Set(page.removed);
-  return page.strokes.filter(stroke => !removed.has(stroke.id)).sort((a, b) =>
+  return page.strokes.filter(stroke => stroke.text === undefined && !removed.has(stroke.id)).sort((a, b) =>
     Number(a.tool === 'pen') - Number(b.tool === 'pen') || compare(a.createdAt, b.createdAt) || compare(a.id, b.id));
 }
 
@@ -119,7 +119,7 @@ export function eraseArea(page: InkPage, center: { x: number; y: number }, radiu
   const distanceSquared = (p: Point) => (p.x - center.x) ** 2 + (p.y - center.y) ** 2;
   const radiusSquared = radius ** 2;
   for (const stroke of page.strokes) {
-    if (removed.has(stroke.id)) continue;
+    if (removed.has(stroke.id) || stroke.text !== undefined) continue;
     const bounds = geometry.get(stroke) ?? cacheStrokeGeometry(stroke, decodePoints(stroke.points));
     // Rendering primes bounds/points; all later miss-only sweeps stop here without decoding.
     const { minX, minY, maxX, maxY } = bounds;

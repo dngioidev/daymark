@@ -1,4 +1,5 @@
 import { inkKey } from '../ink/inkModel';
+import { TEXT_BOX_MAX } from '../ink/inkText';
 import type { InkPage } from '../types/daymark';
 import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
 
@@ -110,6 +111,7 @@ export function isInkPage(value: unknown): value is InkPage {
     !Number.isSafeInteger(value.page) || (value.page as number) < 0 || !isString(value.updatedAt) ||
     !Array.isArray(value.removed) || !value.removed.every(isString) || !Array.isArray(value.strokes)) return false;
   return value.strokes.every(s => isObject(s) && isString(s.id) &&
+    (s.text === undefined || (isString(s.text) && s.text.length <= TEXT_BOX_MAX)) &&
     (s.tool === 'pen' || s.tool === 'highlighter') && isString(s.color) &&
     typeof s.width === 'number' && Number.isFinite(s.width) && s.width > 0 &&
     isString(s.createdAt) && isString(s.points) && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s.points));
