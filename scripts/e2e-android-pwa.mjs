@@ -16,6 +16,109 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { signIn } from './helpers/server-session.mjs';
+import { tsImport } from 'tsx/esm/api';
+import { createNotebook, openNotes, inkCanvas, penDrag, readInk, readStored, waitInk } from './helpers/cycle-14-qa.mjs';
+
+// Cycle 17: real CDP pen events exercise pointer capture as well as persisted edits.
+async function writingScenarios(browser) {
+  const { decodePoints } = await tsImport('../src/ink/inkModel.ts', import.meta.url);
+  for (const [device, width, height] of [['phone', 412, 915], ['tablet', 1280, 800], ['desktop', 1440, 900]]) {
+    const context = await browser.newContext({ viewport: { width, height }, isMobile: device === 'phone', hasTouch: device !== 'desktop' });
+    try {
+      await signIn(context, base, 'e2e-password-123');
+      const page = await context.newPage();
+      await page.goto(base, { waitUntil: 'networkidle' });
+      await openNotes(page);
+      await page.getByRole('button', { name: 'New note', exact: true }).first().click();
+      await page.getByRole('textbox', { name: 'Title', exact: true }).fill(`Cycle 17 typed ${device}`);
+      await page.getByRole('textbox', { name: 'Note rich text', exact: true }).fill('Full screen keeps my text');
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      const folder = page.getByRole('button', { name: /Move to folder/ });
+      const fullscreen = async (kind) => {
+        await title.waitFor();
+        await folder.waitFor();
+        await page.getByRole('button', { name: 'Full screen', exact: true }).click();
+        await title.waitFor({ state: 'hidden' });
+        check(!await folder.isVisible() && !await page.getByRole('button', { name: 'Related', exact: true }).isVisible()
+          && !await page.getByRole('group', { name: 'Note editor', exact: true }).locator('footer').isVisible(), `${device} ${kind} full screen hides title, folder, Related and footer`);
+        if (kind === 'typed') check(await page.getByRole('textbox', { name: 'Note rich text', exact: true }).isVisible()
+          && await page.getByRole('toolbar', { name: 'Formatting', exact: true }).isVisible(), `${device} typed full screen keeps editor and formatting`);
+        else check(await page.getByRole('toolbar', { name: 'Writing tools', exact: true }).getAttribute('aria-orientation') === 'vertical', `${device} handwriting full screen shows side rail`);
+        await page.getByRole('button', { name: 'Exit full screen', exact: true }).click();
+        await title.waitFor();
+        check(await folder.isVisible(), `${device} ${kind} exit restores title and folder`);
+        await page.getByRole('button', { name: 'Full screen', exact: true }).click();
+        await page.getByRole('button', { name: 'Exit full screen', exact: true }).waitFor();
+        await page.keyboard.press('Escape');
+        await title.waitFor();
+        check(await folder.isVisible(), `${device} ${kind} Escape restores title and folder`);
+      };
+      await fullscreen('typed');
+      await createNotebook(page, 'Lined', `Cycle 17 ink ${device}`);
+      await fullscreen('handwritten');
+      if (device !== 'desktop') continue;
+
+      // Keyboard text placement must work before this device has ever seen a pen.
+      check(await page.evaluate(() => localStorage.getItem('dm.ink.penSeen') !== '1'), 'desktop text fixture has no pen');
+      await page.getByRole('button', { name: 'Text', exact: true }).click();
+      await inkCanvas(page).click({ position: { x: 35, y: 200 } });
+      await page.getByRole('textbox', { name: 'Text box', exact: true }).pressSequentially('Keyboard without a pen');
+      await title.click();
+      const notebook = (await readStored(page, 'notes')).find(n => n.title === 'Cycle 17 ink desktop');
+      await waitInk(page, 1, notebook.id);
+      check(await page.locator('[data-ink-text]').innerText() === 'Keyboard without a pen', 'Text tool places keyboard text without a pen');
+      await page.reload({ waitUntil: 'networkidle' });
+      await openNotes(page);
+      await page.getByRole('treeitem', { name: notebook.title, exact: true }).click();
+      await page.locator('[data-ink-text]').waitFor();
+      check(await page.locator('[data-ink-text]').innerText() === 'Keyboard without a pen', 'text box survives reload');
+
+      const visible = async () => {
+        await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+        const stored = (await readInk(page)).find(p => p.noteId === notebook.id && p.page === 0);
+        return stored.strokes.filter(s => !stored.removed.includes(s.id) && s.text === undefined);
+      };
+      if (await page.getByRole('button', { name: 'Pen', exact: true }).getAttribute('aria-pressed') !== 'true') await page.getByRole('button', { name: 'Pen', exact: true }).click();
+      const box = await inkCanvas(page).boundingBox();
+      const at = (x, y) => ({ x: box.x + x, y: box.y + y });
+      await penDrag(page, [at(50, 70), at(100, 80), at(150, 70)]);
+      await waitInk(page, 2, notebook.id);
+      const original = await visible();
+      await page.getByRole('button', { name: 'Select', exact: true }).click();
+      await penDrag(page, [at(30, 50), at(175, 50), at(175, 100), at(30, 100), at(30, 50)]);
+      await page.getByRole('toolbar', { name: 'Selection actions', exact: true }).waitFor();
+      await penDrag(page, [at(100, 75), at(140, 115)]);
+      await waitInk(page, 2, notebook.id);
+      const moved = await visible();
+      const before = decodePoints(original[0].points), after = decodePoints(moved[0].points);
+      check(moved.length === 1 && moved[0].id !== original[0].id && after[0].x > before[0].x && after[0].y > before[0].y, 'pen Select loop moves the stroke');
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      check(JSON.stringify((await visible()).map(s => s.points)) === JSON.stringify(original.map(s => s.points)), 'Undo restores pre-move stroke geometry');
+
+      if (await page.getByRole('button', { name: 'Pen', exact: true }).getAttribute('aria-pressed') !== 'true') await page.getByRole('button', { name: 'Pen', exact: true }).click();
+      const beforeHold = new Set((await visible()).map(s => s.id));
+      const session = await context.newCDPSession(page);
+      try {
+        const send = (type, x, y, buttons = 1) => session.send('Input.dispatchMouseEvent', {
+          type, x: box.x + x, y: box.y + y, pointerType: 'pen', button: type === 'mouseReleased' ? 'left' : buttons ? 'left' : 'none', buttons, force: 0.5,
+        });
+        await send('mouseMoved', 45, 140, 0);
+        await send('mousePressed', 45, 140);
+        await send('mouseMoved', 100, 143);
+        await send('mouseMoved', 165, 140);
+        await send('mouseMoved', 165, 140);
+        await page.waitForTimeout(800); // Deliberate stationary pen hold, beyond the 500 ms recognition threshold.
+        await send('mouseReleased', 165, 140, 0);
+      } finally { await session.detach(); }
+      await waitInk(page, 3, notebook.id);
+      const snapped = (await visible()).find(s => !beforeHold.has(s.id));
+      check(decodePoints(snapped.points).length === 2, 'draw-and-hold snaps a rough line to two endpoints');
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      const unsnapped = (await visible()).find(s => !beforeHold.has(s.id));
+      check(decodePoints(unsnapped.points).length > 2, 'Undo after shape hold restores the freehand line');
+    } finally { await context.close(); }
+  }
+}
 
 const noShots = process.argv.includes('--no-shots');
 const cycle = process.argv.slice(2).find((a) => !a.startsWith('--')) || 'cycle-1';
@@ -140,6 +243,7 @@ try {
   await page.goto(`${base}/?action=capture`, { waitUntil: 'networkidle' });
   await page.getByPlaceholder(/what do you need to do/i).waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   check(await page.getByPlaceholder(/what do you need to do/i).isVisible().catch(() => false), 'shortcut ?action=capture opens quick capture');
+  await writingScenarios(browser);
 } catch (err) {
   console.error('E2E aborted:', err);
   failures++;
