@@ -7,6 +7,13 @@ import { HIGHLIGHTER_COLORS, PEN_COLORS } from '../../ink/inkColors';
 
 let host: HTMLDivElement, root: Root;
 const props = () => ({ tool: 'pen' as const, color: PEN_COLORS[0], width: 4, onToolChange: vi.fn(), onColorChange: vi.fn(), onWidthChange: vi.fn(), onEraserModeChange: vi.fn(), onUndo: vi.fn(), onRedo: vi.fn() });
+it('offers clipboard Paste without a selection', () => {
+  const onPaste = vi.fn();
+  act(() => root.render(React.createElement(InkToolbar, { ...props(), hasClip: true, onPaste })));
+  click('Paste'); expect(onPaste).toHaveBeenCalledOnce();
+  act(() => root.render(React.createElement(InkToolbar, { ...props(), hasClip: false, onPaste })));
+  expect(host.querySelector('[aria-label="Paste"]')).toBeNull();
+});
 function button(label: string, scope: ParentNode = host) { const b = scope.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`); expect(b).not.toBeNull(); return b!; }
 function click(label: string, scope: ParentNode = host) { act(() => button(label, scope).click()); }
 function dialog() { const d = host.querySelector<HTMLElement>('[role="dialog"]'); expect(d).not.toBeNull(); return d!; }

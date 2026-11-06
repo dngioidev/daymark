@@ -14,11 +14,11 @@ export function InkRail(props: InkRailProps) {
   const [overflow, setOverflow] = useState(false);
   const nextSide = props.side === 'left' ? 'right' : 'left';
   return <aside role="toolbar" aria-label="Writing tools" aria-orientation="vertical" data-side={props.side}
-    className="relative z-10 flex w-14 shrink-0 flex-col items-center bg-stone-900 text-stone-100">
+    className="relative z-10 flex w-14 shrink-0 flex-col items-center bg-stone-900 text-stone-100 pb-[env(safe-area-inset-bottom,0px)]" style={{ paddingTop: 'var(--dm-safe-top)' }}>
     <div className="min-h-0 flex-1 w-full overflow-y-auto [scrollbar-width:none]">
       <InkWritingTools {...props} railSide={props.side} />
       {props.selectionCount > 0 && <div role="group" aria-label="Selection actions" className="flex flex-col items-center border-t border-stone-700">
-        {([['Delete', props.onDelete], ['Copy', props.onCopy], ['Cut', props.onCut], ['Paste', props.onPaste], ['Duplicate', props.onDuplicate]] as const).map(([label, action]) =>
+        {([['Delete', props.onDelete], ['Copy', props.onCopy], ['Cut', props.onCut], ['Duplicate', props.onDuplicate]] as const).map(([label, action]) =>
           <button key={label} type="button" aria-label={label} title={label} className={`${inkRailButton} text-[10px]`} onClick={action}>{label}</button>)}
         <input type="color" aria-label="Recolor selection" className="h-11 w-11" value={props.color} onChange={event => props.onRecolor(event.currentTarget.value)} />
       </div>}

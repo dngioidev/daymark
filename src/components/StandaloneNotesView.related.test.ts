@@ -36,4 +36,4 @@ it('opening Related never saves; Markdown Link edits only the active note; dismi
   await act(async () => opener!.click()); await act(async () => button('Link').click());
   expect(save.mock.calls.at(-1)![0]).toEqual([expect.objectContaining({ id: 'a', content: notes[0].content + '\n\n## Related\n- [[Java b]]\n' }), notes[1]]);
   await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals();
-});
+}, 15_000); // Loads the rich editor and waits a real second for the debounced save.

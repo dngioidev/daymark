@@ -43,9 +43,16 @@ it('Exit calls onExitFullScreen', () => { const exit = notebook(); click('Exit f
 it('selection actions appear only with a selection', () => {
   const p = props(); act(() => root.render(React.createElement(InkRail, p)));
   expect(host.querySelector('[aria-label="Selection actions"]')).toBeNull();
-  act(() => root.render(React.createElement(InkRail, { ...p, selectionCount: 2 })));
+  act(() => root.render(React.createElement(InkRail, { ...p, selectionCount: 2, hasClip: true })));
   for (const label of ['Delete', 'Copy', 'Cut', 'Paste', 'Duplicate']) click(label);
   for (const action of [p.onDelete, p.onCopy, p.onCut, p.onPaste, p.onDuplicate]) expect(action).toHaveBeenCalledOnce();
+});
+it('keeps Paste reachable without selection and pads for system bars', () => {
+  const p = props(); act(() => root.render(React.createElement(InkRail, { ...p, hasClip: true })));
+  click('Paste'); expect(p.onPaste).toHaveBeenCalledOnce();
+  const rail = host.querySelector('aside')!;
+  expect(rail.style.paddingTop).toBe('var(--dm-safe-top)');
+  expect(rail.classList.contains('pb-[env(safe-area-inset-bottom,0px)]')).toBe(true);
 });
 it('shares active tool settings, colors and eraser mode with the toolbar', () => {
   const p = props(); act(() => root.render(React.createElement(InkRail, p)));

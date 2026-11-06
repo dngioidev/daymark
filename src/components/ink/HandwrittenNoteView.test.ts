@@ -199,6 +199,7 @@ describe('writing on any device', () => {
     pointer('pointerdown', 'mouse'); pointer('pointerup', 'mouse');
     const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text box"]');
     expect(input).not.toBeNull();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 401);
     act(() => { input!.value = 'hello'; input!.dispatchEvent(new Event('input', { bubbles: true })); input!.blur(); });
     expect(visibleTextBoxes(update.mock.calls.at(-1)![0]).map(box => box.text)).toEqual(['hello']);
     expect(host.querySelector('button[aria-label="Add page"]')).not.toBeNull();

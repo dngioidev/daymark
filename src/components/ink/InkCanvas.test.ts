@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { InkCanvas, type InkCanvasHandle, type InkCanvasProps } from './InkCanvas';
 import { InkPageView } from './InkPageView';
+import { HandwrittenNoteView, createHandwrittenNote } from './HandwrittenNoteView';
 import { decodePoints, encodePoints, visibleStrokes } from '../../ink/inkModel';
 import * as model from '../../ink/inkModel';
 import * as renderer from '../../ink/inkRender';
@@ -358,6 +359,16 @@ it('pen with buttons=3 erases a stroke under it and the next plain stroke draws'
   pointer(canvas, 'pointerdown', { buttons: 1 }); pointer(canvas, 'pointerup', { clientX: 25 });
   expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
 });
+it('the S Pen button forwarded by the Android app erases while held, then the pen draws again', () => {
+  const { canvas, onChange } = mount({ page: linePage(), eraserMode: 'stroke' });
+  act(() => { window.dispatchEvent(new CustomEvent('daymark-stylus-button', { detail: { pressed: true } })); });
+  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50, buttons: 1 });
+  pointer(canvas, 'pointerup', { clientX: 50, clientY: 50 });
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+  act(() => { window.dispatchEvent(new CustomEvent('daymark-stylus-button', { detail: { pressed: false } })); });
+  pointer(canvas, 'pointerdown', { buttons: 1 }); pointer(canvas, 'pointerup', { clientX: 25 });
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
+});
 it('select tool loop then drag moves the strokes; one undo restores', () => {
   const onSelectionChange = vi.fn();
   const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select', onSelectionChange });
@@ -377,11 +388,13 @@ it('text tool mouse tap, type hello, blur creates one text box; editing and undo
   pointer(canvas, 'pointerdown', { pointerType: 'mouse' }); pointer(canvas, 'pointerup', { pointerType: 'mouse' });
   const input = host.querySelector('textarea')!;
   expect(input).not.toBeNull();
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 401);
   act(() => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, 'hello'); input.dispatchEvent(new Event('input', { bubbles: true })); input.blur(); });
   expect(lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id))).toMatchObject([{ text: 'hello', color: '#44403c' }]);
   const text = host.querySelector<HTMLElement>('[data-ink-text]')!;
   pointer(text as HTMLCanvasElement, 'pointerdown', { pointerType: 'mouse' }); pointer(text as HTMLCanvasElement, 'pointerup', { pointerType: 'mouse' });
   const edit = host.querySelector('textarea')!;
+  clock.mockReturnValue(Date.now() + 401);
   act(() => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(edit, 'world'); edit.dispatchEvent(new Event('input', { bubbles: true })); edit.blur(); });
   act(() => ref.current!.undo());
   const page = lastPage(onChange);
@@ -403,12 +416,97 @@ it('quick box stroke without hold stays freehand', () => {
   pointer(canvas, 'pointerup', { clientX: 100, clientY: 100 });
   expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points).length).toBeGreaterThan(5);
 });
-it.each(['select', 'text'] as const)('finger touch with %s tool does not select or create', tool => {
+it.each(['select'] as const)('finger touch with %s tool does not select or create', tool => {
   const onSelectionChange = vi.fn();
   const { canvas, onChange } = mount({ tool, page: linePage(), onSelectionChange });
   pointer(canvas, 'pointerdown', { pointerType: 'touch' }); pointer(canvas, 'pointerup', { pointerType: 'touch' });
   expect(onChange).not.toHaveBeenCalled(); expect(host.querySelector('textarea')).toBeNull();
   expect(onSelectionChange.mock.calls.flat(2)).not.toContain('line');
+});
+
+it('notifies clipboard availability on mount, copy, cut and remount', () => {
+  const onClipboardChange = vi.fn();
+  const { canvas, ref } = mount({ page: linePage(), tool: 'select', onClipboardChange });
+  expect(onClipboardChange).toHaveBeenCalledWith(expect.any(Boolean));
+  loop(canvas); act(() => ref.current!.copySelection());
+  expect(onClipboardChange).toHaveBeenLastCalledWith(true);
+  act(() => ref.current!.cutSelection());
+  expect(onClipboardChange).toHaveBeenCalledTimes(3);
+  expect(host.querySelector('[aria-label="Selection actions"]')).toBeNull();
+  act(() => root.unmount()); root = createRoot(host);
+  onClipboardChange.mockClear(); mount({ onClipboardChange });
+  expect(onClipboardChange).toHaveBeenCalledWith(true);
+});
+
+it.each([false, true])('routes Paste after Cut and page navigation through notebook controls (fullScreen=%s)', fullScreen => {
+  const note = { ...createHandwrittenNote('', 'lined', ''), id: 'n' };
+  const onUpdatePage = vi.fn();
+  act(() => root.render(React.createElement(HandwrittenNoteView, { note, pages: [linePage(), { ...blank(), page: 1 }], onUpdatePage, fullScreen })));
+  const click = (label: string, scope: ParentNode = host) => act(() => scope.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click());
+  click('Select'); loop(host.querySelector('canvas')!);
+  click('Cut', host.querySelector('[role=toolbar][aria-label="Selection actions"]')!);
+  expect(host.querySelector('[role=toolbar][aria-label="Selection actions"]')).toBeNull();
+  click('Next page'); click('Paste', host.querySelector('[aria-label="Writing tools"]')!);
+  const pasted = onUpdatePage.mock.calls.at(-1)![0] as InkPage;
+  expect(pasted.page).toBe(1); expect(visibleStrokes(pasted)).toHaveLength(1);
+  expect(decodePoints(visibleStrokes(pasted)[0].points)[0]).toMatchObject({ x: 50, y: 50 });
+});
+
+it('uses CSS pixel tap tolerance at tablet scale while a touch drag scrolls', () => {
+  vi.mocked(HTMLCanvasElement.prototype.getBoundingClientRect).mockReturnValue({ left: 0, top: 0, width: 500, height: 707 } as DOMRect);
+  host.style.overflow = 'auto'; Object.defineProperties(host, { scrollHeight: { value: 2400 }, clientHeight: { value: 500 } }); host.scrollTop = 100;
+  const { canvas } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { pointerType: 'touch', width: 30, height: 30 });
+  pointer(canvas, 'pointerup', { pointerType: 'touch', clientX: 16, width: 30, height: 30 });
+  expect(host.querySelector('textarea')).not.toBeNull();
+  pointer(canvas, 'pointerdown', { pointerType: 'touch' });
+  pointer(canvas, 'pointermove', { pointerType: 'touch', clientY: 40 });
+  expect(host.scrollTop).toBe(70);
+  pointer(canvas, 'pointerup', { pointerType: 'touch', clientY: 40 });
+});
+
+it.each(['pen', 'mouse', 'touch'])('focuses a draft during %s pointerup and guards early blur', pointerType => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { pointerType });
+  let focusedDuringUp = false;
+  canvas.addEventListener('pointerup', () => { focusedDuringUp = !!host.querySelector('textarea') && document.activeElement === host.querySelector('textarea'); });
+  pointer(canvas, 'pointerup', { pointerType });
+  expect(focusedDuringUp).toBe(true);
+  const input = host.querySelector('textarea')!;
+  act(() => input.blur());
+  expect(host.querySelector('textarea')).toBe(input);
+  expect(document.activeElement).toBe(input);
+  expect(onChange).not.toHaveBeenCalled();
+  const later = Date.now() + 401; vi.spyOn(Date, 'now').mockReturnValue(later);
+  act(() => { input.value = 'Tablet text'; input.blur(); });
+  expect(lastPage(onChange).strokes.at(-1)?.text).toBe('Tablet text');
+});
+
+it('typed text saves even when the box loses focus right away', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { pointerType: 'mouse' }); pointer(canvas, 'pointerup', { pointerType: 'mouse' });
+  const input = host.querySelector('textarea')!;
+  act(() => { input.value = 'Quick'; input.blur(); });
+  expect(lastPage(onChange).strokes.at(-1)?.text).toBe('Quick');
+});
+
+it.each(['pen', 'mouse', 'touch'])('edits an existing box with %s', pointerType => {
+  const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
+  mount({ page, tool: 'text' });
+  const box = host.querySelector('[data-ink-text]') as HTMLCanvasElement;
+  pointer(box, 'pointerdown', { pointerType }); pointer(box, 'pointerup', { pointerType });
+  expect(host.querySelector('textarea')?.value).toBe('hello');
+  expect(document.activeElement).toBe(host.querySelector('textarea'));
+});
+
+it.each([{ width: 31 }, { isPrimary: false }, { drag: true }, { cancel: true }])('rejects non-tap touch text placement %j', options => {
+  const { canvas } = mount({ tool: 'text' });
+  const e = { pointerType: 'touch', ...options };
+  pointer(canvas, 'pointerdown', e);
+  if (options.drag) { pointer(canvas, 'pointermove', { ...e, clientY: 40 }); pointer(canvas, 'pointermove', e); }
+  if (options.cancel) pointer(canvas, 'pointercancel', e);
+  pointer(canvas, 'pointerup', e);
+  expect(host.querySelector('textarea')).toBeNull();
 });
 
 it('ends temporary erasing on button release during contact; hover never erases', () => {

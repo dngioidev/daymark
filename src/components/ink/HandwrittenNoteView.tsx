@@ -36,6 +36,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
   const [history, setHistory] = useState({ undo: false, redo: false });
   const [railSide, setRailSide] = useState(readRailSide);
   const [selectionCount, setSelectionCount] = useState(0);
+  const [hasClip, setHasClip] = useState(false);
   const canvas = useRef<InkCanvasHandle>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // Ink entities use zero-based page numbers; the notebook labels start at 1.
@@ -71,6 +72,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
     onWidthChange: tool === 'highlighter' ? setHighlightWidth : setPenWidth,
     onEraserModeChange: setEraserMode, onUndo: () => canvas.current?.undo(), onRedo: () => canvas.current?.redo(),
     canUndo: history.undo, canRedo: history.redo, pageControls,
+    hasClip, onPaste: () => canvas.current?.paste(),
   };
   return <section aria-label="Handwritten notebook" className={`flex flex-1 min-h-0 min-w-0 text-stone-900 dark:text-stone-100 ${fullScreen ? (railSide === 'right' ? 'flex-row-reverse' : 'flex-row') : 'flex-col'}`}
     onPointerDownCapture={event => {
@@ -87,6 +89,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
         <InkCanvas key={`${note.id}:${number}`} ref={canvas} page={page} paper={note.paper}
           tool={tool} color={color} textColor={penColor} width={width} eraserMode={eraserMode} allowMouse={!penSeen} onChange={onUpdatePage}
           onSelectionChange={ids => setSelectionCount(ids.length)}
+          onClipboardChange={setHasClip}
           onHistoryChange={(undo, redo) => setHistory({ undo, redo })} />
       </div>
     </div>

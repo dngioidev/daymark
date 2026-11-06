@@ -454,7 +454,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
           </div>}
 
           <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
-            {focusMode && activeNote.kind !== 'handwritten' && <button type="button" aria-label="Exit full screen" title="Exit full screen" onClick={() => setFocusMode(false)} className={`${iconBtn} self-end shrink-0`}><Minimize2 className="w-4 h-4" /></button>}
+            {focusMode && activeNote.kind !== 'handwritten' && <div className="flex justify-end shrink-0" style={{ paddingTop: 'var(--dm-safe-top)' }}><button type="button" aria-label="Exit full screen" title="Exit full screen" onClick={() => setFocusMode(false)} className={iconBtn}><Minimize2 className="w-4 h-4" /></button></div>}
             {activeNote.kind === 'handwritten' ? (
               <Suspense fallback={<div role="status" className="p-4">Loading handwritten note...</div>}>
                 <HandwrittenNoteView key={activeNote.id} note={activeNote} pages={inkPagesForNote(activeNote.id)} onUpdatePage={updateInkPage} fullScreen={focusMode} onExitFullScreen={() => setFocusMode(false)} />

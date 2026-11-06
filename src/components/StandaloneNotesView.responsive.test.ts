@@ -22,6 +22,10 @@ async function mount(width: number, compact = false, extra: StandaloneNote[] = [
 const button = (name: string, scope: ParentNode = document) => [...scope.querySelectorAll<HTMLButtonElement>('button')].find(b => b.getAttribute('aria-label') === name || b.textContent === name)!;
 async function click(el: HTMLElement) { expect(el).toBeTruthy(); await act(async () => el.click()); }
 const row = (name: string) => document.querySelector<HTMLElement>(`[role=treeitem][data-note-id="${name}"]`)!;
+it('pads the typed full-screen exit row below the status bar', async () => {
+  await mount(1440); await click(button('Full screen'));
+  expect(button('Exit full screen').parentElement!.style.paddingTop).toBe('var(--dm-safe-top)');
+});
 
 it('puts the same switch first in the graph toolbar and preserves the open note', async () => {
   const save = await mount(1440);

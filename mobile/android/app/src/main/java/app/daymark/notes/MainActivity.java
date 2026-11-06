@@ -2,6 +2,7 @@ package app.daymark.notes;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -22,6 +23,27 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleWidgetIntent(intent);
+    }
+
+    private final StylusButton stylusButton = new StylusButton();
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        forwardStylusButton(event);
+        return super.dispatchTouchEvent(event);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        forwardStylusButton(event);
+        return super.dispatchGenericMotionEvent(event);
+    }
+
+    /** The WebView drops the S Pen button from pointer events; tell the page when it changes. */
+    private void forwardStylusButton(MotionEvent event) {
+        Boolean changed = stylusButton.update(event.getToolType(0), event.getButtonState(), event.getActionMasked());
+        if (changed == null || getBridge() == null || getBridge().getWebView() == null) return;
+        getBridge().getWebView().evaluateJavascript(StylusButton.Companion.script(changed), null);
     }
 
     /** Queues "open the new-task sheet" for the web app, which reads it on start/resume. */

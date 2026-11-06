@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Eraser, Highlighter, PenLine, Redo2, Undo2, MousePointer2, Type } from 'lucide-react';
+import { Eraser, Highlighter, PenLine, Redo2, Undo2, MousePointer2, Type, ClipboardPaste } from 'lucide-react';
 import { HIGHLIGHTER_COLORS, PEN_COLORS } from '../../ink/inkColors';
 import type { EraserMode, InkCanvasTool } from './InkCanvas';
 
@@ -11,6 +11,7 @@ export interface InkToolbarProps {
   onEraserModeChange: (mode: EraserMode) => void;
   onUndo: () => void; onRedo: () => void;
   canUndo?: boolean; canRedo?: boolean;
+  hasClip?: boolean; onPaste?: () => void;
   pageControls?: ReactNode;
 }
 export function readEraserMode(): EraserMode {
@@ -84,6 +85,7 @@ export function InkWritingTools(props: InkToolbarProps & { railSide?: 'left' | '
             }}><Icon size={21} aria-hidden="true" /></button>)}
         </div>
         {!rail && history}
+        {props.hasClip && <button type="button" aria-label="Paste" title="Paste" className={rail ? inkRailButton : `${inkToolbarButton} h-11 w-11`} onClick={props.onPaste}><ClipboardPaste size={20} aria-hidden="true" /></button>}
         {props.tool !== 'eraser' && <div className={rail ? 'flex flex-col items-center' : 'flex shrink-0 items-center border-l border-stone-300 pl-1 dark:border-stone-700'}>{colorButtons()}</div>}
         {rail && (props.tool === 'pen' || props.tool === 'highlighter') && <button type="button" aria-label="Width" title="Width" className={buttonStyle}
           aria-haspopup="dialog" aria-expanded={open} onClick={event => openSettings(event.currentTarget)}>

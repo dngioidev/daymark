@@ -1,8 +1,10 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { InkPage, InkStroke, InkTool, StandaloneNote } from '../../types/daymark';
 import { addStroke, collapseInkGesture, decodePoints, encodePoints, eraseArea, eraseStrokes, PAGE_HEIGHT, PAGE_WIDTH, visibleStrokes } from '../../ink/inkModel';
 import { drawPage, drawStroke, insertedStrokes, redrawInserted, touchesStroke, type InkPoint, type PointCache } from '../../ink/inkRender';
 import { classifyPointer, isPenEraserButton } from '../../ink/pointerPolicy';
+import { isStylusButtonHeld } from '../../ink/stylusButton';
 import { copyStrokes, deleteStrokes, lassoSelect, pasteStrokes, recolorStrokes, selectionBounds, transformStrokes, type Loop } from '../../ink/inkSelection';
 import { createTextBox, replaceTextBox, textBoxAnchor, visibleTextBoxes } from '../../ink/inkText';
 import { isHeld, recognizeShape } from '../../ink/shapeRecognition';
@@ -14,6 +16,7 @@ import { paperStyle, sizeInkSurface, startFingerScroll } from './inkSurface';
 export type EraserMode = 'area' | 'stroke';
 export type InkCanvasTool = InkTool | 'eraser' | 'select' | 'text';
 let inkClipboard: InkStroke[] = [];
+const clipboardListeners = new Set<() => void>();
 // Single-point text anchors (and horizontal/vertical ink) still need a draggable interior.
 function canvasSelectionBounds(page: InkPage, ids: string[]) {
   const bounds = selectionBounds(page, ids);
@@ -28,6 +31,7 @@ export interface InkCanvasProps {
   tool: InkCanvasTool;
   textColor?: string;
   onSelectionChange?: (ids: string[]) => void;
+  onClipboardChange?: (hasClip: boolean) => void;
   color: string;
   width: number;
   eraserMode?: EraserMode;
@@ -60,6 +64,11 @@ const drawProbe = () => (globalThis as { __daymarkInkDrawn?: () => void }).__day
 
 export const InkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function InkCanvas(props, ref) {
   const editor = useRef<InkCanvasHandle>(null);
+  useLayoutEffect(() => {
+    const notify = () => props.onClipboardChange?.(inkClipboard.length > 0);
+    clipboardListeners.add(notify); notify();
+    return () => { clipboardListeners.delete(notify); };
+  }, [props.onClipboardChange]);
   useImperativeHandle(ref, () => forwardHandle(() => editor.current), []);
   return props.readOnly ? <InkPageView page={props.page} paper={props.paper} /> : <WritableInkCanvas {...props} ref={editor} />;
 });
@@ -71,6 +80,13 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   const api = useRef<InkCanvasHandle>(emptyHandle);
   const [view, setView] = useState<{ page: InkPage; ids: string[]; loop: Loop; scale: number }>({ page: props.page, ids: [], loop: [], scale: 1 });
   const [draft, setDraft] = useState<TextDraft | null>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const [hasClip, setHasClip] = useState(inkClipboard.length > 0);
+  useLayoutEffect(() => {
+    const notify = () => setHasClip(inkClipboard.length > 0);
+    clipboardListeners.add(notify); notify();
+    return () => { clipboardListeners.delete(notify); };
+  }, []);
   const textApi = useRef({ edit: (_id: string) => {}, commit: (_text: string) => {} });
   const synchronize = useRef<() => void>(() => {});
   useImperativeHandle(ref, () => forwardHandle(() => api.current), []);
@@ -94,6 +110,12 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     let holdTimer: ReturnType<typeof setInterval> | undefined;
     let ids: string[] = [];
     let draftBox: TextDraft | null = null;
+    let draftCreated = 0;
+    const openDraft = (box: TextDraft) => {
+      draftBox = box; draftCreated = Date.now();
+      flushSync(() => setDraft(box));
+      textarea.current?.focus();
+    };
     type Gesture = { id: number; start: InkPoint; end: InkPoint; loop: Loop; mode: 'lasso' | 'move' | 'resize' | 'text'; origin?: InkPoint; moved?: boolean };
     let gesture: Gesture | null = null;
     const refresh = (loop: Loop = []) => setView({ page, ids: [...ids], loop: [...loop], scale });
@@ -101,7 +123,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     const uuid = () => crypto.randomUUID();
     const cache: PointCache = new Map();
     let rendered: InkStroke[] = [];
-    let touch: ReturnType<typeof startFingerScroll> | null = null;
+    let touch: (ReturnType<typeof startFingerScroll> & { tap?: { x: number; y: number; moved: boolean } }) | null = null;
     type Bounds = { x: number; y: number; width: number; height: number };
     let decoration: Bounds | null = null;
     let preview: InkPage | null = null;
@@ -218,21 +240,26 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     };
     const applySelection = (result: { page: InkPage; ids: string[] }) => { record(result.page); select(result.ids); };
     const removeSelection = () => { record(deleteStrokes(page, ids, new Date().toISOString())); select([]); };
+    const copySelection = () => {
+      inkClipboard = copyStrokes(page, ids);
+      clipboardListeners.forEach(notify => notify());
+    };
     api.current = {
       undo: () => reverse(undo, redo), redo: () => reverse(redo, undo), deleteSelection: removeSelection,
       recolorSelection: color => applySelection(recolorStrokes(page, ids, color, uuid, new Date().toISOString())),
-      copySelection: () => { inkClipboard = copyStrokes(page, ids); },
-      cutSelection: () => { inkClipboard = copyStrokes(page, ids); removeSelection(); },
+      copySelection,
+      cutSelection: () => { copySelection(); removeSelection(); },
       paste: () => applySelection(pasteStrokes(page, inkClipboard, { dx: 20, dy: 20 }, uuid, new Date().toISOString())),
       duplicateSelection: () => applySelection(pasteStrokes(page, copyStrokes(page, ids), { dx: 20, dy: 20 }, uuid, new Date().toISOString())),
     };
     textApi.current = {
       edit: id => {
         const box = visibleTextBoxes(page).find(s => s.id === id); if (!box) return;
-        draftBox = { id, ...textBoxAnchor(box), text: box.text!, color: box.color }; setDraft(draftBox);
+        openDraft({ id, ...textBoxAnchor(box), text: box.text!, color: box.color });
       },
       commit: text => {
         const box = draftBox; if (!box) return;
+        if (!text && Date.now() - draftCreated < 400) { textarea.current?.focus(); return; }
         draftBox = null; setDraft(null);
         const now = new Date().toISOString();
         if (box.id) { if (text !== box.text) record(replaceTextBox(page, box.id, { text }, uuid(), now)); }
@@ -300,11 +327,18 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       preview = null; previewBase = null; previewCache.clear();
       schedule();
     };
+    const penErases = (e: PointerEvent) => e.pointerType === 'pen' && (isPenEraserButton(e) || isStylusButtonHeld());
     const down = (e: PointerEvent) => {
       const p = latest.current;
-      const action = classifyPointer({ penActive: !!live, allowMouse: p.allowMouse || p.tool === 'text' }, e).action;
+      const classified = classifyPointer({ penActive: !!live, allowMouse: p.allowMouse || p.tool === 'text' }, e).action;
+      // The Android app forwards the S Pen button separately because its WebView drops it from pointer events.
+      const action = classified === 'draw' && penErases(e) ? 'erase' : classified;
       if (action === 'scroll' && !touch) {
         touch = startFingerScroll(canvas, e);
+        if (p.tool === 'text' && !gesture) {
+          rect = canvas.getBoundingClientRect(); scale = Math.max(1, rect.width) / PAGE_WIDTH;
+          touch.tap = { x: e.clientX, y: e.clientY, moved: false };
+        }
         e.preventDefault(); canvas.setPointerCapture?.(e.pointerId); return;
       }
       if (live || gesture || (action !== 'draw' && action !== 'erase')) return;
@@ -350,7 +384,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     };
     const switchButton = (e: PointerEvent): boolean => {
       if (!live || live.id !== e.pointerId || e.pointerType !== 'pen') return false;
-      const erase = isPenEraserButton(e);
+      const erase = penErases(e);
       if (live.temporaryErase && !erase) { finish(); return true; }
       if (erase && live.tool !== 'eraser') { finish(); down(e); return true; }
       return false;
@@ -364,6 +398,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       }
       if (touch?.id === e.pointerId) {
         if (classifyPointer({ penActive: !!live }, e).action !== 'scroll') { touch = null; return; }
+        if (touch.tap && Math.hypot(e.clientX - touch.tap.x, e.clientY - touch.tap.y) > 6) touch.tap.moved = true;
         e.preventDefault(); touch.move(e); return;
       }
       if (!live || live.id !== e.pointerId) return;
@@ -425,7 +460,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         if (g.mode === 'lasso') select(lassoSelect(page, [...g.loop, g.end]));
         else if (g.mode === 'text') {
           if (!g.moved && Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y) <= 6) {
-            draftBox = { x: g.start.x, y: g.start.y, text: '', color: latest.current.textColor ?? latest.current.color }; setDraft(draftBox);
+            openDraft({ x: g.start.x, y: g.start.y, text: '', color: latest.current.textColor ?? latest.current.color });
           }
         } else {
           const dx = g.end.x - g.start.x, dy = g.end.y - g.start.y;
@@ -438,7 +473,15 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         }
         return;
       }
-      if (touch?.id === e.pointerId) { touch = null; return; }
+      if (touch?.id === e.pointerId) {
+        const tap = touch.tap; touch = null;
+        if (tap && !tap.moved && latest.current.tool === 'text' && classifyPointer({ penActive: !!live }, e).action === 'scroll'
+          && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= 6) {
+          const at = point({ clientX: tap.x, clientY: tap.y, pressure: 0.5 });
+          openDraft({ x: at.x, y: at.y, text: '', color: latest.current.textColor ?? latest.current.color });
+        }
+        return;
+      }
       if (!live || live.id !== e.pointerId) return;
       if (!live.shape || live.shapeLength !== live.points.length) { live.points.push(point(e)); live.times.push(Infinity); }
       finish();
@@ -480,8 +523,8 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   return <div style={{ position: 'relative', isolation: 'isolate', ...paperStyle(props.paper) }}>
     <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ position: 'relative', zIndex: 1, display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'none' }} />
     <canvas ref={liveRef} data-ink-live aria-hidden="true" style={overlay} />
-    <InkTextLayer page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={text => textApi.current.commit(text)} />
-    {props.tool === 'select' && <InkSelectionLayer bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
+    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={text => textApi.current.commit(text)} />
+    {props.tool === 'select' && <InkSelectionLayer hasClip={hasClip} scale={view.scale} bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
       onDelete={() => api.current.deleteSelection()} onCopy={() => api.current.copySelection()} onCut={() => api.current.cutSelection()}
       onPaste={() => api.current.paste()} onDuplicate={() => api.current.duplicateSelection()} onRecolor={color => api.current.recolorSelection(color)} />}
   </div>;
