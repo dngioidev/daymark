@@ -6,6 +6,7 @@ import {
   FilePlus,
   FileCode,
   Maximize2,
+  Minimize2,
   MoreHorizontal,
   Pin,
   Trash2,
@@ -20,6 +21,7 @@ import { useBackHandler } from '../native/backButton';
 import { formatNoteDate, sortNotes } from '../utils/notes';
 import { NOTE_TEMPLATES, wordCount } from '../utils/noteTemplates';
 import { formatLocalDate } from '../utils/clock';
+import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import type { RichNoteEditorHandle } from './notes/RichNoteEditor';
 
 import { buildFolderTree, createFolder as createEmptyFolder, renameFolder, moveFolder, deleteFolder, moveNote, folderMatches, normalizeFolderPath } from '../utils/noteFolders';
@@ -98,6 +100,19 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const tree = useMemo(() => buildFolderTree(notes, noteMeta), [notes, noteMeta]);
   const [pane, setPane] = useState<'list' | 'editor'>('list');
   const [focusMode, setFocusMode] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focusMode) return;
+    if (rootRef.current) void enterFullscreen(rootRef.current);
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setFocusMode(false);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      void exitFullscreen();
+    };
+  }, [focusMode]);
   useEffect(() => {
     onFocusModeChange?.(focusMode);
     return () => onFocusModeChange?.(false);
@@ -136,11 +151,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   }, [openNoteId, notes, onOpenNoteConsumed]);
 
   useEffect(() => {
-    if (phone) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return;
-      const target = event.target as HTMLElement | null;
-      if (event.key === 'Escape' && focusMode && target?.tagName !== 'TEXTAREA') {
+      if (event.key === 'Escape' && focusMode) {
         setFocusMode(false);
       }
     };
@@ -150,6 +163,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   // Android Back: editor -> list
   useBackHandler(() => (setFocusMode(false), setPane('list'), true), phone && pane === 'editor');
+  useBackHandler(() => (setFocusMode(false), true), focusMode);
 
   function openNote(id: string) {
     const note = latestNotes.current.find(note => note.id === id);
@@ -379,7 +393,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     <div className="dm-card flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
       {activeNote ? (
         <>
-          <div className={`shrink-0 px-2 sm:px-3 pb-2 ${phone ? 'pt-2' : 'pt-[calc(0.5rem+var(--dm-safe-top))]'} border-b border-stone-200 dark:border-stone-800 space-y-1`}>
+          {!focusMode && <div className={`shrink-0 px-2 sm:px-3 pb-2 ${phone ? 'pt-2' : 'pt-[calc(0.5rem+var(--dm-safe-top))]'} border-b border-stone-200 dark:border-stone-800 space-y-1`}>
             <div className="flex min-w-0 items-center gap-1">
               <button type="button" onClick={event => { setFocusMode(false); setPane('list'); if (!phone && drawers) { notesButton.current = event.currentTarget; setFolderFocus(undefined); setDrawer(true); } }} aria-label="Back to notes" className={drawers ? iconBtn : 'hidden'}>
                 <ArrowLeft className="w-5 h-5" />
@@ -426,11 +440,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   </button>
                 )}
               />
-              {!phone && (
-                <button type="button" aria-label="Focus mode" aria-pressed={focusMode} title="Focus mode (Ctrl/⌘ + .)" onClick={() => { setFocusMode((focused) => !focused); setPane('editor'); }} className={iconBtn}>
+                <button type="button" aria-label="Full screen" aria-pressed={focusMode} title="Full screen (Ctrl/⌘ + .)" onClick={() => { setFocusMode((focused) => !focused); setPane('editor'); }} className={iconBtn}>
                   <Maximize2 className="w-4 h-4" />
                 </button>
-              )}
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center gap-1 px-1">
@@ -439,12 +451,13 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               {drawers && <button type="button" className={`${buttonClass.secondary} min-h-11`} aria-haspopup="dialog" onClick={() => setRelatedOpen(true)}>Related · {related.suggestions.length}</button>}
             </div>
 
-          </div>
+          </div>}
 
           <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
+            {focusMode && activeNote.kind !== 'handwritten' && <button type="button" aria-label="Exit full screen" title="Exit full screen" onClick={() => setFocusMode(false)} className={`${iconBtn} self-end shrink-0`}><Minimize2 className="w-4 h-4" /></button>}
             {activeNote.kind === 'handwritten' ? (
               <Suspense fallback={<div role="status" className="p-4">Loading handwritten note...</div>}>
-                <HandwrittenNoteView key={activeNote.id} note={activeNote} pages={inkPagesForNote(activeNote.id)} onUpdatePage={updateInkPage} />
+                <HandwrittenNoteView key={activeNote.id} note={activeNote} pages={inkPagesForNote(activeNote.id)} onUpdatePage={updateInkPage} fullScreen={focusMode} onExitFullScreen={() => setFocusMode(false)} />
               </Suspense>
             ) : viewMode === 'markdown' ? (
               <>
@@ -478,9 +491,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               </Suspense>
             )}
           </div>
-          <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
+          {!focusMode && <footer className="shrink-0 px-4 py-2 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
             {activeNote.kind === 'handwritten' ? `Saved · ${pageCountLabel(inkPagesForNote(activeNote.id).length)} · edited ${editedLabel}` : `Saved · ${words} ${words === 1 ? 'word' : 'words'} · edited ${editedLabel}`}
-          </footer>
+          </footer>}
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-stone-600 dark:text-stone-400">
@@ -489,22 +502,22 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
           <button type="button" onClick={() => createNote()} className={buttonClass.primary}>
             <FilePlus className="w-4 h-4" /> New note
           </button>
-          {focusMode && <button type="button" aria-label="Focus mode" aria-pressed={focusMode} onClick={() => setFocusMode(false)} className={iconBtn}><Maximize2 className="w-4 h-4" /></button>}
+          {focusMode && <button type="button" aria-label="Exit full screen" onClick={() => setFocusMode(false)} className={iconBtn}><Minimize2 className="w-4 h-4" /></button>}
         </div>
       )}
     </div>
   );
 
   return (
-    <div style={phone && !compact ? { paddingTop: 'calc(0.5rem + var(--dm-safe-top))' } : undefined} className={compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
-      {phone && pane === 'list' && (compact ? <h1 data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
-      {drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
-      {folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
-      <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />
-      {graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
+    <div ref={rootRef} style={phone && !compact && !focusMode ? { paddingTop: 'calc(0.5rem + var(--dm-safe-top))' } : undefined} className={focusMode ? 'fixed inset-0 z-50 w-full max-w-[1800px] mx-auto h-full flex-1 min-h-0 min-w-0 flex flex-col text-sm bg-white dark:bg-stone-900' : compact ? 'flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 xl:px-8 py-2 flex-1 min-h-0 min-w-0 flex flex-col gap-3 text-sm'}>
+      {!focusMode && phone && pane === 'list' && (compact ? <h1 data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
+      {!focusMode && drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
+      {!focusMode && folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
+      {!focusMode && <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />}
+      {!focusMode && graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
         <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder="all" activeNoteId={activeNote?.id}
           onViewChange={changeNotesView} focusViewSwitch={focusViewSwitch} onOpenNote={id => { relatedProps.onOpen(id); setNotesView('list'); }} onLink={linkNotes} onDismiss={dismissPair} />
-      </Suspense> : phone ? <PhoneNotes pane={pane} navigation={list} editor={editor} /> : (
+      </Suspense> : phone ? <PhoneNotes pane={pane} navigation={list} editor={editor} fullScreen={focusMode} /> : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">
           {!focusMode && !drawers && <div role="group" aria-label="Notes navigation" className="shrink-0 min-h-0 flex">
             <aside aria-label="Folder navigation" className={(treeMinimized ? 'w-14' : 'w-72') + ' shrink-0 min-h-0 flex flex-col border border-stone-200 dark:border-stone-800 rounded-xl bg-white dark:bg-stone-900 p-1'}>

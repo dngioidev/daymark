@@ -28,6 +28,9 @@ vi.mock('react', async (original) => ({
   },
 }));
 vi.mock('../native/backButton', () => ({ useBackHandler: vi.fn() }));
+vi.mock('../utils/fullscreen', () => ({ enterFullscreen: vi.fn(), exitFullscreen: vi.fn() }));
+import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { useBackHandler } from '../native/backButton';
 vi.mock('./MarkdownPreview', () => ({ MarkdownPreview: () => React.createElement('p', null, 'Preview') }));
 import { StandaloneNotesView } from './StandaloneNotesView';
 import { Menu, type MenuItem } from './ui/Menu';
@@ -106,7 +109,7 @@ it('supplies wiki suggestions most recently updated first, regardless of pinning
 function render(compact = false, extra: Record<string, unknown> = {}) {
   hooks.index = 0;
   hooks.effects = [];
-  return StandaloneNotesView({ notes: [note], onUpdateNotes: update, compact, ...extra }) as React.ReactElement;
+  return StandaloneNotesView({ notes: [note], onUpdateNotes: update, compact, ...extra }) as React.ReactElement<Record<string, unknown>>;
 }
 type TestProps = Record<string, unknown> & { onClick: () => void; items: MenuItem[] };
 function find(element: React.ReactNode, predicate: (el: React.ReactElement<Record<string, unknown>>) => boolean): React.ReactElement<TestProps> | undefined {
@@ -120,7 +123,7 @@ function find(element: React.ReactNode, predicate: (el: React.ReactElement<Recor
   if (!React.isValidElement<Record<string, unknown>>(element)) return;
   if (predicate(element)) return element as React.ReactElement<TestProps>;
   if (element.type === PhoneNotes) {
-    return find(element.props.navigation as React.ReactNode, predicate)
+    return (!element.props.fullScreen ? find(element.props.navigation as React.ReactNode, predicate) : undefined)
       ?? (element.props.pane === 'editor' ? find(element.props.editor as React.ReactNode, predicate) : undefined);
   }
   for (const child of React.Children.toArray(element.props.children as React.ReactNode)) {
@@ -128,18 +131,18 @@ function find(element: React.ReactNode, predicate: (el: React.ReactElement<Recor
     if (match) return match;
   }
 }
-beforeEach(() => { hooks.values = []; update.mockClear(); feedback.confirm.mockReset().mockResolvedValue(true); feedback.toast.mockClear(); });
+beforeEach(() => { hooks.values = []; update.mockClear(); vi.mocked(enterFullscreen).mockClear(); vi.mocked(exitFullscreen).mockClear(); feedback.confirm.mockReset().mockResolvedValue(true); feedback.toast.mockClear(); });
 afterEach(() => { hooks.cleanups.splice(0).reverse().forEach(cleanup => cleanup()); vi.unstubAllGlobals(); });
 
-it('provides a focus toggle and restores the list with the same button', () => {
+it('provides Full screen and restores navigation with Exit full screen', () => {
   let tree = render();
-  const focus = find(tree, (el) => el.props['aria-label'] === 'Focus mode');
+  const focus = find(tree, (el) => el.props['aria-label'] === 'Full screen');
   expect(focus).toBeDefined();
   focus!.props.onClick();
   tree = render();
   expect(find(tree, (el) => el.type === NoteNavigation)).toBeUndefined();
   expect(find(tree, (el) => el.props.noteId === note.id && el.props.markdown === note.content)).toBeDefined();
-  find(tree, (el) => el.props['aria-label'] === 'Focus mode')!.props.onClick();
+  find(tree, (el) => el.props['aria-label'] === 'Exit full screen')!.props.onClick();
   expect(find(render(), (el) => el.type === NoteNavigation)).toBeDefined();
 });
 
@@ -152,10 +155,10 @@ it('creates a template note with its suggested folder, title and body', () => {
   expect(update.mock.calls[0][0][1]).toEqual(note);
 });
 
-it('returns to the list from focus mode with Back to notes', () => {
-  find(render(), (el) => el.props['aria-label'] === 'Focus mode')!.props.onClick();
-  find(render(), (el) => el.props['aria-label'] === 'Back to notes')!.props.onClick();
-  expect(find(render(), (el) => el.type === NoteNavigation)).toBeDefined();
+it('Exit full screen restores the title row', () => {
+  find(render(), (el) => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  find(render(), (el) => el.props['aria-label'] === 'Exit full screen')!.props.onClick();
+  expect(find(render(), el => el.props.id === 'note-title')?.props.value).toBe('Existing');
 });
 
 it('creates Blank in the explicitly opened note folder without changing existing notes', () => {
@@ -184,11 +187,11 @@ it('toggles focus on an App signal change, with no local dot shortcut', () => {
   hooks.effects.forEach((effect) => effect());
   expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   hooks.effects.forEach((effect) => effect());
-  const listener = add.mock.calls.at(-1)![1];
+  const listener = add.mock.calls.filter(([event]) => event === 'keydown').at(-1)![1];
   listener({ key: '.', ctrlKey: true, target: { tagName: 'BUTTON' }, preventDefault: vi.fn() });
   expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
   listener({ key: 'Escape', target: { tagName: 'TEXTAREA' } });
-  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeUndefined();
+  expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
   listener({ key: 'Escape', target: { tagName: 'BUTTON' } });
   expect(find(render(false, { focusToggleSignal: 1 }), (el) => el.type === NoteNavigation)).toBeDefined();
 });
@@ -260,7 +263,7 @@ it('keeps compact rich editing bounded with a Markdown toggle', () => {
   expect(html).toContain('min-w-0 w-0 truncate');
   expect(find(render(true), (el) => typeof el.props.onToggleMarkdown === 'function')).toBeDefined();
   expect(html).not.toContain('min-h-[60dvh]');
-  expect(html).not.toContain('aria-label="Focus mode"');
+  expect(html).toContain('aria-label="Full screen"');
 });
 
 it('toggles to the existing Markdown textarea and back without changing the note', () => {
@@ -443,13 +446,11 @@ it('ignores a folder self-drop but refuses a descendant drop', () => {
   expect(update).not.toHaveBeenCalled();
 });
 
-it('can open a note from the Notes drawer while in focus mode', () => {
+it('full screen hides the Notes drawer trigger', () => {
   vi.stubGlobal('window', { innerWidth: 900 });
-  find(render(), el => el.props['aria-label'] === 'Focus mode')!.props.onClick();
-  (find(render(), el => el.props['aria-label'] === 'Notes')!.props.onClick as (event: unknown) => void)({ currentTarget: null });
-  (find(render(), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  find(render(), el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  expect(find(render(), el => el.props['aria-label'] === 'Notes')).toBeUndefined();
   expect(find(render(), el => el.type === NotesDrawer)).toBeUndefined();
-  expect(find(render(), el => el.props.id === 'note-title')?.props.value).toBe('Existing');
 });
 
 it('opens a tree note into its folder, expands ancestors, and creates there without saving on render', () => {
@@ -578,4 +579,83 @@ it('consumes folder focus requests and clears them on presentation changes and d
   await (find(render(), el => el.type === FolderDialogs)!.props.onSubmit as (value: string) => Promise<void>)('Again');
   const changeView = (nav().props.viewSwitch as React.ReactElement<{ onChange(value: string): void }>).props.onChange;
   changeView('graph'); changeView('list'); expect(nav().props.focusFolder).toBeUndefined();
+});
+
+it.each(['rich', 'markdown'])('full screen on a typed note hides title, Move to folder, Related and footer (%s)', mode => {
+  if (mode === 'markdown') (find(render(), el => typeof el.props.onToggleMarkdown === 'function')!.props.onToggleMarkdown as () => void)();
+  const button = find(render(), el => el.props['aria-label'] === 'Full screen')!;
+  expect(button.props.title).toBe('Full screen (Ctrl/⌘ + .)');
+  button.props.onClick();
+  const tree = render();
+  expect(find(tree, el => el.props.id === 'note-title')).toBeUndefined();
+  expect(find(tree, el => el.type === FolderPicker)).toBeUndefined();
+  expect(find(tree, el => el.type === RelatedPanel)).toBeUndefined();
+  expect(find(tree, el => el.type === 'footer')).toBeUndefined();
+  expect(find(tree, el => el.props['aria-label'] === 'Pin note to the top')).toBeUndefined();
+  expect(find(tree, el => el.props['aria-label'] === 'More note actions')).toBeUndefined();
+  expect(find(tree, el => mode === 'rich' ? el.props.noteId === note.id : el.type === 'textarea')).toBeDefined();
+  if (mode === 'markdown') expect(find(tree, el => el.props['aria-label'] === 'Formatting')).toBeDefined();
+  expect(tree.props.className).toContain('max-w-[1800px]');
+});
+
+it('full screen on a handwritten note renders the rail through HandwrittenNoteView', () => {
+  const ink = { ...note, kind: 'handwritten' as const, paper: 'grid' as const };
+  const extra = { notes: [ink] };
+  find(render(false, extra), el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  const view = find(render(false, extra), el => el.props.note === ink)!;
+  expect(view.props.fullScreen).toBe(true);
+  expect(view.props.onExitFullScreen).toEqual(expect.any(Function));
+  expect(find(render(false, extra), el => el.props['aria-label'] === 'Exit full screen')).toBeUndefined();
+  (view.props.onExitFullScreen as () => void)();
+  expect(find(render(false, extra), el => el.props.id === 'note-title')).toBeDefined();
+});
+
+it.each([false, true])('phone shows the Full screen button and hides navigation while writing (compact=%s)', compact => {
+  vi.stubGlobal('window', { innerWidth: 390 });
+  (find(render(compact), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  find(render(compact), el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  expect(render(compact).props.className).toContain('fixed inset-0'); // Covers app navigation when the Fullscreen API is unavailable.
+  expect(find(render(compact), el => el.type === NoteNavigation)).toBeUndefined();
+  expect(find(render(compact), el => el.props.id === 'note-title')).toBeUndefined();
+  find(render(compact), el => el.props['aria-label'] === 'Exit full screen')!.props.onClick();
+  expect(find(render(compact), el => el.props.id === 'note-title')).toBeDefined();
+});
+
+it.each([390, 1440])('Escape leaves full screen even while typing (width=%s)', innerWidth => {
+  const add = vi.fn();
+  vi.stubGlobal('window', { innerWidth, setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { addEventListener: add, removeEventListener: vi.fn() });
+  (find(render(), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  find(render(), el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  render(); hooks.effects.forEach(effect => effect());
+  const onKey = add.mock.calls.filter(([event]) => event === 'keydown').at(-1)![1];
+  onKey({ key: 'Escape', target: { tagName: 'TEXTAREA' } });
+  expect(find(render(), el => el.props.id === 'note-title')).toBeDefined();
+});
+
+it('requests browser full screen on the Notes root and follows browser exit', () => {
+  const add = vi.fn();
+  vi.stubGlobal('window', { setInterval: vi.fn(), clearInterval: vi.fn() });
+  vi.stubGlobal('document', { fullscreenElement: null, addEventListener: add, removeEventListener: vi.fn() });
+  const tree = render();
+  const root = { id: 'notes-root' };
+  (tree.props.ref as { current: unknown }).current = root;
+  find(tree, el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  render(); hooks.effects.forEach(effect => effect());
+  expect(enterFullscreen).toHaveBeenCalledWith(root);
+  const onChange = add.mock.calls.find(([event]) => event === 'fullscreenchange')![1];
+  onChange();
+  expect(find(render(), el => el.props.id === 'note-title')).toBeDefined();
+  hooks.cleanups.splice(0).reverse().forEach(cleanup => cleanup());
+  expect(exitFullscreen).toHaveBeenCalled();
+});
+
+it('Android Back leaves full screen before leaving the phone editor', () => {
+  vi.stubGlobal('window', { innerWidth: 390 });
+  (find(render(true), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  find(render(true), el => el.props['aria-label'] === 'Full screen')!.props.onClick();
+  vi.mocked(useBackHandler).mockClear(); render(true);
+  const handler = vi.mocked(useBackHandler).mock.calls.filter(([, active]) => active).at(-1)![0];
+  expect(handler()).toBe(true);
+  expect(find(render(true), el => el.props.id === 'note-title')).toBeDefined();
 });
