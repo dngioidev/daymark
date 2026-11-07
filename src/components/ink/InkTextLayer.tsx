@@ -51,9 +51,9 @@ export function InkTextLayer({ page, draft, scale, editing, textareaRef, selecte
     onPointerMove={e => { e.preventDefault(); resizeTo(e); }}
     onPointerUp={e => { resizeTo(e); resizing.current = null; }}
     onPointerCancel={() => { resizing.current = null; }}
-    // A 28 px touch target around a small visible grip, centred on the frame edge.
-    style={{ position: 'absolute', top: 0, bottom: 0, [edge]: -14, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'ew-resize', touchAction: 'none' }}>
-    <span className="block h-6 w-2 rounded-full border border-stone-500 bg-white shadow-sm dark:border-stone-300 dark:bg-stone-800" />
+    // A 28 px touch target around a small visible grip, centred on the frame edge (5 px outside the text).
+    style={{ position: 'absolute', top: 0, bottom: 0, [edge]: -19, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'ew-resize', touchAction: 'none' }}>
+    <span className="block h-6 w-2 rounded-full border border-stone-500 bg-white shadow-sm" />
   </div>;
   const selectedIds = new Set(selected);
   // A dragged text box moves with the lifted ink: the same page-space transform, around its own corner.
@@ -96,7 +96,7 @@ export function InkTextLayer({ page, draft, scale, editing, textareaRef, selecte
         <span className="mx-1 h-6 w-px bg-stone-700" aria-hidden="true" />
         <button type="button" aria-label="Delete text box" title="Delete text box" className={barButton} onClick={() => onDelete(draft)}><Trash2 size={20} aria-hidden="true" /></button>
       </div>
-      <div className="rounded-md border border-dashed border-stone-400 bg-white/60 dark:border-stone-500 dark:bg-stone-900/40" style={{ margin: -5, padding: 4 }}>
+      <div className="rounded-md border border-dashed border-stone-400 bg-white/70" style={{ margin: -5, padding: 4 }}>
         <textarea ref={textareaRef} key={draft.seq ?? draft.id ?? `${draft.x},${draft.y}`} aria-label="Text box text" maxLength={TEXT_BOX_MAX} defaultValue={draft.text}
           onBlur={e => onCommit(draft, e.currentTarget.value)}
           onInput={e => { onType(draft, e.currentTarget.value); e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`; }}

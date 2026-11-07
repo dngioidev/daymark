@@ -16,7 +16,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
-import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk } from './helpers/cycle-14-qa.mjs';
+import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk, penDrag } from './helpers/cycle-14-qa.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
 
 const args = process.argv.slice(2);
@@ -217,7 +217,83 @@ const cycle14Highlight = async page => {
   await page.getByRole('treeitem', { name: 'Study reading', exact: true }).click();
   await highlightWords(page);
 };
+// Cycle 17: pen writing and full screen. The notebook is written through the real pen path (CDP pen
+// events): freehand ink, draw-and-hold shapes and a text box.
+const cycle17Held = async (page, points) => {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const send = (type, { x, y }, buttons) => session.send('Input.dispatchMouseEvent', { type, x, y, pointerType: 'pen', button: buttons || type === 'mouseReleased' ? 'left' : 'none', buttons, force: 0.5 });
+    await send('mouseMoved', points[0], 0);
+    await send('mousePressed', points[0], 1);
+    for (const point of points.slice(1)) await send('mouseMoved', point, 1);
+    await send('mouseMoved', points.at(-1), 1);
+    await page.waitForTimeout(800); // a stationary hold past the 500 ms recognition threshold
+    await send('mouseReleased', points.at(-1), 0);
+  } finally { await session.detach(); }
+};
+const cycle17Tool = async (page, name) => {
+  const button = page.getByRole('button', { name, exact: true }).first();
+  if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
+};
+const cycle17Notebook = async page => {
+  await page.evaluate(() => localStorage.setItem('dm.ink.penSeen', '1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.evaluate(() => document.documentElement.style.setProperty('--dm-safe-top', '24px'));
+  await createNotebook(page, 'Lined', 'Project brainstorm');
+  await writeTwoStrokes(page);
+  const box = await inkCanvas(page).boundingBox();
+  const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.width * fy });
+  // A rough box and a rough triangle, each held still at the end so they snap.
+  await cycle17Held(page, [at(0.08, 0.36), at(0.3, 0.37), at(0.31, 0.5), at(0.09, 0.51), at(0.08, 0.37)]);
+  await cycle17Held(page, [at(0.45, 0.52), at(0.55, 0.35), at(0.66, 0.52), at(0.455, 0.52)]);
+  await cycle17Held(page, [at(0.33, 0.44), at(0.42, 0.445)]);
+  await penDrag(page, [at(0.72, 0.38), at(0.78, 0.42), at(0.86, 0.37), at(0.9, 0.45)]);
+  await waitInk(page, 6);
+  await cycle17Tool(page, 'Text');
+  await inkCanvas(page).click({ position: { x: box.width * 0.08, y: box.width * 0.6 } });
+  await page.getByRole('textbox', { name: 'Text box text', exact: true }).pressSequentially('Launch ideas: share the board on Friday');
+  await page.getByRole('textbox', { name: 'Title', exact: true }).click();
+  await page.locator('[data-ink-text]').waitFor();
+  await cycle17Tool(page, 'Pen');
+  return { box, at };
+};
+const cycle17FullScreen = async page => {
+  await cycle17Notebook(page);
+  await page.getByRole('button', { name: 'Full screen', exact: true }).click();
+  await page.getByRole('toolbar', { name: 'Writing tools', exact: true }).and(page.locator('[aria-orientation="vertical"]')).waitFor();
+  await page.waitForTimeout(400);
+};
+const cycle17Selection = async page => {
+  const { at } = await cycle17Notebook(page);
+  await cycle17Tool(page, 'Select');
+  await penDrag(page, [at(0.05, 0.33), at(0.7, 0.33), at(0.7, 0.55), at(0.05, 0.55), at(0.05, 0.33)]);
+  await page.getByRole('toolbar', { name: 'Selection actions', exact: true }).waitFor();
+};
+const cycle17TextBox = async page => {
+  const { box } = await cycle17Notebook(page);
+  await cycle17Tool(page, 'Text');
+  await page.locator('[data-ink-text]').click();
+  const bar = page.getByRole('toolbar', { name: 'Text box', exact: true });
+  await bar.waitFor();
+  await bar.getByRole('button', { name: 'Larger text', exact: true }).click();
+  await bar.getByRole('button', { name: 'Larger text', exact: true }).click();
+  void box;
+};
+const cycle17Typed = then(async page => {
+  await openNotes(page);
+  await page.getByRole('treeitem', { name: /weekly sprint sync/i }).first().click();
+  await page.getByRole('button', { name: 'Full screen', exact: true }).click();
+  await page.getByRole('button', { name: 'Exit full screen', exact: true }).waitFor();
+});
 const SHOTS = [
+  { name: 'fullscreen-rail', viewport: 'tablet', cycles: ['cycle-17'], prepare: cycle17FullScreen },
+  { name: 'fullscreen-rail-dark', viewport: 'tablet', dark: true, cycles: ['cycle-17'], prepare: cycle17FullScreen },
+  { name: 'fullscreen-portrait', viewport: 'tabletPortrait', cycles: ['cycle-17'], prepare: cycle17FullScreen },
+  { name: 'selection', viewport: 'tablet', cycles: ['cycle-17'], prepare: cycle17Selection },
+  { name: 'text-box', viewport: 'tablet', cycles: ['cycle-17'], prepare: cycle17TextBox },
+  { name: 'text-box-dark', viewport: 'tablet', dark: true, cycles: ['cycle-17'], prepare: cycle17TextBox },
+  { name: 'typed-fullscreen', viewport: 'desktop', cycles: ['cycle-17'], prepare: cycle17Typed },
+  { name: 'typed-fullscreen-phone', viewport: 'android', cycles: ['cycle-17'], prepare: cycle17Typed },
   { name: 'tablet-layout', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink() },
   { name: 'tablet-layout-portrait', viewport: 'tabletPortrait', cycles: ['cycle-14'], prepare: cycle14Ink() },
   { name: 'handwritten-lined', viewport: 'tablet', cycles: ['cycle-14'], prepare: cycle14Ink('Lined') },
