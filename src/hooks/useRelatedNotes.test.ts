@@ -46,3 +46,20 @@ it('schedules no index rebuild while disabled (the knowledge graph replaces the 
   await act(async () => vi.advanceTimersByTime(801)); expect(result.suggestions.map(s => s.noteId)).toEqual(['b']);
   await act(async () => root.unmount());
 });
+
+it('returns strong suggestions and a separate Possibly related list', async () => {
+  vi.useFakeTimers();
+  try {
+    const n = (id: string, title: string, content: string): StandaloneNote => ({ id, title, content, folder: '', tags: [], createdAt: '', updatedAt: '' });
+    const notes = [n('sync-a', 'Weekend thoughts', 'The sync conflict showed again on the tablet.'), n('sync-b', 'Bug list', 'Conflict after sync, phone lost an edit.'),
+      n('x', 'Garden', 'Roses tulips soil compost'), n('y', 'Kitchen', 'Knife board pan oven'), n('z', 'Garage', 'Bike tyre chain pump')];
+    let result!: ReturnType<typeof useRelatedNotes>;
+    const Probe = () => { result = useRelatedNotes(notes, 'sync-a', []); return null; };
+    const host = document.createElement('div'); const root = createRoot(host);
+    await act(async () => root.render(React.createElement(Probe)));
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(result.suggestions).toEqual([]);
+    expect(result.possible.map(s => [s.noteId, s.note.title])).toEqual([['sync-b', 'Bug list']]);
+    await act(async () => root.unmount());
+  } finally { vi.useRealTimers(); }
+});

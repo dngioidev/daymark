@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StandaloneNote } from '../types/daymark';
-import { adversarialIds, relatedNotes, relatedPairs, unrelatedGroups } from './fixtures/relatedNotes';
-import { addRelatedLink, buildNoteIndex, canLinkToTitle, extractWikiTargets, linksOf, pairKey, suggestRelated, tokenize } from './noteRelated';
+import { adversarialIds, possiblePairs, relatedNotes, relatedPairs, strongTagPairs, unrelatedGroups } from './fixtures/relatedNotes';
+import { addRelatedLink, buildNoteIndex, canLinkToTitle, extractWikiTargets, linksOf, pairKey, relatedGroups, suggestRelated, tokenize } from './noteRelated';
 
 const note = (id: string, title: string, content: string, tags: string[] = []): StandaloneNote => ({
   id, title, content, tags, folder: '', createdAt: '', updatedAt: '',
@@ -73,7 +73,7 @@ describe('index and suggestions', () => {
     }
   });
 
-  it('rejects all four adversarial negatives in both directions against every cluster', () => {
+  it('rejects the adversarial negatives in both directions against every cluster', () => {
     const index = buildNoteIndex(relatedNotes);
     for (const id of adversarialIds) for (const clusterId of unrelatedGroups.flat()) {
       expect(suggestRelated(index, id, { limit: 100 }).map(s => s.noteId), `${id} -> ${clusterId}`).not.toContain(clusterId);
@@ -121,9 +121,9 @@ describe('index and suggestions', () => {
     expect(linksOf(index, 'a').outgoing).toEqual([]);
   });
 
-  it('uses exact title/tag/body field weights and downweights frequent terms with IDF', () => {
-    const index = buildNoteIndex([note('a', 'Apple', 'apple pear', ['apple']), note('b', 'Orange', 'pear')]);
-    expect(index.notes.get('a')!.weights.get('apple')! / index.idf.get('apple')!).toBe(6);
+  it('uses exact title/body field weights, keeps tags out of term weights and downweights frequent terms with IDF', () => {
+    const index = buildNoteIndex([note('a', 'Apple', 'apple pear #apple', ['apple']), note('b', 'Orange', 'pear')]);
+    expect(index.notes.get('a')!.weights.get('apple')! / index.idf.get('apple')!).toBe(4);
     expect(index.notes.get('a')!.weights.get('pear')! / index.idf.get('pear')!).toBe(1);
     expect(index.idf.get('apple')).toBeGreaterThan(index.idf.get('pear')!);
     const common = buildNoteIndex(['a', 'b', 'c', 'd'].map(id => note(id, id, 'ubiquitous universal')));
@@ -135,9 +135,14 @@ describe('index and suggestions', () => {
     const base = [note('a', 'Root', 'apple pear apple pear apple pear'), note('b', 'Branch', 'apple pear apple pear apple pear'), note('c', 'x', 'banana')];
     const score = (notes: StandaloneNote[]) => suggestRelated(buildNoteIndex(notes), 'a').find(item => item.noteId === 'b')!.score;
     const baseline = score(base);
-    expect(score(base.map(n => n.id === 'c' ? n : { ...n, tags: ['x'] }))).toBeCloseTo(baseline + 0.08);
+    expect(score(base.map(n => n.id === 'c' ? n : { ...n, tags: ['x'] }))).toBeCloseTo(baseline + 0.30);
     expect(score(base.map(n => n.id === 'c' ? n : { ...n, content: n.content + ' [[x]]' }))).toBeCloseTo(baseline + 0.06);
-    expect(suggestRelated(buildNoteIndex([note('a', 'Alpha', 'apple [[x]]', ['tag']), note('b', 'Beta', 'pear [[x]]', ['tag']), note('c', 'x', 'banana')]), 'a')).toEqual([]);
+    // A shared tag admits on its own; Graph (tagAdmission false) keeps the old term gate and small bonus.
+    const tagOnly = buildNoteIndex([note('a', 'Alpha', 'apple [[x]]', ['tag']), note('b', 'Beta', 'pear [[x]]', ['Tag']), note('c', 'x', 'banana')]);
+    expect(suggestRelated(tagOnly, 'a').map(item => [item.noteId, item.sharedTags])).toEqual([['b', ['tag']]]);
+    expect(suggestRelated(tagOnly, 'a', { tagAdmission: false })).toEqual([]);
+    const graphScore = suggestRelated(buildNoteIndex(base.map(n => n.id === 'c' ? n : { ...n, tags: ['x'] })), 'a', { tagAdmission: false }).find(item => item.noteId === 'b')!.score;
+    expect(graphScore).toBeCloseTo(baseline + 0.08);
   });
 
   it('boosts an unlinked full-title mention, retaining word order', () => {
@@ -166,6 +171,60 @@ describe('index and suggestions', () => {
     console.info(`suggestRelated(1000): ${suggestElapsed.toFixed(2)} ms; ${suggestions.length} suggestions`);
     expect(suggestions.length).toBeLessThanOrEqual(5);
     expect(suggestElapsed).toBeLessThan(100);
+  });
+});
+
+describe('strong and possibly related groups', () => {
+  const index = buildNoteIndex(relatedNotes);
+  it('lets a shared tag admit a strong suggestion and names the tag', () => {
+    for (const { a, b, tags } of strongTagPairs) for (const [source, target] of [[a, b], [b, a]]) {
+      const found = relatedGroups(index, source).strong.find(item => item.noteId === target);
+      expect(found, `${source} -> ${target}`).toBeDefined();
+      expect(found!.sharedTags).toEqual(tags);
+    }
+    expect(suggestRelated(index, 'java', { tagAdmission: false, limit: 100 }).map(s => s.noteId)).not.toContain('tag-only');
+  });
+
+  it('puts short notes sharing two words in Possibly related with their reasons', () => {
+    for (const { a, b, terms } of possiblePairs) for (const [source, target] of [[a, b], [b, a]]) {
+      const groups = relatedGroups(index, source);
+      expect(groups.strong.map(s => s.noteId), `${source} strong`).not.toContain(target);
+      const found = groups.possible.find(item => item.noteId === target);
+      expect(found, `${source} -> ${target}`).toBeDefined();
+      expect(found!.sharedTerms).toEqual(expect.arrayContaining(terms));
+    }
+  });
+
+  it('keeps Possibly related short, secondary and free of unrelated notes', () => {
+    for (const note of relatedNotes) {
+      const { strong, possible } = relatedGroups(index, note.id);
+      expect(possible.length).toBeLessThanOrEqual(3);
+      if (strong.length === 5) expect(possible).toEqual([]);
+      expect(possible.some(item => strong.some(s => s.noteId === item.noteId))).toBe(false);
+    }
+    const all = (id: string) => { const g = relatedGroups(index, id); return [...g.strong, ...g.possible].map(s => s.noteId); };
+    for (let i = 0; i < unrelatedGroups.length; i++) for (let j = i + 1; j < unrelatedGroups.length; j++) {
+      for (const a of unrelatedGroups[i]) for (const b of unrelatedGroups[j]) expect(all(a), `${a} -> ${b}`).not.toContain(b);
+    }
+    for (const id of adversarialIds) for (const clusterId of unrelatedGroups.flat()) {
+      expect(all(id), `${id} -> ${clusterId}`).not.toContain(clusterId);
+      expect(all(clusterId), `${clusterId} -> ${id}`).not.toContain(id);
+    }
+  });
+
+  it('reports nested tags whole, never split into shared words', () => {
+    const nested = buildNoteIndex([note('a', 'Alpha', 'kickoff notes #project/daymark', ['project/daymark']), note('b', 'Beta', 'budget review #project/daymark', ['project/daymark'])]);
+    const [found] = relatedGroups(nested, 'a').strong;
+    expect(found).toMatchObject({ noteId: 'b', sharedTags: ['project/daymark'] });
+    expect(found.sharedTerms).not.toEqual(expect.arrayContaining(['project']));
+    expect(found.sharedTerms).not.toContain('daymark');
+  });
+
+  it('lets a handwritten note take part through its text-box text', () => {
+    const ink: StandaloneNote = { ...note('ink', 'Sketch', 'sync conflict tablet'), kind: 'handwritten' };
+    const withInk = buildNoteIndex([...relatedNotes, ink]);
+    const { strong, possible } = relatedGroups(withInk, 'sync-a');
+    expect([...strong, ...possible].map(s => s.noteId)).toContain('ink');
   });
 });
 

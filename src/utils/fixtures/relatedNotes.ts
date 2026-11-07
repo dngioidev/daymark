@@ -31,9 +31,23 @@ export const relatedNotes = [
   note('incidental', 'Maritime archive', 'Java ' + Array.from({ length: 200 }, (_, i) => `navigation${i} manifest${i}`).join(' ')),
   note('tag-only', 'Astronomy', 'Galaxies telescope nebula orbit stars.', ['java']),
   note('homograph', 'Vệ sinh', 'Sạch sát khuẩn xà phòng tẩy rửa.'),
+  // Short English brainstorm notes: two shared meaningful words, no tag.
+  note('sync-a', 'Weekend thoughts', 'The sync conflict showed again on the tablet.'),
+  note('sync-b', 'Bug list', 'Conflict after sync, phone lost an edit.'),
+  note('trip-a', 'Ideas', 'Book train tickets before the holiday.'),
+  note('trip-b', 'Todo', 'Holiday packing list, train at nine.'),
 ];
 
-export const adversarialIds = ['filler', 'incidental', 'tag-only', 'homograph'];
+export const adversarialIds = ['filler', 'incidental', 'homograph'];
+
+/** A shared tag admits a suggestion on its own, even with no shared words. */
+export const strongTagPairs = [{ a: 'java', b: 'tag-only', tags: ['java'] }];
+
+/** Weaker matches that belong in "Possibly related", not the strong list. */
+export const possiblePairs = [
+  { a: 'sync-a', b: 'sync-b', terms: ['conflict', 'sync'] },
+  { a: 'trip-a', b: 'trip-b', terms: ['holiday', 'train'] },
+];
 
 export const relatedPairs = [
   { a: 'java', b: 'java21', terms: ['java', 'classes'] },

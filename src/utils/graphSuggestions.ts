@@ -24,7 +24,7 @@ export function scheduleGraphSuggestions(notes: StandaloneNote[], index: NoteInd
     const start = performance.now();
     do {
       const note = notes[cursor++];
-      if (note) for (const suggestion of suggestRelated(index, note.id, { dismissed })) {
+      if (note) for (const suggestion of suggestRelated(index, note.id, { dismissed, tagAdmission: false })) {
         const key = pairKey(note.id, suggestion.noteId);
         if (!edges.has(key)) edges.set(key, { a: note.id, b: suggestion.noteId, kind: 'suggested', terms: suggestion.sharedTerms });
       }

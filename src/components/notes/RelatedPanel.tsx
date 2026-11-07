@@ -6,6 +6,10 @@ import { canLinkToTitle } from '../../utils/noteRelated';
 
 export interface RelatedPanelProps {
   suggestions: RelatedNoteSuggestion[];
+  /** Weaker matches, shown only below Suggested. */
+  possible?: RelatedNoteSuggestion[];
+  /** False when the open note has no text to hold a link (handwritten). */
+  canLink?: boolean;
   linked: { outgoing: StandaloneNote[]; incoming: StandaloneNote[] };
   hidden: StandaloneNote[];
   onLink(noteId: string): void;
@@ -18,22 +22,31 @@ export interface RelatedPanelProps {
 }
 const action = 'min-h-11 min-w-11 px-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed';
 
-export function RelatedContents({ suggestions, linked, hidden, onLink, onDismiss, onRestore, onOpen }: Omit<RelatedPanelProps, 'minimized' | 'onToggleMinimized'>) {
+/** Why a note is suggested: shared words, then shared tags with their #. */
+export const relatedReason = ({ sharedTerms, sharedTags }: Pick<RelatedNoteSuggestion, 'sharedTerms' | 'sharedTags'>): string =>
+  `shares: ${[...sharedTerms, ...(sharedTags ?? []).map(tag => `#${tag}`)].join(', ')}`;
+
+export function RelatedContents({ suggestions, possible = [], canLink = true, linked, hidden, onLink, onDismiss, onRestore, onOpen }: Omit<RelatedPanelProps, 'minimized' | 'onToggleMinimized'>) {
   const openNote = (note: StandaloneNote) => <button type="button" className="min-h-11 w-full text-left font-medium break-words hover:underline" onClick={() => onOpen(note.id)}>{note.title || 'Untitled'}</button>;
+  const item = (suggestion: RelatedNoteSuggestion) => { const { note } = suggestion; const safe = canLinkToTitle(note.title); return <li key={note.id}>
+    {openNote(note)}
+    <p className="text-xs text-stone-600 dark:text-stone-400 break-words">{relatedReason(suggestion)}</p>
+    <div className="flex flex-wrap gap-2 mt-2">
+      {canLink && <button type="button" className={action} disabled={!safe} aria-describedby={!safe ? `related-unsafe-${note.id}` : undefined} onClick={() => onLink(note.id)}>Link</button>}
+      <button type="button" className={action} onClick={() => onDismiss(note.id)}>Not related</button>
+    </div>
+    {canLink && !safe && <p id={`related-unsafe-${note.id}`} className="mt-1 text-xs text-stone-600 dark:text-stone-400">Rename this note to remove unsupported link characters.</p>}
+  </li>; };
   return <div className="space-y-4 p-3 text-sm text-stone-900 dark:text-stone-100">
     <section aria-label="Suggested notes">
       <h3 className="font-semibold">Suggested</h3>
-      {!suggestions.length && <p className="py-2 text-stone-600 dark:text-stone-400">No suggestions yet.</p>}
-      <ul className="space-y-3">{suggestions.map(({ note, sharedTerms }) => <li key={note.id}>
-        {openNote(note)}
-        <p className="text-xs text-stone-600 dark:text-stone-400 break-words">shares: {sharedTerms.join(', ')}</p>
-        <div className="flex flex-wrap gap-2 mt-2">
-          <button type="button" className={action} disabled={!canLinkToTitle(note.title)} aria-describedby={!canLinkToTitle(note.title) ? `related-unsafe-${note.id}` : undefined} onClick={() => onLink(note.id)}>Link</button>
-          <button type="button" className={action} onClick={() => onDismiss(note.id)}>Not related</button>
-        </div>
-        {!canLinkToTitle(note.title) && <p id={`related-unsafe-${note.id}`} className="mt-1 text-xs text-stone-600 dark:text-stone-400">Rename this note to remove unsupported link characters.</p>}
-      </li>)}</ul>
+      {!suggestions.length && !possible.length && <p className="py-2 text-stone-600 dark:text-stone-400">No suggestions yet.</p>}
+      <ul className="space-y-3">{suggestions.map(item)}</ul>
     </section>
+    {possible.length > 0 && <section aria-label="Possibly related notes" className="border-t border-stone-200 dark:border-stone-800 pt-3">
+      <h3 className="font-medium text-stone-600 dark:text-stone-400">Possibly related</h3>
+      <ul className="space-y-3 mt-2">{possible.map(item)}</ul>
+    </section>}
     <section aria-label="Linked notes"><h3 className="font-semibold">Linked</h3>
       {(['outgoing', 'incoming'] as const).map(direction => <div key={direction}><h4 className="mt-2 text-xs text-stone-600 dark:text-stone-400">{direction === 'outgoing' ? 'Outgoing' : 'Incoming'}</h4>
         <ul>{linked[direction].map(note => <li key={note.id}>{openNote(note)}</li>)}</ul>

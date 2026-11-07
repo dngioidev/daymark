@@ -713,3 +713,11 @@ it('clicking a tag chip in the editor filters the notes column by that tag', () 
   (rich.props.onOpenTag as (tag: string) => void)('project');
   expect(find(render(), el => el.type === NoteNavigation)!.props.query).toBe('#project');
 });
+
+it('turns Link off in Related while a handwritten note is open, and on for typed notes', () => {
+  const ink = { ...note, id: 'ink', kind: 'handwritten' as const, paper: 'lined' as const };
+  const extra = { notes: [note, ink], inkPagesForNote: () => [], updateInkPage: vi.fn() };
+  expect(find(render(false, extra), el => el.type === RelatedPanel)!.props.canLink).toBe(true);
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)('ink');
+  expect(find(render(false, extra), el => el.type === RelatedPanel)!.props.canLink).toBe(false);
+});

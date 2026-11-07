@@ -1,17 +1,28 @@
 import type { StandaloneNote } from '../types/daymark';
 import { maskCode } from './markdownMask';
+import { TAG_PATTERN_SOURCE, tagKey } from './noteTags';
 import { HANDWRITTEN_PLACEHOLDER } from '../ink/handwrittenNotes';
 
 // Fixed field weights keep titles strongest without drowning out body overlap.
-const FIELD_WEIGHT = { title: 3, tags: 2, body: 1 };
+// Tags are scored as tags (TAG_BONUS), not as words.
+const FIELD_WEIGHT = { title: 3, body: 1 };
 // Drop near-universal vocabulary only with enough documents to establish frequency.
 const COMMON_RATIO = 0.8;
 // Four notes avoid treating overlap in a tiny vault as meaningless vocabulary.
 const COMMON_MIN_NOTES = 4;
 // Enlarged fixture: reject tag-only scores <= 0.276 while retaining related pairs >= 0.445.
 const MIN_SCORE = 0.30;
-// Shared tags provide a small boost after the meaningful-term gate passes.
-const TAG_BONUS = 0.08;
+// A shared tag admits a suggestion on its own: the bonus equals MIN_SCORE.
+const TAG_BONUS = 0.30;
+// Graph keeps its pre-tag behaviour: a small boost after the meaningful-term gate.
+const GRAPH_TAG_BONUS = 0.08;
+// "Possibly related" floor, used together with the two-shared-terms rule. Short
+// notes share body words while their titles dominate the vector, so cosines are
+// small: the fixture possiblePairs score 0.074 and 0.118 (relatedNotes.ts), and
+// no unrelated or adversarial fixture pair shares two meaningful terms at all.
+const POSSIBLE_SCORE = 0.05;
+const STRONG_LIMIT = 5;
+const POSSIBLE_LIMIT = 3;
 // A common resolved third-note target is supporting evidence, not sufficient alone.
 const LINK_BONUS = 0.06;
 // An unlinked full-title mention is stronger evidence than a shared tag.
@@ -47,6 +58,9 @@ function plainText(text: string): string {
     .replace(/\b(?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>\]]+/gi, ' ');
 }
 
+/** Blank #tag spans so tags count once, as tags, and nested tags are not split into words. */
+const maskTagSpans = (text: string): string => text.replace(new RegExp(TAG_PATTERN_SOURCE, 'gu'), match => ' '.repeat(match.length));
+
 export function tokenize(text: string): string[] {
   return (normalize(plainText(text)).match(/[\p{L}\p{N}]+/gu) ?? [])
     .filter(term => [...term].length >= 3 && !/^\p{N}+$/u.test(term) && !STOP_WORDS.has(term));
@@ -58,7 +72,8 @@ interface IndexedNote {
   readonly titleTerms: ReadonlySet<string>;
   readonly body: string;
   readonly hasBody: boolean;
-  readonly tags: ReadonlySet<string>;
+  /** Tag key -> display spelling. */
+  readonly tags: ReadonlyMap<string, string>;
   readonly weights: ReadonlyMap<string, number>;
   readonly norm: number;
   readonly outgoing: ReadonlySet<string>;
@@ -73,8 +88,10 @@ export interface NoteIndex {
   /** The same postings over note ordinals (`ids[ordinal]`) for allocation-free scoring. */
   readonly ids: readonly string[];
   readonly postingArrays: ReadonlyMap<string, { readonly ordinals: Int32Array; readonly weights: Float64Array }>;
+  /** Tag key -> ordinals of notes carrying it. */
+  readonly tagPostings: ReadonlyMap<string, Int32Array>;
 }
-export interface RelatedSuggestion { noteId: string; score: number; sharedTerms: string[] }
+export interface RelatedSuggestion { noteId: string; score: number; sharedTerms: string[]; sharedTags: string[] }
 
 export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
   const titles = new Map<string, string>();
@@ -87,9 +104,9 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
     const content = note.kind === 'handwritten' && note.content === HANDWRITTEN_PLACEHOLDER ? '' : note.content;
     const tags = note.tags;
     const titleTerms = tokenize(note.title);
-    const bodyTerms = tokenize(content);
+    const bodyTerms = tokenize(maskTagSpans(content));
     const weights = new Map<string, number>();
-    for (const [terms, weight] of [[titleTerms, FIELD_WEIGHT.title], [tokenize(tags.join(' ')), FIELD_WEIGHT.tags], [bodyTerms, FIELD_WEIGHT.body]] as const) {
+    for (const [terms, weight] of [[titleTerms, FIELD_WEIGHT.title], [bodyTerms, FIELD_WEIGHT.body]] as const) {
       for (const term of terms) weights.set(term, (weights.get(term) ?? 0) + weight);
     }
     for (const term of weights.keys()) frequency.set(term, (frequency.get(term) ?? 0) + 1);
@@ -100,7 +117,7 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
     }
     return { id: note.id, title: note.title, titlePhrase: words(note.title), titleTerms: new Set(titleTerms),
       body: words(plainText(content)), hasBody: bodyTerms.length > 0,
-      tags: new Set(tags.map(tag => normalize(tag.trim()))), weights, outgoing };
+      tags: new Map(tags.map(tag => [tagKey(tag.trim()), tag.trim()] as const).filter(([key]) => key)), weights, outgoing };
   });
   const idf = new Map<string, number>();
   for (const [term, count] of frequency) {
@@ -131,7 +148,10 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
     for (const [id, weight] of list) { ordinals[i] = ordinal.get(id)!; weights[i++] = weight; }
     postingArrays.set(term, { ordinals, weights });
   }
-  return { notes: indexed, idf, postings, ids, postingArrays };
+  const tagLists = new Map<string, number[]>();
+  ids.forEach((id, i) => { for (const key of indexed.get(id)!.tags.keys()) { if (!tagLists.has(key)) tagLists.set(key, []); tagLists.get(key)!.push(i); } });
+  const tagPostings = new Map([...tagLists].map(([key, list]) => [key, Int32Array.from(list)] as const));
+  return { notes: indexed, idf, postings, ids, postingArrays, tagPostings };
 }
 
 export function linksOf(index: NoteIndex, noteId: string): { outgoing: string[]; incoming: string[] } {
@@ -141,12 +161,12 @@ export function linksOf(index: NoteIndex, noteId: string): { outgoing: string[];
 
 export function pairKey(a: string, b: string): string { return [a, b].sort().join('|'); }
 
-const scratchBuffers = new WeakMap<NoteIndex, { dot: Float64Array; count: Int32Array; first: Int32Array; touched: Int32Array }>();
+const scratchBuffers = new WeakMap<NoteIndex, { dot: Float64Array; count: Int32Array; first: Int32Array; touched: Int32Array; tagged: Uint8Array }>();
 function scratchFor(index: NoteIndex) {
   let scratch = scratchBuffers.get(index);
   if (!scratch) {
     const n = index.ids.length;
-    scratch = { dot: new Float64Array(n), count: new Int32Array(n), first: new Int32Array(n), touched: new Int32Array(n) };
+    scratch = { dot: new Float64Array(n), count: new Int32Array(n), first: new Int32Array(n), touched: new Int32Array(n), tagged: new Uint8Array(n) };
     scratchBuffers.set(index, scratch);
   }
   return scratch;
@@ -186,19 +206,28 @@ function overlaps(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return false;
 }
 
-export function suggestRelated(index: NoteIndex, noteId: string, opts?: { dismissed?: Set<string>; limit?: number }): RelatedSuggestion[] {
+function sharesKey(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
+  for (const key of a.keys()) if (b.has(key)) return true;
+  return false;
+}
+
+interface Scored { noteId: string; score: number; terms: number }
+interface ScoreOptions { dismissed?: Set<string>; tagAdmission: boolean; floor: number }
+
+/** One scoring pass over every candidate reaching `floor`. With tag admission a
+ * shared tag makes a candidate on its own and adds TAG_BONUS; without it (Graph)
+ * the meaningful-term gate applies to every candidate and tags add GRAPH_TAG_BONUS. */
+function scoreCandidates(index: NoteIndex, noteId: string, opts: ScoreOptions): Scored[] {
   const source = index.notes.get(noteId);
-  const limit = Math.max(0, Math.floor(opts?.limit ?? 5));
-  if (!source?.hasBody || !source.norm || !limit) return [];
-  const result: RelatedSuggestion[] = [];
+  const byTag = opts.tagAdmission && !!source?.tags.size;
+  if (!source || (!(source.hasBody && source.norm) && !byTag)) return [];
+  const result: Scored[] = [];
   const terms = [...source.weights.keys()].sort(compare);
-  // Per candidate ordinal: accumulated dot product, shared-term count and the
-  // first shared term. Buffers are reused per index; `touched` lists candidates.
-  const scratch = scratchFor(index), { dot, count, first, touched } = scratch;
+  // Per candidate ordinal: accumulated dot product, shared-term count, the first
+  // shared term and whether it shares a tag. Buffers are reused per index.
+  const { dot, count, first, touched, tagged } = scratchFor(index);
   let candidates = 0;
   // Sorted accumulation preserves the reference algorithm's floating-point order.
-  // Only meaningful, post-IDF terms can admit a candidate. Title mention scans
-  // happen below, only for candidates passing the original meaningful-term gate.
   for (let t = 0; t < terms.length; t++) {
     const sourceWeight = source.weights.get(terms[t])!, posting = index.postingArrays.get(terms[t]);
     if (!posting) continue;
@@ -209,31 +238,64 @@ export function suggestRelated(index: NoteIndex, noteId: string, opts?: { dismis
       dot[o] += sourceWeight * weights[i]; count[o]++;
     }
   }
-  const dismissed = opts?.dismissed?.size ? opts.dismissed : undefined;
+  if (byTag) for (const key of source.tags.keys()) for (const o of index.tagPostings.get(key) ?? []) {
+    if (count[o] === 0 && !tagged[o]) touched[candidates++] = o;
+    tagged[o] = 1;
+  }
+  const dismissed = opts.dismissed?.size ? opts.dismissed : undefined;
+  const tagBonus = opts.tagAdmission ? TAG_BONUS : GRAPH_TAG_BONUS;
   try {
     for (let c = 0; c < candidates; c++) {
       const o = touched[c], id = index.ids[o], target = index.notes.get(id)!;
-      if (id === noteId || !target.hasBody || !target.norm || source.outgoing.has(id) || source.incoming.has(id) || dismissed?.has(pairKey(noteId, id))) continue;
-      const shared = terms[first[o]];
-      if (count[o] < 2 && !source.titleTerms.has(shared) && !target.titleTerms.has(shared)) continue;
-      const cosine = dot[o] / (source.norm * target.norm);
-      // Even every bonus cannot lift this pair to the threshold: skip the
-      // overlap and full-title substring scans (the epsilon keeps the bound safe).
-      if (cosine + TAG_BONUS + LINK_BONUS + MENTION_BONUS < MIN_SCORE - 1e-9) continue;
+      if (id === noteId || source.outgoing.has(id) || source.incoming.has(id) || dismissed?.has(pairKey(noteId, id))) continue;
+      const shared = count[o] ? terms[first[o]] : undefined;
+      const termGate = !!shared && target.hasBody && !!target.norm
+        && (count[o] >= 2 || source.titleTerms.has(shared) || target.titleTerms.has(shared));
+      const sharesTag = byTag ? tagged[o] === 1 : sharesKey(source.tags, target.tags);
+      if (!termGate && !(byTag && sharesTag)) continue;
+      const cosine = source.norm && target.norm ? dot[o] / (source.norm * target.norm) : 0;
+      // Even every bonus cannot lift this pair to the floor: skip the overlap and
+      // full-title scans (the epsilon keeps the bound safe).
+      if (cosine + (sharesTag ? tagBonus : 0) + LINK_BONUS + MENTION_BONUS < opts.floor - 1e-9) continue;
       const score = cosine
-        + (overlaps(source.tags, target.tags) ? TAG_BONUS : 0)
+        + (sharesTag ? tagBonus : 0)
         + (overlaps(source.outgoing, target.outgoing) ? LINK_BONUS : 0)
         + (mentionsOf(index, noteId).has(id) || mentionsOf(index, id).has(noteId) ? MENTION_BONUS : 0);
-      if (score >= MIN_SCORE) result.push({ noteId: id, score, sharedTerms: [] });
+      if (score >= opts.floor) result.push({ noteId: id, score, terms: count[o] });
     }
   } finally {
-    for (let c = 0; c < candidates; c++) { const o = touched[c]; dot[o] = 0; count[o] = 0; }
+    for (let c = 0; c < candidates; c++) { const o = touched[c]; dot[o] = 0; count[o] = 0; tagged[o] = 0; }
   }
-  const top = result.sort((a, b) => b.score - a.score || compare(index.notes.get(a.noteId)!.title, index.notes.get(b.noteId)!.title) || compare(a.noteId, b.noteId)).slice(0, limit);
-  // A posting for id exists exactly when the target retains that weighted term,
-  // so this is the sorted shared-term list; only the returned top few need it.
-  for (const suggestion of top) { const target = index.notes.get(suggestion.noteId)!; suggestion.sharedTerms = terms.filter(term => target.weights.has(term)); }
-  return top;
+  return result.sort((x, y) => y.score - x.score || compare(index.notes.get(x.noteId)!.title, index.notes.get(y.noteId)!.title) || compare(x.noteId, y.noteId));
+}
+
+/** Reasons for the returned few: shared weighted terms (sorted) and shared tags
+ * in the source note's spelling, sorted by tag key. */
+function explain(index: NoteIndex, noteId: string, scored: Scored[]): RelatedSuggestion[] {
+  const source = index.notes.get(noteId);
+  if (!source || !scored.length) return [];
+  const terms = [...source.weights.keys()].sort(compare);
+  return scored.map(({ noteId: id, score }) => {
+    const target = index.notes.get(id)!;
+    return { noteId: id, score, sharedTerms: terms.filter(term => target.weights.has(term)),
+      sharedTags: [...source.tags].filter(([key]) => target.tags.has(key)).sort(([a], [b]) => compare(a, b)).map(([, tag]) => tag) };
+  });
+}
+
+export function suggestRelated(index: NoteIndex, noteId: string, opts?: { dismissed?: Set<string>; limit?: number; tagAdmission?: boolean }): RelatedSuggestion[] {
+  const limit = Math.max(0, Math.floor(opts?.limit ?? STRONG_LIMIT));
+  if (!limit) return [];
+  const scored = scoreCandidates(index, noteId, { dismissed: opts?.dismissed, tagAdmission: opts?.tagAdmission ?? true, floor: MIN_SCORE });
+  return explain(index, noteId, scored.slice(0, limit));
+}
+
+/** The Related panel: up to five strong matches, then (only when there are fewer
+ * than five) up to three weaker ones sharing at least two meaningful terms. */
+export function relatedGroups(index: NoteIndex, noteId: string, opts?: { dismissed?: Set<string> }): { strong: RelatedSuggestion[]; possible: RelatedSuggestion[] } {
+  const scored = scoreCandidates(index, noteId, { dismissed: opts?.dismissed, tagAdmission: true, floor: POSSIBLE_SCORE });
+  const strong = scored.filter(item => item.score >= MIN_SCORE).slice(0, STRONG_LIMIT);
+  const possible = strong.length < STRONG_LIMIT ? scored.filter(item => item.score < MIN_SCORE && item.terms >= 2).slice(0, POSSIBLE_LIMIT) : [];
+  return { strong: explain(index, noteId, strong), possible: explain(index, noteId, possible) };
 }
 
 export function addRelatedLink(markdown: string, title: string): string {

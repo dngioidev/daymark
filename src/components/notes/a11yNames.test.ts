@@ -12,7 +12,7 @@ import type { StandaloneNote } from '../../types/daymark';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const note = (id: string, folder = ''): StandaloneNote => ({ id, title: id, content: '', folder, tags: ['t'], createdAt: '', updatedAt: '' });
 const tree = [{ path: 'Tech', name: 'Tech', ownCount: 1, totalCount: 3, children: [{ path: 'Tech/Java', name: 'Java', ownCount: 2, totalCount: 2, children: [] }] }];
-const related: RelatedPanelProps = { suggestions: [{ noteId: 'b', score: 1, sharedTerms: ['java'], note: note('b') }], linked: { outgoing: [note('c')], incoming: [] }, hidden: [note('e')], onLink: vi.fn(), onDismiss: vi.fn(), onRestore: vi.fn(), onOpen: vi.fn(), minimized: false, onToggleMinimized: vi.fn() };
+const related: RelatedPanelProps = { suggestions: [{ noteId: 'b', score: 1, sharedTerms: ['java'], sharedTags: [], note: note('b') }], possible: [], linked: { outgoing: [note('c')], incoming: [] }, hidden: [note('e')], onLink: vi.fn(), onDismiss: vi.fn(), onRestore: vi.fn(), onOpen: vi.fn(), minimized: false, onToggleMinimized: vi.fn() };
 async function violations(element: React.ReactElement) {
   const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
   try {

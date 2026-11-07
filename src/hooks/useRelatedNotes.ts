@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DismissedPair, StandaloneNote } from '../types/daymark';
-import { buildNoteIndex, linksOf, pairKey, suggestRelated, type NoteIndex, type RelatedSuggestion } from '../utils/noteRelated';
+import { buildNoteIndex, linksOf, pairKey, relatedGroups, type NoteIndex, type RelatedSuggestion } from '../utils/noteRelated';
 
 export type RelatedNoteSuggestion = RelatedSuggestion & { note: StandaloneNote };
 
@@ -32,9 +32,9 @@ export function useRelatedNotes(notes: StandaloneNote[], noteId: string, dismiss
     const byId = new Map((snapshot?.notes ?? []).map(note => [note.id, note]));
     const resolve = (ids: string[]) => ids.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
     const links = snapshot ? linksOf(snapshot.index, noteId) : { outgoing: [], incoming: [] };
-    const suggestions: RelatedNoteSuggestion[] = snapshot ? suggestRelated(snapshot.index, noteId, { dismissed: hiddenKeys })
-      .map(suggestion => ({ ...suggestion, note: byId.get(suggestion.noteId)! })) : [];
-    return { suggestions, refresh: () => setRefreshVersion(version => version + 1), linked: { outgoing: resolve(links.outgoing), incoming: resolve(links.incoming) },
+    const groups = snapshot ? relatedGroups(snapshot.index, noteId, { dismissed: hiddenKeys }) : { strong: [], possible: [] };
+    const withNote = (list: RelatedSuggestion[]): RelatedNoteSuggestion[] => list.map(suggestion => ({ ...suggestion, note: byId.get(suggestion.noteId)! }));
+    return { suggestions: withNote(groups.strong), possible: withNote(groups.possible), refresh: () => setRefreshVersion(version => version + 1), linked: { outgoing: resolve(links.outgoing), incoming: resolve(links.incoming) },
       hidden: [...byId.values()].filter(note => note.id !== noteId && hiddenKeys.has(pairKey(noteId, note.id))) };
   }, [snapshot, noteId, dismissed]);
 }

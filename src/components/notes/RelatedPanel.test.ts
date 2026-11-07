@@ -8,7 +8,7 @@ import { RelatedSheet } from './RelatedSheet';
 import type { StandaloneNote } from '../../types/daymark';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const note = (id: string, title = id): StandaloneNote => ({ id, title, content: '', folder: '', tags: [], createdAt: '', updatedAt: '' });
-const props: RelatedPanelProps = { suggestions: [{ noteId: 'b', score: 1, sharedTerms: ['java', 'stream'], note: note('b') }], linked: { outgoing: [note('c')], incoming: [note('d')] }, hidden: [note('e')], onLink: vi.fn(), onDismiss: vi.fn(), onRestore: vi.fn(), onOpen: vi.fn(), minimized: false, onToggleMinimized: vi.fn() };
+const props: RelatedPanelProps = { suggestions: [{ noteId: 'b', score: 1, sharedTerms: ['java', 'stream'], sharedTags: [], note: note('b') }], possible: [], linked: { outgoing: [note('c')], incoming: [note('d')] }, hidden: [note('e')], onLink: vi.fn(), onDismiss: vi.fn(), onRestore: vi.fn(), onOpen: vi.fn(), minimized: false, onToggleMinimized: vi.fn() };
 it('renders shared words, both actions, linked directions, hidden restore and a minimized count', () => {
   const html = renderToStaticMarkup(React.createElement(RelatedPanel, props));
   for (const text of ['shares: java, stream', '>Link<', 'Not related', 'Outgoing', 'Incoming', 'Hidden suggestions', 'Restore']) expect(html).toContain(text);
@@ -62,4 +62,21 @@ it.each(['Escape', 'outside', 'toggle'])('closes the editor overlay on %s and re
   });
   expect(close).toHaveBeenCalledOnce(); expect(document.activeElement).toBe(opener);
   await act(async () => root.unmount()); host.remove(); opener.remove();
+});
+it('shows Possibly related below Suggested with reasons naming words then #tags', () => {
+  const html = renderToStaticMarkup(React.createElement(RelatedPanel, { ...props,
+    suggestions: [{ noteId: 'b', score: 0.6, sharedTerms: ['sync', 'conflict'], sharedTags: ['daymark'], note: note('b') }],
+    possible: [{ noteId: 'f', score: 0.08, sharedTerms: ['holiday', 'train'], sharedTags: [], note: note('f', 'Trip') }] }));
+  expect(html).toContain('shares: sync, conflict, #daymark');
+  expect(html).toContain('Possibly related');
+  expect(html.indexOf('Possibly related')).toBeGreaterThan(html.indexOf('shares: sync'));
+  expect(html).toContain('shares: holiday, train');
+  expect(renderToStaticMarkup(React.createElement(RelatedPanel, props))).not.toContain('Possibly related');
+});
+it('offers Open and Not related but no Link when the open note cannot hold links', () => {
+  const html = renderToStaticMarkup(React.createElement(RelatedPanel, { ...props, canLink: false,
+    possible: [{ noteId: 'f', score: 0.08, sharedTerms: ['a', 'b'], sharedTags: [], note: note('f') }] }));
+  expect(html).not.toContain('>Link<');
+  expect(html.match(/Not related/g)).toHaveLength(2);
+  expect(renderToStaticMarkup(React.createElement(RelatedPanel, { ...props, suggestions: [], possible: [], canLink: false }))).toContain('No suggestions yet.');
 });

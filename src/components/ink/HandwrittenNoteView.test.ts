@@ -65,7 +65,7 @@ it('searches and indexes handwriting without the compatibility placeholder; its 
   expect(searchVault([], [n], 'Thermodynamics')).toMatchObject([{ noteId: n.id, snippet: '' }]);
   expect(searchVault([], [n], 'tablet')).toEqual([]);
   const entry = buildNoteIndex([n]).notes.get(n.id)!;
-  expect(entry.hasBody).toBe(false); expect(entry.body).toBe(''); expect([...entry.tags]).toEqual(['secret']);
+  expect(entry.hasBody).toBe(false); expect(entry.body).toBe(''); expect([...entry.tags.keys()]).toEqual(['secret']);
 });
 it('exports the exact compatibility placeholder in Markdown', async () => {
   const n = note(); const zip = await JSZip.loadAsync(await buildVaultZip([], [n], DEFAULT_SETTINGS, { habits: [], days: [] }));

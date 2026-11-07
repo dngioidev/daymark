@@ -240,6 +240,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   };
   const relatedProps = {
     ...related,
+    canLink: activeNote?.kind !== 'handwritten',
     onLink: (id: string) => {
       if (activeNote) linkNotes(activeNote.id, id);
     },
