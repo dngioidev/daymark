@@ -38,6 +38,7 @@ import { useNotesLayout } from './notes/useNotesLayout';
 import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
 import { useRelatedNotes } from '../hooks/useRelatedNotes';
+import { knowledgeNotes } from '../utils/knowledgeNotes';
 import { addRelatedLink, buildNoteIndex, canLinkToTitle, pairKey } from '../utils/noteRelated';
 import { RelatedPanel, RelatedOverlay } from './notes/RelatedPanel';
 import { RelatedSheet } from './notes/RelatedSheet';
@@ -83,7 +84,9 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [folderFocus, setFolderFocus] = useState<{ path: string }>();
   const { phone, mode, drawers, layout, treeMinimized, prefs, setPrefs } = useNotesLayout(compact, railCollapsed);
   const graphActive = !phone && notesView === 'graph';
-  const graphIndex = useMemo(() => graphActive ? buildNoteIndex(notes) : null, [graphActive, notes]);
+  // Read-only copies with effective tags and handwritten text; edits always use `notes`.
+  const known = useMemo(() => knowledgeNotes(notes, inkPagesForNote), [notes, inkPagesForNote]);
+  const graphIndex = useMemo(() => graphActive ? buildNoteIndex(known) : null, [graphActive, known]);
   const graphDismissed = useMemo(() => {
     const latest = new Map<string, NoteMeta['dismissed'][number]>();
     for (const pair of noteMeta.dismissed) {
@@ -175,7 +178,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const editedLabel = editedMinutes < 1 ? 'just now' : editedMinutes < 60 ? `${editedMinutes} min ago` : activeNote ? formatNoteDate(activeNote.updatedAt) : '';
   const words = activeNote ? wordCount(activeNote.content) : 0;
   // The graph replaces the Related panel and builds its own index; do not rebuild a second one meanwhile.
-  const related = useRelatedNotes(notes, activeNote?.id ?? '', noteMeta.dismissed, !graphActive);
+  const related = useRelatedNotes(known, activeNote?.id ?? '', noteMeta.dismissed, !graphActive);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
   const overlayOpen = !drawers && layout.overlay && !overlayDismissed;
@@ -373,7 +376,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  const list = graphActive ? null : <NoteNavigation notes={notes} meta={noteMeta} openNoteId={selectedNote?.id}
+  const list = graphActive ? null : <NoteNavigation notes={notes} searchNotes={known} meta={noteMeta} openNoteId={selectedNote?.id}
     focusFolder={folderDialog ? undefined : folderFocus} onFolderFocusConsumed={() => setFolderFocus(undefined)} currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded} onToggleExpanded={toggleExpanded}
     query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
     onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}
@@ -515,7 +518,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       {!focusMode && folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
       {!focusMode && <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />}
       {!focusMode && graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
-        <GraphView notes={notes} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder="all" activeNoteId={activeNote?.id}
+        <GraphView notes={known} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder="all" activeNoteId={activeNote?.id}
           onViewChange={changeNotesView} focusViewSwitch={focusViewSwitch} onOpenNote={id => { relatedProps.onOpen(id); setNotesView('list'); }} onLink={linkNotes} onDismiss={dismissPair} />
       </Suspense> : phone ? <PhoneNotes pane={pane} navigation={list} editor={editor} fullScreen={focusMode} /> : (
         <div className="flex-1 min-h-0 min-w-0 flex gap-3">

@@ -1,5 +1,6 @@
 ﻿// @vitest-environment jsdom
 import React, { act } from 'react';
+import { knowledgeNotes } from '../../utils/knowledgeNotes';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -13,10 +14,11 @@ it('labels handwritten rows with a pen and page count', () => {
   expect(el.querySelector('[aria-label="Handwritten note"]')).not.toBeNull();
   expect(el.querySelector('[data-note-id=ink]')?.textContent).toContain('2 pages');
 });
-it('searches handwriting by title only in the column', () => {
-  const p = { ...base(), openNoteId: undefined, notes: [note('ink', 'Study', '', { kind: 'handwritten', content: 'Handwritten note: open Daymark 1.11 or later on a tablet to view.', tags: ['secret'] })] };
+it('searches handwriting by title, tags and text-box text, never the placeholder', () => {
+  const notes = [note('ink', 'Study', '', { kind: 'handwritten', content: 'Handwritten note: open Daymark 1.11 or later on a tablet to view.', tags: ['secret'] })];
+  const p = { ...base(), openNoteId: undefined, notes, searchNotes: knowledgeNotes(notes, () => []) };
   expect(parse({ ...p, query: 'tablet' }).querySelector('[data-note-id=ink]')).toBeNull();
-  expect(parse({ ...p, query: 'secret' }).querySelector('[data-note-id=ink]')).toBeNull();
+  expect(parse({ ...p, query: '#secret' }).querySelector('[data-note-id=ink]')).not.toBeNull();
   expect(parse({ ...p, query: 'Study' }).querySelector('[data-note-id=ink]')).not.toBeNull();
 });
 it.each(['Lined', 'Grid', 'Blank'])('offers Handwritten note in the menu and creates chosen %s paper', paper => {

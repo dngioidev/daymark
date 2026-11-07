@@ -1,5 +1,6 @@
 import type { StandaloneNote } from '../types/daymark';
 import { maskCode } from './markdownMask';
+import { HANDWRITTEN_PLACEHOLDER } from '../ink/handwrittenNotes';
 
 // Fixed field weights keep titles strongest without drowning out body overlap.
 const FIELD_WEIGHT = { title: 3, tags: 2, body: 1 };
@@ -82,8 +83,9 @@ export function buildNoteIndex(notes: StandaloneNote[]): NoteIndex {
   for (const note of notes) if (!titles.has(titleKey(note.title))) titles.set(titleKey(note.title), note.id);
   const frequency = new Map<string, number>();
   const entries = notes.map(note => {
-    const content = note.kind === 'handwritten' ? '' : note.content;
-    const tags = note.kind === 'handwritten' ? [] : note.tags;
+    // Callers pass knowledge notes: handwritten notes carry their text-box text.
+    const content = note.kind === 'handwritten' && note.content === HANDWRITTEN_PLACEHOLDER ? '' : note.content;
+    const tags = note.tags;
     const titleTerms = tokenize(note.title);
     const bodyTerms = tokenize(content);
     const weights = new Map<string, number>();

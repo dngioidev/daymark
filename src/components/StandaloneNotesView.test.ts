@@ -659,3 +659,15 @@ it('Android Back leaves full screen before leaving the phone editor', () => {
   expect(handler()).toBe(true);
   expect(find(render(true), el => el.props.id === 'note-title')).toBeDefined();
 });
+
+it('typing a #tag saves only the content; search sees the tag through the knowledge notes', () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback());
+  const rich = find(render(), (el) => el.props.noteId === note.id)!;
+  (rich.props.onChange as (markdown: string) => void)('Call the bank #urgent');
+  const saved = update.mock.calls.at(-1)![0][0] as StandaloneNote;
+  expect(saved.content).toBe('Call the bank #urgent');
+  expect(saved.tags).toEqual([]);
+  const nav = find(render(false, { notes: [saved] }), el => el.type === NoteNavigation)!;
+  expect(nav.props.notes).toEqual([saved]);
+  expect((nav.props.searchNotes as StandaloneNote[])[0].tags).toEqual(['urgent']);
+});

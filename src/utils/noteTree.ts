@@ -1,4 +1,6 @@
 import type { NoteMeta, StandaloneNote } from '../types/daymark';
+import { hasTag } from './noteTags';
+import { HANDWRITTEN_PLACEHOLDER } from '../ink/handwrittenNotes';
 import { buildFolderTree, normalizeFolderPath, type FolderNode } from './noteFolders';
 import { formatNoteDate } from './notes';
 
@@ -59,7 +61,7 @@ const searchCache = new WeakMap<StandaloneNote, { title: SearchField; content: S
 function searchText(note: StandaloneNote) {
   let value = searchCache.get(note);
   if (!value) {
-    value = { title: searchField(note.title), content: searchField(note.kind === 'handwritten' ? '' : note.content), tags: note.kind === 'handwritten' ? [] : note.tags.map(tag => tag.toLowerCase()) };
+    value = { title: searchField(note.title), content: searchField(note.kind === 'handwritten' && note.content === HANDWRITTEN_PLACEHOLDER ? '' : note.content), tags: note.tags.map(tag => tag.toLowerCase()) };
     searchCache.set(note, value);
   }
   return value;
@@ -94,6 +96,8 @@ export function buildNoteTreeRows(input: {
   const { notes, meta, expanded, openNoteId } = input;
   const query = input.query.trim();
   const q = query.toLowerCase();
+  // `#tag` alone is an exact tag filter (the tag and its nested children).
+  const tagFilter = /^#\S+$/.test(query) ? query.slice(1) : null;
   const rows: NoteTreeRow[] = [];
   const folders = buildFolderTree(notes, meta);
   const byFolder = new Map<string, StandaloneNote[]>();
@@ -109,9 +113,9 @@ export function buildNoteTreeRows(input: {
     if (q) {
       // Keep the existing Notes search predicate: literal substrings in title, raw body or tags.
       const lower = searchText(note);
-      const titleMatch = matchRanges(lower.title, q);
-      const bodyMatch = matchRanges(lower.content, q, true)[0];
-      const tagMatch = lower.tags.some(tag => tag.includes(q));
+      const titleMatch = tagFilter ? [] : matchRanges(lower.title, q);
+      const bodyMatch = tagFilter ? undefined : matchRanges(lower.content, q, true)[0];
+      const tagMatch = tagFilter ? hasTag(note.tags, tagFilter) : lower.tags.some(tag => tag.includes(q));
       const matches = titleMatch.length > 0 || Boolean(bodyMatch) || tagMatch;
       if (matches) matchCount++;
       if (!matches && note.id !== openNoteId) continue;

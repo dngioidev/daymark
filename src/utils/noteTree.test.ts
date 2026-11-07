@@ -71,6 +71,16 @@ describe('notes tree', () => {
     expect(rows.some(row => row.kind === 'pinned-heading')).toBe(false);
   });
 
+  it('a #tag query filters to that tag and its nested tags, with no snippets', () => {
+    const notes = [note('p', '', { tags: ['project'], content: '#project here' }), note('pd', 'Work', { tags: ['Project/daymark'] }),
+      note('ps', '', { tags: ['projects'] }), note('body', '', { content: 'mentions #project only in text' })];
+    const { rows, matchCount } = build(notes, { query: ' #Project ' });
+    expect(matchCount).toBe(2);
+    expect(noteRows(rows).map(row => row.noteId).sort()).toEqual(['p', 'pd']);
+    expect(noteRows(rows).every(row => !row.snippet)).toBe(true);
+    expect(build(notes, { query: 'project' }).matchCount).toBe(4);
+  });
+
   it('uses substring matching without accent folding, regex interpretation or whitespace normalization', () => {
     expect(build([note('a', '', { title: 'Café' })], { query: 'cafe' }).matchCount).toBe(0);
     expect(build([note('a', '', { title: 'a.b' }), note('b', '', { title: 'axb' })], { query: '.' }).matchCount).toBe(1);

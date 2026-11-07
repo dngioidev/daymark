@@ -60,12 +60,12 @@ it('bounds a 50-page notebook to visible page and neighbours', () => {
   expect(host.querySelectorAll('canvas[aria-label="Handwritten page"]').length).toBeLessThanOrEqual(3);
   expect(host.querySelectorAll('canvas[aria-label="Handwritten page"]').length).toBeGreaterThan(0);
 });
-it('searches and indexes handwriting by title without the compatibility placeholder', () => {
+it('searches and indexes handwriting without the compatibility placeholder; its tag field counts', () => {
   const n = { ...note(), title: 'Thermodynamics', tags: ['secret'] };
   expect(searchVault([], [n], 'Thermodynamics')).toMatchObject([{ noteId: n.id, snippet: '' }]);
   expect(searchVault([], [n], 'tablet')).toEqual([]);
   const entry = buildNoteIndex([n]).notes.get(n.id)!;
-  expect(entry.hasBody).toBe(false); expect(entry.body).toBe(''); expect(entry.tags.size).toBe(0);
+  expect(entry.hasBody).toBe(false); expect(entry.body).toBe(''); expect([...entry.tags]).toEqual(['secret']);
 });
 it('exports the exact compatibility placeholder in Markdown', async () => {
   const n = note(); const zip = await JSZip.loadAsync(await buildVaultZip([], [n], DEFAULT_SETTINGS, { habits: [], days: [] }));

@@ -11,7 +11,10 @@ import { useTreeWindow } from './useTreeWindow';
 import { pageCountLabel } from '../../ink/handwrittenNotes';
 
 export interface NoteNavigationProps {
-  notes: StandaloneNote[]; meta: NoteMeta; openNoteId?: string; currentFolder: string;
+  notes: StandaloneNote[];
+  /** Read-only knowledge notes (effective tags, handwritten text) for search; defaults to `notes`. */
+  searchNotes?: StandaloneNote[];
+  meta: NoteMeta; openNoteId?: string; currentFolder: string;
   expanded: ReadonlySet<string>; onExpandedChange(next: Set<string>): void;
   query: string; onQueryChange(q: string): void; onOpenNote(id: string): void;
   onSelectFolder(path: string): void; onNewNote(): void; templateItems?: MenuItem[];
@@ -34,7 +37,7 @@ function highlighted(text: string, ranges?: [number, number][]) {
 
 export function NoteNavigation(props: NoteNavigationProps) {
   const { notes, meta, expanded, query, openNoteId, compact } = props;
-  const { rows: modelRows, matchCount } = useMemo(() => buildNoteTreeRows({ notes, meta, expanded, query, openNoteId }), [notes, meta, expanded, query, openNoteId]);
+  const { rows: modelRows, matchCount } = useMemo(() => buildNoteTreeRows({ notes: props.searchNotes ?? notes, meta, expanded, query, openNoteId }), [notes, props.searchNotes, meta, expanded, query, openNoteId]);
   const rows = useMemo(() => modelRows.filter(row => row.kind !== 'status'), [modelRows]);
   const byId = useMemo(() => new Map(notes.map(note => [note.id, note])), [notes]);
   const [focusKey, setFocusKey] = useState('');
