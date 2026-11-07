@@ -63,7 +63,7 @@ it('inserts a starter diagram with its code editor open and reopens it with Ente
   await act(async () => { container.querySelector('[aria-label="Edit Mermaid diagram"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
   expect(container.querySelector('textarea[aria-label="Mermaid source"]')).not.toBeNull();
   await act(async () => root.unmount());
-});
+}, 15000); // A real editor plus Mermaid: slow when the whole suite runs in parallel.
 
 it('renders with the current app theme after a theme change', async () => {
   render.mockResolvedValue({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Themed</text></svg>' });

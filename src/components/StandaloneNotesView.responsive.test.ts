@@ -121,6 +121,9 @@ it('keeps the Notes drawer accessible in an empty narrow-window vault', async ()
 });
 
 it('returns from Graph to the narrow Notes drawer with keyboard focus on List', async () => {
+  // jsdom has no layout, so offsetParent is always null and the drawer's deferred
+  // focus would fall back to the panel; treat connected elements as visible.
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) { return this.isConnected ? this.parentElement : null; });
   await mount(900);
   await click(button('Notes', host));
   await act(async () => {

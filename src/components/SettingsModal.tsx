@@ -15,7 +15,6 @@ import { resolveAlertDays } from '../utils/alertDays';
 import { resetTab, useInstantSettings } from './settings/useInstantSettings';
 import { DEFAULT_APPEARANCE } from '../utils/defaultData';
 import { WidgetTab } from './settings/WidgetTab';
-import { HelpTab } from './settings/HelpTab';
 import type { WidgetAppColors } from '../utils/widgetStyle';
 
 export type { SettingsTab } from '../types/daymark';
@@ -24,6 +23,8 @@ interface SettingsModalProps {
   appMode?: AppMode;
   devMode?: boolean;
   onOpenMobileCode?: () => void;
+  /** Help is its own full-size view; the Settings Help item opens it. */
+  onOpenHelp?: () => void;
   onPreviewPhone?: () => void;
   isOpen: boolean;
   onClose: () => void;
@@ -81,6 +82,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   appMode,
   devMode = false,
   onOpenMobileCode,
+  onOpenHelp,
   onPreviewPhone,
   isOpen,
   onClose,
@@ -177,6 +179,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [isOpen, initialTab]);
 
   const selectTab = (tab: SettingsTab) => {
+    if (tab === 'help' && onOpenHelp) { onOpenHelp(); return; }
     setDraft(settings);
     setError(null);
     setActiveTab(tab);
@@ -299,7 +302,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {activeTab === 'appearance' && <AppearanceTab appearance={settings.appearance ?? DEFAULT_APPEARANCE} photoSection={photoSection} photoMeta={photoMeta} onChange={(appearance) => commit({ ...settings, appearance })} />}
         {activeTab === 'widget' && isNativeApp() && <WidgetTab initialWidgetId={widgetEditorId} app={widgetAppColors ?? null} />}
-        {activeTab === 'help' && <HelpTab appMode={appMode ?? (isNativeApp() ? 'mobile-app' : undefined)} />}
 
         {activeTab === 'storage' && (
           <>

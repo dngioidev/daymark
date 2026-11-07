@@ -34,6 +34,8 @@ interface MobileAppShellProps {
   onOpenQuickCapture: () => void;
   onOpenSearch: () => void;
   openNoteId?: string;
+  /** Help Show me: reveal Tags or Graph in Notes. */
+  notesReveal?: { target: 'tags' | 'graph'; seq: number };
   onOpenNoteConsumed?: () => void;
   focusToggleSignal?: number;
   pictureCleanupSignal?: number;
@@ -80,6 +82,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   onOpenQuickCapture,
   onOpenSearch,
   openNoteId,
+  notesReveal,
   onOpenNoteConsumed,
   focusToggleSignal,
   pictureCleanupSignal,
@@ -233,7 +236,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             />
           )}
 
-          {activeTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} compact notes={notes} noteMeta={noteMeta} onUpdateNoteMeta={onUpdateNoteMeta} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+          {activeTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} compact notes={notes} noteMeta={noteMeta} onUpdateNoteMeta={onUpdateNoteMeta} onUpdateNotes={onUpdateNotes} openNoteId={openNoteId} onOpenNoteConsumed={onOpenNoteConsumed} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} reveal={notesReveal} />}
           {activeTab === 'backlog' && backlogSlot}
         </main>
 

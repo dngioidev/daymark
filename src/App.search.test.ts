@@ -58,7 +58,7 @@ import { TodayView } from './components/TodayView';
 
 
 import { SearchDialog } from './components/SearchDialog';
-import { ShortcutHelp } from './components/ShortcutHelp';
+import { HelpView } from './components/help/HelpView';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { StandaloneNotesView } from './components/StandaloneNotesView';
@@ -310,7 +310,8 @@ it('keeps Ctrl K new-task, opens search and help, and expires g after 1.5 second
   key('k', { ctrlKey: true }); expect(props(QuickCaptureModal).isOpen).toBe(true);
   key('F', { ctrlKey: true, shiftKey: true }); expect(props(SearchDialog).isOpen).toBe(true);
   (props(SearchDialog).onClose as () => void)();
-  key('?'); expect(props(ShortcutHelp).isOpen).toBe(true);
+  key('?'); expect(props(HelpView).topic).toBe('shortcuts');
+  (props(HelpView).onClose as () => void)(); expect(render().some((el) => el.type === HelpView)).toBe(false);
   key('g'); vi.advanceTimersByTime(1500); key('n');
   expect(render().some((el) => el.type === StandaloneNotesView)).toBe(false);
   key('g'); vi.advanceTimersByTime(1499); key('n');
@@ -356,7 +357,7 @@ it.each(['dialog', 'menu'] as const)('blocks global shortcuts while a %s is open
   overlays[overlay] = true;
   key('t'); key('/'); key('?'); key('F', { ctrlKey: true, shiftKey: true }); key('g'); key('t');
   expect(props(SearchDialog).isOpen).toBe(false);
-  expect(props(ShortcutHelp).isOpen).toBe(false);
+  expect(render().some((el) => el.type === HelpView)).toBe(false);
   expect(props(StandaloneNotesView).focusToggleSignal).toBe(0);
   key('k', { ctrlKey: true });
   expect(props(QuickCaptureModal).isOpen).toBe(true);
@@ -402,4 +403,29 @@ it('includes incoming ink in app backups', async () => {
   await (props(SettingsModal).onExportJson as () => Promise<void>)();
   expect((backups.zip.mock.calls.at(-1) as unknown[] | undefined)?.[7]).toEqual(ink);
   expect((backups.json.mock.calls.at(-1) as unknown[] | undefined)?.[7]).toEqual(ink);
+});
+
+it('opens Help from the rail at First 5 minutes and from Settings, closing Settings', () => {
+  (props(SideRail).onOpenHelp as () => void)();
+  expect(props(HelpView).topic).toBe('first-5-minutes');
+  (props(HelpView).onTopicChange as (slug: string) => void)('tags');
+  expect(props(HelpView).topic).toBe('tags');
+  (props(HelpView).onClose as () => void)();
+  (props(SideRail).onOpenSettings as () => void)();
+  expect(props(SettingsModal).isOpen).toBe(true);
+  (props(SettingsModal).onOpenHelp as () => void)();
+  expect(props(SettingsModal).isOpen).toBe(false);
+  expect(props(HelpView).topic).toBe('first-5-minutes');
+});
+it('Show me closes Help and opens the feature', () => {
+  (props(SideRail).onOpenHelp as () => void)();
+  (props(HelpView).onShowMe as (target: string) => void)('notes-tags');
+  expect(render().some((el) => el.type === HelpView)).toBe(false);
+  expect(props(StandaloneNotesView).reveal).toMatchObject({ target: 'tags' });
+  (props(SideRail).onOpenHelp as () => void)();
+  (props(HelpView).onShowMe as (target: string) => void)('settings-sync');
+  expect(props(SettingsModal)).toMatchObject({ isOpen: true, initialTab: 'sync' });
+  (props(SideRail).onOpenHelp as () => void)();
+  (props(HelpView).onShowMe as (target: string) => void)('quick-capture');
+  expect(props(QuickCaptureModal).isOpen).toBe(true);
 });

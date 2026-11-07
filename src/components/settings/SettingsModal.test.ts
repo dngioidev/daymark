@@ -123,3 +123,20 @@ it('saves habit weekends while preserving the task choice and other settings', a
   await act(async () => radio(choiceGroup('Habit warnings count'), 'weekend').click());
   expect(save.mock.calls[0][0]).toEqual({ ...settings, alertDays: { tasks: 'weekdays', habits: 'weekend' } });
 });
+
+it('the Help item opens the full-size Help instead of a settings tab', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+  const host = document.createElement('div'); document.body.append(host);
+  root = createRoot(host);
+  const noop = () => {}, onOpenHelp = vi.fn();
+  await act(async () => root!.render(React.createElement(SettingsModal, {
+    isOpen: true, onClose: noop, settings: structuredClone(DEFAULT_SETTINGS), onChangeSettings: noop,
+    onExportZip: noop, onExportJson: noop, onImportJson: noop, onImportZip: noop,
+    onResetVault: noop, syncPanel: null, onOpenHelp,
+  })));
+  const help = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Help')!;
+  await act(async () => help.click());
+  expect(onOpenHelp).toHaveBeenCalledTimes(1);
+  expect(host.textContent).not.toContain('Guide platform');
+});

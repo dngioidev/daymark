@@ -90,7 +90,8 @@ import { formatDay } from './utils/dateFormat';
 import { shortcutFor } from './utils/shortcuts';
 import type { SearchResult } from './utils/search';
 import { SearchDialog } from './components/SearchDialog';
-import { ShortcutHelp } from './components/ShortcutHelp';
+import { HelpView } from './components/help/HelpView';
+import type { ShowMeTarget } from './utils/guideData';
 import { isDialogOpen } from './components/ui/Dialog';
 import { isMenuOpen } from './components/ui/Menu';
 
@@ -164,7 +165,9 @@ export default function App() {
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
+  // Help topic slug while Help is open; one Help for the rail, Settings and `?`.
+  const [helpTopic, setHelpTopic] = useState<string | null>(null);
+  const [notesReveal, setNotesReveal] = useState<{ target: 'tags' | 'graph'; seq: number } | undefined>(undefined);
   const [openNoteId, setOpenNoteId] = useState<string | undefined>();
   const [focusToggleSignal, setFocusToggleSignal] = useState(0);
   const [focusNotes, setFocusNotes] = useState(false);
@@ -214,6 +217,25 @@ export default function App() {
     setSettingsTab(tab);
     setIsSettingsOpen(true);
   };
+  const openHelp = (slug = 'first-5-minutes') => {
+    setIsSettingsOpen(false);
+    setHelpTopic(slug);
+  };
+  /** Help's Show me: close Help and open the feature the topic is about. */
+  const showMe = (target: ShowMeTarget) => {
+    setHelpTopic(null);
+    const settingsTab = ({ 'settings-appearance': 'appearance', 'settings-sync': 'sync', 'settings-storage': 'storage', 'settings-widget': 'widget' } as const)[target as 'settings-sync'];
+    if (settingsTab) { openSettings(settingsTab); return; }
+    if (target === 'quick-capture') { setIsQuickCaptureOpen(true); return; }
+    if (target === 'search') { openSearch(); return; }
+    if (target === 'notes-tags' || target === 'notes-graph') {
+      goToTab('notes');
+      setNotesReveal(previous => ({ target: target === 'notes-tags' ? 'tags' : 'graph', seq: (previous?.seq ?? 0) + 1 }));
+      return;
+    }
+    if (target === 'today') setCurrentDate(today);
+    if (target === 'today' || target === 'calendar' || target === 'backlog' || target === 'notes') goToTab(target);
+  };
 
   // Surface storage failures instead of silently losing edits
   useEffect(() => subscribeStorageErrors((msg) => showToast(msg, { tone: 'error' })), []);
@@ -235,7 +257,7 @@ export default function App() {
         timer = window.setTimeout(() => { pendingG = false; }, 1500);
       } else if (action === 'new-task') setIsQuickCaptureOpen(true);
       else if (action === 'search') openSearch();
-      else if (action === 'help') setIsShortcutHelpOpen(true);
+      else if (action === 'help') openHelp('shortcuts');
       else if (action === 'focus-notes') setFocusToggleSignal((signal) => signal + 1);
       else if (action === 'go-today') {
         setCurrentDate(today);
@@ -287,7 +309,7 @@ export default function App() {
   // Android Back closes the topmost dialog first
   useBackHandler(() => {
     if (isSearchOpen) return (setIsSearchOpen(false), true);
-    if (isShortcutHelpOpen) return (setIsShortcutHelpOpen(false), true);
+    if (helpTopic) return (setHelpTopic(null), true);
     if (isQuickCaptureOpen) return (setIsQuickCaptureOpen(false), true);
     if (historicalModalTask) return (setHistoricalModalTask(null), true);
     if (detailsTaskId) return (setDetailsTaskId(null), true);
@@ -877,6 +899,7 @@ export default function App() {
             onTabChange={changeDesktopTab}
             onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
             onOpenSettings={() => openSettings()}
+            onOpenHelp={() => openHelp()}
             onOpenSync={() => openSettings('sync')}
             onOpenSearch={openSearch}
             syncStatus={navbarSyncStatus}
@@ -929,7 +952,7 @@ export default function App() {
               />
             )}
 
-            {activeDesktopTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} railCollapsed={railCollapsed} onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} />}
+            {activeDesktopTab === 'notes' && <StandaloneNotesView inkPagesForNote={inkPagesForNote} updateInkPage={updateInkPage} railCollapsed={railCollapsed} onFocusModeChange={setFocusNotes} notes={notes} noteMeta={notemeta} onUpdateNoteMeta={setNoteMeta} onUpdateNotes={setNotes} openNoteId={openNoteId} onOpenNoteConsumed={() => setOpenNoteId(undefined)} focusToggleSignal={focusToggleSignal} richEditorHandleRef={richEditorHandleRef} pictureCleanupSignal={pictureCleanupSignal} reveal={notesReveal} />}
 
             {activeDesktopTab === 'backlog' && <BacklogView hideTitle {...backlogViewProps} />}
 
@@ -972,6 +995,7 @@ export default function App() {
           onUpdateNotes={setNotes}
           onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
           onOpenSearch={openSearch}
+          notesReveal={notesReveal}
           openNoteId={openNoteId}
           onOpenNoteConsumed={() => setOpenNoteId(undefined)}
           focusToggleSignal={focusToggleSignal}
@@ -995,7 +1019,7 @@ export default function App() {
       )}
 
       <SearchDialog isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} docs={dailyDocs} notes={notes} backlog={backlog} today={today} statuses={settings.statuses} onPick={pickSearchResult} />
-      <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
+      {helpTopic && <HelpView topic={helpTopic} appMode={appMode} onTopicChange={setHelpTopic} onClose={() => setHelpTopic(null)} onShowMe={showMe} />}
 
       <HistoricalCompletionModal
         task={historicalModalTask}
@@ -1047,6 +1071,7 @@ export default function App() {
         devMode={devMode}
         onOpenMobileCode={() => { setIsSettingsOpen(false); setActiveDesktopTab('mobile-code'); setAppMode('desktop'); }}
         onPreviewPhone={() => { setIsSettingsOpen(false); setAppMode('mobile-app'); }}
+        onOpenHelp={() => openHelp()}
         photoSection={<BackgroundPhotoSection background={background} />}
         photoMeta={background.meta}
         isOpen={isSettingsOpen}

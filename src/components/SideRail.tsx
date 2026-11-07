@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, Calendar, CalendarDays, FolderOpen, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, RefreshCw, Search, Settings } from 'lucide-react';
+import { Archive, Calendar, CircleHelp, CalendarDays, FolderOpen, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, RefreshCw, Search, Settings } from 'lucide-react';
 import type { ViewTab } from '../types/daymark';
 import { SYNC_LABELS, type NavSyncStatus } from './Navbar';
 
@@ -10,6 +10,7 @@ interface SideRailProps {
   onOpenQuickCapture: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onOpenHelp?: () => void;
   onOpenSync: () => void;
   syncStatus: NavSyncStatus;
   carriedAlertCount: number;
@@ -43,7 +44,7 @@ function RailButton({ tooltip, side, children, ...props }: React.ButtonHTMLAttri
 }
 
 /** Five parts share the rail; Title keeps enough room for its tools and safe inset. */
-export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOpenQuickCapture, onOpenSearch, onOpenSettings, onOpenSync, syncStatus, carriedAlertCount, todayLabel, side, collapsed, onToggleCollapsed, hidden }) => {
+export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOpenQuickCapture, onOpenSearch, onOpenSettings, onOpenHelp, onOpenSync, syncStatus, carriedAlertCount, todayLabel, side, collapsed, onToggleCollapsed, hidden }) => {
   if (hidden) return null;
   const sync = SYNC_LABELS[syncStatus];
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -76,6 +77,7 @@ export const SideRail: React.FC<SideRailProps> = ({ activeTab, onTabChange, onOp
         </RailButton>
         <div className="shrink-0 flex min-w-0 items-center">
           <RailButton side={side} tooltip={isMac ? 'Search (⌘ Shift F)' : 'Search (Ctrl Shift F)'} type="button" onClick={onOpenSearch} aria-label={isMac ? 'Search (⌘ Shift F)' : 'Search (Ctrl Shift F)'} aria-keyshortcuts="Control+Shift+F Meta+Shift+F" className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Search className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
+          {onOpenHelp && <RailButton side={side} tooltip="Help (?)" type="button" aria-label="Help" aria-keyshortcuts="Shift+Slash" data-rail-part="help" onClick={onOpenHelp} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><CircleHelp className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>}
           <RailButton side={side} tooltip="Settings" type="button" aria-label="Settings" data-rail-part="settings" onClick={onOpenSettings} className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-md hover:bg-stone-500/10"><Settings className="w-4 h-4 shrink-0" aria-hidden="true" /></RailButton>
         </div>
       </div>

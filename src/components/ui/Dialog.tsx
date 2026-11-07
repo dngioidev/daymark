@@ -38,7 +38,7 @@ interface DialogProps {
   children: React.ReactNode;
   /** Sticky action row at the bottom. */
   footer?: React.ReactNode;
-  variant?: 'center' | 'sheet' | 'fullscreen-mobile' | 'drawer';
+  variant?: 'center' | 'sheet' | 'fullscreen-mobile' | 'drawer' | 'fullscreen';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Fixed settings shell; tab content owns scrolling. */
   fixedSettingsSize?: boolean;
@@ -116,12 +116,12 @@ export const Dialog: React.FC<DialogProps> = ({
   if (!isOpen) return null;
 
   const layout =
-    variant === 'drawer' ? 'items-stretch justify-start!' : variant === 'sheet'
+    variant === 'drawer' ? 'items-stretch justify-start!' : variant === 'fullscreen' ? 'items-stretch' : variant === 'sheet'
       ? 'items-end sm:items-center'
       : variant === 'fullscreen-mobile'
         ? 'items-stretch sm:items-center sm:p-4'
         : 'items-center p-4';
-  const panelShape = variant === 'drawer' ? 'h-dvh !w-80 !max-w-[calc(100vw-2rem)]' : fixedSettingsSize
+  const panelShape = variant === 'drawer' ? 'h-dvh !w-80 !max-w-[calc(100vw-2rem)]' : variant === 'fullscreen' ? 'h-dvh !max-w-none border-0 pb-[env(safe-area-inset-bottom)]' : fixedSettingsSize
     ? 'h-dvh sm:w-[min(760px,calc(100vw-2rem))] sm:h-[min(560px,calc(100vh-2rem))] sm:rounded-xl pb-[env(safe-area-inset-bottom)] sm:pb-0'
     :
     variant === 'sheet'
@@ -144,13 +144,13 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`dm-card relative w-full ${fixedSettingsSize ? '' : SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
+        className={`dm-card relative w-full ${fixedSettingsSize || variant === 'fullscreen' ? '' : SIZES[size]} flex flex-col bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-800 shadow-2xl outline-hidden overflow-hidden animate-in fade-in duration-150 ${panelShape}`}
       >
         {variant === 'fullscreen-mobile' && (
           // Dark strip under the Android status bar so its light icons stay visible
           <div aria-hidden="true" className="sm:hidden shrink-0 h-[var(--dm-safe-top)] bg-stone-900" />
         )}
-        <div className={`shrink-0 flex items-start gap-3 px-5 ${variant === 'drawer' ? 'pt-[calc(1rem+var(--dm-safe-top))]' : 'pt-4 sm:pt-[calc(1rem+var(--dm-safe-top))]'} pb-3 border-b border-stone-200 dark:border-stone-800`}>
+        <div className={`shrink-0 flex items-start gap-3 px-5 ${variant === 'drawer' || variant === 'fullscreen' ? 'pt-[calc(1rem+var(--dm-safe-top))]' : 'pt-4 sm:pt-[calc(1rem+var(--dm-safe-top))]'} pb-3 border-b border-stone-200 dark:border-stone-800`}>
           {icon && <div className="mt-0.5 shrink-0">{icon}</div>}
           <div className="flex-1 min-w-0">
             <h2 id={titleId} className="text-base font-semibold leading-snug">
