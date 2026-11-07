@@ -169,7 +169,10 @@ async function tagAndHelpScenarios(browser) {
     await first.click();
     await help.getByRole('button', { name: 'Show me', exact: true }).click();
     await help.waitFor({ state: 'detached' });
-    check(await tags.isVisible() && await tags.evaluate(el => el.contains(document.activeElement)), 'Show me opens Notes with the Tags section focused');
+    // The Tags section scrolls and takes focus on the next frame after Help closes.
+    const focused = await page.waitForFunction(() => !!document.activeElement?.closest('[data-tags-section]'), null, { timeout: 3000 }).then(() => true, () => false);
+    const active = await page.evaluate(() => { const el = document.activeElement; return el ? `${el.tagName} ${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 30) ?? ''}` : 'none'; });
+    check(await tags.isVisible() && focused, 'Show me opens Notes with the Tags section focused', `focus: ${active}`);
   } finally { await context.close(); }
 }
 
