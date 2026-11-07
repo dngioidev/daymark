@@ -30,16 +30,27 @@ public class MainActivity extends BridgeActivity {
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         forwardStylusButton(event);
-        return super.dispatchTouchEvent(event);
+        MotionEvent rewritten = rewriteStylusButton(event);
+        if (rewritten == null) return super.dispatchTouchEvent(event);
+        try { return super.dispatchTouchEvent(rewritten); } finally { rewritten.recycle(); }
     }
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
         forwardStylusButton(event);
-        return super.dispatchGenericMotionEvent(event);
+        MotionEvent rewritten = rewriteStylusButton(event);
+        if (rewritten == null) return super.dispatchGenericMotionEvent(event);
+        try { return super.dispatchGenericMotionEvent(rewritten); } finally { rewritten.recycle(); }
     }
 
-    /** The WebView drops the S Pen button from pointer events; tell the page when it changes. */
+    /** The WebView drops pen strokes drawn with the side button held; see StylusButton. */
+    private MotionEvent rewriteStylusButton(MotionEvent event) {
+        StylusButton.Rewrite rewrite = stylusButton.rewrite(event.getToolType(0), event.getButtonState(), event.getActionMasked());
+        if (rewrite == StylusButton.Rewrite.NONE) return null;
+        return StylusButton.Companion.rebuild(event, rewrite == StylusButton.Rewrite.ERASER);
+    }
+
+    /** Tells the page when the S Pen button changes, for strokes where it is pressed part-way. */
     private void forwardStylusButton(MotionEvent event) {
         Boolean changed = stylusButton.update(event.getToolType(0), event.getButtonState(), event.getActionMasked());
         if (changed == null || getBridge() == null || getBridge().getWebView() == null) return;

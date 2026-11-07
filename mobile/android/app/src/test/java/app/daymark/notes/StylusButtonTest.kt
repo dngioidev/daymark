@@ -49,4 +49,28 @@ class StylusButtonTest {
             StylusButton.script(true),
         )
     }
+
+    @Test fun `a stroke started with the button held goes to the WebView as an eraser until it lifts`() {
+        val button = StylusButton()
+        assertEquals(StylusButton.Rewrite.ERASER, button.rewrite(stylus, primary, MotionEvent.ACTION_DOWN))
+        // Letting go of the button part-way keeps erasing until the pen lifts.
+        assertEquals(StylusButton.Rewrite.ERASER, button.rewrite(stylus, 0, MotionEvent.ACTION_MOVE))
+        assertEquals(StylusButton.Rewrite.ERASER, button.rewrite(stylus, 0, MotionEvent.ACTION_UP))
+        assertEquals(StylusButton.Rewrite.NONE, button.rewrite(stylus, 0, MotionEvent.ACTION_DOWN))
+    }
+
+    @Test fun `a button pressed part-way is stripped so the stroke keeps arriving`() {
+        val button = StylusButton()
+        assertEquals(StylusButton.Rewrite.NONE, button.rewrite(stylus, 0, MotionEvent.ACTION_DOWN))
+        assertEquals(StylusButton.Rewrite.STRIP, button.rewrite(stylus, primary, MotionEvent.ACTION_MOVE))
+        assertEquals(StylusButton.Rewrite.STRIP, button.rewrite(stylus, primary, MotionEvent.ACTION_UP))
+        assertEquals(StylusButton.Rewrite.STRIP, button.rewrite(stylus, primary, MotionEvent.ACTION_HOVER_MOVE))
+    }
+
+    @Test fun `fingers, mice and eraser ends pass through unchanged`() {
+        val button = StylusButton()
+        assertEquals(StylusButton.Rewrite.NONE, button.rewrite(MotionEvent.TOOL_TYPE_FINGER, primary, MotionEvent.ACTION_DOWN))
+        assertEquals(StylusButton.Rewrite.NONE, button.rewrite(MotionEvent.TOOL_TYPE_ERASER, 0, MotionEvent.ACTION_DOWN))
+        assertEquals(StylusButton.Rewrite.NONE, button.rewrite(stylus, 0, MotionEvent.ACTION_HOVER_MOVE))
+    }
 }
