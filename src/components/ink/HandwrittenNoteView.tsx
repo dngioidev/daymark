@@ -1,4 +1,4 @@
-import { useCallback, useContext, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronLeft, ChevronRight, FilePlus2, MousePointer2, Type } from 'lucide-react';
 import type { InkPage, StandaloneNote } from '../../types/daymark';
 import { canWrite, rememberPen } from '../../ink/handwrittenNotes';
@@ -28,6 +28,24 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
   const [penSeen, setPenSeen] = useState(canWrite);
   const [selected, setSelected] = useState(0);
   const [tool, setTool] = useState<InkCanvasTool>('pen');
+  // Select and Text are quick detours: choosing the active one again returns to the last drawing tool.
+  const [drawTool, setDrawTool] = useState<InkCanvasTool>('pen');
+  const chooseTool = (next: InkCanvasTool) => {
+    if (next === tool && (next === 'select' || next === 'text')) { setTool(drawTool); return; }
+    if (next !== 'select' && next !== 'text') setDrawTool(next);
+    setTool(next);
+  };
+  const chooseRef = useRef(chooseTool); chooseRef.current = chooseTool;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 's' || e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[role=dialog], input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+      e.preventDefault(); chooseRef.current('select');
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   const [penColor, setPenColor] = useState<string>(PEN_COLORS[0]);
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHTER_COLORS[0]);
   const [penWidth, setPenWidth] = useState(4);
@@ -54,7 +72,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
   const pageControls = <div className={fullScreen ? 'flex flex-col items-center gap-1 border-t border-stone-700' : 'flex shrink-0 items-center gap-1 border-l border-stone-300 pl-2 dark:border-stone-700'}>
     {!fullScreen && (['select', 'text'] as const).map(value => <button key={value} type="button" aria-label={value === 'select' ? 'Select' : 'Text'}
       aria-pressed={tool === value} className={`${buttonStyle} ${tool === value ? 'bg-stone-200 dark:bg-stone-700' : ''}`}
-      onClick={() => setTool(value)}>{value === 'select' ? <MousePointer2 size={20} aria-hidden="true" /> : <Type size={20} aria-hidden="true" />}</button>)}
+      onClick={() => chooseTool(value)}>{value === 'select' ? <MousePointer2 size={20} aria-hidden="true" /> : <Type size={20} aria-hidden="true" />}</button>)}
     <button type="button" aria-label="Previous page" title="Previous page" className={buttonStyle} disabled={number === 0} onClick={() => navigate(number - 1)}><ChevronLeft size={20} aria-hidden="true" /></button>
     <span role="status" className="whitespace-nowrap text-xs tabular-nums">
       <span aria-hidden="true">{number + 1} / {count}</span><span className="sr-only">Page {number + 1} of {count}</span>
@@ -67,7 +85,7 @@ export function HandwrittenNoteView({ note, pages: pagesProp, onUpdatePage, full
     }}><FilePlus2 size={20} aria-hidden="true" /></button>
   </div>;
   const toolProps: InkToolbarProps = {
-    tool, color, width, onToolChange: setTool,
+    tool, color, width, onToolChange: chooseTool,
     onColorChange: tool === 'highlighter' ? setHighlightColor : setPenColor,
     onWidthChange: tool === 'highlighter' ? setHighlightWidth : setPenWidth,
     onEraserModeChange: setEraserMode, onUndo: () => canvas.current?.undo(), onRedo: () => canvas.current?.redo(),

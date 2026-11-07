@@ -482,6 +482,24 @@ it.each([false, true])('routes Paste after Cut and page navigation through noteb
   expect(decodePoints(visibleStrokes(pasted)[0].points)[0]).toMatchObject({ x: 50, y: 50 });
 });
 
+it.each([false, true])('Select toggles back to the last drawing tool, also with the S key (fullScreen=%s)', fullScreen => {
+  const note = { ...createHandwrittenNote('', 'lined', ''), id: 'n' };
+  act(() => root.render(React.createElement(HandwrittenNoteView, { note, pages: [linePage()], onUpdatePage: vi.fn(), fullScreen })));
+  const button = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+  const pressed = () => [...host.querySelectorAll<HTMLButtonElement>('button[aria-pressed="true"]')].map(b => b.getAttribute('aria-label')).filter(l => ['Pen', 'Highlighter', 'Eraser', 'Select', 'Text'].includes(l!));
+  act(() => button('Highlighter').click());
+  act(() => button('Select').click()); expect(pressed()).toContain('Select');
+  act(() => button('Select').click()); expect(pressed()).toEqual(['Highlighter']);
+  const key = (target: EventTarget = document.body) => act(() => { target.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true })); });
+  key(); expect(pressed()).toContain('Select');
+  key(); expect(pressed()).toEqual(['Highlighter']);
+  // Typing an "s" in a text box never switches tools.
+  act(() => button('Text').click());
+  pointer(host.querySelector('canvas')!, 'pointerdown', { pointerType: 'mouse' }); pointer(host.querySelector('canvas')!, 'pointerup', { pointerType: 'mouse' });
+  key(host.querySelector('textarea')!); expect(pressed()).toContain('Text');
+  act(() => button('Text').click()); expect(pressed()).toEqual(['Highlighter']);
+});
+
 it('uses CSS pixel tap tolerance at tablet scale while a touch drag scrolls', () => {
   vi.mocked(HTMLCanvasElement.prototype.getBoundingClientRect).mockReturnValue({ left: 0, top: 0, width: 500, height: 707 } as DOMRect);
   host.style.overflow = 'auto'; Object.defineProperties(host, { scrollHeight: { value: 2400 }, clientHeight: { value: 500 } }); host.scrollTop = 100;

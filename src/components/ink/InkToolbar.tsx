@@ -81,6 +81,8 @@ export function InkWritingTools(props: InkToolbarProps & { railSide?: 'left' | '
             className={`${buttonStyle} ${props.tool === tool ? selectedStyle : ''}`}
             onClick={event => {
               if (props.tool !== tool) { setSettings(null); props.onToolChange(tool); if (tool === 'eraser') props.onEraserModeChange(mode); return; }
+              // Select and Text have no settings; tapping the active one goes back to drawing.
+              if (tool === 'select' || tool === 'text') { props.onToolChange(tool); return; }
               openSettings(event.currentTarget);
             }}><Icon size={21} aria-hidden="true" /></button>)}
         </div>
