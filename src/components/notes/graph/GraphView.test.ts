@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import GraphView from './GraphView';
 import { buildNoteIndex } from '../../../utils/noteRelated';
+import { knowledgeNotes } from '../../../utils/knowledgeNotes';
 import * as graphLayout from '../../../utils/graphLayout';
 import * as graphData from '../../../utils/graphData';
 import * as suggestionJobs from '../../../utils/graphSuggestions';
@@ -99,4 +100,20 @@ it('keeps the previous suggestion edges until the first new publish when notes o
     await act(async () => publishers[1]({ completed: 3, pending: false, batchMs: 1, edges: [] }));
     expect(label()).toContain('3 notes, 0 connections'); expect(host.textContent).not.toContain('Finding suggestions');
   } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
+});
+it('lists each effective tag once in the Tag filter, sorted, and keeps the Faint: tags legend', async () => {
+  vi.stubGlobal('innerWidth', 1440); localStorage.clear();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const base = { folder: '', createdAt: '', updatedAt: '' };
+  const notes = knowledgeNotes([
+    { ...base, id: 'a', title: 'A', content: 'one #Sync', tags: [] },
+    { ...base, id: 'b', title: 'B', content: 'two #sync #project/daymark', tags: ['alpha'] },
+  ], () => []);
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(React.createElement(GraphView, { notes, index: buildNoteIndex(notes), dismissed: new Set<string>(), folderTree: [], selectedFolder: 'all', onOpenNote: () => {}, onLink: () => {}, onDismiss: () => {} })));
+    const select = [...host.querySelectorAll('label')].find(label => label.textContent?.startsWith('Tag'))!.querySelector('select')!;
+    expect([...select.options].map(option => option.textContent)).toEqual(['All tags', 'alpha', 'project/daymark', 'Sync']);
+    expect(host.textContent).toContain('Faint: tags');
+  } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });

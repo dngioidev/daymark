@@ -1,6 +1,7 @@
 import type { StandaloneNote } from '../types/daymark';
 import { folderMatches, normalizeFolderPath } from './noteFolders';
 import { pairKey, type NoteIndex } from './noteRelated';
+import { hasTag, tagKey } from './noteTags';
 
 // NUL cannot be a folder name. The sentinel is a filter value, never note data.
 export const ROOT_FOLDER = '\0root';
@@ -28,7 +29,7 @@ export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed:
   let visible = notes.filter(note => (options.folderPaths === null || options.folderPaths.some(path => path === ROOT_FOLDER ? normalizeFolderPath(note.folder) === '' : path.startsWith(OWN_FOLDER_PREFIX)
     ? normalizeFolderPath(note.folder).toLowerCase() === normalizeFolderPath(path.slice(OWN_FOLDER_PREFIX.length)).toLowerCase()
     : folderMatches(note, path))) &&
-    (!options.tag || note.tags.includes(options.tag)));
+    (!options.tag || hasTag(note.tags, options.tag)));
   const ids = new Set(visible.map(note => note.id));
   const pairs = new Map<string, GraphEdge>();
   const put = (edge: GraphEdge) => {
@@ -44,7 +45,8 @@ export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed:
     // A spanning hub uses k-1 edges per tag rather than k*(k-1)/2. Every line
     // still connects two real notes sharing the tag (no synthetic note IDs).
     const hubs = new Map<string, string>();
-    for (const note of visible) for (const tag of new Set(note.tags)) {
+    // Hubs are keyed by tagKey, so #Sync and #sync are one tag.
+    for (const note of visible) for (const tag of new Set(note.tags.map(tagKey))) {
       const hub = hubs.get(tag);
       if (hub) put({ a: hub, b: note.id, kind: 'tag' }); else hubs.set(tag, note.id);
     }

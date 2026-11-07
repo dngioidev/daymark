@@ -41,6 +41,7 @@ import { NoteNavigation } from './notes/NoteNavigation';
 import { FolderPicker } from './notes/FolderPicker';
 import { FolderDialogs } from './notes/FolderDialogs';
 import { RelatedPanel } from './notes/RelatedPanel';
+import { TagFieldDialog } from './notes/TagFieldDialog';
 
 const note: StandaloneNote = { id: 'one', title: 'Existing', content: '# Hi there\n- [ ] one two', folder: 'Work', tags: [], pinned: false, createdAt: '2026-10-22T00:00:00Z', updatedAt: new Date().toISOString() };
 const update = vi.fn();
@@ -670,4 +671,39 @@ it('typing a #tag saves only the content; search sees the tag through the knowle
   const nav = find(render(false, { notes: [saved] }), el => el.type === NoteNavigation)!;
   expect(nav.props.notes).toEqual([saved]);
   expect((nav.props.searchNotes as StandaloneNote[])[0].tags).toEqual(['urgent']);
+});
+
+it('choosing a tag in the Tags section filters by #tag, and choosing it again clears the filter', () => {
+  const tagged = { ...note, id: 'tagged', content: 'Plan #project/daymark' };
+  const extra = { notes: [note, tagged] };
+  let nav = find(render(false, extra), el => el.type === NoteNavigation)!;
+  expect(nav.props.tagRows).toEqual([{ tag: 'project', name: 'project', depth: 0, count: 1 }, { tag: 'project/daymark', name: 'daymark', depth: 1, count: 1 }]);
+  (nav.props.onSelectTag as (tag: string) => void)('project');
+  nav = find(render(false, extra), el => el.type === NoteNavigation)!;
+  expect(nav.props.query).toBe('#project');
+  expect(nav.props.activeTag).toBe('project');
+  (nav.props.onSelectTag as (tag: string) => void)('project');
+  expect(find(render(false, extra), el => el.type === NoteNavigation)!.props.query).toBe('');
+});
+
+it('a handwritten note edits its tags from More note actions; typed notes have no Tags item', () => {
+  const ink = { ...note, id: 'ink', kind: 'handwritten' as const, paper: 'lined' as const };
+  const extra = { notes: [ink], inkPagesForNote: () => [], updateInkPage: vi.fn() };
+  (find(render(false, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(ink.id);
+  const menu = find(render(false, extra), el => el.type === Menu && el.props.sheetTitle === ink.title)!;
+  menu.props.items.find(item => item.label === 'Tags…')!.onSelect();
+  const dialog = find(render(false, extra), el => el.type === TagFieldDialog)!;
+  expect(dialog.props.note).toMatchObject({ id: 'ink', kind: 'handwritten' });
+  (dialog.props.onSave as (tags: string[]) => void)(['plan', 'ideas']);
+  expect(update.mock.calls.at(-1)![0][0]).toMatchObject({ id: 'ink', kind: 'handwritten', tags: ['plan', 'ideas'] });
+  hooks.values = [];
+  const typedMenu = find(render(), el => el.type === Menu && el.props.sheetTitle === note.title)!;
+  expect(typedMenu.props.items.some(item => item.label === 'Tags…')).toBe(false);
+});
+
+it('a reveal signal shows the Tags section or switches to Graph', () => {
+  render(false, { reveal: { target: 'tags', seq: 1 } });
+  expect(find(render(false, { reveal: { target: 'tags', seq: 1 } }), el => el.type === NoteNavigation)!.props.revealTags).toBe(1);
+  render(false, { reveal: { target: 'graph', seq: 2 } });
+  expect(find(render(false, { reveal: { target: 'graph', seq: 2 } }), el => el.type === NoteNavigation)).toBeUndefined();
 });

@@ -9,8 +9,7 @@ import {
   Minimize2,
   MoreHorizontal,
   Pin,
-  Trash2,
-} from 'lucide-react';
+  Trash2, Hash } from 'lucide-react';
 import { createHandwrittenNote, pageCountLabel } from '../ink/handwrittenNotes';
 import type { InkPage } from '../types/daymark';
 import { EMPTY_NOTE_META, type NoteMeta, type StandaloneNote } from '../types/daymark';
@@ -39,6 +38,8 @@ import { FolderPicker, flattenFolders } from './notes/FolderPicker';
 import { FolderDialogs, deleteFolderMessage, mergeFolderMessage } from './notes/FolderDialogs';
 import { useRelatedNotes } from '../hooks/useRelatedNotes';
 import { knowledgeNotes } from '../utils/knowledgeNotes';
+import { buildTagRows, tagKey, tagQuery } from '../utils/noteTags';
+import { TagFieldDialog } from './notes/TagFieldDialog';
 import { addRelatedLink, buildNoteIndex, canLinkToTitle, pairKey } from '../utils/noteRelated';
 import { RelatedPanel, RelatedOverlay } from './notes/RelatedPanel';
 import { RelatedSheet } from './notes/RelatedSheet';
@@ -64,15 +65,20 @@ interface StandaloneNotesViewProps {
   pictureCleanupSignal?: number;
   richEditorHandleRef?: React.RefObject<RichNoteEditorHandle | null>;
   railCollapsed?: boolean;
+  /** Help Show me: reveal the Tags section or switch to Graph; `seq` changes per request. */
+  reveal?: { target: 'tags' | 'graph'; seq: number };
 }
 
 type ViewMode = 'rich' | 'markdown';
 
 /** Notes: one navigation tree and a rich editor backed by Markdown. */
-export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, inkPagesForNote = noInkPages, updateInkPage = ignoreInkPage, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false }) => {
+export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes, onUpdateNotes, inkPagesForNote = noInkPages, updateInkPage = ignoreInkPage, noteMeta = EMPTY_NOTE_META, onUpdateNoteMeta, compact = false, openNoteId, onOpenNoteConsumed, focusToggleSignal = 0, onFocusModeChange, pictureCleanupSignal = 0, richEditorHandleRef, railCollapsed = false, reveal }) => {
   const sorted = useMemo(() => sortNotes(notes), [notes]);
   const [selectedNoteId, setSelectedNoteId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tagFieldOpen, setTagFieldOpen] = useState(false);
+  // Adjust state during render when a new Show me request arrives (React's prop-change pattern).
+  const [seenReveal, setSeenReveal] = useState(0);
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
   const { shownNoteId, setShownNoteId } = useShownNote(notes, sorted[0]?.id ?? '');
   const activeNote = notes.find(note => note.id === shownNoteId) ?? null;
@@ -86,6 +92,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const graphActive = !phone && notesView === 'graph';
   // Read-only copies with effective tags and handwritten text; edits always use `notes`.
   const known = useMemo(() => knowledgeNotes(notes, inkPagesForNote), [notes, inkPagesForNote]);
+  const tagRows = useMemo(() => buildTagRows(known), [known]);
+  const activeTag = tagQuery(searchQuery) ?? undefined;
+  const selectTag = (tag: string) => setSearchQuery(activeTag && tagKey(activeTag) === tagKey(tag) ? '' : `#${tag}`);
+  if (reveal && reveal.seq !== seenReveal) { setSeenReveal(reveal.seq); setNotesView(reveal.target === 'graph' ? 'graph' : 'list'); }
   const graphIndex = useMemo(() => graphActive ? buildNoteIndex(known) : null, [graphActive, known]);
   const graphDismissed = useMemo(() => {
     const latest = new Map<string, NoteMeta['dismissed'][number]>();
@@ -376,7 +386,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  const list = graphActive ? null : <NoteNavigation notes={notes} searchNotes={known} meta={noteMeta} openNoteId={selectedNote?.id}
+  const list = graphActive ? null : <NoteNavigation notes={notes} searchNotes={known} tagRows={tagRows} activeTag={activeTag} onSelectTag={selectTag} revealTags={reveal?.target === 'tags' ? reveal.seq : undefined} meta={noteMeta} openNoteId={selectedNote?.id}
     focusFolder={folderDialog ? undefined : folderFocus} onFolderFocusConsumed={() => setFolderFocus(undefined)} currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded} onToggleExpanded={toggleExpanded}
     query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
     onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}
@@ -436,7 +446,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
               <Menu
                 sheetTitle={activeNote.title}
                 align="right"
-                items={[{ label: 'Delete note', icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => deleteNote(activeNote) }]}
+                items={[...(activeNote.kind === 'handwritten' ? [{ label: 'Tags…', icon: <Hash className="w-4 h-4" />, onSelect: () => setTagFieldOpen(true) }] : []), { label: 'Delete note', icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => deleteNote(activeNote) }]}
                 trigger={(props) => (
                   <button type="button" {...props} aria-label="More note actions" className={iconBtn}>
                     <MoreHorizontal className="w-5 h-5" />
@@ -516,6 +526,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
       {!focusMode && phone && pane === 'list' && (compact ? <h1 data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</h1> : <p data-notes-heading tabIndex={-1} className="text-xl font-bold text-[var(--dm-page-fg)]">Notes</p>)}
       {!focusMode && drawer && !phone && <NotesDrawer returnFocusRef={notesButton} onClose={() => setDrawer(false)}>{list}</NotesDrawer>}
       {!focusMode && folderDialog && <FolderDialogs key={folderDialog.action + folderDialog.path} {...folderDialog} tree={tree} onClose={() => finishFolderDialog(folderDialog.path)} onSubmit={value => changeFolder(folderDialog.action, folderDialog.path, value)} />}
+      {tagFieldOpen && activeNote?.kind === 'handwritten' && <TagFieldDialog note={activeNote} onSave={tags => updateActive({ tags })} onClose={() => setTagFieldOpen(false)} />}
       {!focusMode && <RelatedSheet {...relatedProps} isOpen={relatedOpen && !!activeNote} onClose={() => setRelatedOpen(false)} />}
       {!focusMode && graphActive && graphIndex ? <Suspense fallback={<div role="status" className="p-4">Loading graph…</div>}>
         <GraphView notes={known} index={graphIndex} dismissed={graphDismissed} folderTree={tree} selectedFolder="all" activeNoteId={activeNote?.id}

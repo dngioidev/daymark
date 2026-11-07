@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import type { StandaloneNote } from '../types/daymark';
+import { describe, expect, it, vi } from 'vitest';
+import type { InkPage, StandaloneNote } from '../types/daymark';
+import { createTextBox } from '../ink/inkText';
+import { knowledgeNotes } from './knowledgeNotes';
+import { scheduleGraphSuggestions } from './graphSuggestions';
 import { buildNoteIndex, pairKey, suggestRelated } from './noteRelated';
-import { buildGraph, defaultGraphScope, ROOT_FOLDER, type GraphOptions } from './graphData';
+import { buildGraph, defaultGraphScope, ROOT_FOLDER, type GraphEdge, type GraphOptions } from './graphData';
 
 const note = (id: string, patch: Partial<StandaloneNote> = {}): StandaloneNote => ({ id, title: id, content: '', folder: '', tags: [], createdAt: '', updatedAt: '', ...patch });
 const notes = [note('a', { folder: 'Tech', content: '[[b]]' }), note('b', { folder: 'Tech/Java', content: '[[c]]' }), note('c', { folder: 'Other' }), note('orphan')];
@@ -61,5 +64,68 @@ describe('graph projection never edits notes', () => {
     expect(defaultGraphScope(300, 'Tech')).toEqual({ folderPaths: null, showOrphans: true });
     expect(defaultGraphScope(301, 'Tech')).toEqual({ folderPaths: ['Tech'], showOrphans: false });
     expect(defaultGraphScope(301, 'all')).toEqual({ folderPaths: null, showOrphans: false });
+  });
+});
+
+describe('graph tag view', () => {
+  const tagGraph = (source: StandaloneNote[], options: Partial<GraphOptions> = {}, pages: (id: string) => InkPage[] = () => []) => {
+    const known = knowledgeNotes(source, pages);
+    return buildGraph(known, buildNoteIndex(known), new Set(), { ...opts, showTags: true, ...options });
+  };
+  const tagEdges = (result: ReturnType<typeof buildGraph>) => result.edges.filter(edge => edge.kind === 'tag').map(edge => pairKey(edge.a, edge.b)).sort();
+
+  it('joins notes whose text holds the same tag in any case with one tag line', () => {
+    const result = tagGraph([note('a', { content: 'fix #sync' }), note('b', { content: 'more #Sync' }), note('c', { content: 'none' })]);
+    expect(tagEdges(result)).toEqual([pairKey('a', 'b')]);
+  });
+
+  it('uses a spanning hub: three notes sharing a tag get two lines, all inside the filter', () => {
+    const source = [note('a', { content: '#sync' }), note('b', { content: '#sync' }), note('c', { content: '#sync' }), note('d', { folder: 'Hidden', content: '#sync' })];
+    expect(tagEdges(tagGraph(source))).toHaveLength(3);
+    const filtered = tagGraph(source, { folderPaths: [ROOT_FOLDER] });
+    expect(tagEdges(filtered)).toHaveLength(2);
+    expect(filtered.edges.every(edge => edge.a !== 'd' && edge.b !== 'd')).toBe(true);
+  });
+
+  it('lets a link outrank a tag line for the same pair', () => {
+    const result = tagGraph([note('a', { content: '#sync [[b]]' }), note('b', { content: '#sync' })]);
+    expect(result.edges).toEqual([{ a: 'a', b: 'b', kind: 'link' }]);
+  });
+
+  it('treats a parent and a nested tag as different tags for lines', () => {
+    expect(tagEdges(tagGraph([note('a', { content: '#project' }), note('b', { content: '#project/daymark' })]))).toEqual([]);
+  });
+
+  it('joins a handwritten text-box tag to a typed note', () => {
+    const ink = note('ink', { kind: 'handwritten', content: 'placeholder' });
+    const box = createTextBox('#sync ideas', { x: 10, y: 10 }, '#292524', 'box', '');
+    const pages = (id: string): InkPage[] => id === 'ink' ? [{ noteId: 'ink', page: 0, strokes: [box], removed: [], updatedAt: '' }] : [];
+    expect(tagEdges(tagGraph([ink, note('typed', { content: '#sync' })], {}, pages))).toEqual([pairKey('ink', 'typed')]);
+  });
+
+  it('drops the line once the tag leaves the text', () => {
+    const a = note('a', { content: '#sync' }), b = note('b', { content: '#sync' });
+    expect(tagEdges(tagGraph([a, b]))).toHaveLength(1);
+    expect(tagEdges(tagGraph([a, { ...b, content: 'no tag now' }]))).toEqual([]);
+  });
+
+  it('filters by a tag and its nested tags, and node search matches derived tags', () => {
+    const source = [note('p', { content: '#project' }), note('pd', { content: '#project/daymark' }), note('ps', { content: '#projects' })];
+    expect(tagGraph(source, { tag: 'project' }).nodes.map(n => n.id)).toEqual(['p', 'pd']);
+    expect([...tagGraph(source, { query: 'daymark' }).matches]).toEqual(['pd']);
+  });
+
+  it('keeps tag-sharing pairs as tag lines, never dashed suggestions', async () => {
+    vi.useFakeTimers();
+    try {
+      const known = knowledgeNotes([note('a', { content: 'Galaxies telescope nebula orbit #java' }), note('b', { content: 'Java classes objects methods runtime #java' })], () => []);
+      const index = buildNoteIndex(known);
+      let edges: GraphEdge[] = [];
+      scheduleGraphSuggestions(known, index, new Set(), progress => { edges = progress.edges; });
+      await vi.runAllTimersAsync();
+      expect(edges).toEqual([]);
+      const result = buildGraph(known, index, new Set(), { ...opts, showTags: true, showSuggestions: true }, edges);
+      expect(result.edges.map(edge => edge.kind)).toEqual(['tag']);
+    } finally { vi.useRealTimers(); }
   });
 });

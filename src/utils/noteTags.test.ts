@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractTags, hasTag, mergeTags, parseTagField, tagKey } from './noteTags';
+import { buildTagRows, extractTags, hasTag, mergeTags, parseTagField, tagKey, tagQuery } from './noteTags';
 
 describe('extractTags', () => {
   it('reads #tags in order, nested tags included, first spelling wins', () => {
@@ -58,5 +58,26 @@ describe('tag helpers', () => {
     expect(hasTag(['project/daymark'], 'Project')).toBe(true);
     expect(hasTag(['project'], 'project')).toBe(true);
     expect(hasTag(['projects'], 'project')).toBe(false);
+  });
+});
+
+describe('buildTagRows', () => {
+  it('lists tags by path with implied parents and distinct-note counts', () => {
+    const n = (id: string, tags: string[]) => ({ id, title: id, folder: '', content: '', tags, createdAt: '', updatedAt: '' });
+    expect(buildTagRows([n('a', ['project/daymark']), n('b', ['Project/Daymark', 'sync']), n('c', ['project'])])).toEqual([
+      { tag: 'project', name: 'project', depth: 0, count: 3 },
+      { tag: 'project/daymark', name: 'daymark', depth: 1, count: 2 },
+      { tag: 'sync', name: 'sync', depth: 0, count: 1 },
+    ]);
+    expect(buildTagRows([n('a', ['x/y/z'])]).map(row => [row.tag, row.depth])).toEqual([['x', 0], ['x/y', 1], ['x/y/z', 2]]);
+    expect(buildTagRows([])).toEqual([]);
+  });
+});
+
+describe('tagQuery', () => {
+  it('turns only a single valid #tag query into a tag filter', () => {
+    expect(tagQuery(' #Project/daymark ')).toBe('Project/daymark');
+    expect(tagQuery('#done-')).toBe('done');
+    for (const text of ['#123', '#', 'project', '#a b', '##x']) expect(tagQuery(text)).toBeNull();
   });
 });

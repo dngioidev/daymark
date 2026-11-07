@@ -54,3 +54,33 @@ export function hasTag(tags: readonly string[], filter: string): boolean {
   const key = tagKey(filter);
   return tags.some(tag => { const k = tagKey(tag); return k === key || k.startsWith(key + '/'); });
 }
+
+export interface TagRow { tag: string; name: string; depth: number; count: number }
+
+/** Tags section rows: every tag path (parents implied by nested tags), sorted by
+ * path, counting distinct notes tagged with it or one of its children. */
+export function buildTagRows(notes: readonly { id: string; tags: readonly string[] }[]): TagRow[] {
+  const rows = new Map<string, { tag: string; notes: Set<string> }>();
+  for (const note of notes) for (const tag of note.tags) {
+    const parts = tag.split('/');
+    for (let i = 1; i <= parts.length; i++) {
+      const path = parts.slice(0, i).join('/'), key = tagKey(path);
+      if (!rows.has(key)) rows.set(key, { tag: path, notes: new Set() });
+      rows.get(key)!.notes.add(note.id);
+    }
+  }
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+  return [...rows.values()]
+    .sort((a, b) => { const x = a.tag.split('/'), y = b.tag.split('/');
+      for (let i = 0; i < Math.min(x.length, y.length); i++) { const c = collator.compare(x[i], y[i]); if (c) return c; }
+      return x.length - y.length; })
+    .map(({ tag, notes: ids }) => ({ tag, name: tag.split('/').at(-1)!, depth: tag.split('/').length - 1, count: ids.size }));
+}
+
+/** A whole search query that is exactly one valid `#tag` becomes a tag filter;
+ * anything else (`#123`, `#ff 00`) stays ordinary text search. */
+export function tagQuery(query: string): string | null {
+  const match = /^#(\S+)$/u.exec(query.trim());
+  const tag = match ? cleanTag(match[1]) : '';
+  return TAG.test(tag) ? tag : null;
+}

@@ -79,6 +79,8 @@ describe('notes tree', () => {
     expect(noteRows(rows).map(row => row.noteId).sort()).toEqual(['p', 'pd']);
     expect(noteRows(rows).every(row => !row.snippet)).toBe(true);
     expect(build(notes, { query: 'project' }).matchCount).toBe(4);
+    // Not a valid tag: ordinary text search, so #123 still finds the text.
+    expect(build([note('n', '', { content: 'issue #123 fixed' })], { query: '#123' }).matchCount).toBe(1);
   });
 
   it('uses substring matching without accent folding, regex interpretation or whitespace normalization', () => {

@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
+import { mergeTags } from '../../../utils/noteTags';
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { StandaloneNote } from '../../../types/daymark';
 import type { FolderNode } from '../../../utils/noteFolders';
@@ -69,7 +70,8 @@ export default function GraphView(props: GraphViewProps) {
   const localUnavailable = !!options.local && !graph.nodes.some(node => node.id === options.local!.noteId);
   const byId = useMemo(() => new Map(graph.nodes.map(node => [node.id, node])), [graph.nodes]);
   const allById = useMemo(() => new Map(props.notes.map(note => [note.id, note])), [props.notes]);
-  const tags = useMemo(() => [...new Set(props.notes.flatMap(note => note.tags))].sort(), [props.notes]);
+  // One entry per tag key (first spelling), sorted case-insensitively.
+  const tags = useMemo(() => mergeTags(...props.notes.map(note => note.tags)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [props.notes]);
   const actions = useMemo(() => {
     const chooseEndpoints = (a: string, b: string) => {
       const from = selectedId === a || selectedId === b ? selectedId :

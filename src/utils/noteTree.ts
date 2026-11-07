@@ -1,5 +1,5 @@
 import type { NoteMeta, StandaloneNote } from '../types/daymark';
-import { hasTag } from './noteTags';
+import { hasTag, tagQuery } from './noteTags';
 import { HANDWRITTEN_PLACEHOLDER } from '../ink/handwrittenNotes';
 import { buildFolderTree, normalizeFolderPath, type FolderNode } from './noteFolders';
 import { formatNoteDate } from './notes';
@@ -97,7 +97,7 @@ export function buildNoteTreeRows(input: {
   const query = input.query.trim();
   const q = query.toLowerCase();
   // `#tag` alone is an exact tag filter (the tag and its nested children).
-  const tagFilter = /^#\S+$/.test(query) ? query.slice(1) : null;
+  const tagFilter = tagQuery(query);
   const rows: NoteTreeRow[] = [];
   const folders = buildFolderTree(notes, meta);
   const byFolder = new Map<string, StandaloneNote[]>();
