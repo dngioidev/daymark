@@ -79,6 +79,8 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const [tagFieldOpen, setTagFieldOpen] = useState(false);
   // Adjust state during render when a new Show me request arrives (React's prop-change pattern).
   const [seenReveal, setSeenReveal] = useState(0);
+  // The pending Tags reveal, cleared once the Tags section has scrolled and focused.
+  const [revealTagsSeq, setRevealTagsSeq] = useState<number | undefined>(undefined);
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
   const { shownNoteId, setShownNoteId } = useShownNote(notes, sorted[0]?.id ?? '');
   const activeNote = notes.find(note => note.id === shownNoteId) ?? null;
@@ -95,7 +97,6 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const tagRows = useMemo(() => buildTagRows(known), [known]);
   const activeTag = tagQuery(searchQuery) ?? undefined;
   const selectTag = (tag: string) => setSearchQuery(activeTag && tagKey(activeTag) === tagKey(tag) ? '' : `#${tag}`);
-  if (reveal && reveal.seq !== seenReveal) { setSeenReveal(reveal.seq); setNotesView(reveal.target === 'graph' ? 'graph' : 'list'); }
   const graphIndex = useMemo(() => graphActive ? buildNoteIndex(known) : null, [graphActive, known]);
   const graphDismissed = useMemo(() => {
     const latest = new Map<string, NoteMeta['dismissed'][number]>();
@@ -113,6 +114,17 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
   const tree = useMemo(() => buildFolderTree(notes, noteMeta), [notes, noteMeta]);
   const [pane, setPane] = useState<'list' | 'editor'>('list');
   const [focusMode, setFocusMode] = useState(false);
+  if (reveal && reveal.seq !== seenReveal) {
+    setSeenReveal(reveal.seq);
+    setNotesView(reveal.target === 'graph' ? 'graph' : 'list');
+    if (reveal.target === 'tags') {
+      // The Tags section lives in the notes list: put that list on screen first.
+      setRevealTagsSeq(reveal.seq); setFocusMode(false);
+      if (phone) setPane('list');
+      else if (drawers || (treeMinimized && prefs.tree === 'open')) setDrawer(true);
+      else if (treeMinimized) { const next = { ...loadPanePrefs(), tree: 'open' as const }; setPrefs(next); savePanePrefs(next); }
+    }
+  }
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!focusMode) return;
@@ -387,7 +399,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
 
   const iconBtn =
     'inline-flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800';
-  const list = graphActive ? null : <NoteNavigation notes={notes} searchNotes={known} tagRows={tagRows} activeTag={activeTag} onSelectTag={selectTag} revealTags={reveal?.target === 'tags' ? reveal.seq : undefined} meta={noteMeta} openNoteId={selectedNote?.id}
+  const list = graphActive ? null : <NoteNavigation notes={notes} searchNotes={known} tagRows={tagRows} activeTag={activeTag} onSelectTag={selectTag} revealTags={revealTagsSeq} onRevealTagsDone={() => setRevealTagsSeq(undefined)} meta={noteMeta} openNoteId={selectedNote?.id}
     focusFolder={folderDialog ? undefined : folderFocus} onFolderFocusConsumed={() => setFolderFocus(undefined)} currentFolder={currentFolder} expanded={expanded} onExpandedChange={setExpanded} onToggleExpanded={toggleExpanded}
     query={searchQuery} onQueryChange={setSearchQuery} onOpenNote={openNote} onSelectFolder={setCurrentFolder}
     onNewNote={() => createFromTemplate(NOTE_TEMPLATES[0])}

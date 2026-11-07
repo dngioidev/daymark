@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { cleanTag, TAG_PATTERN_SOURCE } from '../../utils/noteTags';
+import { cleanTag, isHexColour, TAG_PATTERN_SOURCE } from '../../utils/noteTags';
 
 export interface TagChipOptions { onOpenTag(tag: string): void }
 
@@ -15,7 +15,7 @@ export function tagDecorations(doc: ProseMirrorNode): DecorationSet {
     if (parent?.type.spec.code || node.marks.some(mark => mark.type.name === 'code' || mark.type.name === 'link')) return false;
     for (const match of node.text.matchAll(new RegExp(TAG_PATTERN_SOURCE, 'gu'))) {
       const tag = cleanTag(match[1]);
-      if (!tag) continue;
+      if (!tag || isHexColour(tag)) continue;
       const from = pos + match.index!, to = from + match[0].length - (match[1].length - tag.length);
       decorations.push(Decoration.inline(from, to, { class: 'dm-tag', 'data-tag': tag }));
     }

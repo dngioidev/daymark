@@ -7,15 +7,18 @@ export interface GraphActions {
   onLink(a: string, b: string): void;
   onDismiss(a: string, b: string): void;
   linkTarget?(a: string, b: string): GraphNode | undefined;
+  /** False when neither end can hold a link (both handwritten): Link is hidden. */
+  canLink?(a: string, b: string): boolean;
   tabIndex?: number;
 }
-export function ConnectionActions({ a, b, target, onLink, onDismiss, linkTarget, tabIndex }: { a: string; b: string; target: GraphNode } & Omit<GraphActions, 'onOpenNote'>) {
+export function ConnectionActions({ a, b, target, onLink, onDismiss, linkTarget, canLink, tabIndex }: { a: string; b: string; target: GraphNode } & Omit<GraphActions, 'onOpenNote'>) {
   const explanation = useId(), resolved = linkTarget ? linkTarget(a, b) : target;
+  const linkable = canLink?.(a, b) !== false;
   const safe = !!resolved && canLinkToTitle(resolved.title);
   return <div className="flex flex-wrap gap-2 items-center">
-    <button type="button" tabIndex={tabIndex} aria-label={`Link to ${resolved?.title ?? target.title}`} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={!safe} aria-describedby={!safe ? explanation : undefined} onClick={() => { if (safe) onLink(a, b); }}>Link</button>
+    {linkable && <button type="button" tabIndex={tabIndex} aria-label={`Link to ${resolved?.title ?? target.title}`} className="min-h-11 px-2 border rounded disabled:opacity-60" disabled={!safe} aria-describedby={!safe ? explanation : undefined} onClick={() => { if (safe) onLink(a, b); }}>Link</button>}
     <button type="button" tabIndex={tabIndex} aria-label={`Not related to ${target.title}`} className="min-h-11 px-2 border rounded" onClick={() => onDismiss(a, b)}>Not related</button>
-    {!safe && <p id={explanation} className="text-xs">Rename this note to a title without wiki-link delimiters before linking.</p>}
+    {linkable && !safe && <p id={explanation} className="text-xs">Rename this note to a title without wiki-link delimiters before linking.</p>}
   </div>;
 }
 export function GraphDetail({ nodes, edges, selectedId, ...actions }: { nodes: GraphNode[]; edges: GraphEdge[]; selectedId?: string } & GraphActions) {

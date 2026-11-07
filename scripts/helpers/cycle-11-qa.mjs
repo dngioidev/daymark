@@ -35,22 +35,26 @@ export async function cycle11Qa({ run, fresh, check, settingsOpen, settingsBox, 
   await run('C11-Help', async () => {
     const { page } = await fresh();
     await settingsOpen(page);
+    // Cycle 18: Settings -> Help opens the full-size Help view.
     await settingsBox(page).getByRole('tab', { name: 'Help', exact: true }).click();
-    for (const [topic, web, mobile] of [
-      ['Notes', ['Related panel', 'Hidden suggestions', 'Graph', 'Minimize notes column', 'List | Graph'], ['Move to folder', 'Related button', 'Hidden suggestions']],
-      ['Shortcuts and gestures', ['List view'], ['List view']],
-      ['Sync and the server', ['Tech/Java'], ['Not related']],
-      ['Backups', ['Daymark/Notes/Tech/Java'], []],
+    const help = page.getByRole('dialog', { name: 'Help', exact: true });
+    await help.waitFor();
+    for (const [topic, web, phone] of [
+      ['Related and Graph', ['Related panel', 'Hidden suggestions', 'Possibly related', 'List | Graph'], ['Related button', 'Hidden suggestions']],
+      ['Notes, folders and pinning', ['New folder', 'Move to top level'], ['Move to folder']],
+      ['Shortcuts and gestures', ['g n', 'Ctrl/⌘ .'], ['Android Back']],
+      ['Sync', ['Not related'], ['Connect and sync']],
+      ['Backups', ['nested folders'], ['Back up now']],
     ]) {
-      await settingsBox(page).getByRole('navigation', { name: 'Help topics', exact: true }).getByRole('button', { name: topic, exact: true }).click();
-      const article = page.getByRole('article', { name: topic, exact: true });
+      await help.getByRole('navigation', { name: 'Help topics', exact: true }).getByRole('button', { name: topic, exact: true }).click();
+      const article = help.getByRole('article', { name: topic, exact: true });
       await article.waitFor();
-      await settingsBox(page).getByRole('button', { name: 'Web', exact: true }).click();
+      await help.getByRole('button', { name: 'Web', exact: true }).click();
       const webText = await article.innerText();
-      await settingsBox(page).getByRole('button', { name: 'Mobile', exact: true }).click();
-      const mobileText = await article.innerText();
-      const missing = [...web.filter(t => !webText.includes(t)).map(t => `web:${t}`), ...mobile.filter(t => !mobileText.includes(t)).map(t => `mobile:${t}`)];
-      check(`C11-Help-${topic.split(' ')[0]}`, missing.length === 0, `Help ${topic} shows the cycle 11 text on both platforms`, missing.join(', '));
+      await help.getByRole('button', { name: 'Phone', exact: true }).click();
+      const phoneText = await article.innerText();
+      const missing = [...web.filter(t => !webText.includes(t)).map(t => `web:${t}`), ...phone.filter(t => !phoneText.includes(t)).map(t => `phone:${t}`)];
+      check(`C11-Help-${topic.split(/[ ,]/)[0]}`, missing.length === 0, `Help ${topic} shows its text on Web and Phone`, missing.join(', '));
     }
   });
 

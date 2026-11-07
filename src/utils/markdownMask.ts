@@ -31,6 +31,9 @@ const blank = (text: string): string => text.replace(/[^\r\n]/g, ' ');
 export function maskNonText(markdown: string): string {
   return maskCode(markdown)
     .replace(/<!--[\s\S]*?-->/g, blank)
+    // Raw HTML tags (attributes can hold #anchors and #colours) and reference definitions.
+    .replace(/<\/?[a-z][^>\r\n]*>/gi, blank)
+    .replace(/^ {0,3}\[[^\]\r\n]+\]:[^\r\n]*/gm, blank)
     .replace(/\[\[[^\r\n]*?\]\]/g, blank)
     .replace(/!?\[[^\]\r\n]*\]\([^)\r\n]*\)/g, blank)
     .replace(/\b(?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>\]]+/gi, blank);

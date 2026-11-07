@@ -4,7 +4,7 @@ import { createTextBox } from '../ink/inkText';
 import { knowledgeNotes } from './knowledgeNotes';
 import { scheduleGraphSuggestions } from './graphSuggestions';
 import { buildNoteIndex, pairKey, suggestRelated } from './noteRelated';
-import { buildGraph, defaultGraphScope, ROOT_FOLDER, type GraphEdge, type GraphOptions } from './graphData';
+import { buildGraph, defaultGraphScope, linkEndpoints, ROOT_FOLDER, type GraphEdge, type GraphOptions } from './graphData';
 
 const note = (id: string, patch: Partial<StandaloneNote> = {}): StandaloneNote => ({ id, title: id, content: '', folder: '', tags: [], createdAt: '', updatedAt: '', ...patch });
 const notes = [note('a', { folder: 'Tech', content: '[[b]]' }), note('b', { folder: 'Tech/Java', content: '[[c]]' }), note('c', { folder: 'Other' }), note('orphan')];
@@ -127,5 +127,20 @@ describe('graph tag view', () => {
       const result = buildGraph(known, index, new Set(), { ...opts, showTags: true, showSuggestions: true }, edges);
       expect(result.edges.map(edge => edge.kind)).toEqual(['tag']);
     } finally { vi.useRealTimers(); }
+  });
+});
+
+describe('linkEndpoints (review fix)', () => {
+  const byId = new Map([note('typed', { updatedAt: '2026-01-01' }), note('ink', { kind: 'handwritten', updatedAt: '2026-12-01' }), note('ink2', { kind: 'handwritten' }), note('other', { updatedAt: '2026-06-01' })].map(n => [n.id, n]));
+  it('writes the link into the typed note even when the handwritten one is selected or newer', () => {
+    expect(linkEndpoints('typed', 'ink', byId, 'ink')).toEqual({ from: 'typed', to: 'ink' });
+    expect(linkEndpoints('ink', 'typed', byId)).toEqual({ from: 'typed', to: 'ink' });
+  });
+  it('keeps the selected, then the most recently updated, typed note as the source', () => {
+    expect(linkEndpoints('typed', 'other', byId, 'typed')).toEqual({ from: 'typed', to: 'other' });
+    expect(linkEndpoints('typed', 'other', byId)).toEqual({ from: 'other', to: 'typed' });
+  });
+  it('offers no link between two handwritten notes', () => {
+    expect(linkEndpoints('ink', 'ink2', byId)).toBeNull();
   });
 });

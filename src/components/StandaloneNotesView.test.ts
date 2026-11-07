@@ -721,3 +721,27 @@ it('turns Link off in Related while a handwritten note is open, and on for typed
   (find(render(false, extra), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)('ink');
   expect(find(render(false, extra), el => el.type === RelatedPanel)!.props.canLink).toBe(false);
 });
+
+it('Show me Tags opens the notes list on a phone (review fix)', () => {
+  (find(render(true), el => el.type === NoteNavigation)!.props.onOpenNote as (id: string) => void)(note.id);
+  expect(find(render(true), el => el.type === PhoneNotes)!.props.pane).toBe('editor');
+  render(true, { reveal: { target: 'tags', seq: 1 } });
+  const phone = find(render(true, { reveal: { target: 'tags', seq: 1 } }), el => el.type === PhoneNotes)!;
+  expect(phone.props.pane).toBe('list');
+});
+
+it('Show me Tags opens the Notes drawer on a tablet-width screen (review fix)', () => {
+  vi.stubGlobal('window', { innerWidth: 900 });
+  expect(find(render(), el => el.type === NotesDrawer)).toBeUndefined();
+  render(false, { reveal: { target: 'tags', seq: 1 } });
+  expect(find(render(false, { reveal: { target: 'tags', seq: 1 } }), el => el.type === NotesDrawer)).toBeDefined();
+});
+
+it('a Show me request is used once: the Tags section reports it and is not asked again (review fix)', () => {
+  render(false, { reveal: { target: 'tags', seq: 3 } });
+  let nav = find(render(false, { reveal: { target: 'tags', seq: 3 } }), el => el.type === NoteNavigation)!;
+  expect(nav.props.revealTags).toBe(3);
+  (nav.props.onRevealTagsDone as () => void)();
+  nav = find(render(false, { reveal: { target: 'tags', seq: 3 } }), el => el.type === NoteNavigation)!;
+  expect(nav.props.revealTags).toBeUndefined();
+});

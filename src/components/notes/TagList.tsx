@@ -10,10 +10,12 @@ export interface TagListProps {
   compact?: boolean;
   /** Bumped by Help's Show me: expand, scroll into view and focus the first tag. */
   revealSignal?: number;
+  /** Called after a reveal has been shown, so it is not repeated on a later mount. */
+  onRevealed?(): void;
 }
 
 /** Tags section under the folder tree. Nested tags indent by `/`. */
-export function TagList({ rows, activeTag, onSelectTag, compact, revealSignal }: TagListProps) {
+export function TagList({ rows, activeTag, onSelectTag, compact, revealSignal, onRevealed }: TagListProps) {
   const [open, setOpen] = useState(true);
   const region = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -22,6 +24,7 @@ export function TagList({ rows, activeTag, onSelectTag, compact, revealSignal }:
     requestAnimationFrame(() => {
       region.current?.scrollIntoView?.({ block: 'nearest' });
       (region.current?.querySelector<HTMLElement>('button[data-tag]') ?? region.current?.querySelector<HTMLElement>('button'))?.focus();
+      onRevealed?.();
     });
   }, [revealSignal]);
   const active = activeTag ? tagKey(activeTag) : undefined;

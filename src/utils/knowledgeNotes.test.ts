@@ -53,3 +53,15 @@ describe('knowledge notes', () => {
     expect(second[0].tags).toEqual(['new']);
   });
 });
+
+it('returns the same array when an ink update leaves every note unchanged (review fix)', () => {
+  const notes = [note('a', { content: '#x' }), note('ink', { kind: 'handwritten' })];
+  const inkPages = [page('ink', 0, [['#y', 0, 0]])];
+  const otherPages = [page('other', 0, [['z', 0, 0]])];
+  const first = knowledgeNotes(notes, id => id === 'ink' ? inkPages : otherPages);
+  // A new pagesFor function (the app makes one per ink update) with this note's pages unchanged.
+  expect(knowledgeNotes(notes, id => id === 'ink' ? inkPages : [])).toBe(first);
+  const changed = knowledgeNotes(notes, id => id === 'ink' ? [page('ink', 0, [['#new', 0, 0]])] : []);
+  expect(changed).not.toBe(first);
+  expect(changed[0]).toBe(first[0]);
+});

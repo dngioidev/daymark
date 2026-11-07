@@ -81,3 +81,15 @@ describe('tagQuery', () => {
     for (const text of ['#123', '#', 'project', '#a b', '##x']) expect(tagQuery(text)).toBeNull();
   });
 });
+
+describe('things that look like tags but are not (review fix)', () => {
+  it('ignores hex colours with a digit, but keeps words that happen to be hex letters', () => {
+    expect(extractTags('color #ffcc00 and #fff0 and #e0e0e0 and #1a2b3c4d')).toEqual([]);
+    expect(extractTags('#cafe #add #bad #ffffff-ish #deadbeef #face')).toEqual(['cafe', 'add', 'bad', 'ffffff-ish', 'deadbeef', 'face']);
+    expect(tagQuery('#ffcc00')).toBeNull();
+  });
+  it('ignores anchors in raw HTML and reference-style link definitions', () => {
+    expect(extractTags('<a href="#top">up</a> <span style="color:#abc">x</span>')).toEqual([]);
+    expect(extractTags('[ref]: #intro\n   [other]: https://x.dev/#a "t"\nreal #tag')).toEqual(['tag']);
+  });
+});

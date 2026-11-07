@@ -7,6 +7,9 @@ import { maskNonText } from './markdownMask';
 export const TAG_PATTERN_SOURCE = '(?<![\\p{L}\\p{N}_&/#\\\\])\\\\?#(\\p{L}[\\p{L}\\p{N}_\\-/]*)';
 const TAG = new RegExp(`^\\p{L}[\\p{L}\\p{N}_\\-/]*$`, 'u');
 
+/** `#fff`, `#ffcc00` and `#1a2b3c4d` are colours, not tags. All-letter words such as `#cafe` stay tags. */
+export const isHexColour = (tag: string): boolean => /\d/.test(tag) && /^(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(tag);
+
 export const tagKey = (tag: string): string => tag.normalize('NFC').toLocaleLowerCase();
 
 /** Drop trailing `-` and `/`, which end a sentence rather than the tag. */
@@ -23,7 +26,7 @@ export function mergeTags(...lists: string[][]): string[] {
 
 function validTag(raw: string): string | null {
   const tag = cleanTag(raw.trim().replace(/^["']|["']$/g, '').replace(/^#/, ''));
-  return TAG.test(tag) ? tag : null;
+  return TAG.test(tag) && !isHexColour(tag) ? tag : null;
 }
 
 function frontmatterTags(block: string): string[] {
@@ -41,7 +44,7 @@ export function extractTags(markdown: string): string[] {
   const header = matchFrontmatter(markdown);
   const fromHeader = header ? frontmatterTags(header[1]) : [];
   const body = header ? ' '.repeat(header[0].length) + markdown.slice(header[0].length) : markdown;
-  const fromBody = [...maskNonText(body).matchAll(new RegExp(TAG_PATTERN_SOURCE, 'gu'))].map(match => cleanTag(match[1])).filter(Boolean);
+  const fromBody = [...maskNonText(body).matchAll(new RegExp(TAG_PATTERN_SOURCE, 'gu'))].map(match => cleanTag(match[1])).filter(tag => tag && !isHexColour(tag));
   return mergeTags(fromHeader, fromBody);
 }
 
@@ -82,5 +85,5 @@ export function buildTagRows(notes: readonly { id: string; tags: readonly string
 export function tagQuery(query: string): string | null {
   const match = /^#(\S+)$/u.exec(query.trim());
   const tag = match ? cleanTag(match[1]) : '';
-  return TAG.test(tag) ? tag : null;
+  return TAG.test(tag) && !isHexColour(tag) ? tag : null;
 }

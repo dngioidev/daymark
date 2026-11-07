@@ -27,7 +27,7 @@ export interface NoteNavigationProps {
   focusFolder?: { path: string }; onFolderFocusConsumed?(): void;
   onToggleExpanded?(path: string, open: boolean): void;
   /** Tags section rows; omitted means no Tags section. */
-  tagRows?: TagRow[]; activeTag?: string; onSelectTag?(tag: string): void; revealTags?: number;
+  tagRows?: TagRow[]; activeTag?: string; onSelectTag?(tag: string): void; revealTags?: number; onRevealTagsDone?(): void;
   dragEnabled: boolean; compact?: boolean; viewSwitch?: React.ReactNode; focusSearch?: React.RefObject<boolean>;
 }
 const folderKey = (path: string) => normalizeFolderPath(path).toLowerCase();
@@ -221,7 +221,7 @@ export function NoteNavigation(props: NoteNavigationProps) {
     }} className="flex-1 min-h-0 overflow-y-auto" role="tree" aria-label="Notes" tabIndex={-1}>
       <div role="none" className="relative" style={windowing.virtual ? { height: windowing.totalHeight } : undefined}>{rows.some(row => row.kind === 'pinned-heading') && <div role="group" aria-label="Pinned" style={windowing.virtual ? { position: 'relative', height: rows.filter(row => row.kind === 'pinned-heading' || (row.kind === 'note' && row.group === 'pinned')).length * rowHeight } : undefined} className={`before:content-[attr(aria-label)] before:flex before:items-center before:px-2 before:text-xs before:font-semibold before:text-stone-500 ${compact ? 'before:h-11' : 'before:h-8'}`}>{windowing.indices.filter(index => { const row = rows[index]; return row.kind === 'note' && row.group === 'pinned'; }).map(renderRow)}</div>}{windowing.indices.filter(index => { const row = rows[index]; return row.kind !== 'pinned-heading' && !(row.kind === 'note' && row.group === 'pinned'); }).map(renderRow)}</div>
     </div>
-    {props.tagRows && props.onSelectTag && <TagList rows={props.tagRows} activeTag={props.activeTag} onSelectTag={props.onSelectTag} compact={compact} revealSignal={props.revealTags} />}
+    {props.tagRows && props.onSelectTag && <TagList rows={props.tagRows} activeTag={props.activeTag} onSelectTag={props.onSelectTag} compact={compact} revealSignal={props.revealTags} onRevealed={props.onRevealTagsDone} />}
     {choosePaper && <Dialog isOpen onClose={() => setChoosePaper(false)} title="Handwritten note" description="Choose paper" size="sm" variant="sheet">
       <div className="flex flex-wrap gap-2">{(['lined', 'grid', 'blank'] as const).map(paper => <button type="button" key={paper} className={buttonClass.secondary} onClick={() => { setChoosePaper(false); props.onNewHandwrittenNote?.(paper); }}>{paper[0].toUpperCase() + paper.slice(1)}</button>)}</div>
     </Dialog>}

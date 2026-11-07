@@ -78,3 +78,15 @@ export function buildGraph(notes: StandaloneNote[], index: NoteIndex, dismissed:
   const matches = new Set(nodes.filter(note => query && `${note.title} ${note.folder} ${note.tags.join(' ')}`.toLocaleLowerCase().includes(query)).map(note => note.id));
   return { nodes, edges, matches };
 }
+
+/** Which end of a suggested pair receives the [[link]]: never a handwritten note
+ * (it has no text to hold one). Otherwise the selected note, then the most
+ * recently updated one. `null` when both ends are handwritten. */
+export function linkEndpoints(a: string, b: string, notesById: ReadonlyMap<string, StandaloneNote>, selectedId?: string): { from: string; to: string } | null {
+  const ink = (id: string) => notesById.get(id)?.kind === 'handwritten';
+  if (ink(a) && ink(b)) return null;
+  const from = ink(a) ? b : ink(b) ? a
+    : selectedId === a || selectedId === b ? selectedId
+    : (notesById.get(a)?.updatedAt ?? '') >= (notesById.get(b)?.updatedAt ?? '') ? a : b;
+  return { from, to: from === a ? b : a };
+}

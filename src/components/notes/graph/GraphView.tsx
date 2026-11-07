@@ -4,7 +4,7 @@ import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'r
 import type { StandaloneNote } from '../../../types/daymark';
 import type { FolderNode } from '../../../utils/noteFolders';
 import type { NoteIndex } from '../../../utils/noteRelated';
-import { buildGraph, defaultGraphScope, type GraphEdge, type GraphOptions } from '../../../utils/graphData';
+import { buildGraph, defaultGraphScope, linkEndpoints, type GraphEdge, type GraphOptions } from '../../../utils/graphData';
 import { createLayout } from '../../../utils/graphLayout';
 import { scheduleGraphSuggestions, type SuggestionProgress } from '../../../utils/graphSuggestions';
 import { loadPanePrefs, savePanePrefs } from '../../../utils/notesPanes';
@@ -73,16 +73,13 @@ export default function GraphView(props: GraphViewProps) {
   // One entry per tag key (first spelling), sorted case-insensitively.
   const tags = useMemo(() => mergeTags(...props.notes.map(note => note.tags)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [props.notes]);
   const actions = useMemo(() => {
-    const chooseEndpoints = (a: string, b: string) => {
-      const from = selectedId === a || selectedId === b ? selectedId :
-        (allById.get(a)?.updatedAt ?? '') >= (allById.get(b)?.updatedAt ?? '') ? a : b;
-      return { from, to: from === a ? b : a };
-    };
+    const chooseEndpoints = (a: string, b: string) => linkEndpoints(a, b, allById, selectedId ?? undefined);
     return {
       onOpenNote: props.onOpenNote,
-      onLink: (a: string, b: string) => { const { from, to } = chooseEndpoints(a, b); props.onLink(from, to); setSelectedEdge(null); },
+      onLink: (a: string, b: string) => { const ends = chooseEndpoints(a, b); if (ends) props.onLink(ends.from, ends.to); setSelectedEdge(null); },
       onDismiss: (a: string, b: string) => { props.onDismiss(a, b); setSelectedEdge(null); },
-      linkTarget: (a: string, b: string) => byId.get(chooseEndpoints(a, b).to),
+      linkTarget: (a: string, b: string) => { const ends = chooseEndpoints(a, b); return ends ? byId.get(ends.to) : undefined; },
+      canLink: (a: string, b: string) => chooseEndpoints(a, b) !== null,
     };
   }, [selectedId, allById, byId, props.onOpenNote, props.onLink, props.onDismiss]);
   const visibleEdge = selectedEdge && graph.edges.find(edge => edge.kind === 'suggested' &&

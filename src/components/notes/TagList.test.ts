@@ -37,3 +37,12 @@ it('collapses behind its heading and explains when there are no tags', async () 
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(host.textContent).not.toContain('Type #word');
 });
+
+it('on a reveal it focuses the first tag and reports that the reveal was shown (review fix)', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => { callback(); return 0; });
+  const onRevealed = vi.fn();
+  const { host } = await mount({ revealSignal: 2, onRevealed });
+  expect(document.activeElement).toBe(host.querySelector('button[data-tag]'));
+  expect(onRevealed).toHaveBeenCalledTimes(1);
+  vi.unstubAllGlobals();
+});

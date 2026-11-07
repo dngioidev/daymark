@@ -75,11 +75,12 @@ export async function cycle10Qa({ run, fresh, check, TODAY, day, doc, task, read
     const { page } = await fresh();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('tab', { name: 'Help', exact: true }).click();
-    const article = page.getByRole('article', { name: 'Getting started and install' });
+    // Cycle 18: Settings -> Help opens the full-size Help view at First 5 minutes.
+    const article = page.getByRole('dialog', { name: 'Help', exact: true }).getByRole('article', { name: 'First 5 minutes' });
     await article.waitFor();
     const web = await article.textContent();
-    await page.getByRole('button', { name: 'Mobile', exact: true }).click();
-    check('C10-H1', web.includes('Open your Daymark server') && (await article.textContent()).includes('Download the Android APK'), 'Help switches Web and Mobile instructions');
+    await page.getByRole('button', { name: 'Phone', exact: true }).click();
+    check('C10-H1', web.includes('This is your notebook for the day') && (await article.textContent()).includes('Open the Today tab'), 'Help switches Web and Phone instructions');
     // Give the static site its own browsing context: the app's navigation fallback SW must not intercept this fixture.
     const sitePage = await page.context().browser().newPage({ serviceWorkers: 'block' });
     const root = path.resolve('_site');
