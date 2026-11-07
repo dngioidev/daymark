@@ -1,16 +1,28 @@
 ---
 title: Shortcuts and gestures
-order: 14
+order: 20
+group: features
+summary: Every keyboard shortcut, plus how to get around with touch and the keyboard.
+related: search, folders-and-pinning
 ---
 ## Web
-Use Ctrl or Command plus K to open New task. Ctrl or Command plus Shift and F opens Search, and slash opens it when you are not typing in a field. The shortcut help lists the available combinations. Press g, then b, to open Backlog through the same navigation shortcut family as the other main pages.
+1. Press `?` at any time to open this topic.
+2. Use the keys below. Ctrl on Windows and Linux, ⌘ on Mac.
 
-Keyboard navigation follows the focused control. Tab moves between controls, Enter activates a focused button, and Escape closes supported dialogs. Shortcuts avoid interrupting normal text entry in editors and fields. On the website, screenshot links open a viewer: use left and right arrows to browse and Escape to close it. Focus returns to the screenshot you opened.
+| Keys | Action |
+| --- | --- |
+| Ctrl/⌘ K | New task |
+| Ctrl/⌘ Shift F or / | Search |
+| ? | Help: Shortcuts |
+| g t, g c, g n, g b | Go to Today, Calendar, Notes, Backlog |
+| Ctrl/⌘ . | Full screen |
+| s | Handwriting: Select, then back to your pen |
+| Esc | Close dialog or exit full screen |
 
-In Notes, the navigation tree, the Related panel and the graph are reachable by keyboard: in the tree, the arrow keys move between folders and notes, Home and End jump to the first and last row, and Enter opens a note or toggles a folder. Shift+F10 or the Menu key opens a folder's actions. In the graph, choose List view for every note and connection as buttons, with Link and Not related for each suggestion; long lists are paged with Previous and Next buttons. The graph canvas also supports the mouse wheel for zoom and drag to pan.
-## Mobile
-Use the bottom bar to switch between Today, Calendar, Backlog and Notes. The centre plus button opens New task. Open Settings with the gear icon in the top header. Tap task titles for details and the task menu for actions such as Move to section or Move to backlog. Use the visible controls when an action needs a precise destination or date.
+Press the second key after g within 1.5 seconds. While typing, New task and Full screen still work. In the Notes tree, arrow keys, Home, End and Enter move around and Shift+F10 opens folder actions.
+## Phone
+1. Use the bottom bar to switch between Today, Calendar, Backlog and Notes.
+2. The plus button opens New task; the gear in the header opens Settings.
+3. Android Back closes the current dialog or editor before leaving a page.
 
-Android Back closes the current dialog or editor before leaving a page, and returns from Backlog to Today. Browser navigation can differ from the native app. On the website, tap a screenshot to enlarge it, swipe horizontally to browse, and use Close to return. Native pinch zoom remains available. A connected keyboard can use the web shortcuts where the current input context permits them.
-
-Folder and note rows, Related suggestions and graph connections use buttons rather than gestures, so they work with touch and with a connected keyboard. Pinch zooms the graph on a tablet and a tap selects a note; List view offers the same actions as plain buttons.
+Notes rows, Related suggestions and Graph connections use buttons, so they work with touch and a connected keyboard. Pinch zooms the Graph on a tablet.

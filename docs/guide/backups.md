@@ -1,12 +1,21 @@
 ---
 title: Backups
-order: 11
+order: 18
+group: features
+summary: Save your whole vault to a file and restore it when you need to.
+show: settings-storage
+related: sync, getting-started
 ---
 ## Web
-Open Settings and choose Backup & restore before making major changes or clearing browser storage. Back up now downloads a ZIP; Advanced offers Technical backup (.json) and Download .json. Save the file somewhere separate from the browser profile. Backups include your vault data, including habits and the backlog. Markdown export provides daily files and notes, with a Backlog.md list for undated ideas; nested note folders appear as real directories under Notes, so a note in Tech/Java is exported inside Daymark/Notes/Tech/Java.
+1. Open **Settings → Backup & restore**.
+2. Choose **Back up now** to download a ZIP. **Advanced** also offers a technical JSON backup.
+3. Save the file somewhere outside the browser.
+4. To restore, choose **Choose a backup file** and pick a saved ZIP or JSON. Read the confirmation, especially when sync is connected.
 
-To restore, use Choose a backup file in Backup & restore and select the saved ZIP or JSON. Read any confirmation carefully, particularly when connected to sync, because restored changes can reach other devices. Older backups may omit features added later. Keep more than one dated backup so an unnoticed mistake does not replace your only good copy. Test your backup routine before you need it urgently.
-## Mobile
-In Settings, open Backup & restore and use Back up now for a ZIP. For JSON, open Advanced and use Download .json under Technical backup. In the Android app, exports use the system sharing flow; save or share the file to a location you can find again. In a phone browser, the file is usually downloaded through that browser. Confirm that the file exists outside the app before clearing storage or uninstalling.
+Backups include daily notes, notes, folders, handwriting, habits and the backlog. Markdown export gives daily files and notes, with nested folders as real directories. Keep more than one dated backup.
+## Phone
+1. Open **Settings → Backup & restore** and tap **Back up now**.
+2. In the Android app, save or share the file to a place you can find again.
+3. To restore, tap **Choose a backup file** and pick the saved file.
 
-Restore with Choose a backup file in Backup & restore and a previously saved ZIP or JSON. Read the confirmation, especially if sync is connected. A backup can contain notes, daily tasks, habits and backlog items. Keep dated copies in more than one safe location. A synced phone is convenient, but it is not a substitute for a backup you can restore independently.
+Check that the file exists outside the app before clearing storage or uninstalling. A synced phone is convenient, but it is not a backup you can restore independently.

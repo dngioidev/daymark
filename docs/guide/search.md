@@ -1,12 +1,20 @@
 ---
 title: Search
-order: 9
+order: 8
+group: features
+summary: Find tasks, notes and backlog ideas across your whole vault.
+show: search
+related: tags, folders-and-pinning
 ---
 ## Web
-Use Search in the side menu to find work across your vault. The keyboard shortcuts Ctrl or Command plus Shift and F, or slash when you are not typing in a field, open the same search. Enter words from a title or note and inspect the labelled results before choosing one.
+1. Choose **Search** in the side menu, press Ctrl/⌘ Shift F, or press `/` when you are not typing.
+2. Type words from a title or note.
+3. Pick a result: a task opens its day, a note opens in Notes, a backlog idea opens Backlog.
 
-Results can point to a daily task, a note or an active backlog idea. Backlog results are labelled Backlog and open that page. Picked or deleted backlog items are excluded. Choosing a dated result takes you to its day so you can see the surrounding context. Search works with your locally stored data; sync first when you need changes made on another device.
-## Mobile
-Open Search from the app's available search control and enter a few distinctive words. Search covers local daily work, notes and active backlog ideas. Read each result's label to distinguish a dated task from a note or an undated idea. Tap a result to open the relevant day, note or Backlog page.
+Search uses the data on this device; let sync finish first when you need changes from another device. In Notes, the search box above the folder tree filters notes, and `#tag` shows only notes with that tag.
+## Phone
+1. Open **Search** and type a few distinctive words.
+2. Read each result's label: task, note or backlog idea.
+3. Tap a result to open it.
 
-If something written on another device is missing, reconnect and let sync finish before searching again. Search can only show the data currently available on this device. Picked and deleted backlog items are hidden from backlog results. Close the search dialog to return to the screen you were using; searching does not move or change any task.
+Search covers daily work, notes and active backlog ideas on this device. In Notes, type `#tag` in the search box to show only notes with that tag.

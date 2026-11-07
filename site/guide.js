@@ -4,4 +4,5 @@ function select(platform) {
   buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.guideChoice === platform)));
 }
 buttons.forEach(button => button.addEventListener('click', () => select(button.dataset.guideChoice)));
-select(window.matchMedia('(max-width: 767px)').matches ? 'mobile' : 'web');
+const coarse = window.matchMedia('(pointer: coarse)').matches;
+select(window.matchMedia('(max-width: 767px)').matches ? 'phone' : coarse ? 'tablet' : 'web');

@@ -4,14 +4,14 @@ import { GUIDE_TOPICS } from '../../utils/guideData';
 import { MarkdownPreview } from '../MarkdownPreview';
 
 export function HelpTab({ appMode }: { appMode?: AppMode }) {
-  const [platform, setPlatform] = useState<'web' | 'mobile'>(() =>
-    appMode === 'mobile-app' || (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches) ? 'mobile' : 'web');
+  const [platform, setPlatform] = useState<'web' | 'phone'>(() =>
+    appMode === 'mobile-app' || (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches) ? 'phone' : 'web');
   const [slug, setSlug] = useState(GUIDE_TOPICS[0].slug);
   const topic = GUIDE_TOPICS.find(item => item.slug === slug) ?? GUIDE_TOPICS[0];
   const button = 'min-h-11 px-3 py-2 rounded-lg text-left border border-stone-200 dark:border-stone-700';
   return <div className="space-y-4">
     <div role="group" aria-label="Guide platform" className="flex gap-2">
-      {(['web', 'mobile'] as const).map(part => <button type="button" key={part} aria-pressed={platform === part} onClick={() => setPlatform(part)} className={`${button} ${platform === part ? 'bg-stone-200 dark:bg-stone-700 font-semibold' : ''}`}>{part === 'web' ? 'Web' : 'Mobile'}</button>)}
+      {(['web', 'phone'] as const).map(part => <button type="button" key={part} aria-pressed={platform === part} onClick={() => setPlatform(part)} className={`${button} ${platform === part ? 'bg-stone-200 dark:bg-stone-700 font-semibold' : ''}`}>{part === 'web' ? 'Web' : 'Phone'}</button>)}
     </div>
     <label className="block sm:hidden">Topic
       <select aria-label="Help topic" value={slug} onChange={event => setSlug(event.target.value)} className="mt-1 w-full min-h-11 px-3 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900">

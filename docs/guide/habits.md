@@ -1,17 +1,20 @@
 ---
 title: Habits
-order: 5
+order: 7
+group: features
+summary: Track routines with daily ticks and streaks, separate from tasks.
+show: today
+related: today, widgets
 ---
 ## Web
-Habits track recurring routines separately from tasks. Open the Habits bar on Today to view your routines, mark a day's completion and inspect streaks. Add or edit habits through the habit controls. Choose a name that describes a repeatable action so a daily tick has a clear meaning.
+1. Open the **Habits** bar on Today.
+2. Add a habit with a name that describes a repeatable action.
+3. Tick it each day you do it, and watch its streak.
 
-Habits do not need to be recreated as daily tasks. Their completion history stays with the habit rather than a copied checklist item. A missed-habit warning can help you spot a routine that has slipped. If you sync devices, reconnect to exchange their habit changes. Backups include habit data; export one before clearing a device or making large changes to your vault.
+Habits keep their own history, so you never recreate them as tasks. A missed-habit warning shows a routine that has slipped. In **Settings → Old-task warnings**, **Habit warnings count** chooses Weekdays, Weekends or All week; only those days add missed days. Backups and sync include habits.
+## Phone
+1. On Today, open the **Habits** bar.
+2. Tap a habit's control to record today.
+3. Use the habit controls to create or edit routines.
 
-In Settings → Old-task warnings, Habit warnings count offers Weekdays (Mon to Fri), Weekends (Sat and Sun) or All week (the default). Only those days add missed days; other days do not break a run of misses. Warnings stay visible every day. Changing the choice updates existing missed-day counts and syncs between devices. Task aging has its own choice; habit streaks are unchanged.
-
-## Mobile
-On Today, open the Habits bar to see your daily routines. Tap a habit's completion control to record that day. Use the habit controls to create or edit routines, and check the streak display when reviewing progress. Habits are separate from the tasks in your daily sections, so you do not need a repeated task for each routine.
-
-The Android app also supports a habits home-screen widget. Add it using Android's widget picker and keep the app installed for it to work. Widget availability and appearance depend on your launcher. Connect sync if you want habit changes on other devices, and keep regular backups of your vault, including habits.
-
-Open Settings → Old-task warnings → Habit warnings count to choose weekdays, weekends or all week (the default). This synced choice updates missed-day counts without changing streaks. Warnings still show on days that do not count. Task aging is a separate choice.
+The Android app also has a habits home-screen widget; see Widgets. **Settings → Old-task warnings → Habit warnings count** chooses which days count as missed.

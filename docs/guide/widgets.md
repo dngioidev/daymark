@@ -1,12 +1,21 @@
 ---
-title: Widgets (Android)
-order: 13
+title: Widgets
+order: 15
+group: features
+summary: Show tasks and habits on your Android home screen.
+show: settings-widget
+related: habits, sync
 ---
 ## Web
-Home-screen widgets are provided by the Android app. A desktop browser or installed web app does not expose the native Android widgets. If you want tasks or habits visible on your phone's home screen, install the Android APK, open it, and connect the same sync server used by your browser.
+1. Install the Android app on your phone; browsers cannot add native widgets.
+2. Connect the app to the same sync server as your browser.
+3. Add the Daymark task or habits widget from your launcher's widget picker.
 
-Task widgets follow your Needs attention after, Urgent after, aging warnings switch and counting days settings. The Android task and habits widgets use the app's local data. Let the app sync when checking something recently changed on the desktop. Widget settings control their appearance and content where supported. The backlog has no widget: pick an idea into a day before expecting it among daily tasks. Keep the Android app installed and its data intact for its widgets to function.
-## Mobile
-Install and open the Android app before adding a widget. Long-press an empty area of your home screen, open your launcher's widget picker, and find Daymark. Add the task or habits widget, then use the available widget settings to choose the supported display options. Exact placement and resizing controls depend on the launcher.
+Task widgets follow your Needs attention after and Urgent after settings, the aging warnings switch and counting days. Widgets read the app's local data, so let the app sync after changes on the desktop. Backlog ideas have no widget.
+## Phone
+1. Install and open the Android app.
+2. Long-press an empty area of your home screen and open the widget picker.
+3. Find Daymark and add the task or habits widget.
+4. Use **Settings → Widget** to choose what it shows.
 
-Task widgets use your Needs attention after and Urgent after settings, the aging warnings switch and counting days. Widgets read the app's local data and can queue supported actions for the app. Open Daymark and let sync finish when you need recent changes from another device. A phone browser installation does not provide these native widgets. Backlog ideas have no widget; pick them into a day to make them daily work. Removing app data or uninstalling also affects the widgets.
+Placement and resizing depend on your launcher. Open Daymark and let sync finish when you need recent changes. Uninstalling the app or clearing its data also removes the widgets' data.

@@ -11,23 +11,23 @@ it('offers topics and switches the displayed platform instructions offline', asy
   const el = document.createElement('div'); document.body.append(el); containers.push(el);
   const root = createRoot(el);
   await act(async () => root.render(React.createElement(HelpTab, { appMode: 'desktop' })));
-  expect(el.textContent).toContain('Getting started and install');
-  expect(el.textContent).toContain('Open your Daymark server');
-  const mobile = [...el.querySelectorAll('button')].find(b => b.textContent === 'Mobile')!;
+  expect(el.textContent).toContain('First 5 minutes');
+  expect(el.textContent).toContain('This is your notebook for the day');
+  const mobile = [...el.querySelectorAll('button')].find(b => b.textContent === 'Phone')!;
   await act(async () => mobile.click());
-  expect(el.textContent).toContain('Download the Android APK');
-  expect(el.textContent).not.toContain('Open your Daymark server');
+  expect(el.textContent).toContain('Open the Today tab');
+  expect(el.textContent).not.toContain('This is your notebook for the day');
   const backlog = [...el.querySelectorAll('button')].find(b => b.textContent === 'Backlog')!;
   await act(async () => backlog.click());
   expect(el.textContent).toContain('Tap Backlog in the bottom bar');
   await act(async () => root.unmount());
 });
 
-it('defaults to Mobile instructions in the dedicated mobile app', async () => {
+it('defaults to Phone instructions in the dedicated mobile app', async () => {
   const el = document.createElement('div'); document.body.append(el); containers.push(el);
   const root = createRoot(el);
   await act(async () => root.render(React.createElement(HelpTab, { appMode: 'mobile-app' })));
-  expect(el.textContent).toContain('Download the Android APK');
+  expect(el.textContent).toContain('Open the Today tab');
   const topics = el.querySelector<HTMLSelectElement>('select[aria-label="Help topic"]');
   expect(topics).not.toBeNull();
   await act(async () => { topics!.value = 'backlog'; topics!.dispatchEvent(new Event('change', { bubbles: true })); });

@@ -1,12 +1,20 @@
 ---
-title: Sync and the server
-order: 10
+title: Sync
+order: 17
+group: features
+summary: Keep your devices in step through your own Daymark server.
+show: settings-sync
+related: backups, getting-started
 ---
 ## Web
-Sign in to your Daymark server in the browser. The browser automatically syncs with the server that serves the app; there is no server-address field to configure. Open Settings and choose Sync to inspect status or request Sync now. Each browser profile keeps a local vault. A web build hosted on another origin is local-only; use backups to transfer its data.
+1. Open your Daymark server in the browser and sign in. The browser syncs with that server automatically.
+2. Open **Settings → Sync** to see the status or choose **Sync now**.
+3. Keep working offline; changes are exchanged when you reconnect.
 
-Edits remain available offline and are exchanged after reconnection. Check the sync status before switching devices when you need the latest work immediately. Sync includes daily documents, notes, settings, habits and the backlog on compatible versions, along with the note folder list (including empty folders) and the suggestions you marked Not related. A device on an older version shows a nested folder such as Tech/Java as one flat folder name and keeps every note. Older servers may not support newer records. Keep backups independently: sync exchanges changes, including deletions, and is not a historical backup service. Server administration and device management belong to your self-hosted installation.
-## Mobile
-In the Android app, open Settings, then Sync, and enter your server address and account details. Choose Connect and sync. In a phone browser, open the server itself and sign in: browser sync uses that server automatically, with no address field. Use the sync controls to inspect status or request an exchange. A browser installation and the Android app have separate local storage and each needs its own sign-in if you use both.
+Sync covers daily documents, notes and folders, tags, settings, habits, the backlog and your Not related choices. Each browser profile keeps its own local copy. A web build hosted elsewhere is local-only; use backups to move its data. Sync exchanges deletions too, so it does not replace a backup.
+## Phone
+1. In the Android app, open **Settings → Sync**.
+2. Enter your server address and account details, then choose **Connect and sync**.
+3. Let sync finish before relying on another device's view.
 
-You can keep editing without a network connection. Reconnect later and allow sync to finish before relying on another device's view. Compatible versions exchange tasks, notes, folders, habits, settings and backlog ideas, plus the Not related choices that hide Related suggestions. An older version shows a nested folder as one flat name but never loses a note. Background photos remain device-specific. Make regular backups as well: syncing a deletion can remove data on another device, so sync alone cannot replace a saved backup.
+In a phone browser, open the server itself and sign in instead. A browser install and the Android app keep separate copies and need separate sign-ins. Background photos stay on each device. Keep regular backups as well.

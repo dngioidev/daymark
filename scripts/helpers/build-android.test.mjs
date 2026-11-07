@@ -39,7 +39,7 @@ for (const [variable, property] of [
       assert.equal(result.ok, false);
       assert.ok(result.message.includes(variable));
       assert.ok(result.message.includes(property));
-      assert.ok(result.message.includes('docs/guide/getting-started.md'));
+      assert.ok(result.message.includes('docs/android-release-signing.md'));
       assert.ok(!result.message.includes('file-store-password'));
       assert.ok(!result.message.includes('file-key-password'));
     }

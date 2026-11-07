@@ -23,12 +23,12 @@ export function releaseSigning(env, fileProps) {
   ]) {
     const value = env[variable] || fileProps[property];
     if (typeof value !== 'string' || !value.trim()) {
-      return { ok: false, message: `Release signing missing ${variable} (${property}). See docs/guide/getting-started.md.` };
+      return { ok: false, message: `Release signing missing ${variable} (${property}). See docs/android-release-signing.md.` };
     }
     config[property] = value;
   }
   if (/(^|[\\/])debug\.keystore$/i.test(config.storeFile)) {
-    return { ok: false, message: 'Release signing must not use debug.keystore. See docs/guide/getting-started.md.' };
+    return { ok: false, message: 'Release signing must not use debug.keystore. See docs/android-release-signing.md.' };
   }
   return { ok: true, config };
 }

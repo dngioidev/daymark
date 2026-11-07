@@ -61,5 +61,11 @@ a[data-zoom]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4
 .guide-switch { display: flex; gap: .5rem; }
 .guide-switch button { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; min-height: 44px; padding: .5rem 1rem; cursor: pointer; }
 .guide-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
-html[data-guide-platform="web"] [data-platform="mobile"], html[data-guide-platform="mobile"] [data-platform="web"] { display: none; }
+html[data-guide-platform="web"] [data-platform]:not([data-platform="web"]),
+html[data-guide-platform="tablet"] [data-platform]:not([data-platform="tablet"]),
+html[data-guide-platform="phone"] [data-platform]:not([data-platform="phone"]) { display: none; }
+.guide-summary { font-size: 1.05rem; }
+.guide table { border-collapse: collapse; }
+.guide th, .guide td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; }
+.guide-shot img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
 .guide-shot { margin-top: 2rem; max-width: 800px; }
