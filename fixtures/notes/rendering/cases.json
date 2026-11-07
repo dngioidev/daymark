@@ -1438,5 +1438,66 @@
       ],
       "taskIds": []
     }
+  },
+  {
+    "id": "tags-inline",
+    "family": "tags",
+    "sourceFile": "tags.md",
+    "fidelity": "verbatim",
+    "notes": {
+      "mode": "native",
+      "visibleText": [
+        "Plan",
+        "#project",
+        "#project/daymark",
+        "#todo call the bank",
+        "stay plain"
+      ],
+      "elements": [
+        {
+          "selector": ".dm-tag",
+          "count": 3
+        },
+        {
+          "selector": "h1",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "#project",
+        "#project/daymark",
+        "#todo",
+        "`#code`",
+        "[[Note#Heading]]"
+      ]
+    },
+    "preview": {
+      "mode": "native",
+      "visibleText": [
+        "Plan",
+        "#project",
+        "#project/daymark",
+        "#todo call the bank",
+        "stay plain"
+      ],
+      "elements": [
+        {
+          "selector": "h1",
+          "count": 1
+        }
+      ],
+      "sourceTokens": [
+        "#project",
+        "#project/daymark",
+        "#todo"
+      ]
+    },
+    "daily": {
+      "sourceTokens": [
+        "#project",
+        "#todo"
+      ],
+      "taskIds": []
+    }
   }
 ]

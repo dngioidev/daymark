@@ -14,6 +14,7 @@ import { RawMarkdown, RawHtml, RawInline } from './rawMarkdownNode';
 import { preserveNoteText } from '../../utils/noteTextSerialization';
 import type { JSONContent, MarkdownToken, MarkdownParseHelpers } from '@tiptap/core';
 import { WikiLink } from './wikiLink';
+import { TagChips } from './tagChips';
 import Highlight from '@tiptap/extension-highlight';
 import { HIGHLIGHTER_COLORS } from '../../ink/inkColors';
 
@@ -122,5 +123,6 @@ export const editorExtensions = [
   Placeholder.configure({ placeholder: 'Write…' }),
   RawMarkdown, RawHtml, RawInline,
   WikiLink,
+  TagChips,
   NoteMarkdown.configure({ marked: createNoteLexer() }),
 ];

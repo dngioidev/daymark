@@ -46,3 +46,8 @@
 .dm-note-prose .daymark-callout { color: var(--color-stone-900); }
 .dark .dm-note-prose .daymark-callout { color: var(--color-stone-100); }
 .dm-note-prose .daymark-callout-content > * + * { margin-top: 0.8em; }
+
+/* #tag chips are decorations only; the Markdown keeps plain #tag text. */
+.dm-note-prose .dm-tag { border-radius: 9999px; padding: 0 0.4em; background: var(--color-stone-200); color: var(--color-stone-800); cursor: pointer; }
+.dark .dm-note-prose .dm-tag { background: var(--color-stone-700); color: var(--color-stone-100); }
+.dm-note-prose .dm-tag:hover { text-decoration: underline; }

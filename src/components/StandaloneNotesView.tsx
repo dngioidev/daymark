@@ -497,6 +497,7 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
                   markdown={activeNote.content}
                   onChange={(content) => updateActive({ content })}
                   onOpenLink={openLinkedNote}
+                  onOpenTag={tag => { setSearchQuery(`#${tag}`); if (phone) setPane('list'); else if (drawers) setDrawer(true); }}
                   notes={[...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(({ id, title }) => ({ id, title }))}
                   onCreateNote={(title) => createNote(activeNote.folder, title, '', false).id}
                   onToggleMarkdown={() => setViewMode('markdown')}

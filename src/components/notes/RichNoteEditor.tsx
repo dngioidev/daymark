@@ -3,6 +3,7 @@ import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { noteClipboardProps } from './clipboard';
 import type { StandaloneNote } from '../../types/daymark';
 import { editorExtensions } from './editorExtensions';
+import { TagChips } from './tagChips';
 import { WikiLink } from './wikiLink';
 import { EditorToolbar } from './EditorToolbar';
 import { insertPictureFiles } from './pictureNode';
@@ -18,6 +19,8 @@ export interface RichNoteEditorProps {
   markdown: string;
   onChange(markdown: string): void;
   onOpenLink(title: string): void;
+  /** A tag chip was clicked. */
+  onOpenTag?(tag: string): void;
   notes: Pick<StandaloneNote, 'id' | 'title'>[];
   onCreateNote(title: string): string;
   onToggleMarkdown?(): void;
@@ -26,11 +29,13 @@ export interface RichNoteEditorProps {
 
 export interface RichNoteEditorHandle { focus(): void; clearHistory(): void; appendRelatedLink(title: string): void }
 
-export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, notes, onCreateNote, onToggleMarkdown, ref }: RichNoteEditorProps) {
+export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink, onOpenTag, notes, onCreateNote, onToggleMarkdown, ref }: RichNoteEditorProps) {
   const latestOnChange = useRef(onChange);
   latestOnChange.current = onChange;
   const latestOpenLink = useRef(onOpenLink);
   latestOpenLink.current = onOpenLink;
+  const latestOpenTag = useRef(onOpenTag);
+  latestOpenTag.current = onOpenTag;
   const wikiCallbacks = useRef({ notes, onCreateNote });
   wikiCallbacks.current = { notes, onCreateNote };
   const original = useRef(markdown);
@@ -41,7 +46,7 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
       notes: () => wikiCallbacks.current.notes.filter(note => note.id !== noteId),
       onCreateNote: title => wikiCallbacks.current.onCreateNote(title),
       onOpenLink: title => latestOpenLink.current(title),
-    }) : extension),
+    }) : extension.name === 'tagChips' ? TagChips.configure({ onOpenTag: tag => latestOpenTag.current?.(tag) }) : extension),
     content: markdown,
     contentType: 'markdown',
     immediatelyRender: false,

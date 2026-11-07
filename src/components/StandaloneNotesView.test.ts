@@ -707,3 +707,9 @@ it('a reveal signal shows the Tags section or switches to Graph', () => {
   render(false, { reveal: { target: 'graph', seq: 2 } });
   expect(find(render(false, { reveal: { target: 'graph', seq: 2 } }), el => el.type === NoteNavigation)).toBeUndefined();
 });
+
+it('clicking a tag chip in the editor filters the notes column by that tag', () => {
+  const rich = find(render(), (el) => el.props.noteId === note.id)!;
+  (rich.props.onOpenTag as (tag: string) => void)('project');
+  expect(find(render(), el => el.type === NoteNavigation)!.props.query).toBe('#project');
+});
