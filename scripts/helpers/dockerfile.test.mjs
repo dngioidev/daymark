@@ -33,3 +33,25 @@ test('the server image copies every src folder the server imports', () => {
   const missing = [...serverSourceFolders()].filter((folder) => !copied.has(folder));
   assert.deepEqual(missing, [], `Dockerfile is missing COPY lines for src/${missing.join(', src/')}`);
 });
+
+// Docker's .dockerignore: the last matching line wins and `!` re-includes.
+function dockerIgnored(path) {
+  let ignored = false;
+  for (const raw of readFileSync(join(root, '.dockerignore'), 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const negate = line.startsWith('!');
+    const pattern = (negate ? line.slice(1) : line).replace(/\/$/, '');
+    const body = pattern.replace(/[.+^$(){}|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
+    const regex = new RegExp('^' + body + '(?:/.*)?$');
+    if (regex.test(path)) ignored = !negate;
+  }
+  return ignored;
+}
+
+test('the web build inside the server image gets the guide that Help is built from', () => {
+  // src/utils/guideData.ts bundles docs/guide/*.md and docs/guide/images at build time.
+  assert.match(readFileSync(join(root, 'src/utils/guideData.ts'), 'utf8'), /docs\/guide/);
+  for (const path of ['docs/guide/tags.md', 'docs/guide/images/tags.png']) assert.equal(dockerIgnored(path), false, `${path} must reach the Docker build`);
+  for (const path of ['docs/releases/cycle-18/README.md', 'node_modules/x', 'data/auth.json']) assert.equal(dockerIgnored(path), true, `${path} stays out of the image`);
+});

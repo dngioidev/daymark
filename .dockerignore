@@ -2,7 +2,9 @@ node_modules
 dist
 data
 mobile
-docs
+# Help (src/utils/guideData.ts) is built from docs/guide; the rest of docs stays out.
+docs/*
+!docs/guide
 .git
 .github
 coverage
