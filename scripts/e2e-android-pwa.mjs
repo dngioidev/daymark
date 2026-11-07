@@ -62,7 +62,7 @@ async function writingScenarios(browser) {
       check(await page.evaluate(() => localStorage.getItem('dm.ink.penSeen') !== '1'), 'desktop text fixture has no pen');
       await page.getByRole('button', { name: 'Text', exact: true }).click();
       await inkCanvas(page).click({ position: { x: 35, y: 200 } });
-      await page.getByRole('textbox', { name: 'Text box', exact: true }).pressSequentially('Keyboard without a pen');
+      await page.getByRole('textbox', { name: 'Text box text', exact: true }).pressSequentially('Keyboard without a pen');
       await title.click();
       const notebook = (await readStored(page, 'notes')).find(n => n.title === 'Cycle 17 ink desktop');
       await waitInk(page, 1, notebook.id);

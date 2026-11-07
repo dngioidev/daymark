@@ -559,7 +559,7 @@ try {
     const canvasBox = await inkCanvas(laptop).boundingBox();
     await penDrag(laptop, [{ x: canvasBox.x + 40, y: canvasBox.y + 180 }]);
     const text = 'Cycle 17 box survives 1.11\nSecond line';
-    await laptop.getByRole('textbox', { name: 'Text box', exact: true }).fill(text);
+    await laptop.getByRole('textbox', { name: 'Text box text', exact: true }).fill(text);
     await laptop.getByRole('textbox', { name: 'Title', exact: true }).click();
     await waitInk(laptop, 3, notebook.id);
     await syncNow(laptop);

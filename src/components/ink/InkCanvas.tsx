@@ -5,11 +5,11 @@ import { addStroke, collapseInkGesture, decodePoints, encodePoints, eraseArea, e
 import { drawPage, drawStroke, insertedStrokes, redrawInserted, touchesStroke, type InkPoint, type PointCache } from '../../ink/inkRender';
 import { classifyPointer, isPenEraserButton } from '../../ink/pointerPolicy';
 import { isStylusButtonHeld } from '../../ink/stylusButton';
-import { copyStrokes, deleteStrokes, lassoSelect, pasteStrokes, recolorStrokes, selectionBounds, transformStrokes, type Loop } from '../../ink/inkSelection';
+import { copyStrokes, deleteStrokes, lassoSelect, pasteStrokes, recolorStrokes, selectionBounds, transformStrokes, type Loop, type Transform } from '../../ink/inkSelection';
 import { createTextBox, replaceTextBox, textBoxAnchor, visibleTextBoxes } from '../../ink/inkText';
 import { isHeld, recognizeShape } from '../../ink/shapeRecognition';
 import { InkSelectionLayer } from './InkSelectionLayer';
-import { InkTextLayer, type TextDraft } from './InkTextLayer';
+import { InkTextLayer, type TextDraft, type TextPatch } from './InkTextLayer';
 import { InkPageView } from './InkPageView';
 import { paperStyle, sizeInkSurface, startFingerScroll } from './inkSurface';
 
@@ -78,7 +78,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   const liveRef = useRef<HTMLCanvasElement>(null);
   const latest = useRef(props);
   const api = useRef<InkCanvasHandle>(emptyHandle);
-  const [view, setView] = useState<{ page: InkPage; ids: string[]; loop: Loop; scale: number }>({ page: props.page, ids: [], loop: [], scale: 1 });
+  const [view, setView] = useState<{ page: InkPage; ids: string[]; loop: Loop; scale: number; drag: Transform | null }>({ page: props.page, ids: [], loop: [], scale: 1, drag: null });
   const [draft, setDraft] = useState<TextDraft | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const [hasClip, setHasClip] = useState(inkClipboard.length > 0);
@@ -87,7 +87,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     clipboardListeners.add(notify); notify();
     return () => { clipboardListeners.delete(notify); };
   }, []);
-  const textApi = useRef({ edit: (_id: string) => {}, commit: (_draft: TextDraft, _text: string) => {}, type: (_draft: TextDraft, _text: string) => {}, resize: (_draft: TextDraft, _width: number) => {} });
+  const textApi = useRef({ edit: (_id: string) => {}, commit: (_draft: TextDraft, _text: string) => {}, type: (_draft: TextDraft, _text: string) => {}, patch: (_draft: TextDraft, _patch: TextPatch) => {}, remove: (_draft: TextDraft) => {} });
   const synchronize = useRef<() => void>(() => {});
   useImperativeHandle(ref, () => forwardHandle(() => api.current), []);
   useLayoutEffect(() => { latest.current = props; synchronize.current(); });
@@ -121,7 +121,10 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       const now = new Date().toISOString();
       if (box.id) {
         const old = visibleTextBoxes(page).find(s => s.id === box.id);
-        if (text !== box.text || box.boxWidth !== old?.boxWidth) record(replaceTextBox(page, box.id, { text, boxWidth: box.boxWidth }, uuid(), now));
+        const at = old && textBoxAnchor(old);
+        if (old && (text !== box.text || box.boxWidth !== old.boxWidth || box.fontSize !== old.fontSize || box.color !== old.color || box.x !== at!.x)) {
+          record(replaceTextBox(page, box.id, { text, at: { x: box.x, y: box.y }, color: box.color, fontSize: box.fontSize, boxWidth: box.boxWidth }, uuid(), now));
+        }
       } else if (text) record(addStroke(page, createTextBox(text, box, box.color, uuid(), now, { fontSize: box.fontSize, boxWidth: box.boxWidth }), now));
     };
     const openDraft = (box: TextDraft) => {
@@ -132,7 +135,37 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     };
     type Gesture = { id: number; start: InkPoint; end: InkPoint; loop: Loop; mode: 'lasso' | 'move' | 'resize' | 'text'; origin?: InkPoint; moved?: boolean };
     let gesture: Gesture | null = null;
-    const refresh = (loop: Loop = []) => setView({ page, ids: [...ids], loop: [...loop], scale });
+    const refresh = (loop: Loop = [], drag: Transform | null = null) => setView({ page, ids: [...ids], loop: [...loop], scale, drag });
+    // While a selection is dragged or resized it is lifted onto the live layer and moved with a CSS
+    // transform, so it follows the pen every frame without redrawing; the edit is made on release.
+    let lifted = false;
+    const lift = () => {
+      if (lifted) return;
+      lifted = true;
+      const selected = new Set(ids), visible = visibleStrokes(page);
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      drawPage(ctx, { ...page, strokes: visible.filter(s => !selected.has(s.id)), removed: [] }, cache);
+      actualCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      drawPage(actualCtx, { ...page, strokes: visible.filter(s => selected.has(s.id)), removed: [] }, cache);
+      liveCanvas.style.opacity = '1'; liveCanvas.style.zIndex = '2'; liveCanvas.style.transformOrigin = '0 0';
+    };
+    const drop = () => {
+      if (!lifted) return;
+      lifted = false;
+      liveCanvas.style.transform = '';
+      actualCtx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      // The next rebuild repaints the whole page onto a clean canvas.
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT); rendered = [];
+    };
+    const gestureTransform = (g: Gesture): Transform | null => {
+      if (g.mode !== 'move' && g.mode !== 'resize') return null;
+      const dx = g.end.x - g.start.x, dy = g.end.y - g.start.y;
+      if (!dx && !dy) return null;
+      const origin = g.origin ?? g.start;
+      const vx = g.start.x - origin.x, vy = g.start.y - origin.y;
+      const factor = g.mode === 'resize' ? Math.max(0.01, ((g.end.x - origin.x) * vx + (g.end.y - origin.y) * vy) / (vx * vx + vy * vy || 1)) : 1;
+      return { dx: g.mode === 'move' ? dx : 0, dy: g.mode === 'move' ? dy : 0, scale: factor, originX: origin.x, originY: origin.y };
+    };
     const select = (next: string[]) => { ids = next; latest.current.onSelectionChange?.([...ids]); refresh(); };
     const uuid = () => crypto.randomUUID();
     const cache: PointCache = new Map();
@@ -278,9 +311,15 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         saveDraft(text); setDraft(null);
       },
       type: (box, text) => { if (box.seq === draftBox?.seq) draftText = text; },
-      resize: (box, boxWidth) => {
-        if (!draftBox || box.seq !== draftBox.seq || boxWidth === draftBox.boxWidth) return;
-        draftBox = { ...draftBox, boxWidth }; setDraft(draftBox);
+      patch: (box, patch) => {
+        if (!draftBox || box.seq !== draftBox.seq) return;
+        draftBox = { ...draftBox, ...patch }; setDraft(draftBox);
+        textarea.current?.focus();
+      },
+      remove: box => {
+        if (!draftBox || box.seq !== draftBox.seq) return;
+        // An existing box is deleted (an undoable edit); a new one is just dropped.
+        saveDraft(''); setDraft(null);
       },
     };
     const point = (e: Pick<PointerEvent, 'clientX' | 'clientY' | 'pressure'>): InkPoint => ({
@@ -369,7 +408,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         let origin: InkPoint | undefined;
         if (p.tool === 'select' && bounds) {
           const corners = [bounds.minX, bounds.maxX].flatMap(x => [bounds.minY, bounds.maxY].map(y => ({ x, y, p: 0.5 })));
-          const corner = corners.find(c => Math.hypot(c.x - at.x, c.y - at.y) <= 10 / scale);
+          const corner = corners.find(c => Math.hypot(c.x - at.x, c.y - at.y) <= 24 / scale);
           if (corner) { mode = 'resize'; origin = { x: corner.x === bounds.minX ? bounds.maxX : bounds.minX, y: corner.y === bounds.minY ? bounds.maxY : bounds.minY, p: 0.5 }; }
           else if (at.x >= bounds.minX && at.x <= bounds.maxX && at.y >= bounds.minY && at.y <= bounds.maxY) mode = 'move';
         }
@@ -413,6 +452,14 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         e.preventDefault(); gesture.end = point(e);
         if (Math.hypot(gesture.end.x - gesture.start.x, gesture.end.y - gesture.start.y) > 6) gesture.moved = true;
         if (gesture.mode === 'lasso') { gesture.loop.push(gesture.end); refresh(gesture.loop); }
+        const drag = gestureTransform(gesture);
+        if (drag) {
+          lift();
+          // p -> origin + (p - origin) * scale + d, as a transform with its origin at the page corner.
+          const tx = (drag.originX * (1 - drag.scale) + drag.dx) * scale, ty = (drag.originY * (1 - drag.scale) + drag.dy) * scale;
+          liveCanvas.style.transform = `translate(${tx}px, ${ty}px) scale(${drag.scale})`;
+          refresh([], drag);
+        }
         return;
       }
       if (touch?.id === e.pointerId) {
@@ -484,13 +531,10 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
             openDraft({ x: g.start.x, y: g.start.y, text: '', color: latest.current.textColor ?? latest.current.color });
           }
         } else {
-          const dx = g.end.x - g.start.x, dy = g.end.y - g.start.y;
-          if (dx || dy) {
-            const origin = g.origin ?? g.start;
-            const vx = g.start.x - origin.x, vy = g.start.y - origin.y;
-            const factor = g.mode === 'resize' ? Math.max(0.01, ((g.end.x - origin.x) * vx + (g.end.y - origin.y) * vy) / (vx * vx + vy * vy || 1)) : 1;
-            applySelection(transformStrokes(page, ids, { dx: g.mode === 'move' ? dx : 0, dy: g.mode === 'move' ? dy : 0, scale: factor, originX: origin.x, originY: origin.y }, uuid, new Date().toISOString()));
-          }
+          const drag = gestureTransform(g), wasLifted = lifted;
+          drop();
+          if (drag) applySelection(transformStrokes(page, ids, drag, uuid, new Date().toISOString()));
+          else if (wasLifted) { rebuild(); refresh(); }
         }
         return;
       }
@@ -507,7 +551,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       if (!live.shape || live.shapeLength !== live.points.length) { live.points.push(point(e)); live.times.push(Infinity); }
       finish();
     };
-    const cancel = (e: PointerEvent) => { if (gesture?.id === e.pointerId) { gesture = null; refresh(); } if (touch?.id === e.pointerId) touch = null; if (live?.id === e.pointerId) finish(); };
+    const cancel = (e: PointerEvent) => { if (gesture?.id === e.pointerId) { gesture = null; if (lifted) { drop(); rebuild(); } refresh(); } if (touch?.id === e.pointerId) touch = null; if (live?.id === e.pointerId) finish(); };
     synchronize.current = () => {
       const incoming = latest.current.page;
       if (incoming !== lastIncoming) {
@@ -538,7 +582,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       observer?.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('pagehide', finish);
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up);
       canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('lostpointercapture', cancel); canvas.removeEventListener('contextmenu', noMenu);
-      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {}, type() {}, resize() {} };
+      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {}, type() {}, patch() {}, remove() {} };
       canvas.width = canvas.height = liveCanvas.width = liveCanvas.height = 0;
       cache.clear(); previewCache.clear();
     };
@@ -548,8 +592,8 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   return <div style={{ position: 'relative', isolation: 'isolate', ...paperStyle(props.paper) }}>
     <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ position: 'relative', zIndex: 1, display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'none' }} />
     <canvas ref={liveRef} data-ink-live aria-hidden="true" style={overlay} />
-    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={(box, text) => textApi.current.commit(box, text)} onType={(box, text) => textApi.current.type(box, text)} onResize={(box, width) => textApi.current.resize(box, width)} />
-    {props.tool === 'select' && <InkSelectionLayer hasClip={hasClip} scale={view.scale} bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
+    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={(box, text) => textApi.current.commit(box, text)} onType={(box, text) => textApi.current.type(box, text)} selected={view.ids} drag={view.drag} onPatch={(box, patch) => textApi.current.patch(box, patch)} onDelete={box => textApi.current.remove(box)} />
+    {props.tool === 'select' && <InkSelectionLayer hasClip={hasClip} scale={view.scale} drag={view.drag} bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
       onDelete={() => api.current.deleteSelection()} onCopy={() => api.current.copySelection()} onCut={() => api.current.cutSelection()}
       onPaste={() => api.current.paste()} onDuplicate={() => api.current.duplicateSelection()} onRecolor={color => api.current.recolorSelection(color)} />}
   </div>;

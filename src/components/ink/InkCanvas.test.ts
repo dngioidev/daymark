@@ -560,11 +560,57 @@ it('dragging the width handle of an open box sets its width, which is saved and 
   pointer(handle as unknown as HTMLCanvasElement, 'pointermove', { clientX: 310, clientY: 20 });
   pointer(handle as unknown as HTMLCanvasElement, 'pointerup', { clientX: 310, clientY: 20 });
   expect(host.querySelector('textarea')).toBe(input);
-  expect(input.style.width).toBe('30%');
+  expect(host.querySelector<HTMLElement>('[data-ink-text-editor]')!.style.width).toBe('30%');
   const later = Date.now() + 401; vi.spyOn(Date, 'now').mockReturnValue(later);
   act(() => input.blur());
   expect(lastPage(onChange).strokes.at(-1)).toMatchObject({ text: 'Narrow', boxWidth: 300 });
   expect(host.querySelector<HTMLElement>('[data-ink-text]')!.style.width).toBe('30%');
+});
+it('a dragged selection follows the pen live, hides its action bar, and lands on release', () => {
+  const { canvas, onChange } = mount({ page: linePage(), tool: 'select' });
+  loop(canvas);
+  const live = host.querySelector<HTMLCanvasElement>('[data-ink-live]')!;
+  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50 });
+  pointer(canvas, 'pointermove', { clientX: 100, clientY: 70 });
+  expect(live.style.transform).toBe('translate(50px, 20px) scale(1)');
+  expect(onChange).not.toHaveBeenCalled();
+  expect(host.querySelector('[aria-label="Selection actions"]')).toBeNull();
+  pointer(canvas, 'pointerup', { clientX: 100, clientY: 70 });
+  expect(live.style.transform).toBe('');
+  expect(decodePoints(visibleStrokes(lastPage(onChange))[0].points)[0]).toMatchObject({ x: 80, y: 50 });
+  expect(host.querySelector('[aria-label="Selection actions"]')).not.toBeNull();
+});
+it('the text box bar changes size and colour without closing the box, and they are saved', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { clientX: 100, clientY: 200 }); pointer(canvas, 'pointerup', { clientX: 100, clientY: 200 });
+  const input = host.querySelector('textarea')!;
+  type(input, 'Big');
+  const bar = host.querySelector('[role=toolbar][aria-label="Text box"]')!;
+  act(() => bar.querySelector<HTMLButtonElement>('[aria-label="Larger text"]')!.click());
+  act(() => bar.querySelector<HTMLButtonElement>('[aria-label="Larger text"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label^="Text color"]:not([aria-pressed="true"])')!.click());
+  expect(host.querySelector('textarea')).toBe(input);
+  expect(document.activeElement).toBe(input);
+  expect(host.querySelector('[aria-label="Text size 28"]')).not.toBeNull();
+  const later = Date.now() + 401; vi.spyOn(Date, 'now').mockReturnValue(later);
+  act(() => input.blur());
+  const saved = lastPage(onChange).strokes.at(-1)!;
+  expect(saved).toMatchObject({ text: 'Big', fontSize: 28 });
+  expect(saved.color).not.toBe('#1c1917');
+});
+it('the left handle moves the box start and keeps its right edge; delete removes an existing box', () => {
+  const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', boxWidth: 300, points: encodePoints([{ x: 100, y: 200, p: 0.5 }]) }] };
+  const { onChange } = mount({ page, tool: 'text' });
+  const shown = host.querySelector<HTMLElement>('[data-ink-text]')! as unknown as HTMLCanvasElement;
+  pointer(shown, 'pointerdown'); pointer(shown, 'pointerup');
+  const left = host.querySelector<HTMLElement>('[aria-label="Text box left edge"]')! as unknown as HTMLCanvasElement;
+  pointer(left, 'pointerdown', { clientX: 100 }); pointer(left, 'pointerup', { clientX: 50 });
+  const editor = host.querySelector<HTMLElement>('[data-ink-text-editor]')!;
+  expect([editor.style.left, editor.style.width]).toEqual(['5%', '35%']);
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Delete text box"]')!.click());
+  expect(host.querySelector('textarea')).toBeNull();
+  const last = lastPage(onChange);
+  expect(last.strokes.filter(s => s.text !== undefined && !last.removed.includes(s.id))).toEqual([]);
 });
 it('changing only the width of an existing box saves it, keeping its size', () => {
   const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', fontSize: 32, points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
@@ -681,8 +727,8 @@ it('text drag returning to its start does not place a box; empty blur cancels a 
 it('select moves a text-only selection and undo restores its text and anchor', () => {
   const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
   const { canvas, onChange, ref } = mount({ page, tool: 'select' }); loop(canvas);
-  pointer(canvas, 'pointerdown', { clientX: 70, clientY: 60 });
-  pointer(canvas, 'pointermove', { clientX: 170, clientY: 160 }); pointer(canvas, 'pointerup', { clientX: 170, clientY: 160 });
+  pointer(canvas, 'pointerdown', { clientX: 78, clientY: 62 });
+  pointer(canvas, 'pointermove', { clientX: 178, clientY: 162 }); pointer(canvas, 'pointerup', { clientX: 178, clientY: 162 });
   let visible = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
   expect(visible).toHaveLength(1); expect(visible[0].text).toBe('hello');
   expect(decodePoints(visible[0].points)[0]).toMatchObject({ x: 150, y: 150 });

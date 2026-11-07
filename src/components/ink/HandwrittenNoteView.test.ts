@@ -197,7 +197,7 @@ describe('writing on any device', () => {
   it('without a pen, the Text tool is available and a mouse tap creates a text box', () => {
     const update = mount(); choose('Text');
     pointer('pointerdown', 'mouse'); pointer('pointerup', 'mouse');
-    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text box"]');
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text box text"]');
     expect(input).not.toBeNull();
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 401);
     act(() => { input!.value = 'hello'; input!.dispatchEvent(new Event('input', { bubbles: true })); input!.blur(); });
