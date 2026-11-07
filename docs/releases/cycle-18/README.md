@@ -7,7 +7,7 @@ Date: 2026-11-07 · Branch: `cycle-18-tags-suggestions-help` · Tag: none
 ## What shipped
 - **Tags:**
   - Type `#project` or `#project/daymark` in a note; frontmatter `tags:` counts too.
-  - `#` inside code, links, URLs and headings, and `#123`, is not a tag.
+  - `#` inside code, links, URLs, headings and HTML, `#123`, and hex colours such as `#ffcc00` are not tags.
   - Tags show as chips in the rich editor; clicking one filters Notes by that tag.
 - **Tags section and filter:**
   - A Tags section under the folder tree shows counts and indents nested tags.
@@ -16,6 +16,7 @@ Date: 2026-11-07 · Branch: `cycle-18-tags-suggestions-help` · Tag: none
   - The Tag filter lists the real tags and keeps nested ones.
   - Tag lines join notes sharing a tag, in any letter case.
   - Handwritten text-box tags take part.
+  - Link always writes into the typed note, and is hidden between two handwritten notes.
 - **Handwritten notes:**
   - Text-box text and `#tags` feed search, Graph and Related.
   - More note actions → Tags… sets tags without a text box.
@@ -57,15 +58,24 @@ The in-app guide screenshots live in [docs/guide/images](../../guide/images/).
 | Run | Result |
 | :--- | :--- |
 | `npm run lint` | pass |
-| `npm test` | 178 files, 2284 passed, 1 skipped |
+| `npm test` | 178 files, 2295 passed, 1 skipped |
 | `npm run test:helpers` | 39 passed (guide format, shipped topics and screenshots, site build) |
 | `npm run build` | pass |
 | `npm run test:e2e` | 56 checks pass. The 9 new ones: Tags section, tag chip, `#project` filter, Related reason, Graph tag filter, Graph tag line, `?` opens Help, Help search, Show me |
 | `npm run test:sync` | 56 checks pass |
 | Markdown audit (`vitest.markdown-audit.config.ts`) | 372 passed, 0 failures, including the new tag fixture |
 | `npm run validate:ai` | pass |
+| `npm run test:qa -- C10-H1` and `-- C11-Help` | pass, after pointing both at the new Help view |
+| Whole-branch review (fresh reviewer) | 0 critical, 4 important, all fixed with tests that failed first. A fifth finding was also fixed: tag lists were rebuilt on every pen stroke |
 
 ## Known gaps
+- Deferred from review:
+  - A guide value that starts with "s" right after the colon, with no space (`show:search`), loses that letter.
+  - Clicking a tag chip always opens the tag list, so you cannot click into it to edit.
+  - A tag on most notes fills the strong suggestions for those notes.
+  - `_#em_` is not read as a tag.
+  - Help does not re-layout on rotate until it re-renders.
+- Global Search (Ctrl/⌘ Shift F) does not include handwritten text-box text or stored tags. Notes search does.
 - Old sample tags stored on typed notes cannot be removed from the app; only handwritten notes have a Tags… field.
 - No tag chips in Markdown preview, because typed notes have no separate preview screen.
 - Found, not fixed: opening a note in the rich editor rewrites a bare URL as a Markdown link to itself. This predates Cycle 18; the tag fixture uses a Markdown link instead.
