@@ -1,4 +1,5 @@
 import type { StandaloneNote } from '../types/daymark';
+import { maskCode } from './markdownMask';
 
 // Fixed field weights keep titles strongest without drowning out body overlap.
 const FIELD_WEIGHT = { title: 3, tags: 2, body: 1 };
@@ -23,32 +24,6 @@ const titleKey = (title: string): string => title.trim().toLowerCase();
 const normalize = (text: string): string => text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
 const words = (text: string): string => (normalize(text).match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
 const compare = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0;
-
-/** Mask rather than remove code so section offsets still address the original bytes. */
-function maskCode(markdown: string): string {
-  let fence: { char: string; length: number } | undefined;
-  let indented = false;
-  let previousBlank = true;
-  const masked = markdown.replace(/[^\n]*(?:\n|$)/g, line => {
-    const opening = /^ {0,3}(`{3,}|~{3,})(.*)/.exec(line);
-    if (fence) {
-      if (opening && opening[1][0] === fence.char && opening[1].length >= fence.length && !opening[2].trim()) fence = undefined;
-      return line.replace(/[^\r\n]/g, ' ');
-    }
-    if (opening) {
-      fence = { char: opening[1][0], length: opening[1].length };
-      return line.replace(/[^\r\n]/g, ' ');
-    }
-    if (/^(?: {4}|\t)/.test(line) && (indented || previousBlank)) {
-      indented = true;
-      return line.replace(/[^\r\n]/g, ' ');
-    }
-    previousBlank = !line.trim();
-    if (!previousBlank) indented = false;
-    return line;
-  });
-  return masked.replace(/(`+)[\s\S]*?\1(?!`)/g, code => code.replace(/[^\r\n]/g, ' '));
-}
 
 /** Trimmed raw bracket text, including #/| suffixes; consumers resolve raw first. */
 export function extractWikiTargets(markdown: string): string[] {
