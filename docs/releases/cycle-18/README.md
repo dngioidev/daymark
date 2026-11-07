@@ -1,8 +1,8 @@
 # Cycle 18: Tags, Related suggestions and Help
 
-Date: 2026-11-07 · Branch: `cycle-18-tags-suggestions-help` · Tag: none
+Date: 2026-11-07 · Branch: `cycle-18-tags-suggestions-help` · Release: 1.12.0 (tag `v1.12.0`)
 
-`#tags` now work everywhere the app reads tags, Related suggestions show up for short English notes and say why, and Help is a full-size page. Spec and record: [design](../../superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md), [plan](../../superpowers/plans/2026-11-07-cycle-18-tags-suggestions-help.md). Not released, tagged or pushed.
+`#tags` now work everywhere the app reads tags, Related suggestions show up for short English notes and say why, and Help is a full-size page. Spec and record: [design](../../superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md), [plan](../../superpowers/plans/2026-11-07-cycle-18-tags-suggestions-help.md). Released in Daymark 1.12.0.
 
 ## What shipped
 - **Tags:**
@@ -86,4 +86,4 @@ The in-app guide screenshots live in [docs/guide/images](../../guide/images/).
 Actual session and token totals are unavailable to this runtime.
 
 ## Next
-Publishing a release with Cycles 17 and 18 is a separate decision: [ROADMAP](../../ROADMAP.md).
+Cycles 17 and 18 shipped together in Daymark 1.12.0. Named connections are next when tags have been used for a while: [ROADMAP](../../ROADMAP.md).

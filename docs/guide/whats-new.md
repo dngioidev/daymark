@@ -7,7 +7,7 @@ show: notes-tags
 related: tags, related-and-graph, handwriting
 ---
 ## Web
-**Next release:**
+**Daymark 1.12:**
 
 1. **Tags.** Type `#word` in a note to tag it. Tags are listed in the Tags section under the folder tree.
 2. **Related explains itself.** Each suggestion says what the notes share, and weaker matches appear under Possibly related.
@@ -15,7 +15,7 @@ related: tags, related-and-graph, handwriting
 4. **Full screen** for every note, with Ctrl/⌘ + . on the keyboard.
 5. **Handwriting:** select and move ink, text boxes you can type into, and shapes that tidy themselves.
 ## Tablet
-**Next release:**
+**Daymark 1.12:**
 
 1. **Tags.** Write `#word` in a note or a text box to tag it, and browse them in the Tags section.
 2. **Related explains itself** and adds a Possibly related group.
@@ -23,7 +23,7 @@ related: tags, related-and-graph, handwriting
 4. **S Pen button erases** while you hold it.
 5. **Select, text boxes and shapes** for handwritten notes.
 ## Phone
-**Next release:**
+**Daymark 1.12:**
 
 1. **Tags.** Type `#word` in a note to tag it; open the Tags section in Notes to browse them.
 2. **Related explains itself** and adds a Possibly related group.

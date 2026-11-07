@@ -1,8 +1,8 @@
 # Cycle 17: Pen writing and full screen
 
-Date: 2026-11-07 · Branch: `cycle-17-pen-writing` · Tag: none
+Date: 2026-11-07 · Branch: `cycle-17-pen-writing` · Release: 1.12.0 (tag `v1.12.0`)
 
-Better tablet writing and a clean full screen for every note. Spec and record: [design](../../superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [plan](../../superpowers/plans/2026-11-06-cycle-17-pen-writing-fullscreen.md), [S Pen side button finding](./spen-button.md). Not released, tagged or pushed.
+Better tablet writing and a clean full screen for every note. Spec and record: [design](../../superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [plan](../../superpowers/plans/2026-11-06-cycle-17-pen-writing-fullscreen.md), [S Pen side button finding](./spen-button.md). Released in Daymark 1.12.0.
 
 ## What shipped
 - **Full screen** for typed and handwritten notes on desktop, tablet and phone: the title, folder picker, Related and footer are hidden; Esc, Exit or Android Back leaves it. Handwritten notes get a dark **side rail** (left or right) that clears the Android status bar.
@@ -43,4 +43,4 @@ Captured with `node scripts/capture-screenshots.mjs cycle-17` on a disposable se
 Actual session and token totals are unavailable to this runtime.
 
 ## Next cycle
-[Cycle 18: tags, suggestions and Help](../../superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). Publishing a release with Cycle 17 is a separate decision: [ROADMAP](../../ROADMAP.md).
+[Cycle 18: tags, suggestions and Help](../../superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). Cycles 17 and 18 shipped together in Daymark 1.12.0: [ROADMAP](../../ROADMAP.md).

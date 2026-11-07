@@ -4,7 +4,7 @@ Goal: Android user first, then self-hosted app, then everything else. Each cycle
 
 ## Cycles 17 and 18: Pen writing, tags, Related and Help
 
-**Status: executed, not released or tagged.** Cycle 17 added full screen, the S Pen side button, select, text boxes and shapes ([report](./releases/cycle-17/README.md)). Cycle 18 made `#tags` real tags with a Tags section and Graph tag view, made Related suggestions appear with their reasons, and replaced the Settings Help with a full-size, searchable Help ([report](./releases/cycle-18/README.md)). Specs and plans: [Cycle 17](./superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [Cycle 18](./superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). **Deferred:** named connections (`Depends on: [[Note]]`), until tags have been used for a while. Publishing a version remains a separate decision.
+**Status: released in 1.12.0 (tag `v1.12.0`).** Cycle 17 added full screen, the S Pen side button, select, text boxes and shapes ([report](./releases/cycle-17/README.md)). Cycle 18 made `#tags` real tags with a Tags section and Graph tag view, made Related suggestions appear with their reasons, and replaced the Settings Help with a full-size, searchable Help ([report](./releases/cycle-18/README.md)). Specs and plans: [Cycle 17](./superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [Cycle 18](./superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). **Deferred:** named connections (`Depends on: [[Note]]`), until tags have been used for a while.
 
 ## Cycles 15 and 16: Markdown rendering audit and fixes
 
