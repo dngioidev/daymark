@@ -40,7 +40,7 @@ export function RelatedContents({ suggestions, possible = [], canLink = true, li
   return <div className="space-y-4 p-3 text-sm text-stone-900 dark:text-stone-100">
     <section aria-label="Suggested notes">
       <h3 className="font-semibold">Suggested</h3>
-      {!suggestions.length && !possible.length && <p className="py-2 text-stone-600 dark:text-stone-400">No suggestions yet.</p>}
+      {!suggestions.length && <p className="py-2 text-stone-600 dark:text-stone-400">{possible.length ? 'No strong matches yet.' : 'No suggestions yet.'}</p>}
       <ul className="space-y-3">{suggestions.map(item)}</ul>
     </section>
     {possible.length > 0 && <section aria-label="Possibly related notes" className="border-t border-stone-200 dark:border-stone-800 pt-3">

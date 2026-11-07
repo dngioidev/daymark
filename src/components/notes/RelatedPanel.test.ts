@@ -80,3 +80,9 @@ it('offers Open and Not related but no Link when the open note cannot hold links
   expect(html.match(/Not related/g)).toHaveLength(2);
   expect(renderToStaticMarkup(React.createElement(RelatedPanel, { ...props, suggestions: [], possible: [], canLink: false }))).toContain('No suggestions yet.');
 });
+it('says there are no strong matches when only Possibly related has entries', () => {
+  const html = renderToStaticMarkup(React.createElement(RelatedPanel, { ...props, suggestions: [],
+    possible: [{ noteId: 'f', score: 0.08, sharedTerms: ['a', 'b'], sharedTags: [], note: note('f') }] }));
+  expect(html).toContain('No strong matches yet.');
+  expect(html).not.toContain('No suggestions yet.');
+});

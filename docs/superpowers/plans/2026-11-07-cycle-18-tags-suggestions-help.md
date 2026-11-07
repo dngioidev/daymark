@@ -88,7 +88,7 @@ These failure modes are implied by the spec but easy to miss. Each one's test is
   expect(extractTags('\\#project at line start')).toEqual(['project']);        // rich-editor escape
   expect(extractTags('# Title\n## Sub\n#123 #1a')).toEqual([]);                 // headings, digits first
   expect(extractTags('`#code` and\n```\n#fenced\n```\n')).toEqual([]);
-  expect(extractTags('https://x.dev/#frag www.y.com/#a [see](#intro) [#text](u) [[Note#Heading]] &#123; <!-- #c -->')).toEqual([]);
+  expect(extractTags('https://x.dev/#frag www.y.com/#a [see](#intro) [#text](https://u.dev) [[Note#Heading]] &#123; <!-- #c -->')).toEqual([]);
   expect(extractTags('a#b mid-word, end #trail- #ok/')).toEqual(['trail', 'ok']); // needs boundary; trailing -,/ trimmed
   expect(extractTags('#lập-trình')).toEqual(['lập-trình']);                     // unicode letters
   expect(extractTags('---\ntags: [alpha, Beta]\n---\nbody #beta #gamma')).toEqual(['alpha', 'Beta', 'gamma']);
@@ -322,7 +322,7 @@ These failure modes are implied by the spec but easy to miss. Each one's test is
   ```js
   ['today', 'quick-capture', 'calendar', 'backlog', 'notes', 'notes-tags', 'notes-graph', 'search', 'settings-appearance', 'settings-sync', 'settings-storage', 'settings-widget']
   ```
-- **Screenshot syntax:** a line `![alt](images/<name>.png)` inside a section. A sibling `<name>-dark.png` is optional.
+- **Screenshot syntax:** a Markdown image line on its own, with alt text and the path `images/<name>.png`, inside a section. A sibling `<name>-dark.png` is optional.
 - `shortcuts.md` Web lists every shortcut that `ShortcutHelp.tsx` lists today, in a Markdown table, before that dialog is removed in Task 7.
 
 - [ ] **Step 1: Write the failing tests** in `guide.test.mjs`:

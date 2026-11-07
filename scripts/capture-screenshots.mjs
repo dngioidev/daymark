@@ -31,7 +31,8 @@ const PORT = 3100;
 const password = externalUrl ? process.env.DAYMARK_PASSWORD : 'screenshots-password-123';
 if (!password) throw new Error('Set DAYMARK_PASSWORD to sign in to --url');
 const baseUrl = externalUrl || `http://localhost:${PORT}`;
-const outDir = path.resolve('docs', 'releases', cycle, 'images');
+// `guide` writes the in-app Help screenshots next to the guide source.
+const outDir = cycle === 'guide' ? path.resolve('docs', 'guide', 'images') : path.resolve('docs', 'releases', cycle, 'images');
 fs.mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = {
@@ -285,7 +286,103 @@ const cycle17Typed = then(async page => {
   await page.getByRole('button', { name: 'Full screen', exact: true }).click();
   await page.getByRole('button', { name: 'Exit full screen', exact: true }).waitFor();
 });
+// Cycle 18 and the in-app guide: tagged project notes and two short notes that are Possibly related.
+const cycle18Vault = (today) => {
+  const vault = cycle11Vault(today);
+  const stamp = (hour) => `${today}T1${hour}:00:00Z`;
+  const note = (id, title, folder, content, hour) => ({ id, title, folder, content, tags: [], pinned: false, createdAt: stamp(hour), updatedAt: stamp(hour) });
+  vault.notes.push(
+    note('c18-kickoff', 'Daymark kickoff', 'Projects/Daymark', '# Daymark kickoff\n\nAgree the scope for tags and the new Help. #project/daymark #planning\n\nNext: [[Budget review]]', 1),
+    note('c18-budget', 'Budget review', 'Projects/Daymark', '# Budget review\n\nHosting for the sync server stays under ten dollars a month. #project/daymark', 2),
+    note('c18-launch', 'Launch checklist', 'Projects/Daymark', '# Launch checklist\n\n- [ ] Screenshots\n- [ ] Release notes\n\n#project/daymark #release', 3),
+    note('c18-sync-a', 'Weekend thoughts', '', 'The sync conflict showed again on the tablet.', 4),
+    note('c18-sync-b', 'Bug list', '', 'Conflict after sync, phone lost an edit.', 5),
+  );
+  return vault;
+};
+const cycle18Open = async (page, title) => {
+  await openNotes(page);
+  // Notes inside collapsed folders are found through the Notes search box.
+  await page.getByRole('searchbox', { name: 'Search notes' }).fill(title);
+  await page.getByRole('treeitem', { name: new RegExp(`^${title}`) }).first().click();
+  await page.getByRole('button', { name: 'Clear search' }).click().catch(() => {});
+};
+const cycle18Tags = then(async page => {
+  await openNotes(page);
+  await page.getByRole('region', { name: 'Tags', exact: true }).getByRole('button', { name: /^#project,/ }).click();
+  await page.getByRole('treeitem', { name: /^Daymark kickoff/ }).first().click();
+  await page.getByRole('complementary', { name: 'Related panel', exact: true }).getByRole('button', { name: 'Link', exact: true }).first().waitFor({ timeout: 15000 });
+  await page.mouse.move(5, 895);
+});
+const cycle18Chips = then(async page => {
+  await cycle18Open(page, 'Daymark kickoff');
+  await page.locator('.dm-tag').first().waitFor();
+  await page.getByRole('complementary', { name: 'Related panel', exact: true }).getByRole('button', { name: 'Link', exact: true }).first().waitFor({ timeout: 15000 });
+});
+const cycle18Related = then(async page => {
+  await cycle18Open(page, 'Weekend thoughts');
+  await page.getByRole('region', { name: 'Possibly related notes' }).or(page.locator('[aria-label="Possibly related notes"]')).first().waitFor({ timeout: 15000 });
+});
+const cycle18Linking = then(async page => {
+  await cycle18Open(page, 'Launch checklist');
+  const editor = page.getByRole('textbox', { name: 'Note rich text', exact: true });
+  await editor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' [[Bud');
+  await page.waitForTimeout(600);
+});
+const cycle18Graph = then((page) => page.emulateMedia({ reducedMotion: 'reduce' }), async page => {
+  await cycle18Open(page, 'Daymark kickoff');
+  await page.getByRole('radio', { name: 'Graph', exact: true }).click();
+  await page.getByRole('img', { name: /^Knowledge graph:/ }).waitFor();
+  await page.getByText('Finding suggestions…').waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
+  // Show the tag view: faint tag lines, filtered to #project and its nested tags.
+  await page.getByRole('checkbox', { name: 'Tag lines', exact: true }).check();
+  await page.getByRole('combobox', { name: 'Tag', exact: true }).selectOption('project');
+  await page.waitForTimeout(800);
+});
+const cycle18FirstTask = then(async page => {
+  await page.keyboard.press('Control+k');
+  await page.keyboard.type('Water the plants');
+  await page.keyboard.press('Enter');
+  await page.mouse.move(700, 880);
+  // Settings (opened to choose the theme) hands focus back to its rail button; drop it so no tooltip shows.
+  await page.evaluate(() => (document.activeElement)?.blur?.());
+  await page.waitForTimeout(500);
+});
+const cycle18Help = (topic, { search, platform, list } = {}) => then(async page => {
+  const rail = page.getByRole('button', { name: 'Help', exact: true });
+  if (await rail.count()) await rail.first().click(); else await page.keyboard.press('?');
+  const help = page.getByRole('dialog', { name: 'Help', exact: true });
+  await help.waitFor();
+  if (list) { await help.getByRole('button', { name: 'All topics' }).click().catch(() => {}); return; }
+  if (search) {
+    await help.getByRole('searchbox', { name: 'Search help' }).fill(search);
+    await help.getByRole('navigation', { name: 'Help topics' }).getByRole('button').first().click();
+  }
+  if (topic) await help.getByRole('navigation', { name: 'Help topics' }).getByRole('button', { name: topic, exact: true }).click();
+  if (platform) await help.getByRole('group', { name: 'Help platform' }).getByRole('button', { name: platform, exact: true }).click();
+});
 const SHOTS = [
+  // In-app guide screenshots (node scripts/capture-screenshots.mjs guide -> docs/guide/images)
+  { name: 'first-task', viewport: 'desktop', cycles: ['guide'], prepare: cycle18FirstTask },
+  { name: 'tags', viewport: 'desktop', cycles: ['guide'], prepare: cycle18Tags },
+  { name: 'tags-dark', viewport: 'desktop', dark: true, cycles: ['guide'], prepare: cycle18Tags },
+  { name: 'linking', viewport: 'desktop', cycles: ['guide'], prepare: cycle18Linking },
+  { name: 'related', viewport: 'desktop', cycles: ['guide'], prepare: cycle18Related },
+  { name: 'related-dark', viewport: 'desktop', dark: true, cycles: ['guide'], prepare: cycle18Related },
+  { name: 'graph', viewport: 'tablet', cycles: ['guide'], prepare: cycle18Graph },
+  { name: 'handwriting-rail', viewport: 'tablet', cycles: ['guide'], prepare: cycle17FullScreen },
+  // Cycle 18 release
+  { name: 'tags-section', viewport: 'desktop', cycles: ['cycle-18'], prepare: cycle18Tags },
+  { name: 'tag-chips', viewport: 'desktop', cycles: ['cycle-18'], prepare: cycle18Chips },
+  { name: 'related-reasons', viewport: 'desktop', cycles: ['cycle-18'], prepare: cycle18Related },
+  { name: 'graph-tags', viewport: 'tablet', cycles: ['cycle-18'], prepare: cycle18Graph },
+  { name: 'help-desktop', viewport: 'desktop', cycles: ['cycle-18'], prepare: cycle18Help('Tags') },
+  { name: 'help-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-18'], prepare: cycle18Help('Tags') },
+  { name: 'help-search', viewport: 'desktop', cycles: ['cycle-18'], prepare: cycle18Help(null, { search: 'link notes' }) },
+  { name: 'help-phone', viewport: 'android', cycles: ['cycle-18'], prepare: cycle18Help(null, { list: true }) },
+  { name: 'help-tablet', viewport: 'tablet', cycles: ['cycle-18'], prepare: cycle18Help('Handwriting and pen', { platform: 'Tablet' }) },
   { name: 'fullscreen-rail', viewport: 'tablet', cycles: ['cycle-17'], prepare: cycle17FullScreen },
   { name: 'fullscreen-rail-dark', viewport: 'tablet', dark: true, cycles: ['cycle-17'], prepare: cycle17FullScreen },
   { name: 'fullscreen-portrait', viewport: 'tabletPortrait', cycles: ['cycle-17'], prepare: cycle17FullScreen },
@@ -507,7 +604,9 @@ try {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
-      if (cycle === 'cycle-14') {
+      if (cycle === 'cycle-18' || cycle === 'guide') {
+        await seedVault(page, baseUrl, cycle18Vault(today));
+      } else if (cycle === 'cycle-14') {
         await seedVault(page, baseUrl, { notes: [{ id: 'cycle14-reading', title: 'Study reading', content: 'Study these words today', folder: '', tags: [], pinned: false, createdAt: today + 'T08:00:00Z', updatedAt: today + 'T08:00:00Z' }] });
       } else if (cycle === 'cycle-7') {
         await seedVault(page, baseUrl, cycle7Fixture(today));

@@ -2,6 +2,10 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
+## Cycles 17 and 18: Pen writing, tags, Related and Help
+
+**Status: executed, not released or tagged.** Cycle 17 added full screen, the S Pen side button, select, text boxes and shapes ([report](./releases/cycle-17/README.md)). Cycle 18 made `#tags` real tags with a Tags section and Graph tag view, made Related suggestions appear with their reasons, and replaced the Settings Help with a full-size, searchable Help ([report](./releases/cycle-18/README.md)). Specs and plans: [Cycle 17](./superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [Cycle 18](./superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). **Deferred:** named connections (`Depends on: [[Note]]`), until tags have been used for a while. Publishing a version remains a separate decision.
+
 ## Cycles 15 and 16: Markdown rendering audit and fixes
 
 **Status: executed, not released or tagged.** Cycle 15 audited all Markdown families on the 1.11.1 baseline (testing only) and confirmed defects D1–D7 ([ledger](./testing/markdown-rendering.md), [report](./releases/cycle-15/README.md)). Cycle 16 fixed D1–D6 and reclassified D7; the audit suites and the six-configuration browser matrix now pass ([report](./releases/cycle-16/README.md)). Specs and plans: [Cycle 15](./superpowers/specs/2026-11-03-cycle-15-markdown-rendering-design.md), [Cycle 16](./superpowers/specs/2026-11-06-cycle-16-markdown-fixes-design.md). Actual session and token totals are unavailable to this runtime. Publishing a version remains a separate decision.

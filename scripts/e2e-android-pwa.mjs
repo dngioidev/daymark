@@ -120,6 +120,59 @@ async function writingScenarios(browser) {
   }
 }
 
+// Cycle 18: #tags in two notes feed the Tags section, the filter, Graph and Related; Help opens, searches and shows.
+async function tagAndHelpScenarios(browser) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    await signIn(context, base, 'e2e-password-123');
+    const page = await context.newPage();
+    await page.goto(base, { waitUntil: 'networkidle' });
+    await openNotes(page);
+    for (const [title, body] of [['Cycle 18 alpha', 'Kickoff for the garden plan #project'], ['Cycle 18 beta', 'Budget for seeds and soil #project']]) {
+      await page.getByRole('button', { name: 'New note', exact: true }).first().click();
+      await page.getByRole('textbox', { name: 'Title', exact: true }).fill(title);
+      await page.getByRole('textbox', { name: 'Note rich text', exact: true }).fill(body);
+      await page.waitForTimeout(400);
+    }
+    const tags = page.getByRole('region', { name: 'Tags', exact: true });
+    const tag = tags.getByRole('button', { name: '#project, 2 notes', exact: true });
+    await tag.waitFor({ timeout: 10000 }).catch(() => {});
+    check(await tag.isVisible(), 'Tags section lists #project with 2 notes');
+    check(await page.locator('.dm-tag[data-tag="project"]').first().isVisible(), 'rich editor shows #project as a chip');
+    await tag.click();
+    check(await page.getByRole('searchbox', { name: 'Search notes' }).inputValue() === '#project' && await page.getByText('2 notes match').isVisible(), 'choosing the tag filters Notes to 2 notes');
+    const related = page.getByRole('complementary', { name: 'Related panel', exact: true });
+    const suggestion = related.getByRole('button', { name: 'Cycle 18 alpha', exact: true });
+    await suggestion.waitFor({ timeout: 10000 }).catch(() => {});
+    check(await suggestion.isVisible() && await related.getByText('shares: #project').isVisible(), 'Related suggests the other #project note and says why');
+    await page.getByRole('radio', { name: 'Graph', exact: true }).click();
+    const graph = page.getByRole('img', { name: /^Knowledge graph:/ });
+    await graph.waitFor();
+    const tagSelect = page.getByRole('combobox', { name: 'Tag', exact: true });
+    check((await tagSelect.locator('option').allTextContents()).includes('project'), 'Graph tag filter lists project');
+    await page.getByRole('checkbox', { name: 'Suggestions', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Tag lines', exact: true }).check();
+    await tagSelect.selectOption('project');
+    await page.waitForTimeout(500);
+    check(/2 notes, 1 connections?/.test(await graph.getAttribute('aria-label') ?? ''), 'Graph draws a tag line between the two #project notes', await graph.getAttribute('aria-label'));
+    await page.getByRole('radio', { name: 'List', exact: true }).click();
+    await page.locator('body').click({ position: { x: 5, y: 890 } });
+    await page.keyboard.press('?');
+    const help = page.getByRole('dialog', { name: 'Help', exact: true });
+    await help.waitFor({ timeout: 5000 }).catch(() => {});
+    check(await help.isVisible() && await help.getByRole('heading', { name: 'Shortcuts and gestures' }).isVisible(), '? opens Help at Shortcuts');
+    await help.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Help', exact: true }).click();
+    await help.getByRole('searchbox', { name: 'Search help' }).fill('tags');
+    const first = help.getByRole('navigation', { name: 'Help topics' }).getByRole('button').first();
+    check(await first.textContent() === 'Tags', 'Help search finds Tags first');
+    await first.click();
+    await help.getByRole('button', { name: 'Show me', exact: true }).click();
+    await help.waitFor({ state: 'detached' });
+    check(await tags.isVisible() && await tags.evaluate(el => el.contains(document.activeElement)), 'Show me opens Notes with the Tags section focused');
+  } finally { await context.close(); }
+}
+
 const noShots = process.argv.includes('--no-shots');
 const cycle = process.argv.slice(2).find((a) => !a.startsWith('--')) || 'cycle-1';
 const PORT = 3101;
@@ -244,6 +297,7 @@ try {
   await page.getByPlaceholder(/what do you need to do/i).waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   check(await page.getByPlaceholder(/what do you need to do/i).isVisible().catch(() => false), 'shortcut ?action=capture opens quick capture');
   await writingScenarios(browser);
+  await tagAndHelpScenarios(browser);
 } catch (err) {
   console.error('E2E aborted:', err);
   failures++;

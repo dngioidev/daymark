@@ -49,7 +49,7 @@ test('every shipped guide topic has a summary, numbered steps on every platform 
   }
 });
 
-test('every screenshot a guide topic references exists', { skip: 'TODO(task 8): guide screenshots are generated in Task 8' }, async () => {
+test('every screenshot a guide topic references exists', async () => {
   const { loadGuide, guideImages } = await import('./guide.mjs');
   const topics = loadGuide(new URL('../../docs/guide/', import.meta.url));
   const names = topics.flatMap(t => [t.web, t.tablet, t.phone].flatMap(guideImages));
