@@ -549,6 +549,48 @@ it('typed text saves when another tool is picked while the box is open', () => {
   expect(host.querySelector('textarea')).toBeNull();
 });
 
+it('dragging the width handle of an open box sets its width, which is saved and shown', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { clientX: 10, clientY: 10 }); pointer(canvas, 'pointerup', { clientX: 10, clientY: 10 });
+  const input = host.querySelector('textarea')!;
+  type(input, 'Narrow');
+  const handle = host.querySelector<HTMLElement>('[aria-label="Text box width"]')!;
+  expect(handle).not.toBeNull();
+  pointer(handle as unknown as HTMLCanvasElement, 'pointerdown', { clientX: 990, clientY: 20 });
+  pointer(handle as unknown as HTMLCanvasElement, 'pointermove', { clientX: 310, clientY: 20 });
+  pointer(handle as unknown as HTMLCanvasElement, 'pointerup', { clientX: 310, clientY: 20 });
+  expect(host.querySelector('textarea')).toBe(input);
+  expect(input.style.width).toBe('30%');
+  const later = Date.now() + 401; vi.spyOn(Date, 'now').mockReturnValue(later);
+  act(() => input.blur());
+  expect(lastPage(onChange).strokes.at(-1)).toMatchObject({ text: 'Narrow', boxWidth: 300 });
+  expect(host.querySelector<HTMLElement>('[data-ink-text]')!.style.width).toBe('30%');
+});
+it('changing only the width of an existing box saves it, keeping its size', () => {
+  const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', fontSize: 32, points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
+  const { onChange } = mount({ page, tool: 'text' });
+  const shown = host.querySelector<HTMLElement>('[data-ink-text]')!;
+  expect(shown.style.font).toContain('32px');
+  pointer(shown as unknown as HTMLCanvasElement, 'pointerdown'); pointer(shown as unknown as HTMLCanvasElement, 'pointerup');
+  const handle = host.querySelector<HTMLElement>('[aria-label="Text box width"]')!;
+  pointer(handle as unknown as HTMLCanvasElement, 'pointerdown', { clientX: 990 });
+  pointer(handle as unknown as HTMLCanvasElement, 'pointerup', { clientX: 250 });
+  const later = Date.now() + 401; vi.spyOn(Date, 'now').mockReturnValue(later);
+  act(() => host.querySelector('textarea')!.blur());
+  const saved = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
+  expect(saved).toMatchObject([{ text: 'hello', fontSize: 32, boxWidth: 200 }]);
+});
+it('a select-tool corner drag on a text box scales its text size', () => {
+  const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
+  const { canvas, onChange } = mount({ page, tool: 'select' });
+  loop(canvas);
+  pointer(canvas, 'pointerdown', { clientX: 105, clientY: 75 });
+  pointer(canvas, 'pointermove', { clientX: 160, clientY: 100 });
+  pointer(canvas, 'pointerup', { clientX: 160, clientY: 100 });
+  const saved = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
+  expect(saved).toMatchObject([{ text: 'hello', fontSize: 40 }]);
+});
+
 it.each(['pen', 'mouse', 'touch'])('edits an existing box with %s', pointerType => {
   const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
   mount({ page, tool: 'text' });
@@ -639,8 +681,8 @@ it('text drag returning to its start does not place a box; empty blur cancels a 
 it('select moves a text-only selection and undo restores its text and anchor', () => {
   const page = { ...blank(), strokes: [{ id: 'text', tool: 'pen' as const, width: 1, color: '#1c1917', createdAt: '', text: 'hello', points: encodePoints([{ x: 50, y: 50, p: 0.5 }]) }] };
   const { canvas, onChange, ref } = mount({ page, tool: 'select' }); loop(canvas);
-  pointer(canvas, 'pointerdown', { clientX: 50, clientY: 50 });
-  pointer(canvas, 'pointermove', { clientX: 150, clientY: 150 }); pointer(canvas, 'pointerup', { clientX: 150, clientY: 150 });
+  pointer(canvas, 'pointerdown', { clientX: 70, clientY: 60 });
+  pointer(canvas, 'pointermove', { clientX: 170, clientY: 160 }); pointer(canvas, 'pointerup', { clientX: 170, clientY: 160 });
   let visible = lastPage(onChange).strokes.filter(s => !lastPage(onChange).removed.includes(s.id));
   expect(visible).toHaveLength(1); expect(visible[0].text).toBe('hello');
   expect(decodePoints(visible[0].points)[0]).toMatchObject({ x: 150, y: 150 });

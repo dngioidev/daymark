@@ -154,6 +154,10 @@ export interface InkStroke {
   points: string;
   createdAt: string;
   text?: string;
+  /** Text boxes only: text size in page units (default TEXT_SIZE). */
+  fontSize?: number;
+  /** Text boxes only: wrap width in page units; unset runs to the page edge. */
+  boxWidth?: number;
 }
 
 export interface InkPage {

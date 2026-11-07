@@ -1,6 +1,6 @@
 import type { InkPage, InkStroke } from '../types/daymark';
 import { cacheStrokeGeometry, decodePoints, encodePoints, eraseStrokes, PAGE_HEIGHT, PAGE_WIDTH } from './inkModel';
-import { isTextBox } from './inkText';
+import { clampBoxWidth, clampTextSize, isTextBox, textBoxBounds, TEXT_SIZE } from './inkText';
 
 export type Loop = { x: number; y: number }[];
 export const LASSO_INSIDE_RATIO = 0.6; // share of a stroke's points inside the loop
@@ -45,8 +45,9 @@ export function lassoSelect(page: InkPage, loop: Loop): string[] {
 export function selectionBounds(page: InkPage, ids: string[]): { minX: number; minY: number; maxX: number; maxY: number } | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const stroke of selectedStrokes(page, ids)) {
-    const bounds = strokeGeometry(stroke);
-    if (!bounds.points.length) continue;
+    const geometry = strokeGeometry(stroke);
+    if (!geometry.points.length) continue;
+    const bounds = isTextBox(stroke) ? textBoxBounds(stroke) : geometry;
     minX = Math.min(minX, bounds.minX); minY = Math.min(minY, bounds.minY);
     maxX = Math.max(maxX, bounds.maxX); maxY = Math.max(maxY, bounds.maxY);
   }
@@ -59,7 +60,11 @@ function transformedStroke(stroke: InkStroke, t: Transform, id: string): InkStro
     y: Math.max(0, Math.min(PAGE_HEIGHT, t.originY + (point.y - t.originY) * t.scale + t.dy)),
     p: point.p,
   }));
-  return { ...stroke, id, points: encodePoints(points), width: isTextBox(stroke) ? 1 : stroke.width * t.scale };
+  if (!isTextBox(stroke)) return { ...stroke, id, points: encodePoints(points), width: stroke.width * t.scale };
+  const next: InkStroke = { ...stroke, id, points: encodePoints(points), width: 1 };
+  if (stroke.fontSize !== undefined || t.scale !== 1) next.fontSize = clampTextSize((stroke.fontSize ?? TEXT_SIZE) * t.scale);
+  if (stroke.boxWidth !== undefined) next.boxWidth = clampBoxWidth(stroke.boxWidth * t.scale, points[0].x);
+  return next;
 }
 
 function replaceStrokes(page: InkPage, ids: string[], replace: (stroke: InkStroke) => InkStroke, now: string): { page: InkPage; ids: string[] } {

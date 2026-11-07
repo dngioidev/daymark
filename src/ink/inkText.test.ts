@@ -4,7 +4,7 @@ import { isInkPage } from '../utils/vaultValidation';
 import { legacyEraseArea, legacyIsInkPage, legacyMergeInkPage } from './fixtures/legacyInk111';
 import { decodePoints, encodePoints, eraseArea, eraseStrokes, visibleStrokes } from './inkModel';
 import { drawPage, touchesStroke } from './inkRender';
-import { createTextBox, isTextBox, replaceTextBox, TEXT_BOX_MAX, textBoxAnchor, visibleTextBoxes } from './inkText';
+import { createTextBox, isTextBox, replaceTextBox, TEXT_BOX_MAX, TEXT_SIZE, TEXT_SIZE_MAX, textBoxAnchor, textBoxBounds, visibleTextBoxes } from './inkText';
 
 const before = '2026-11-06T01:00:00.000Z';
 const now = '2026-11-06T02:00:00.000Z';
@@ -17,6 +17,39 @@ const ink: InkStroke = {
   points: encodePoints([{ ...anchor, p: 0.5 }]), createdAt: before,
 };
 const box = () => createTextBox('hello\nworld', anchor, '#292524', 'box', before);
+
+describe('text box size', () => {
+  it('a new box has no size fields, so it uses the default size and runs to the page edge', () => {
+    expect(box()).not.toHaveProperty('fontSize'); expect(box()).not.toHaveProperty('boxWidth');
+    expect(TEXT_SIZE).toBe(20); expect(TEXT_SIZE_MAX).toBe(160);
+  });
+
+  it('stores a chosen size and width, and replacing keeps them unless changed', () => {
+    const sized = createTextBox('hi', anchor, '#292524', 'box', before, { fontSize: 32, boxWidth: 300 });
+    expect(sized).toMatchObject({ fontSize: 32, boxWidth: 300 });
+    const kept = replaceTextBox(page([sized]), 'box', { text: 'edited' }, 'next', now);
+    expect(visibleTextBoxes(kept)[0]).toMatchObject({ text: 'edited', fontSize: 32, boxWidth: 300 });
+    const wider = replaceTextBox(page([sized]), 'box', { boxWidth: 500 }, 'next', now);
+    expect(visibleTextBoxes(wider)[0]).toMatchObject({ text: 'hi', fontSize: 32, boxWidth: 500 });
+  });
+
+  it('estimates bounds from the text, its size and its width', () => {
+    expect(textBoxBounds(createTextBox('hello', anchor, '#292524', 'a', before))).toEqual({ minX: 100, minY: 200, maxX: 155, maxY: 225 });
+    expect(textBoxBounds(box())).toEqual({ minX: 100, minY: 200, maxX: 155, maxY: 250 });
+    // A 30-unit box wraps each five-letter word onto two lines and is exactly as wide as set.
+    expect(textBoxBounds(createTextBox('hello\nworld', anchor, '#292524', 'a', before, { boxWidth: 30 }))).toEqual({ minX: 100, minY: 200, maxX: 130, maxY: 300 });
+    expect(textBoxBounds(createTextBox('hello', anchor, '#292524', 'a', before, { fontSize: 40 }))).toEqual({ minX: 100, minY: 200, maxX: 210, maxY: 250 });
+  });
+
+  it('validates sizes and widths, and a 1.11 device still accepts sized boxes', () => {
+    const sized = (extra: object) => page([{ ...box(), ...extra } as InkStroke]);
+    expect(isInkPage(sized({ fontSize: 32, boxWidth: 300 }))).toBe(true);
+    for (const bad of [{ fontSize: 0 }, { fontSize: 1000 }, { fontSize: '32' }, { boxWidth: 5 }, { boxWidth: 5000 }, { boxWidth: Number.NaN }]) {
+      expect(isInkPage(sized(bad))).toBe(false);
+    }
+    expect(legacyIsInkPage(sized({ fontSize: 32, boxWidth: 300 }))).toBe(true);
+  });
+});
 
 describe('text boxes in ink pages', () => {
   it('stores a text box as one pen point at its anchor', () => {

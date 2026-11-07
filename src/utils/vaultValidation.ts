@@ -1,5 +1,5 @@
-import { inkKey } from '../ink/inkModel';
-import { TEXT_BOX_MAX } from '../ink/inkText';
+import { inkKey, PAGE_WIDTH } from '../ink/inkModel';
+import { TEXT_BOX_MAX, TEXT_SIZE_MAX, TEXT_SIZE_MIN, TEXT_WIDTH_MIN } from '../ink/inkText';
 import type { InkPage } from '../types/daymark';
 import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
 
@@ -105,6 +105,8 @@ export function vaultProblem(docs: unknown, notes: unknown): string | null {
   return null;
 }
 
+const inRange = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+
 /** Structural boundary validation shared by storage, restore and the server. */
 export function isInkPage(value: unknown): value is InkPage {
   if (!isObject(value) || !isString(value.noteId) || !/^[\w.-]{1,200}$/.test(value.noteId) ||
@@ -112,6 +114,8 @@ export function isInkPage(value: unknown): value is InkPage {
     !Array.isArray(value.removed) || !value.removed.every(isString) || !Array.isArray(value.strokes)) return false;
   return value.strokes.every(s => isObject(s) && isString(s.id) &&
     (s.text === undefined || (isString(s.text) && s.text.length <= TEXT_BOX_MAX)) &&
+    (s.fontSize === undefined || inRange(s.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX)) &&
+    (s.boxWidth === undefined || inRange(s.boxWidth, TEXT_WIDTH_MIN, PAGE_WIDTH)) &&
     (s.tool === 'pen' || s.tool === 'highlighter') && isString(s.color) &&
     typeof s.width === 'number' && Number.isFinite(s.width) && s.width > 0 &&
     isString(s.createdAt) && isString(s.points) && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s.points));

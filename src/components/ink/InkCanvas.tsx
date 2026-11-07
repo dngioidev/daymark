@@ -87,7 +87,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     clipboardListeners.add(notify); notify();
     return () => { clipboardListeners.delete(notify); };
   }, []);
-  const textApi = useRef({ edit: (_id: string) => {}, commit: (_draft: TextDraft, _text: string) => {}, type: (_draft: TextDraft, _text: string) => {} });
+  const textApi = useRef({ edit: (_id: string) => {}, commit: (_draft: TextDraft, _text: string) => {}, type: (_draft: TextDraft, _text: string) => {}, resize: (_draft: TextDraft, _width: number) => {} });
   const synchronize = useRef<() => void>(() => {});
   useImperativeHandle(ref, () => forwardHandle(() => api.current), []);
   useLayoutEffect(() => { latest.current = props; synchronize.current(); });
@@ -119,8 +119,10 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       const box = draftBox; if (!box) return;
       draftBox = null;
       const now = new Date().toISOString();
-      if (box.id) { if (text !== box.text) record(replaceTextBox(page, box.id, { text }, uuid(), now)); }
-      else if (text) record(addStroke(page, createTextBox(text, box, box.color, uuid(), now), now));
+      if (box.id) {
+        const old = visibleTextBoxes(page).find(s => s.id === box.id);
+        if (text !== box.text || box.boxWidth !== old?.boxWidth) record(replaceTextBox(page, box.id, { text, boxWidth: box.boxWidth }, uuid(), now));
+      } else if (text) record(addStroke(page, createTextBox(text, box, box.color, uuid(), now, { fontSize: box.fontSize, boxWidth: box.boxWidth }), now));
     };
     const openDraft = (box: TextDraft) => {
       saveDraft();
@@ -267,15 +269,19 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     textApi.current = {
       edit: id => {
         const box = visibleTextBoxes(page).find(s => s.id === id); if (!box) return;
-        openDraft({ id, ...textBoxAnchor(box), text: box.text!, color: box.color });
+        openDraft({ id, ...textBoxAnchor(box), text: box.text!, color: box.color, fontSize: box.fontSize, boxWidth: box.boxWidth });
       },
       commit: (box, text) => {
         // A blur from a box that was already saved and replaced must not touch the new one.
-        if (!draftBox || box !== draftBox) return;
+        if (!draftBox || box.seq !== draftBox.seq) return;
         if (!text && Date.now() - draftCreated < 400) { textarea.current?.focus(); return; }
         saveDraft(text); setDraft(null);
       },
-      type: (box, text) => { if (box === draftBox) draftText = text; },
+      type: (box, text) => { if (box.seq === draftBox?.seq) draftText = text; },
+      resize: (box, boxWidth) => {
+        if (!draftBox || box.seq !== draftBox.seq || boxWidth === draftBox.boxWidth) return;
+        draftBox = { ...draftBox, boxWidth }; setDraft(draftBox);
+      },
     };
     const point = (e: Pick<PointerEvent, 'clientX' | 'clientY' | 'pressure'>): InkPoint => ({
       x: Math.max(0, Math.min(PAGE_WIDTH, (e.clientX - rect.left) / scale)),
@@ -532,7 +538,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       observer?.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('pagehide', finish);
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up);
       canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('lostpointercapture', cancel); canvas.removeEventListener('contextmenu', noMenu);
-      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {}, type() {} };
+      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {}, type() {}, resize() {} };
       canvas.width = canvas.height = liveCanvas.width = liveCanvas.height = 0;
       cache.clear(); previewCache.clear();
     };
@@ -542,7 +548,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   return <div style={{ position: 'relative', isolation: 'isolate', ...paperStyle(props.paper) }}>
     <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ position: 'relative', zIndex: 1, display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'none' }} />
     <canvas ref={liveRef} data-ink-live aria-hidden="true" style={overlay} />
-    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={(box, text) => textApi.current.commit(box, text)} onType={(box, text) => textApi.current.type(box, text)} />
+    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={(box, text) => textApi.current.commit(box, text)} onType={(box, text) => textApi.current.type(box, text)} onResize={(box, width) => textApi.current.resize(box, width)} />
     {props.tool === 'select' && <InkSelectionLayer hasClip={hasClip} scale={view.scale} bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
       onDelete={() => api.current.deleteSelection()} onCopy={() => api.current.copySelection()} onCut={() => api.current.cutSelection()}
       onPaste={() => api.current.paste()} onDuplicate={() => api.current.duplicateSelection()} onRecolor={color => api.current.recolorSelection(color)} />}

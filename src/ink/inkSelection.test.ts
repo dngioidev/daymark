@@ -54,8 +54,9 @@ describe('lasso selection', () => {
 
   it('bounds only visible selected geometry, including text anchors', () => {
     const original = page([stroke('line'), box(), stroke('gone', [point(900, 900)])], ['gone']);
-    expect(selectionBounds(original, ['line', 'box', 'gone', 'missing'])).toEqual({ minX: 10, minY: 20, maxX: 30, maxY: 40 });
-    expect(selectionBounds(original, ['box'])).toEqual({ minX: 25, minY: 30, maxX: 25, maxY: 30 });
+    expect(selectionBounds(original, ['line', 'box', 'gone', 'missing'])).toEqual({ minX: 10, minY: 20, maxX: 80, maxY: 55 });
+    // A text box is bounded by its text, so it can be grabbed and resized.
+    expect(selectionBounds(original, ['box'])).toEqual({ minX: 25, minY: 30, maxX: 80, maxY: 55 });
     expect(selectionBounds(original, ['gone', 'missing'])).toBeNull();
     expect(selectionBounds(page([stroke('empty', [])]), ['empty'])).toBeNull();
   });
@@ -83,9 +84,19 @@ describe('selection edits', () => {
     expect(transformed.width).toBe(4);
   });
 
-  it('transform keeps text and createdAt while text width stays 1', () => {
+  it('transform keeps text and createdAt while text width stays 1, and scales the text size', () => {
     const result = transformStrokes(page([box()]), ['box'], { ...move, scale: 2 }, freshIds(), now);
-    expect(visibleTextBoxes(result.page)).toEqual([{ ...box(), id: 'new-1', points: encodePoints([point(150, 110)]) }]);
+    expect(visibleTextBoxes(result.page)).toEqual([{ ...box(), id: 'new-1', points: encodePoints([point(150, 110)]), fontSize: 40 }]);
+  });
+
+  it('resizing scales a set box width and clamps the text size', () => {
+    const sized = createTextBox('hello', { x: 25, y: 30 }, '#292524', 'box', before, { fontSize: 20, boxWidth: 100 });
+    const doubled = visibleTextBoxes(transformStrokes(page([sized]), ['box'], { dx: 0, dy: 0, scale: 2, originX: 25, originY: 30 }, freshIds(), now).page)[0];
+    expect(doubled).toMatchObject({ fontSize: 40, boxWidth: 200, width: 1 });
+    const huge = visibleTextBoxes(transformStrokes(page([sized]), ['box'], { dx: 0, dy: 0, scale: 100, originX: 25, originY: 30 }, freshIds(), now).page)[0];
+    expect(huge.fontSize).toBe(160); expect(huge.boxWidth).toBe(PAGE_WIDTH - 25);
+    const tiny = visibleTextBoxes(transformStrokes(page([sized]), ['box'], { dx: 0, dy: 0, scale: 0.01, originX: 25, originY: 30 }, freshIds(), now).page)[0];
+    expect(tiny.fontSize).toBe(8); expect(tiny.boxWidth).toBe(40);
   });
 
   it('recolor changes color only on replacements of visible selected strokes', () => {
