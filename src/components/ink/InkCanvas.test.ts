@@ -369,6 +369,36 @@ it('the S Pen button forwarded by the Android app erases while held, then the pe
   pointer(canvas, 'pointerdown', { buttons: 1 }); pointer(canvas, 'pointerup', { clientX: 25 });
   expect(visibleStrokes(lastPage(onChange))).toHaveLength(1);
 });
+const stylusButton = (pressed: boolean) => act(() => { window.dispatchEvent(new CustomEvent('daymark-stylus-button', { detail: { pressed } })); });
+it('the forwarded S Pen button erases when the WebView reports the pen as a mouse', () => {
+  const { canvas, onChange } = mount({ page: linePage(), eraserMode: 'stroke', allowMouse: false });
+  stylusButton(true);
+  pointer(canvas, 'pointerdown', { pointerType: 'mouse', clientX: 50, clientY: 50, buttons: 2, button: 2 });
+  pointer(canvas, 'pointerup', { pointerType: 'mouse', clientX: 50, clientY: 50, buttons: 0 });
+  stylusButton(false);
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+});
+it('the forwarded S Pen button still erases when its signal lands just after pointerdown', () => {
+  const { canvas, onChange } = mount({ page: linePage(), eraserMode: 'stroke', allowMouse: false });
+  pointer(canvas, 'pointerdown', { pointerType: 'mouse', clientX: 50, clientY: 50, buttons: 2, button: 2 });
+  stylusButton(true);
+  pointer(canvas, 'pointermove', { pointerType: 'mouse', clientX: 50, clientY: 52, buttons: 2 });
+  pointer(canvas, 'pointerup', { pointerType: 'mouse', clientX: 50, clientY: 52, buttons: 0 });
+  stylusButton(false);
+  expect(visibleStrokes(lastPage(onChange))).toHaveLength(0);
+});
+it('the S Pen button does not open a context menu on the page', () => {
+  const { canvas } = mount();
+  const menu = new Event('contextmenu', { bubbles: true, cancelable: true });
+  canvas.dispatchEvent(menu);
+  expect(menu.defaultPrevented).toBe(true);
+});
+it('a mouse without the forwarded button stays ignored once a pen has been seen', () => {
+  const { canvas, onChange } = mount({ page: linePage(), allowMouse: false });
+  pointer(canvas, 'pointerdown', { pointerType: 'mouse', buttons: 1 }); pointer(canvas, 'pointermove', { pointerType: 'mouse', buttons: 1, clientX: 40 });
+  pointer(canvas, 'pointerup', { pointerType: 'mouse', clientX: 40 });
+  expect(onChange).not.toHaveBeenCalled();
+});
 it('select tool loop then drag moves the strokes; one undo restores', () => {
   const onSelectionChange = vi.fn();
   const { canvas, onChange, ref } = mount({ page: linePage(), tool: 'select', onSelectionChange });
@@ -488,6 +518,35 @@ it('typed text saves even when the box loses focus right away', () => {
   const input = host.querySelector('textarea')!;
   act(() => { input.value = 'Quick'; input.blur(); });
   expect(lastPage(onChange).strokes.at(-1)?.text).toBe('Quick');
+});
+
+const type = (input: HTMLTextAreaElement, text: string) => act(() => {
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, text);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+});
+it.each(['pen', 'touch'])('typed text saves when a %s tap opens the next box without a blur', pointerType => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown', { pointerType }); pointer(canvas, 'pointerup', { pointerType });
+  type(host.querySelector('textarea')!, 'First');
+  // Android keeps focus on the box when the pen taps the canvas (pointerdown is prevented).
+  pointer(canvas, 'pointerdown', { pointerType, clientX: 300, clientY: 300 }); pointer(canvas, 'pointerup', { pointerType, clientX: 300, clientY: 300 });
+  expect(lastPage(onChange).strokes.map(s => s.text)).toEqual(['First']);
+  expect(host.querySelector('textarea')?.value).toBe('');
+});
+it('typed text saves when the canvas unmounts, such as leaving full screen', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown'); pointer(canvas, 'pointerup');
+  type(host.querySelector('textarea')!, 'Kept');
+  act(() => root.unmount()); unmounted = true;
+  expect(lastPage(onChange).strokes.map(s => s.text)).toEqual(['Kept']);
+});
+it('typed text saves when another tool is picked while the box is open', () => {
+  const { canvas, onChange } = mount({ tool: 'text' });
+  pointer(canvas, 'pointerdown'); pointer(canvas, 'pointerup');
+  type(host.querySelector('textarea')!, 'Switch');
+  mount({ tool: 'pen', onChange });
+  expect(onChange.mock.calls.at(-1)![0].strokes.map((s: { text?: string }) => s.text)).toEqual(['Switch']);
+  expect(host.querySelector('textarea')).toBeNull();
 });
 
 it.each(['pen', 'mouse', 'touch'])('edits an existing box with %s', pointerType => {

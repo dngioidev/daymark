@@ -29,10 +29,16 @@ class StylusButtonTest {
         assertNull(button.update(MotionEvent.TOOL_TYPE_MOUSE, primary, MotionEvent.ACTION_DOWN))
     }
 
-    @Test fun `leaving hover or cancel releases a held button`() {
+    @Test fun `hover exit as the pen touches down keeps a held button held`() {
+        // Android sends HOVER_EXIT (often with no button state) right before ACTION_DOWN.
         val button = StylusButton()
-        button.update(stylus, primary, MotionEvent.ACTION_HOVER_MOVE)
-        assertEquals(false, button.update(stylus, primary, MotionEvent.ACTION_HOVER_EXIT))
+        assertEquals(true, button.update(stylus, primary, MotionEvent.ACTION_HOVER_MOVE))
+        assertNull(button.update(stylus, 0, MotionEvent.ACTION_HOVER_EXIT))
+        assertNull(button.update(stylus, primary, MotionEvent.ACTION_DOWN))
+    }
+
+    @Test fun `cancel releases a held button`() {
+        val button = StylusButton()
         button.update(stylus, primary, MotionEvent.ACTION_DOWN)
         assertEquals(false, button.update(stylus, primary, MotionEvent.ACTION_CANCEL))
     }

@@ -14,9 +14,10 @@ class StylusButton {
     /** Returns the new state when it changed, or null when it did not (or the pointer is not a pen). */
     fun update(toolType: Int, buttonState: Int, action: Int): Boolean? {
         val pen = toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER
-        if (!pen) return null
-        val ending = action == MotionEvent.ACTION_HOVER_EXIT || action == MotionEvent.ACTION_CANCEL
-        val next = !ending && isEraser(toolType, buttonState)
+        // HOVER_EXIT comes right before each touch-down, often without the button state; the next
+        // event (DOWN, or HOVER_ENTER when the pen comes back) carries the real state.
+        if (!pen || action == MotionEvent.ACTION_HOVER_EXIT) return null
+        val next = action != MotionEvent.ACTION_CANCEL && isEraser(toolType, buttonState)
         if (next == pressed) return null
         pressed = next
         return next

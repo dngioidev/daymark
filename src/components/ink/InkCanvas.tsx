@@ -87,7 +87,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     clipboardListeners.add(notify); notify();
     return () => { clipboardListeners.delete(notify); };
   }, []);
-  const textApi = useRef({ edit: (_id: string) => {}, commit: (_text: string) => {} });
+  const textApi = useRef({ edit: (_id: string) => {}, commit: (_draft: TextDraft, _text: string) => {}, type: (_draft: TextDraft, _text: string) => {} });
   const synchronize = useRef<() => void>(() => {});
   useImperativeHandle(ref, () => forwardHandle(() => api.current), []);
   useLayoutEffect(() => { latest.current = props; synchronize.current(); });
@@ -110,10 +110,22 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     let holdTimer: ReturnType<typeof setInterval> | undefined;
     let ids: string[] = [];
     let draftBox: TextDraft | null = null;
+    let draftText = '';
     let draftCreated = 0;
+    let draftSeq = 0;
+    // Saves the open box. Android often never blurs it (a pen tap on the canvas keeps focus, and
+    // leaving full screen or turning the page unmounts it), so every exit path comes through here.
+    const saveDraft = (text = textarea.current?.value ?? draftText) => {
+      const box = draftBox; if (!box) return;
+      draftBox = null;
+      const now = new Date().toISOString();
+      if (box.id) { if (text !== box.text) record(replaceTextBox(page, box.id, { text }, uuid(), now)); }
+      else if (text) record(addStroke(page, createTextBox(text, box, box.color, uuid(), now), now));
+    };
     const openDraft = (box: TextDraft) => {
-      draftBox = box; draftCreated = Date.now();
-      flushSync(() => setDraft(box));
+      saveDraft();
+      draftBox = { ...box, seq: ++draftSeq }; draftText = box.text; draftCreated = Date.now();
+      flushSync(() => setDraft(draftBox));
       textarea.current?.focus();
     };
     type Gesture = { id: number; start: InkPoint; end: InkPoint; loop: Loop; mode: 'lasso' | 'move' | 'resize' | 'text'; origin?: InkPoint; moved?: boolean };
@@ -257,14 +269,13 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         const box = visibleTextBoxes(page).find(s => s.id === id); if (!box) return;
         openDraft({ id, ...textBoxAnchor(box), text: box.text!, color: box.color });
       },
-      commit: text => {
-        const box = draftBox; if (!box) return;
+      commit: (box, text) => {
+        // A blur from a box that was already saved and replaced must not touch the new one.
+        if (!draftBox || box !== draftBox) return;
         if (!text && Date.now() - draftCreated < 400) { textarea.current?.focus(); return; }
-        draftBox = null; setDraft(null);
-        const now = new Date().toISOString();
-        if (box.id) { if (text !== box.text) record(replaceTextBox(page, box.id, { text }, uuid(), now)); }
-        else if (text) record(addStroke(page, createTextBox(text, box, box.color, uuid(), now), now));
+        saveDraft(text); setDraft(null);
       },
+      type: (box, text) => { if (box === draftBox) draftText = text; },
     };
     const point = (e: Pick<PointerEvent, 'clientX' | 'clientY' | 'pressure'>): InkPoint => ({
       x: Math.max(0, Math.min(PAGE_WIDTH, (e.clientX - rect.left) / scale)),
@@ -327,12 +338,14 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       preview = null; previewBase = null; previewCache.clear();
       schedule();
     };
-    const penErases = (e: PointerEvent) => e.pointerType === 'pen' && (isPenEraserButton(e) || isStylusButtonHeld());
+    // The Android app forwards the S Pen button separately because its WebView drops it from pointer
+    // events, and Chrome may report a pen with its button held as a mouse, so both count while held.
+    const forwardedErase = (e: PointerEvent) => isStylusButtonHeld() && (e.pointerType === 'pen' || e.pointerType === 'mouse');
+    const penErases = (e: PointerEvent) => (e.pointerType === 'pen' && isPenEraserButton(e)) || forwardedErase(e);
     const down = (e: PointerEvent) => {
       const p = latest.current;
       const classified = classifyPointer({ penActive: !!live, allowMouse: p.allowMouse || p.tool === 'text' }, e).action;
-      // The Android app forwards the S Pen button separately because its WebView drops it from pointer events.
-      const action = classified === 'draw' && penErases(e) ? 'erase' : classified;
+      const action = classified !== 'scroll' && penErases(e) ? 'erase' : classified;
       if (action === 'scroll' && !touch) {
         touch = startFingerScroll(canvas, e);
         if (p.tool === 'text' && !gesture) {
@@ -383,7 +396,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       }, 100);
     };
     const switchButton = (e: PointerEvent): boolean => {
-      if (!live || live.id !== e.pointerId || e.pointerType !== 'pen') return false;
+      if (!live || live.id !== e.pointerId || (e.pointerType !== 'pen' && e.pointerType !== 'mouse')) return false;
       const erase = penErases(e);
       if (live.temporaryErase && !erase) { finish(); return true; }
       if (erase && live.tool !== 'eraser') { finish(); down(e); return true; }
@@ -401,6 +414,8 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
         if (touch.tap && Math.hypot(e.clientX - touch.tap.x, e.clientY - touch.tap.y) > 6) touch.tap.moved = true;
         e.preventDefault(); touch.move(e); return;
       }
+      // The forwarded button can land just after pointerdown, which was then ignored as a mouse.
+      if (!live && !gesture && e.buttons !== 0 && forwardedErase(e)) { down(e); return; }
       if (!live || live.id !== e.pointerId) return;
       e.preventDefault();
       if (switchButton(e)) return;
@@ -448,7 +463,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     };
     const raw = (e: Event) => {
       const event = e as PointerEvent;
-      if (!live || live.id !== event.pointerId || event.pointerType !== 'pen') return;
+      if (!live || live.id !== event.pointerId || (event.pointerType !== 'pen' && event.pointerType !== 'mouse')) return;
       if (switchButton(event)) return;
       append(event);
       if (live.tool === 'eraser') schedule();
@@ -492,13 +507,17 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
       if (incoming !== lastIncoming) {
         lastIncoming = incoming;
         if (incoming.noteId !== page.noteId || incoming.page !== page.page) {
-          finish(); gesture = null; draftBox = null; setDraft(null); select([]); undo.length = 0; redo.length = 0; cache.clear(); historyChanged();
+          finish(); gesture = null; saveDraft(); setDraft(null); select([]); undo.length = 0; redo.length = 0; cache.clear(); historyChanged();
         }
         const changed = incoming.strokes !== page.strokes || incoming.removed !== page.removed;
         page = incoming; if (changed) { rebuild(); refresh(); }
       }
       if (latest.current.readOnly) finish();
+      if (draftBox && latest.current.tool !== 'text') { saveDraft(); setDraft(null); }
     };
+    // A pen side button can arrive as a right click; never open a menu or start a text selection.
+    const noMenu = (e: Event) => e.preventDefault();
+    canvas.addEventListener('contextmenu', noMenu);
     canvas.addEventListener('pointerdown', down);
     canvas.addEventListener('pointermove', move);
     canvas.addEventListener('pointerup', up);
@@ -509,11 +528,11 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
     observer?.observe(canvas); resize();
     return () => {
-      gesture = null; finish(); if (frame) cancelAnimationFrame(frame);
+      gesture = null; finish(); saveDraft(); if (frame) cancelAnimationFrame(frame);
       observer?.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('pagehide', finish);
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up);
-      canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('lostpointercapture', cancel);
-      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {} };
+      canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('lostpointercapture', cancel); canvas.removeEventListener('contextmenu', noMenu);
+      synchronize.current = () => {}; api.current = emptyHandle; textApi.current = { edit() {}, commit() {}, type() {} };
       canvas.width = canvas.height = liveCanvas.width = liveCanvas.height = 0;
       cache.clear(); previewCache.clear();
     };
@@ -523,7 +542,7 @@ const WritableInkCanvas = forwardRef<InkCanvasHandle, InkCanvasProps>(function W
   return <div style={{ position: 'relative', isolation: 'isolate', ...paperStyle(props.paper) }}>
     <canvas ref={canvasRef} aria-label="Handwritten page" role="img" style={{ position: 'relative', zIndex: 1, display: 'block', width: '100%', aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}`, touchAction: 'none' }} />
     <canvas ref={liveRef} data-ink-live aria-hidden="true" style={overlay} />
-    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={text => textApi.current.commit(text)} />
+    <InkTextLayer textareaRef={textarea} page={view.page} draft={draft} scale={view.scale} editing={props.tool === 'text'} onEdit={id => textApi.current.edit(id)} onCommit={(box, text) => textApi.current.commit(box, text)} onType={(box, text) => textApi.current.type(box, text)} />
     {props.tool === 'select' && <InkSelectionLayer hasClip={hasClip} scale={view.scale} bounds={canvasSelectionBounds(view.page, view.ids)} loop={view.loop}
       onDelete={() => api.current.deleteSelection()} onCopy={() => api.current.copySelection()} onCut={() => api.current.cutSelection()}
       onPaste={() => api.current.paste()} onDuplicate={() => api.current.duplicateSelection()} onRecolor={color => api.current.recolorSelection(color)} />}

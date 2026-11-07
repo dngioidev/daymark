@@ -3,11 +3,11 @@ import type { InkPage } from '../../types/daymark';
 import { PAGE_HEIGHT, PAGE_WIDTH } from '../../ink/inkModel';
 import { textBoxAnchor, TEXT_BOX_MAX, visibleTextBoxes } from '../../ink/inkText';
 
-export type TextDraft = { id?: string; x: number; y: number; text: string; color: string };
-export function InkTextLayer({ page, draft, scale, editing, textareaRef, onEdit, onCommit }: {
+export type TextDraft = { id?: string; x: number; y: number; text: string; color: string; seq?: number };
+export function InkTextLayer({ page, draft, scale, editing, textareaRef, onEdit, onCommit, onType }: {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   page: InkPage; draft: TextDraft | null; scale: number; editing: boolean;
-  onEdit: (id: string) => void; onCommit: (text: string) => void;
+  onEdit: (id: string) => void; onCommit: (draft: TextDraft, text: string) => void; onType: (draft: TextDraft, text: string) => void;
 }) {
   const tap = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const accepts = (e: PointerEvent) => e.pointerType === 'pen' || e.pointerType === 'mouse'
@@ -25,9 +25,9 @@ export function InkTextLayer({ page, draft, scale, editing, textareaRef, onEdit,
           if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= 6) onEdit(s.id);
         }}>{s.text}</div>;
     })}
-    {draft && <textarea ref={textareaRef} key={draft.id ?? `${draft.x},${draft.y}`} aria-label="Text box" maxLength={TEXT_BOX_MAX} defaultValue={draft.text}
-      onBlur={e => onCommit(e.currentTarget.value)}
-      onInput={e => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`; }}
+    {draft && <textarea ref={textareaRef} key={draft.seq ?? draft.id ?? `${draft.x},${draft.y}`} aria-label="Text box" maxLength={TEXT_BOX_MAX} defaultValue={draft.text}
+      onBlur={e => onCommit(draft, e.currentTarget.value)}
+      onInput={e => { onType(draft, e.currentTarget.value); e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`; }}
       style={{ position: 'absolute', left: `${draft.x / PAGE_WIDTH * 100}%`, top: `${draft.y / PAGE_HEIGHT * 100}%`, width: `${(PAGE_WIDTH - draft.x) / PAGE_WIDTH * 100}%`, minHeight: 30 * scale, font: `${20 * scale}px sans-serif`, color: draft.color, resize: 'none', overflow: 'hidden', pointerEvents: 'auto' }} />}
   </div>;
 }
