@@ -3,6 +3,7 @@ import { defineTool } from './define';
 import type { ToolContext } from './define';
 import { registerReadTools } from './read';
 import { registerTaskTools } from './tasks';
+import { registerContentTools } from './content';
 
 export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   defineTool(server, ctx, {
@@ -14,4 +15,5 @@ export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   });
   registerReadTools(server, ctx);
   registerTaskTools(server, ctx);
+  registerContentTools(server, ctx);
 }
