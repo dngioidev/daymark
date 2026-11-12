@@ -1,5 +1,6 @@
 import { normalizeHeading } from '../../src/sync/mcpProtocol';
 import type { McpGrants } from '../../src/sync/mcpProtocol';
+import { normalizeFolderPath } from '../../src/utils/noteFolders';
 import type { BacklogData, DailyDocument, HabitData, StandaloneNote } from '../../src/types/daymark';
 import type { McpConnection } from './mcpStore';
 
@@ -24,6 +25,16 @@ export function headingGranted(g: McpGrants, name: string): boolean {
   return g.all || g.headings.some(heading => normalizeHeading(heading) === normalizeHeading(name));
 }
 
+/** Tool input folder: the app's normalization (trim, drop empty segments), with "." and ".." refused outright. */
+export function cleanFolder(input: string): string {
+  const folder = normalizeFolderPath(input);
+  if (folder.split('/').some(part => part === '.' || part === '..')) {
+    throw new ScopeError('Folder names cannot contain "." or ".." segments.');
+  }
+  return folder;
+}
+
+/** Exact on purpose: tool inputs go through cleanFolder first. */
 export function folderGranted(g: McpGrants, folder: string): boolean {
   return g.all || g.folders.some(grant =>
     folder === grant || (grant !== '' && folder.startsWith(`${grant}/`)));

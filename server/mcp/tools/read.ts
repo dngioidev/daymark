@@ -5,7 +5,7 @@ import { visibleBacklog } from '../../../src/utils/backlog';
 import { habitsForDay } from '../../../src/utils/habits';
 import { getCalendarDaysDifference } from '../../../src/utils/lifecycleEngine';
 import { searchVault } from '../../../src/utils/search';
-import { normalizeHeading, scopeBacklog, scopeDoc, scopeHabits, scopeNotes, ScopeError } from '../scope';
+import { cleanFolder, normalizeHeading, scopeBacklog, scopeDoc, scopeHabits, scopeNotes, ScopeError } from '../scope';
 import { dayView, readBacklog, readDocs, readHabits, readNotes, readSettings } from '../vaultView';
 import { defineTool, type ToolContext } from './define';
 import { buildDaySummary, buildReview } from './summary';
@@ -81,7 +81,7 @@ export function registerReadTools(server: McpServer, initialContext: ToolContext
   defineTool(server, initialContext, {
     name: 'list_notes', description: 'Lists shared note metadata, optionally in a folder.', input: { folder: z.string().optional() }, readOnly: true,
     run: async ({ folder }, ctx) => ({ result: scopeNotes(readNotes(ctx.store), ctx.connection.grants)
-      .filter(note => folder === undefined || note.folder === folder)
+      .filter(note => folder === undefined || note.folder === cleanFolder(folder))
       .map(({ id, title, folder, tags, updatedAt, pinned }) => ({ id, title, folder, tags, updatedAt, pinned })), action: 'read' }),
   });
   defineTool(server, initialContext, {

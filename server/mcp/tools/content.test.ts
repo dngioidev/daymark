@@ -91,6 +91,22 @@ const stored = (date: string) => store.vault.entities[`doc:${date}`]?.value as D
 
 
 describe('content write tools', () => {
+  it('folder input is normalized and dot segments are rejected with a clear error', async () => {
+    const ai = await assistant('full', { folders: ['Work'] });
+    const dotted = await call(ai, 'create_note', { title: 'Sneaky', folder: 'Work/../Personal', content: '' });
+    expect(dotted).toMatchObject({ isError: true });
+    expect(dotted.content[0].text).toContain('"." or ".."');
+    expect(dotted.content[0].text).not.toBe(NOT_SHARED);
+    expect(await call(ai, 'create_note', { title: 'Dot', folder: 'Work/./x', content: '' })).toMatchObject({ isError: true });
+    expect(await ok(ai, 'create_note', { title: 'Trail', folder: 'Work/', content: '' })).toMatchObject({ folder: 'Work' });
+    expect(await ok(ai, 'create_note', { title: 'Lead', folder: '/Work', content: '' })).toMatchObject({ folder: 'Work' });
+    expect(await ok(ai, 'create_note', { title: 'Sub', folder: ' Work / Plans ', content: '' })).toMatchObject({ folder: 'Work/Plans' });
+    expect(await call(ai, 'create_note', { title: 'Out', folder: '/Personal/', content: '' })).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });
+    const note = await ok(ai, 'create_note', { title: 'Mv', folder: 'Work', content: '' });
+    expect(await call(ai, 'update_note', { id: note.id, folder: 'Work/../Personal' })).toMatchObject({ isError: true });
+    expect(await ok(ai, 'list_notes', { folder: '/Work/' })).toHaveLength(3);
+  });
+
   it('create_note in a granted subfolder works; in another folder is refused', async () => {
     const ai = await assistant('full', { folders: ['Work'] });
     const note = await ok(ai, 'create_note', { title: 'Plan', folder: 'Work/Plans', content: 'draft', tags: ['next'] });

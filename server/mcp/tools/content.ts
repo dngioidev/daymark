@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { BacklogData, BacklogItem, StandaloneNote } from '../../../src/types/daymark';
 import { addBacklogItem, editBacklogItem, removeBacklogItem, pickBacklogItem, sectionForCategory } from '../../../src/utils/backlog';
 import { habitsForDay, setTick } from '../../../src/utils/habits';
-import { assertWrite, ScopeError } from '../scope';
+import { assertWrite, cleanFolder, ScopeError } from '../scope';
 import { ensureDay, readBacklog, readDocs, readHabits, readNotes, readSettings } from '../vaultView';
 import { defineTool, type ToolContext, type ToolOutcome } from './define';
 
@@ -53,13 +53,14 @@ export function registerContentTools(server: McpServer, initialContext: ToolCont
     input: { title, folder, content, tags: tags.optional() }, readOnly: false,
     run: async (args, ctx) => {
       let note: StandaloneNote | undefined;
+      const folderPath = cleanFolder(args.folder);
       await ctx.commit(() => {
-        assertWrite(ctx.connection, { kind: 'folder', folder: args.folder });
+        assertWrite(ctx.connection, { kind: 'folder', folder: folderPath });
         // Keep the app's note-<milliseconds> format while avoiding same-millisecond collisions.
         let stamp = Date.now();
         while (ctx.store.vault.entities[`note:note-${stamp}`]) stamp++;
         const now = ctx.now().toISOString();
-        note = { ...args, id: `note-${stamp}`, tags: args.tags ?? [], createdAt: now, updatedAt: now, pinned: false };
+        note = { ...args, folder: folderPath, id: `note-${stamp}`, tags: args.tags ?? [], createdAt: now, updatedAt: now, pinned: false };
         return [{ key: `note:${note.id}`, value: note }];
       });
       return outcome(note, 'create', [`note:${note!.id}`]);
@@ -72,7 +73,7 @@ export function registerContentTools(server: McpServer, initialContext: ToolCont
       ...note,
       title: patch.title ?? note.title,
       content: patch.content ?? note.content,
-      folder: patch.folder ?? note.folder,
+      folder: patch.folder === undefined ? note.folder : cleanFolder(patch.folder),
       tags: patch.tags ?? note.tags,
       updatedAt: ctx.now().toISOString(),
     })), 'update', [`note:${noteId}`]),
