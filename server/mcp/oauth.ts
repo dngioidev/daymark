@@ -19,6 +19,7 @@ const TTL_MS = 10 * 60 * 1000;
 const ACCESS_TTL_SECONDS = 900;
 const MAX_RETIRED = 50;
 const MAX_PENDING = 200;
+const MAX_PENDING_PER_CLIENT = 5;
 const MAX_LIST = 200;
 const REVOKED_AUDIT_MS = 60_000;
 
@@ -116,6 +117,8 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
 
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response): Promise<void> {
     this.purge();
+    const own = [...this.pending].filter(([, p]) => p.clientId === client.client_id).map(([id]) => id);
+    for (const id of own.slice(0, Math.max(0, own.length - MAX_PENDING_PER_CLIENT + 1))) this.pending.delete(id);
     if (this.pending.size >= MAX_PENDING) this.pending.delete(this.pending.keys().next().value as string);
     const requestId = randomId();
     this.pending.set(requestId, {
