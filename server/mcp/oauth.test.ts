@@ -11,6 +11,7 @@ import { createApp } from '../app';
 import { loadConfig } from '../config';
 import { FileStore } from '../store';
 import { AuditLog } from './audit';
+import { renderConsentPage } from './consentPage';
 import { McpStore } from './mcpStore';
 
 const PASSWORD = 'correct horse battery';
@@ -88,7 +89,8 @@ async function signIn(grants: Record<string, string | string[]> = { everything: 
   const clientId = await register();
   const verifier = crypto.randomBytes(32).toString('base64url');
   const { requestId } = await authorize(clientId, sha256(verifier));
-  const res = await consent({ requestId, name: 'My assistant', password: PASSWORD, access: 'full', ...grants });
+  expect((await consent({ requestId, stage: 'password', name: 'My assistant', password: PASSWORD })).status).toBe(200);
+  const res = await consent({ requestId, stage: 'grant', access: 'full', ...grants });
   expect(res.status).toBe(302);
   const location = new URL(res.headers.get('location')!);
   expect(location.searchParams.get('state')).toBe('st-1');
@@ -113,33 +115,93 @@ describe('OAuth connector sign-in', () => {
     expect(meta.scopes_supported).toEqual(['daymark']);
   });
 
-  it('register → authorize page lists known headings and has nothing pre-selected', async () => {
+  it('register → authorize page shows no vault data and asks for the password', async () => {
     const { html } = await authorize(await register(), sha256('v'));
-    expect(html).toContain(DEFAULT_SETTINGS.defaultHeadings[0]);
+    expect(html).not.toContain(DEFAULT_SETTINGS.defaultHeadings[0]);
+    expect(html).not.toContain('name="headings"');
+    expect(html).not.toContain('name="folders"');
+    expect(html).toContain('name="password"');
     expect(html).toContain('Test &lt;Assistant&gt;');
     expect(html).not.toContain('Test <Assistant>');
-    expect(html.match(/checked/g)).toEqual(['checked']); // only "full" access
-    expect(html).toMatch(/value="full" checked/);
-    expect(html).toContain('name="everything"');
+    expect(html).not.toContain('checked');
   });
 
-  it('wrong password re-renders with an error and issues no code', async () => {
+  it('shows where access will be sent, with a warning only for unknown hosts', async () => {
+    const { html } = await authorize(await register(), sha256('v'));
+    expect(html).toContain('Daymark will send access to <strong>localhost:9999</strong>');
+    expect(html).not.toContain('is not a known AI app');
+    const cases: [string, boolean][] = [
+      ['claude.ai', true], ['api.claude.com', true], ['gemini.google.com', true], ['evil.example', false], ['claude.ai.evil.example', false],
+    ];
+    for (const [host, known] of cases) {
+      const page = renderConsentPage({ requestId: 'r', clientName: 'c', redirectHost: host, step: 'password' });
+      expect(page.includes('is not a known AI app')).toBe(!known);
+    }
+  });
+
+  it('after the password the scope step lists headings and the scope controls', async () => {
     const clientId = await register();
     const { requestId } = await authorize(clientId, sha256('v'));
-    const res = await consent({ requestId, name: 'x', password: 'nope', everything: '1' });
-    expect(res.status).toBe(401);
-    expect(await res.text()).toContain('Wrong password.');
+    const res = await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(DEFAULT_SETTINGS.defaultHeadings[0]);
+    expect(html).toContain('name="everything"');
+    expect(html).not.toContain('name="password"');
+    expect(html.match(/checked/g)).toEqual(['checked']); // only "full" access
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+
+  it('a final POST on an unverified request is refused', async () => {
+    const clientId = await register();
+    const { requestId } = await authorize(clientId, sha256('v'));
+    const res = await consent({ requestId, stage: 'grant', access: 'full', everything: '1' });
+    expect(res.status).toBe(403);
     expect(res.headers.get('location')).toBeNull();
     expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+    // a name and password sent with the grant stage do not count as verification
+    const sneaky = await consent({ requestId, stage: 'grant', name: 'x', password: PASSWORD, everything: '1' });
+    expect(sneaky.status).toBe(403);
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+  });
+
+  it('wrong password re-renders with an error, shows no vault data, issues no code and is audited', async () => {
+    const clientId = await register();
+    const { requestId } = await authorize(clientId, sha256('v'));
+    const res = await consent({ requestId, stage: 'password', name: 'x', password: 'nope' });
+    expect(res.status).toBe(401);
+    const html = await res.text();
+    expect(html).toContain('Wrong password.');
+    expect(html).not.toContain('name="headings"');
+    expect(res.headers.get('location')).toBeNull();
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+    const refused = await audit.list({ action: 'refused' });
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toMatchObject({ tool: 'oauth', connectionId: '', connectionName: 'Test <Assistant>' });
+  });
+
+  it('login failures count toward the consent lockout (shared limiter)', async () => {
+    for (let i = 0; i < 10; i++) {
+      await fetch(`${base}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'wrong', deviceName: 'd', platform: 'test' }),
+      });
+    }
+    const clientId = await register();
+    const { requestId } = await authorize(clientId, sha256('v'));
+    const res = await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    expect(res.status).toBe(429);
+    expect(await res.text()).toContain('Too many failed attempts');
   });
 
   it('consent with no grants is rejected', async () => {
     const clientId = await register();
     const { requestId } = await authorize(clientId, sha256('v'));
-    const res = await consent({ requestId, name: 'x', password: PASSWORD, access: 'full' });
+    await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    const res = await consent({ requestId, stage: 'grant', access: 'full' });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('at least one');
-    expect(mcp.connections).toHaveLength(0);
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
   });
 
   it('full flow with PKCE yields tokens; a wrong code_verifier is rejected', async () => {

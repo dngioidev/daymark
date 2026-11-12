@@ -354,7 +354,7 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
 
   // OAuth sign-in and /mcp live outside /api so they run before the site gate
   if (mcp && config.mcpEnabled && config.publicUrl) {
-    mountMcp(app, { config, store, mcp: mcp.store, audit: mcp.audit, vault: vaultQueue });
+    mountMcp(app, { config, store, mcp: mcp.store, audit: mcp.audit, vault: vaultQueue, limiter });
   }
 
   if (mcp) app.use('/api/mcp', mcpAdminRoutes({ config, store, mcp: mcp.store, audit: mcp.audit }));

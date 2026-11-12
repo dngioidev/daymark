@@ -397,13 +397,14 @@ const cycle19Consent = async (page) => {
   await page.goto(`${baseUrl}/authorize?${params}`);
   await page.getByRole('heading', { name: 'Connect Cycle 19 screenshots', exact: true }).waitFor();
   await page.getByLabel('Connection name', { exact: true }).fill('Personal assistant');
-  await page.getByLabel('Everything', { exact: true }).check();
+  await page.getByLabel('Daymark password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Everything', { exact: true }).check(); // the scope step appears once the password is verified
   return { clientId: client.client_id, redirectUri, verifier };
 };
 const cycle19Connections = async (page) => {
   const { clientId, redirectUri, verifier } = await cycle19Consent(page);
   await page.route(redirectUri + '?*', route => route.fulfill({ contentType: 'text/html', body: '<title>Connected</title>' }));
-  await page.getByLabel('Daymark password', { exact: true }).fill(password);
   await Promise.all([
     page.waitForURL(redirectUri + '?*'),
     page.getByRole('button', { name: 'Allow access', exact: true }).click(),

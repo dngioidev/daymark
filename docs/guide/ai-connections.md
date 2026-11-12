@@ -8,7 +8,7 @@ related: sync, backups, sections
 ## Web
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
 2. In **Claude**, use Settings → Connectors → Add custom connector. Workspace administrators may need to allow it. In **Claude Code**, run `claude mcp add --transport http daymark <address>`. In **ChatGPT**, use connectors / developer mode to add a remote MCP server with OAuth. Availability and labels depend on the account; owner account checks are pending.
-3. On Daymark's consent page, enter your **Daymark password**, name the connection, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**.
+3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
 4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
 
 **Scope and control**
@@ -40,7 +40,7 @@ Install the repository's `skills/daymark/SKILL.md` in your client's skill locati
 ## Phone
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
 2. In **Claude**, use Settings → Connectors → Add custom connector. Workspace administrators may need to allow it. In **Claude Code**, run `claude mcp add --transport http daymark <address>`. In **ChatGPT**, use connectors / developer mode to add a remote MCP server with OAuth. Availability and labels depend on the account; owner account checks are pending.
-3. On Daymark's consent page, enter your **Daymark password**, name the connection, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**.
+3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
 4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
 
 **Scope and control**

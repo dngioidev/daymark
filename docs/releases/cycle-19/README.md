@@ -25,7 +25,7 @@ Daymark's self-hosted server now offers MCP tools for an AI client to read and u
 
 ## Screenshots
 
-Captured by the controller on 2026-11-12 with `node scripts/capture-screenshots.mjs cycle-19` after a production build. The scenario uses a disposable server, sample data, real OAuth consent and real `ping` / `get_day_summary` calls (visible in the Activity screenshot); it needs no owner's AI account and rejects `--url` to keep fixture writes off an owner's server. In the consent screenshot the scenario has already ticked **Everything**; the page itself starts with nothing shared.
+Captured by the controller on 2026-11-12 with `node scripts/capture-screenshots.mjs cycle-19` after a production build. The scenario uses a disposable server, sample data, real OAuth consent and real `ping` / `get_day_summary` calls (visible in the Activity screenshot); it needs no owner's AI account and rejects `--url` to keep fixture writes off an owner's server. In the consent screenshot the scenario has already ticked **Everything**; the page itself starts with nothing shared, and the scope step appears only after the password.
 
 Task 15's implementer could not start the browser in its sandbox, so the controller ran the capture on the normal host. All four images were produced and reviewed.
 

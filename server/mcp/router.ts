@@ -5,6 +5,7 @@ import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middlew
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SERVER_VERSION } from '../app';
+import type { LoginRateLimiter } from '../auth';
 import type { ServerConfig } from '../config';
 import type { FileStore } from '../store';
 import type { VaultQueue } from '../vault';
@@ -19,12 +20,12 @@ import { todayIn } from './vaultView';
 
 const LAST_USED_PERSIST_MS = 60_000;
 
-export function mountMcp(app: express.Express, deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; vault: VaultQueue }): void {
-  const { config, store, mcp, audit, vault } = deps;
+export function mountMcp(app: express.Express, deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; vault: VaultQueue; limiter: LoginRateLimiter }): void {
+  const { config, store, mcp, audit, vault, limiter } = deps;
   if (!config.publicUrl) throw new Error('mountMcp needs config.publicUrl');
   const issuerUrl = new URL(config.publicUrl);
   const resourceServerUrl = new URL('/mcp', config.publicUrl);
-  const provider = new DaymarkOAuthProvider({ config, store, mcp, audit });
+  const provider = new DaymarkOAuthProvider({ config, store, mcp, audit, limiter });
 
   app.use(mcpAuthRouter({ provider, issuerUrl, resourceServerUrl, scopesSupported: ['daymark'] }));
   app.post('/oauth/consent', express.urlencoded({ extended: false, limit: '64kb' }), (req, res, next) => {

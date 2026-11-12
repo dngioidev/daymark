@@ -27,6 +27,9 @@ interface PendingRequest {
   codeChallenge: string;
   state?: string;
   resource?: string;
+  /** Set once the owner's password was accepted for this request; only then may a connection be created. */
+  verified: boolean;
+  name?: string;
   expiresAt: number;
 }
 
@@ -49,9 +52,8 @@ const form = (value: unknown): string => (typeof value === 'string' ? value : ''
 export class DaymarkOAuthProvider implements OAuthServerProvider {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly codes = new Map<string, IssuedCode>();
-  private readonly limiter = new LoginRateLimiter();
 
-  constructor(private readonly deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog }) {}
+  constructor(private readonly deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; limiter: LoginRateLimiter }) {}
 
   get clientsStore(): OAuthRegisteredClientsStore {
     const { mcp } = this.deps;
@@ -71,10 +73,13 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     return todayIn(mcp.effectiveTimezone(config.timezone), new Date());
   }
 
-  private page(requestId: string, clientName: string, error?: string, name?: string): string {
+  /** Step 1 (password) carries no vault data; the scope step lists headings and folders and is only built for a verified request. */
+  private page(requestId: string, request: PendingRequest, clientName: string, error?: string, name?: string): string {
     const { store } = this.deps;
+    const redirectHost = new URL(request.redirectUri).host;
+    if (!request.verified) return renderConsentPage({ requestId, clientName, redirectHost, step: 'password', error, name });
     return renderConsentPage({
-      requestId, clientName, error, name,
+      requestId, clientName, redirectHost, step: 'scope', error,
       headings: knownHeadings(store, this.today()),
       folders: knownFolders(store),
     });
@@ -110,12 +115,16 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       codeChallenge: params.codeChallenge,
       state: params.state,
       resource: params.resource?.href,
+      verified: false,
       expiresAt: Date.now() + TTL_MS,
     });
-    this.sendPage(res, 200, this.page(requestId, client.client_name || 'AI assistant'));
+    this.sendPage(res, 200, this.page(requestId, this.pending.get(requestId)!, client.client_name || 'AI assistant'));
   }
 
-  /** POST /oauth/consent: checks the owner's password, then creates the connection and redirects with a code. */
+  /**
+   * POST /oauth/consent, two stages. 'password' verifies the owner and unlocks the scope step for this request;
+   * 'grant' creates the connection (only for a verified request) and redirects with a code.
+   */
   consentHandler = async (req: Request, res: Response): Promise<void> => {
     const { store, mcp } = this.deps;
     this.purge();
@@ -128,18 +137,36 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     }
     const client = mcp.clients[request.clientId];
     const clientName = client?.client_name || 'AI assistant';
-    const name = form(body.name).trim().slice(0, 80);
-    const rerender = (status: number, error: string) =>
-      this.sendPage(res, status, this.page(requestId, clientName, error, name || undefined));
+    const rerender = (status: number, error: string, name?: string) =>
+      this.sendPage(res, status, this.page(requestId, request, clientName, error, name));
 
-    const ip = req.ip || 'unknown';
-    if (this.limiter.isBlocked(ip)) return rerender(429, 'Too many failed attempts. Try again in 15 minutes.');
-    const password = form(body.password);
-    if (!password || !verifyPassword(password, store.auth.salt, store.auth.hash)) {
-      this.limiter.recordFailure(ip);
-      return rerender(401, 'Wrong password.');
+    if (form(body.stage) !== 'grant') {
+      const name = form(body.name).trim().slice(0, 80);
+      const ip = req.ip || 'unknown';
+      if (this.deps.limiter.isBlocked(ip)) return rerender(429, 'Too many failed attempts. Try again in 15 minutes.', name || undefined);
+      const password = form(body.password);
+      if (!password || !verifyPassword(password, store.auth.salt, store.auth.hash)) {
+        this.deps.limiter.recordFailure(ip);
+        await this.audit({
+          connectionId: '', connectionName: clientName, tool: 'oauth', action: 'refused', targets: [], message: 'wrong password',
+        });
+        return rerender(401, 'Wrong password.', name || undefined);
+      }
+      this.deps.limiter.reset(ip);
+      if (!name) return rerender(400, 'Give this connection a name.');
+      request.verified = true;
+      request.name = name;
+      return rerender(200, '');
     }
-    this.limiter.reset(ip);
+
+    if (!request.verified || !request.name) {
+      this.sendPage(res, 403, renderConsentPage({
+        requestId, clientName, redirectHost: new URL(request.redirectUri).host, step: 'password',
+        error: 'Sign in with your password first.',
+      }));
+      return;
+    }
+    const name = request.name;
 
     const access: McpAccess = body.access === 'read-only' ? 'read-only' : 'full';
     const grants: McpGrants = {
@@ -153,7 +180,6 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     if (!grants.all && grants.headings.length === 0 && grants.folders.length === 0 && !grants.backlog && !grants.habits) {
       return rerender(400, 'Choose at least one thing to share.');
     }
-    if (!name) return rerender(400, 'Give this connection a name.');
 
     this.pending.delete(requestId);
     const connection = mcp.createConnection({ name, clientId: request.clientId, clientName, access, grants });
