@@ -19,6 +19,7 @@ import { registerAllTools } from './tools/index';
 import { todayIn } from './vaultView';
 
 const LAST_USED_PERSIST_MS = 60_000;
+const OFF_AUDIT_MS = 60_000;
 
 export function mountMcp(app: express.Express, deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; vault: VaultQueue; limiter: LoginRateLimiter }): void {
   const { config, store, mcp, audit, vault, limiter } = deps;
@@ -33,6 +34,7 @@ export function mountMcp(app: express.Express, deps: { config: ServerConfig; sto
   });
 
   const lastPersisted = new Map<string, number>();
+  const offAudited = new Map<string, number>();
   const touchConnection = (connectionId: string) => {
     const connection = mcp.activeConnection(connectionId);
     if (!connection) return;
@@ -56,12 +58,17 @@ export function mountMcp(app: express.Express, deps: { config: ServerConfig; sto
       const connection = mcp.activeConnection(connectionId);
       if (!connection) return res.status(401).json({ error: 'invalid_token' });
       if (!mcp.settings.enabled) {
-        // Refuse every call (initialize and tools/list included) before any transport exists, and leave a trail.
-        await audit.append({
-          connectionId: connection.id, connectionName: connection.name, tool: 'mcp', action: 'refused', targets: [], message: 'AI access is turned off.',
-        }).catch((err) => console.error('Audit write failed:', (err as Error).message));
+        // Refuse every call (initialize and tools/list included) before any transport exists. This is a JSON-RPC
+        // error on HTTP 200, not an auth failure, so clients do not drop the connection. One audit entry a minute.
+        const nowMs = Date.now();
+        if (nowMs - (offAudited.get(connection.id) ?? 0) >= OFF_AUDIT_MS) {
+          offAudited.set(connection.id, nowMs);
+          await audit.append({
+            connectionId: connection.id, connectionName: connection.name, tool: 'mcp', action: 'refused', targets: [], message: 'AI access is turned off.',
+          }).catch((err) => console.error('Audit write failed:', (err as Error).message));
+        }
         const id = (req.body as { id?: unknown } | undefined)?.id;
-        return res.status(403).json({ jsonrpc: '2.0', error: { code: -32001, message: 'AI access is turned off.' }, id: typeof id === 'string' || typeof id === 'number' ? id : null });
+        return res.status(200).json({ jsonrpc: '2.0', error: { code: -32000, message: 'AI access is turned off in Daymark.' }, id: typeof id === 'string' || typeof id === 'number' ? id : null });
       }
       touchConnection(connectionId);
       const now = () => new Date();

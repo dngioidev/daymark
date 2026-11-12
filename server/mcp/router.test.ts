@@ -136,21 +136,22 @@ describe('/mcp endpoint', () => {
     expect(await audit.list({ connectionId: conn.id })).toHaveLength(0);
   });
 
-  it('master switch off refuses every /mcp call, including tools/list, and audits it', async () => {
+  it('master switch off answers every /mcp call with a JSON-RPC error on HTTP 200, and audits once a minute', async () => {
     const conn = connection();
     const token = mcpToken(conn.id);
     mcp.settings.enabled = false;
     const res = await rpc(token);
-    expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ jsonrpc: '2.0', id: 1, error: { message: 'AI access is turned off.' } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'AI access is turned off in Daymark.' } });
     const init = await fetch(`${base}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '1' } } }),
     });
-    expect(init.status).toBe(403);
+    expect(init.status).toBe(200);
+    expect(await init.json()).toMatchObject({ id: 2, error: { code: -32000 } });
     const entries = await audit.list({ connectionId: conn.id });
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(1); // throttled: the second refusal within a minute is not audited
     expect(entries[0]).toMatchObject({ tool: 'mcp', action: 'refused', connectionName: 'Assistant' });
   });
 
