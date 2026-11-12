@@ -38,6 +38,8 @@ interface SettingsModalProps {
   onRemoveUnusedPictures?: () => Promise<number>;
   /** Rendered in the Sync tab (connection to the self-hosted server). */
   syncPanel: React.ReactNode;
+  /** Rendered in the AI connections tab. */
+  aiPanel?: React.ReactNode;
   initialTab?: SettingsTab;
   /** True when this device syncs with a server (changes what restore/sample data do). */
   isSynced?: boolean;
@@ -53,6 +55,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'storage', label: 'Backup & restore' },
   { id: 'sync', label: 'Sync' },
+  { id: 'ai', label: 'AI connections' },
   { id: 'lifecycle', label: 'Statuses' },
   { id: 'aging', label: 'Old-task warnings' },
   { id: 'headings', label: 'Sections' },
@@ -95,6 +98,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetVault,
   onRemoveUnusedPictures,
   syncPanel,
+  aiPanel,
   initialTab = 'appearance',
   isSynced = false,
   lastBackupAt = null,
@@ -364,6 +368,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )}
 
         {activeTab === 'sync' && syncPanel}
+
+        {activeTab === 'ai' && aiPanel}
 
         {activeTab === 'lifecycle' && (
           <>

@@ -74,6 +74,7 @@ import type { RichNoteEditorHandle } from './components/notes/RichNoteEditor';
 const MobileCodeHub = React.lazy(() => import('./components/MobileCodeHub').then((m) => ({ default: m.MobileCodeHub })));
 import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { ServerDashboard } from './components/server/ServerDashboard';
+import { AiConnectionsPanel } from './components/server/AiConnectionsPanel';
 import { useSync } from './hooks/useSync';
 import { getHostMode } from './utils/hostMode';
 import { applySystemBars, isNativeApp } from './native/daymarkBridge';
@@ -1097,6 +1098,7 @@ export default function App() {
           dismissToast();
         })}
         syncPanel={<ServerDashboard sync={sync} defaultDeviceName={defaultDeviceName} compact />}
+        aiPanel={<AiConnectionsPanel sync={sync} />}
       />
 
       <FeedbackHost />
