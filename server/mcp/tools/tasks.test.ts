@@ -6,7 +6,7 @@ import { AddressInfo } from 'node:net';
 import { Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signIn } from '../../../src/sync/authClient';
 import { NO_GRANTS } from '../../../src/sync/mcpProtocol';
 import { applySyncOutcome, syncOnce } from '../../../src/sync/syncClient';
@@ -19,6 +19,7 @@ import { createApp } from '../../app';
 import { signMcpToken } from '../../auth';
 import { loadConfig } from '../../config';
 import { FileStore } from '../../store';
+import { VaultQueue } from '../../vault';
 import { AuditLog } from '../audit';
 import type { McpGrants } from '../../../src/sync/mcpProtocol';
 import { McpStore } from '../mcpStore';
@@ -34,6 +35,16 @@ let store: FileStore;
 let mcp: McpStore;
 let audit: AuditLog;
 let clients: Client[];
+let queue: SpyQueue;
+
+/** Counts jobs that are queued or running, so a test can tell when requests are waiting behind a held job. */
+class SpyQueue extends VaultQueue {
+  pending = 0;
+  run<T>(job: () => Promise<T>): Promise<T> {
+    this.pending++;
+    return super.run(job).finally(() => { this.pending--; });
+  }
+}
 let today: string;
 let yesterday: string;
 
@@ -48,7 +59,8 @@ beforeEach(() => {
   mcp = new McpStore(dir);
   mcp.init();
   audit = new AuditLog(path.join(dir, 'mcp-audit'));
-  holder.use(createApp(config, store, { store: mcp, audit }));
+  queue = new SpyQueue();
+  holder.use(createApp(config, store, { store: mcp, audit }, queue));
   today = todayIn(mcp.effectiveTimezone(config.timezone), new Date());
   yesterday = getPreviousDate(today, 1);
   clients = [];
@@ -191,6 +203,32 @@ describe('task write tools', () => {
     const ai = await assistant('full', { all: true });
     await Promise.all([sync(phone), ok(ai, 'update_task', { taskId: 'b', title: 'B from AI' })]);
     await sync(phone);
+    const items = stored(today)!.headings[0].items;
+    expect(items.find(t => t.id === 'a')!.title).toBe('A from phone');
+    expect(items.find(t => t.id === 'b')!.title).toBe('B from AI');
+  });
+
+  it('device push and AI write held behind the shared queue are applied in order and both survive', async () => {
+    const seeder = await device('seed');
+    seeder.local = vault([day(today, { Work: [task('a', 'Work', today), task('b', 'Work', today)] })]);
+    await sync(seeder);
+    const phone = await device('phone');
+    await sync(phone);
+    phone.local = { ...phone.local, docs: phone.local.docs.map(d => d.date !== today ? d : {
+      ...d, updatedAt: new Date().toISOString(),
+      headings: d.headings.map(h => ({ ...h, items: h.items.map(t => t.id === 'a' ? { ...t, title: 'A from phone' } : t) })),
+    }) };
+    const ai = await assistant('full', { all: true });
+
+    let release!: () => void;
+    const held = queue.run(() => new Promise<void>((resolve) => { release = resolve; }));
+    const phoneSync = sync(phone);
+    await vi.waitFor(() => expect(queue.pending).toBe(2)); // the phone push waits behind the held job
+    const aiEdit = ok(ai, 'update_task', { taskId: 'b', title: 'B from AI' });
+    await vi.waitFor(() => expect(queue.pending).toBe(3)); // so does the AI write
+    expect(stored(today)!.headings[0].items.find(t => t.id === 'a')!.title).toBe('Task a');
+    release();
+    await Promise.all([held, phoneSync, aiEdit]);
     const items = stored(today)!.headings[0].items;
     expect(items.find(t => t.id === 'a')!.title).toBe('A from phone');
     expect(items.find(t => t.id === 'b')!.title).toBe('B from AI');

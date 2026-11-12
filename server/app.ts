@@ -29,11 +29,10 @@ export function checkRefreshToken(store: FileStore, token: string, now = Date.no
  * Builds the REST API (no listening, no static files) so it can be tested in-process.
  * Data routes require a bearer token; refresh/logout use refresh credentials.
  */
-export function createApp(config: ServerConfig, store: FileStore, mcp?: { store: McpStore; audit: AuditLog }) {
+export function createApp(config: ServerConfig, store: FileStore, mcp?: { store: McpStore; audit: AuditLog }, vaultQueue: VaultQueue = new VaultQueue()) {
   const app = express();
   const limiter = new LoginRateLimiter();
   // Serialize sync requests so concurrent devices merge against a consistent state
-  const vaultQueue = new VaultQueue();
 
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy); // trust only the configured reverse-proxy hops
