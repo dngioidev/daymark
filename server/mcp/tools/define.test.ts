@@ -6,7 +6,11 @@ import { NO_GRANTS } from '../../../src/sync/mcpProtocol';
 import { FileStore } from '../../store';
 import { VaultQueue, writeEntity } from '../../vault';
 import { McpStore } from '../mcpStore';
-import { createCommit } from './define';
+import { createCommit, defineTool } from './define';
+import type { ToolContext } from './define';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import { vi } from 'vitest';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-define-')); });
@@ -36,4 +40,35 @@ it('createCommit runs the builder inside the queue, so it sees a doc changed aft
   release();
   await Promise.all([held, pending]);
   expect(seen).toBe('from the phone');
+});
+
+async function runWithFailingAudit(readOnly: boolean) {
+  const mcp = new McpStore(dir);
+  mcp.settings.enabled = true;
+  const connection = mcp.createConnection({ name: 'A', clientId: 'c', clientName: 'C', access: 'full', grants: { ...structuredClone(NO_GRANTS), all: true } });
+  let handler!: (args: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }>;
+  const server = { registerTool: (_n: string, _c: unknown, h: typeof handler) => { handler = h; } } as unknown as McpServer;
+  const ctx = {
+    store: new FileStore(dir), mcp, vault: new VaultQueue(), connection, now: () => new Date(), today: () => '2026-11-12',
+    audit: { append: () => Promise.reject(new Error('disk full')) }, commit: async () => {},
+  } as unknown as ToolContext;
+  defineTool(server, ctx, { name: 't', description: 'd', input: { x: z.string().optional() }, readOnly, run: async () => ({ result: { secret: 'data' }, action: 'read' }) });
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const result = await handler({});
+  const logged = spy.mock.calls.map(c => String(c[0]));
+  spy.mockRestore();
+  return { result, logged };
+}
+
+it('a read-only tool fails closed when the audit entry cannot be written', async () => {
+  const { result } = await runWithFailingAudit(true);
+  expect(result.isError).toBe(true);
+  expect(result.content[0].text).not.toContain('secret');
+});
+
+it('a write tool keeps its result when the audit write fails, and logs the gap', async () => {
+  const { result, logged } = await runWithFailingAudit(false);
+  expect(result.isError).toBeUndefined();
+  expect(result.content[0].text).toContain('secret');
+  expect(logged.some(line => line.includes('AUDIT GAP'))).toBe(true);
 });

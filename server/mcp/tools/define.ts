@@ -81,15 +81,17 @@ export function defineTool<S extends ZodRawShape>(server: McpServer, ctx: ToolCo
   const conn = ctx.connection;
   ownValidation(server);
   const schema = z.object(def.input);
-  const audit = async (action: AuditAction, extra: Partial<Pick<AuditEntry, 'targets' | 'count' | 'message'>> = {}) => {
+  const audit = async (action: AuditAction, extra: Partial<Pick<AuditEntry, 'targets' | 'count' | 'message'>> = {}): Promise<boolean> => {
     try {
       await ctx.audit.append({
         connectionId: conn.id, connectionName: conn.name, tool: def.name, action, targets: extra.targets ?? [],
         ...(extra.count !== undefined ? { count: extra.count } : {}),
         ...(extra.message !== undefined ? { message: extra.message } : {}),
       }, ctx.now());
+      return true;
     } catch (err) {
       console.error('Audit write failed:', (err as Error).message);
+      return false;
     }
   };
 
@@ -114,7 +116,12 @@ export function defineTool<S extends ZodRawShape>(server: McpServer, ctx: ToolCo
         }
         // Scope is read from the live connection so edits and revocation apply to the next call.
         const outcome = await def.run(parsed.data as ToolArgs<S>, { ...ctx, connection: active });
-        await audit(outcome.action, { targets: outcome.targets, count: outcome.count });
+        const audited = await audit(outcome.action, { targets: outcome.targets, count: outcome.count });
+        if (!audited) {
+          // A read must leave a trail before its data leaves; a write is already committed, so report it loudly instead.
+          if (def.readOnly) return textResult('Daymark could not record this access in its audit log, so the data was not returned.', true);
+          console.error(`MCP AUDIT GAP: write tool ${def.name} committed for connection ${conn.id} but its audit entry was not written.`);
+        }
         return textResult(JSON.stringify(outcome.result));
       } catch (err) {
         if (err instanceof ScopeError) {
