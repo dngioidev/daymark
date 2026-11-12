@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts --production",
+    "mcp:stdio": "tsx server/mcp-stdio.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "node -e \"for(const d of [\\\"dist\\\",\\\"coverage\\\"])require(\\\"fs\\\").rmSync(d,{recursive:true,force:true})\"",
