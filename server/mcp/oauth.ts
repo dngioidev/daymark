@@ -65,7 +65,9 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       getClient: (clientId) => mcp.clients[clientId],
       registerClient: async (client) => {
         const full = client as OAuthClientInformationFull;
-        mcp.pruneClients();
+        const live = [...this.pending.values()].map(p => p.clientId);
+        mcp.pruneClients(Date.now(), live);
+        mcp.makeRoomForClient(live);
         mcp.clients[full.client_id] = { ...full, client_id_issued_at: full.client_id_issued_at ?? Math.floor(Date.now() / 1000) };
         await mcp.persist();
         return mcp.clients[full.client_id];
@@ -143,7 +145,12 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       return;
     }
     const client = mcp.clients[request.clientId];
-    const clientName = client?.client_name || 'AI assistant';
+    if (!client) {
+      this.pending.delete(requestId);
+      res.status(400).type('text/plain').send('This sign-in request is no longer valid. Start the connection again from your AI app.');
+      return;
+    }
+    const clientName = client.client_name || 'AI assistant';
     const rerender = (status: number, error: string, name?: string) =>
       this.sendPage(res, status, this.page(requestId, request, clientName, error, name));
 

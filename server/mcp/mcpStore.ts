@@ -14,6 +14,7 @@ export interface McpConnection extends McpConnectionSummary {
   retiredRefreshHashes: string[];
 }
 
+const MAX_CLIENTS = 200;
 const ORPHAN_CLIENT_MS = 24 * 60 * 60 * 1000;
 
 interface McpData {
@@ -48,10 +49,16 @@ export class McpStore {
     this.clients = data.clients;
     // Clients saved before registration time was tracked start their grace period now, so an upgrade drops nothing.
     const nowSeconds = Math.floor(Date.now() / 1000);
-    for (const client of Object.values(this.clients)) client.client_id_issued_at ??= nowSeconds;
+    let changed = false;
+    for (const client of Object.values(this.clients)) {
+      if (client.client_id_issued_at === undefined) { client.client_id_issued_at = nowSeconds; changed = true; }
+    }
     // Authorization codes live in memory only, so a connection still waiting for its code cannot complete after a restart.
+    const before = this.connections.length;
     this.connections = this.connections.filter(connection => !connection.pending);
-    this.pruneClients();
+    if (this.connections.length !== before) changed = true;
+    if (this.pruneClients()) changed = true;
+    if (changed) this.persist().catch((err) => console.error('Could not save MCP state after cleanup:', (err as Error).message));
   }
 
   /** Drops connections whose authorization code was never exchanged within the code lifetime. Returns whether any were. */
@@ -61,9 +68,12 @@ export class McpStore {
     return this.connections.length !== before;
   }
 
-  /** Dynamic registrations that never produced a connection and are older than a day are dropped. Returns whether any were. */
-  pruneClients(now = Date.now()): boolean {
-    const used = new Set(this.connections.map(connection => connection.clientId));
+  /**
+   * Dynamic registrations that never produced a connection and are older than a day are dropped.
+   * `keep` names clients that must survive (e.g. ones a live /authorize request refers to). Returns whether any were dropped.
+   */
+  pruneClients(now = Date.now(), keep: Iterable<string> = []): boolean {
+    const used = new Set<string | null>([...this.connections.map(connection => connection.clientId), ...keep]);
     let pruned = false;
     for (const [id, client] of Object.entries(this.clients)) {
       const issuedAt = (client.client_id_issued_at ?? now / 1000) * 1000;
@@ -72,6 +82,18 @@ export class McpStore {
       pruned = true;
     }
     return pruned;
+  }
+
+  /** Makes room for one more registration: oldest unused clients go first once the cap is reached. */
+  makeRoomForClient(keep: Iterable<string> = []): boolean {
+    const used = new Set<string | null>([...this.connections.map(connection => connection.clientId), ...keep]);
+    const excess = Object.keys(this.clients).length - (MAX_CLIENTS - 1);
+    if (excess <= 0) return false;
+    const unused = Object.entries(this.clients)
+      .filter(([id]) => !used.has(id))
+      .sort(([, a], [, b]) => (a.client_id_issued_at ?? 0) - (b.client_id_issued_at ?? 0));
+    for (const [id] of unused.slice(0, excess)) delete this.clients[id];
+    return unused.length > 0;
   }
 
   persist(): Promise<void> {

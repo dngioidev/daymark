@@ -157,3 +157,34 @@ it('pending connections never authorize, and are dropped when stale or on load',
   expect(loaded.connections).toHaveLength(0);
   expect(store.dropStalePending(600_000, Date.now() + 601_000)).toBe(true);
 });
+
+it('init persists the timestamp backfill and the prune', async () => {
+  fs.writeFileSync(path.join(dir, 'mcp.json'), JSON.stringify({
+    settings: store.settings, connections: [],
+    clients: { legacy: client('legacy'), old: client('old', Math.floor(Date.now() / 1000) - 3 * 86400) },
+  }));
+  const loaded = new McpStore(dir);
+  loaded.init();
+  await loaded.persist(); // queued behind the init save
+  const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8')) as { clients: Record<string, { client_id_issued_at?: number }> };
+  expect(Object.keys(onDisk.clients)).toEqual(['legacy']);
+  expect(onDisk.clients.legacy.client_id_issued_at).toBeDefined();
+});
+
+it('keeps protected clients through pruning, and caps clients at 200 by evicting the oldest unused', () => {
+  const now = Math.floor(Date.now() / 1000);
+  store.clients['pending'] = client('pending', now - 3 * 86400);
+  expect(store.pruneClients(Date.now(), ['pending'])).toBe(false);
+  expect(store.clients['pending']).toBeDefined();
+
+  store.clients = {};
+  create(); // client-1
+  store.clients['client-1'] = client('client-1', now - 4000);
+  for (let i = 0; i < 199; i++) store.clients[`c${i}`] = client(`c${i}`, now - 3000 + i);
+  expect(Object.keys(store.clients)).toHaveLength(200);
+  store.makeRoomForClient(['c0']);
+  expect(Object.keys(store.clients)).toHaveLength(199);
+  expect(store.clients['c0']).toBeDefined(); // protected, so c1 went instead
+  expect(store.clients['c1']).toBeUndefined();
+  expect(store.clients['client-1']).toBeDefined();
+});
