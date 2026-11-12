@@ -293,9 +293,13 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
 
   async revokeToken(client: OAuthClientInformationFull, request: OAuthTokenRevocationRequest): Promise<void> {
     const { store, mcp } = this.deps;
-    const cid = verifyMcpToken(request.token, store.auth.secret)?.cid ?? request.token.split('.', 1)[0];
+    const signed = verifyMcpToken(request.token, store.auth.secret);
+    const cid = signed?.cid ?? request.token.split('.', 1)[0];
     const connection = mcp.connections.find(c => c.id === cid);
-    if (!connection || connection.clientId !== client.client_id || !mcp.revoke(cid)) return;
+    if (!connection || connection.clientId !== client.client_id) return;
+    // A refresh token must be the connection's current one; a bare connection id is not a credential.
+    if (!signed && (!connection.refreshHash || hashRefreshToken(request.token) !== connection.refreshHash)) return;
+    if (!mcp.revoke(cid)) return;
     await mcp.persist();
     await this.audit({ connectionId: connection.id, connectionName: connection.name, tool: 'oauth', action: 'revoke', targets: [], message: 'revoked by client' });
   }

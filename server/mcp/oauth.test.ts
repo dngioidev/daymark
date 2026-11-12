@@ -245,6 +245,22 @@ describe('OAuth connector sign-in', () => {
     expect((await refresh(second.refresh_token)).status).toBe(400);
   });
 
+  it('/revoke by connection id alone does nothing; the real refresh token revokes', async () => {
+    const s = await signIn();
+    const tokens = await (await exchange(s)).json() as { refresh_token: string };
+    const connection = mcp.connections.find(c => c.name === 'My assistant')!;
+    const revoke = (token: string) => fetch(`${base}/revoke`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, client_id: s.clientId }),
+    });
+    expect((await revoke(`${connection.id}.not-the-token`)).status).toBe(200);
+    expect(connection.revoked).toBe(false);
+    expect(await audit.list({ action: 'revoke' })).toHaveLength(0);
+    expect((await revoke(tokens.refresh_token)).status).toBe(200);
+    expect(connection.revoked).toBe(true);
+    expect(await audit.list({ action: 'revoke' })).toHaveLength(1);
+  });
+
   it('password change revokes connections', async () => {
     const s = await signIn();
     await exchange(s);
