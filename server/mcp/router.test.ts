@@ -6,7 +6,12 @@ import { AddressInfo } from 'node:net';
 import { Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { z } from 'zod';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { VaultQueue } from '../vault';
+import { defineTool } from './tools/define';
 import { NO_GRANTS } from '../../src/sync/mcpProtocol';
 import { createApp } from '../app';
 import { signMcpToken, signToken } from '../auth';
@@ -135,5 +140,56 @@ describe('/mcp endpoint', () => {
     const token = mcpToken(connection().id);
     store.auth = { ...store.auth, tokenVersion: store.auth.tokenVersion + 1 };
     expect((await rpc(token)).status).toBe(401);
+  });
+
+  describe('tool wrapper argument validation', () => {
+    async function wrapped() {
+      const conn = connection();
+      const server = new McpServer({ name: 'test', version: '1' });
+      defineTool(server, {
+        store, mcp, audit, vault: new VaultQueue(), connection: conn, now: () => new Date(), today: () => '2026-11-12',
+        commit: async () => {},
+      }, {
+        name: 'echo', description: 'Echo', input: { text: z.string(), n: z.number().optional() }, readOnly: true,
+        run: async (args) => ({ result: { text: args.text }, action: 'read' }),
+      });
+      const client = new Client({ name: 'test', version: '1' });
+      const [a, b] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(a), client.connect(b)]);
+      return { conn, client };
+    }
+    const call = (client: Client, args: Record<string, unknown>) =>
+      client.callTool({ name: 'echo', arguments: args }) as Promise<{ isError?: boolean; content: { text: string }[] }>;
+
+    it('advertises the real input schema', async () => {
+      const { client } = await wrapped();
+      const tool = (await client.listTools()).tools[0];
+      expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual(['text', 'n']);
+      expect(tool.inputSchema.required).toEqual(['text']);
+    });
+
+    it('bad arguments return an error and write exactly one audit entry', async () => {
+      const { conn, client } = await wrapped();
+      const result = await call(client, { text: 42 });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toBe('Invalid arguments: text');
+      const entries = await audit.list({ connectionId: conn.id });
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tool: 'echo', action: 'error', message: 'invalid_arguments' });
+      expect(entries[0].targets).toEqual([]);
+      const ok = await call(client, { text: 'hi' });
+      expect(JSON.parse(ok.content[0].text)).toEqual({ text: 'hi' });
+      expect(await audit.list({ connectionId: conn.id })).toHaveLength(2);
+    });
+
+    it('with the master switch off a bad-argument call is audited once as refused', async () => {
+      const { conn, client } = await wrapped();
+      mcp.settings.enabled = false;
+      const result = await call(client, {});
+      expect(result.content[0].text).toBe('AI access is turned off.');
+      const entries = await audit.list({ connectionId: conn.id });
+      expect(entries).toHaveLength(1);
+      expect(entries[0].action).toBe('refused');
+    });
   });
 });

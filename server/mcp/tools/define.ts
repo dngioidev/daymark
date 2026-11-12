@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { z, ZodRawShape } from 'zod';
+import { z } from 'zod';
+import type { ZodRawShape } from 'zod';
 import { isBacklogEntityKey } from '../../../src/sync/merge';
 import type { AuditAction, AuditEntry } from '../../../src/sync/mcpProtocol';
 import type { FileStore } from '../../store';
@@ -49,6 +50,18 @@ export function createCommit(store: FileStore, vault: VaultQueue, connection: Mc
   });
 }
 
+/**
+ * The SDK validates input before calling a tool, which would skip the wrapper's checks and audit.
+ * Hand the raw arguments to the wrapper instead; the real schema is still registered and advertised.
+ */
+const passthrough = new WeakSet<object>();
+function ownValidation(server: McpServer): void {
+  if (passthrough.has(server)) return;
+  passthrough.add(server);
+  (server as unknown as { validateToolInput: (tool: unknown, args: unknown) => Promise<unknown> }).validateToolInput =
+    async (_tool, args) => args ?? {};
+}
+
 const textResult = (text: string, isError = false): CallToolResult => ({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
 
 /** Registers a tool whose every call is checked against the connection and leaves exactly one audit entry. */
@@ -62,6 +75,8 @@ export function defineTool<S extends ZodRawShape>(server: McpServer, ctx: ToolCo
   run: (args: ToolArgs<S>, ctx: ToolContext) => Promise<ToolOutcome>;
 }): void {
   const conn = ctx.connection;
+  ownValidation(server);
+  const schema = z.object(def.input);
   const audit = async (action: AuditAction, extra: Partial<Pick<AuditEntry, 'targets' | 'count' | 'message'>> = {}) => {
     try {
       await ctx.audit.append({
@@ -87,8 +102,14 @@ export function defineTool<S extends ZodRawShape>(server: McpServer, ctx: ToolCo
         const active = ctx.mcp.activeConnection(conn.id);
         if (!active) throw new ScopeError(NOT_SHARED);
         if (!def.readOnly && active.access === 'read-only' && !def.allowReadOnlyConnection) throw new ScopeError(NOT_SHARED);
+        const parsed = schema.safeParse(args ?? {});
+        if (!parsed.success) {
+          await audit('error', { message: 'invalid_arguments' });
+          const fields = [...new Set(parsed.error.issues.map(issue => issue.path.join('.') || 'arguments'))].join(', ');
+          return textResult(`Invalid arguments: ${fields}`, true);
+        }
         // Scope is read from the live connection so edits and revocation apply to the next call.
-        const outcome = await def.run(args, { ...ctx, connection: active });
+        const outcome = await def.run(parsed.data as ToolArgs<S>, { ...ctx, connection: active });
         await audit(outcome.action, { targets: outcome.targets, count: outcome.count });
         return textResult(JSON.stringify(outcome.result));
       } catch (err) {
