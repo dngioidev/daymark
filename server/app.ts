@@ -12,6 +12,7 @@ import { isValidEntityValue, reconcileBacklogAfterWrite, VaultQueue, writeEntity
 import type { AuditLog } from './mcp/audit';
 import type { McpStore } from './mcp/mcpStore';
 import { mountMcp } from './mcp/router';
+import { mcpAdminRoutes } from './mcp/adminRoutes';
 
 export const SERVER_VERSION = '2.0.0';
 
@@ -355,6 +356,8 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
   if (mcp && config.mcpEnabled && config.publicUrl) {
     mountMcp(app, { config, store, mcp: mcp.store, audit: mcp.audit, vault: vaultQueue });
   }
+
+  if (mcp) app.use('/api/mcp', mcpAdminRoutes({ config, store, mcp: mcp.store, audit: mcp.audit }));
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 
