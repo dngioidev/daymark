@@ -81,7 +81,7 @@ it('list_tasks across days hides other headings', async () => {
 it("list_tasks for today before rollover lists yesterday's open task, once", async () => {
   const result = await data('list_tasks');
   expect(result).toEqual([expect.objectContaining({ date, heading: 'Work', id: 'Work-2026-11-11', status: 'in-progress' })]);
-  // after a client-side rollover wrote today's doc, the carried task still appears once
+  // no rollover runs in this test: an explicit today-only range returns the same virtual carried task, still once
   const again = await data('list_tasks', { from: date, to: date });
   expect(again).toHaveLength(1);
 });
