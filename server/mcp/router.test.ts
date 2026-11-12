@@ -170,6 +170,10 @@ describe('/mcp endpoint', () => {
     expect((await rpc(token)).status).toBe(401);
   });
 
+  it('the SDK still has the private validateToolInput hook that defineTool overrides', () => {
+    expect(typeof (McpServer.prototype as unknown as { validateToolInput: unknown }).validateToolInput).toBe('function');
+  });
+
   describe('tool wrapper argument validation', () => {
     async function wrapped() {
       const conn = connection();
