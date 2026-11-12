@@ -55,6 +55,14 @@ export function mountMcp(app: express.Express, deps: { config: ServerConfig; sto
       const connectionId = String(req.auth?.extra?.connectionId ?? '');
       const connection = mcp.activeConnection(connectionId);
       if (!connection) return res.status(401).json({ error: 'invalid_token' });
+      if (!mcp.settings.enabled) {
+        // Refuse every call (initialize and tools/list included) before any transport exists, and leave a trail.
+        await audit.append({
+          connectionId: connection.id, connectionName: connection.name, tool: 'mcp', action: 'refused', targets: [], message: 'AI access is turned off.',
+        }).catch((err) => console.error('Audit write failed:', (err as Error).message));
+        const id = (req.body as { id?: unknown } | undefined)?.id;
+        return res.status(403).json({ jsonrpc: '2.0', error: { code: -32001, message: 'AI access is turned off.' }, id: typeof id === 'string' || typeof id === 'number' ? id : null });
+      }
       touchConnection(connectionId);
       const now = () => new Date();
       const ctx: ToolContext = {

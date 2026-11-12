@@ -121,19 +121,47 @@ describe('/mcp endpoint', () => {
     expect((await rpc(token)).status).toBe(200);
     mcp.revoke(conn.id);
     expect((await rpc(token)).status).toBe(401);
+    expect((await rpc(token)).status).toBe(401);
+    // audited once (throttled per connection), with a stable shape
+    const entries = await audit.list({ connectionId: conn.id });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ tool: 'auth', action: 'refused', message: 'revoked connection', connectionName: 'Assistant' });
   });
 
-  it('master switch off refuses tools', async () => {
+  it('a token with a stale version for a live connection is refused without an audit entry', async () => {
+    const conn = connection();
+    const token = mcpToken(conn.id);
+    store.auth = { ...store.auth, tokenVersion: store.auth.tokenVersion + 1 };
+    expect((await rpc(token)).status).toBe(401);
+    expect(await audit.list({ connectionId: conn.id })).toHaveLength(0);
+  });
+
+  it('master switch off refuses every /mcp call, including tools/list, and audits it', async () => {
+    const conn = connection();
+    const token = mcpToken(conn.id);
+    mcp.settings.enabled = false;
+    const res = await rpc(token);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ jsonrpc: '2.0', id: 1, error: { message: 'AI access is turned off.' } });
+    const init = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '1' } } }),
+    });
+    expect(init.status).toBe(403);
+    const entries = await audit.list({ connectionId: conn.id });
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ tool: 'mcp', action: 'refused', connectionName: 'Assistant' });
+  });
+
+  it('master switch turned off mid-session refuses the next tool call', async () => {
     const conn = connection();
     const client = await connect(mcpToken(conn.id));
     mcp.settings.enabled = false;
-    const result = await callPing(client);
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe('AI access is turned off.');
+    await expect(callPing(client)).rejects.toThrow();
     await client.close();
     const entries = await audit.list({ connectionId: conn.id });
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ tool: 'ping', action: 'refused' });
+    expect(entries.some(e => e.tool === 'mcp' && e.action === 'refused')).toBe(true);
   });
 
   it('token from before a password change is refused', async () => {

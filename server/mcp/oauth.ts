@@ -20,6 +20,7 @@ const ACCESS_TTL_SECONDS = 900;
 const MAX_RETIRED = 50;
 const MAX_PENDING = 200;
 const MAX_LIST = 200;
+const REVOKED_AUDIT_MS = 60_000;
 
 interface PendingRequest {
   clientId: string;
@@ -52,6 +53,7 @@ const form = (value: unknown): string => (typeof value === 'string' ? value : ''
 export class DaymarkOAuthProvider implements OAuthServerProvider {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly codes = new Map<string, IssuedCode>();
+  private readonly revokedAudited = new Map<string, number>();
 
   constructor(private readonly deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; limiter: LoginRateLimiter }) {}
 
@@ -262,12 +264,27 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     return tokens;
   }
 
+  /** A still-signed token for a revoked connection is worth a trail; at most once a minute per connection. */
+  private async auditRevokedUse(connectionId: string): Promise<void> {
+    const connection = this.deps.mcp.connections.find(c => c.id === connectionId);
+    if (!connection) return;
+    const now = Date.now();
+    if (now - (this.revokedAudited.get(connectionId) ?? 0) < REVOKED_AUDIT_MS) return;
+    this.revokedAudited.set(connectionId, now);
+    await this.audit({
+      connectionId, connectionName: connection.name, tool: 'auth', action: 'refused', targets: [], message: 'revoked connection',
+    });
+  }
+
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     const { store, mcp } = this.deps;
     const payload = verifyMcpToken(token, store.auth.secret);
     if (!payload || payload.ver !== store.auth.tokenVersion) throw new InvalidTokenError('Invalid or expired token.');
     const connection = mcp.activeConnection(payload.cid);
-    if (!connection) throw new InvalidTokenError('This connection was revoked.');
+    if (!connection) {
+      await this.auditRevokedUse(payload.cid);
+      throw new InvalidTokenError('This connection was revoked.');
+    }
     return {
       token, clientId: connection.clientId ?? 'local', scopes: ['daymark'], expiresAt: payload.exp,
       extra: { connectionId: connection.id },
