@@ -36,7 +36,7 @@ export function passwordProblem(password: string): string | null {
   return null;
 }
 
-function validTimeZone(value: string | undefined): string | null {
+export function validTimeZone(value: string | undefined): string | null {
   const tz = value?.trim();
   if (!tz) return null;
   try {

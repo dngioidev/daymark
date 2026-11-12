@@ -53,8 +53,8 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
   return JSON.parse(content[0].text);
 }
 
-async function refusedProcess() {
-  const child = spawn(command, ['tsx', 'server/mcp-stdio.ts', '--data', process.platform === 'win32' ? `"${dir}"` : dir], {
+async function refusedProcess(extraArgs: string[] = []) {
+  const child = spawn(command, ['tsx', 'server/mcp-stdio.ts', '--data', process.platform === 'win32' ? `"${dir}"` : dir, ...extraArgs], {
     shell: process.platform === 'win32', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
   });
   let stdout = '';
@@ -122,6 +122,34 @@ it('audit entries are written under local', async () => {
     expect.objectContaining({ connectionId: 'local', tool: 'list_notes', action: 'read' }),
   ]));
   expect(JSON.stringify(entries)).not.toMatch(/Private title|Private body/);
+}, 20_000);
+
+it('prunes audit days older than the retention setting at startup', async () => {
+  const auditDir = path.join(dir, 'mcp-audit');
+  fs.mkdirSync(auditDir, { recursive: true });
+  const old = path.join(auditDir, '2020-01-01.jsonl');
+  fs.writeFileSync(old, '');
+  const { client } = await assistant();
+  await call(client, 'list_notes');
+  await expect.poll(() => fs.existsSync(old)).toBe(false);
+  expect(fs.readdirSync(auditDir).length).toBe(1); // today's entry survives
+}, 20_000);
+
+it.each([
+  { source: '--timezone', args: ['--timezone', 'Not/AZone'], env: {} },
+  { source: 'DAYMARK_TZ', args: [], env: { DAYMARK_TZ: 'Not/AZone' } },
+])('an invalid $source exits 1 with a clear message', async ({ args, env }) => {
+  const previous = process.env.DAYMARK_TZ;
+  Object.assign(process.env, env);
+  try {
+    const result = await refusedProcess(args);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('Not/AZone');
+    expect(result.stderr).toMatch(/not a valid time zone/i);
+  } finally {
+    if (previous === undefined) delete process.env.DAYMARK_TZ; else process.env.DAYMARK_TZ = previous;
+  }
 }, 20_000);
 
 it('second stdio process on the same dir exits 1 with the lock message', async () => {

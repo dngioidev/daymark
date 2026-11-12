@@ -10,7 +10,7 @@ Daymark's self-hosted server now offers MCP tools for an AI client to read and u
 - Per-connection sharing for daily headings, note folders/subfolders, the whole backlog and habits, with full or read-only access. Device-only administration keeps the AI from changing its own grants.
 - Tools for day summaries, reviews, search, task and note edits, backlog picks and habit ticks. AI writes use the shared vault revision path and reach devices through normal sync.
 - **Settings → AI connections:** Connector address, AI access master switch, Time zone, Connections with Edit/Revoke, Activity filters and retention, and Daymark feedback goes to.
-- Daily `mcp-audit/` activity and server-only `mcp.json` state. Retention is 30 days by default, configurable to 7 or a custom 1–365 days. The HTTP server prunes on startup and daily.
+- Daily `mcp-audit/` activity and server-only `mcp.json` state. Retention is 30 days by default, configurable to 7 or a custom 1–365 days. The HTTP server and the stdio entry point both prune on startup and daily.
 - Daymark feedback via `submit_daymark_feedback`, routed to backlog, today's section or a note folder. This submission-only exception also works for read-only connections without exposing the destination.
 - Localhost HTTP and `npm run mcp:stdio -- --data <folder>` for separate local vaults, with exclusive directory locks and an editable built-in Local connection.
 - An installable `skills/daymark/SKILL.md`, condensed MCP instructions, and an AI connections guide automatically loaded by Help and the website.
@@ -63,7 +63,7 @@ Full verification run by the controller on branch `feat/cycle-19-mcp` after all 
 
 - Provider/account compatibility and mobile voice behavior await the owner's manual checks above; these are not claimed as passing.
 - The mobile screenshot is the server web app in a phone viewport, not a native Android capture.
-- Stdio writes audit entries but does not schedule pruning; the HTTP server handles retention. Audit append failures are logged and do not roll back completed tool writes.
+- Audit append failures are logged and do not roll back completed tool writes.
 - No version bump, release, tag or commit is performed by Task 15; the controller commits the working tree.
 
 ## Usage vs. estimate

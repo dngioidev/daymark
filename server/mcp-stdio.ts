@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { SERVER_VERSION } from './app';
+import { validTimeZone } from './config';
 import { FileStore } from './store';
 import { VaultQueue } from './vault';
 import { AuditLog } from './mcp/audit';
@@ -16,7 +17,11 @@ import { todayIn } from './mcp/vaultView';
 async function main(): Promise<void> {
   const { values } = parseArgs({ options: { data: { type: 'string' }, timezone: { type: 'string' } } });
   const dir = path.resolve(values.data ?? process.env.DATA_DIR ?? './data');
-  const timezone = values.timezone ?? process.env.DAYMARK_TZ ?? null;
+  const requestedZone = values.timezone ?? process.env.DAYMARK_TZ;
+  const timezone = validTimeZone(requestedZone);
+  if (requestedZone?.trim() && !timezone) {
+    throw new Error(`"${requestedZone.trim()}" is not a valid time zone. Use an IANA name such as Europe/London.`);
+  }
   // Fail before loading any vault state if another process owns this directory.
   const release = acquireDataLock(dir, 'stdio');
   process.once('exit', release);
@@ -29,6 +34,10 @@ async function main(): Promise<void> {
   await mcp.persist();
   const vault = new VaultQueue();
   const audit = new AuditLog(path.join(dir, 'mcp-audit'));
+  // The retention setting applies here too: prune at startup and once a day.
+  const pruneAudit = () => audit.prune(mcp.settings.auditRetentionDays).catch(error => console.error('Audit prune failed:', (error as Error).message));
+  void pruneAudit();
+  setInterval(pruneAudit, 24 * 60 * 60 * 1000).unref();
   const now = () => new Date();
   const ctx: ToolContext = {
     store, mcp, audit, vault, connection, now,
