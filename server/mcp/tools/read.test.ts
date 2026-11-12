@@ -73,10 +73,17 @@ it('get_note outside scope and a missing id give the same message', async () => 
 it('list_tasks across days hides other headings', async () => {
   put(`doc:${date}`, day(date));
   const result = await data('list_tasks', { from: '2026-11-11', to: date });
-  expect(result).toHaveLength(2);
+  expect(result).toHaveLength(3); // yesterday, today's own task and yesterday's open task carried into today
   expect(result.every((item: { heading: string }) => item.heading === 'Work')).toBe(true);
   expect(await data('list_tasks', { from: '2026-11-11', to: date, heading: 'Personal' })).toEqual([]);
   expect(await data('list_tasks', { tag: 'absent' })).toEqual([]);
+});
+it("list_tasks for today before rollover lists yesterday's open task, once", async () => {
+  const result = await data('list_tasks');
+  expect(result).toEqual([expect.objectContaining({ date, heading: 'Work', id: 'Work-2026-11-11', status: 'in-progress' })]);
+  // after a client-side rollover wrote today's doc, the carried task still appears once
+  const again = await data('list_tasks', { from: date, to: date });
+  expect(again).toHaveLength(1);
 });
 it('habits not granted → list_habits refused and summary.habits null', async () => {
   expect(await call('list_habits')).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });

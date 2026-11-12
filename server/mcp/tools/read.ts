@@ -21,8 +21,11 @@ function scopedDay(ctx: ToolContext, date: string): DailyDocument {
   return doc;
 }
 
+/** Stored days, with today's carry-forward applied in memory (like scopedDay) so reads agree before any device rolls over. */
 function scopedDocs(ctx: ToolContext): DailyDocument[] {
-  return readDocs(ctx.store).flatMap(doc => {
+  const today = ctx.today();
+  const stored = readDocs(ctx.store).filter(doc => doc.date !== today);
+  return [...stored, dayView(ctx.store, today, today)].flatMap(doc => {
     const scoped = scopeDoc(doc, ctx.connection.grants);
     return scoped ? [scoped] : [];
   });
