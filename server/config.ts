@@ -12,6 +12,12 @@ export interface ServerConfig {
   corsOrigins: '*' | string[];
   accessTtlSeconds: number;
   refreshTtlDays: number;
+  /** Externally visible base URL (no trailing slash); null in production until DAYMARK_PUBLIC_URL is set. */
+  publicUrl: string | null;
+  /** False when DAYMARK_MCP=off. */
+  mcpEnabled: boolean;
+  /** Valid IANA zone from DAYMARK_TZ, else null. */
+  timezone: string | null;
 }
 
 const WEAK_PASSWORDS = new Set(['daymark2026', 'admin', 'password', 'change-me-before-deploying', '12345678']);
@@ -30,12 +36,25 @@ export function passwordProblem(password: string): string | null {
   return null;
 }
 
+function validTimeZone(value: string | undefined): string | null {
+  const tz = value?.trim();
+  if (!tz) return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return null;
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const production = env.NODE_ENV === 'production';
   const origins = (env.DAYMARK_CORS_ORIGINS ?? '*').trim();
   const refreshTtlDays = Number(env.DAYMARK_REFRESH_TTL_DAYS);
+  const port = Number(env.PORT) || 3000;
+  const publicUrl = env.DAYMARK_PUBLIC_URL?.trim().replace(/\/+$/, '') || (production ? null : `http://localhost:${port}`);
   return {
-    port: Number(env.PORT) || 3000,
+    port,
     dataDir: path.resolve(env.DATA_DIR || 'data'),
     production,
     trustProxy: env.DAYMARK_TRUST_PROXY?.trim() || 'loopback',
@@ -44,5 +63,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     corsOrigins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()).filter(Boolean),
     accessTtlSeconds: 900,
     refreshTtlDays: Number.isFinite(refreshTtlDays) && refreshTtlDays > 0 ? refreshTtlDays : 30,
+    publicUrl,
+    mcpEnabled: env.DAYMARK_MCP?.trim().toLowerCase() !== 'off',
+    timezone: validTimeZone(env.DAYMARK_TZ),
   };
 }

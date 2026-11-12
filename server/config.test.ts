@@ -30,3 +30,20 @@ describe('loadConfig refresh TTL', () => {
     expect(loadConfig({ DAYMARK_TOKEN_TTL_DAYS: '90' }).refreshTtlDays).toBe(30);
   });
 });
+
+describe('loadConfig MCP settings', () => {
+  it('reads MCP settings', () => {
+    const c = loadConfig({ DAYMARK_PUBLIC_URL: 'https://day.example.com/', DAYMARK_TZ: 'Asia/Ho_Chi_Minh' });
+    expect(c.publicUrl).toBe('https://day.example.com'); // trailing slash trimmed
+    expect(c.mcpEnabled).toBe(true);
+    expect(c.timezone).toBe('Asia/Ho_Chi_Minh');
+  });
+  it('defaults publicUrl to localhost in development and null in production', () => {
+    expect(loadConfig({}).publicUrl).toBe('http://localhost:3000');
+    expect(loadConfig({ NODE_ENV: 'production', DAYMARK_PASSWORD: 'x'.repeat(12) }).publicUrl).toBeNull();
+  });
+  it('DAYMARK_MCP=off disables MCP and an invalid DAYMARK_TZ is ignored', () => {
+    expect(loadConfig({ DAYMARK_MCP: 'off' }).mcpEnabled).toBe(false);
+    expect(loadConfig({ DAYMARK_TZ: 'Not/AZone' }).timezone).toBeNull();
+  });
+});
