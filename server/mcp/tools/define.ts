@@ -18,8 +18,11 @@ export interface ToolContext {
   connection: McpConnection;
   now: () => Date;
   today: () => string;
-  commit: (changes: { key: string; value: unknown | null }[]) => Promise<void>;
+  /** A function runs inside the vault queue, so it reads the current vault and its writes cannot overwrite a concurrent sync. */
+  commit: (changes: VaultChange[] | (() => VaultChange[])) => Promise<void>;
 }
+
+export type VaultChange = { key: string; value: unknown | null };
 
 export interface ToolOutcome {
   result: unknown;
@@ -32,7 +35,8 @@ type ToolArgs<S extends ZodRawShape> = { [K in keyof S]: z.output<S[K]> };
 
 /** Validated, serialized vault write on behalf of one connection. */
 export function createCommit(store: FileStore, vault: VaultQueue, connection: McpConnection, now: () => Date): ToolContext['commit'] {
-  return (changes) => vault.run(async () => {
+  return (build) => vault.run(async () => {
+    const changes = typeof build === 'function' ? build() : build;
     for (const change of changes) {
       if (change.value !== null && !isValidEntityValue(change.key, change.value)) throw new Error('invalid write');
     }

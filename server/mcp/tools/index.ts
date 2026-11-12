@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { defineTool } from './define';
 import type { ToolContext } from './define';
 import { registerReadTools } from './read';
+import { registerTaskTools } from './tasks';
 
 export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   defineTool(server, ctx, {
@@ -12,4 +13,5 @@ export function registerAllTools(server: McpServer, ctx: ToolContext): void {
     run: async () => ({ result: { ok: true }, action: 'read' }),
   });
   registerReadTools(server, ctx);
+  registerTaskTools(server, ctx);
 }
