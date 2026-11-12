@@ -209,7 +209,7 @@ export const AiConnectionsPanel: React.FC<{ sync: UseSyncResult }> = ({ sync }) 
   if (!sync.account) return <p className="text-sm text-stone-700 dark:text-stone-300">Sign in to sync to manage AI connections.</p>;
   if (!overview) {
     return error
-      ? <div role="alert" className="p-3 rounded-lg bg-stone-100 dark:bg-stone-800 border border-stone-400 dark:border-stone-500 text-stone-900 dark:text-stone-100 flex items-start gap-2 text-sm"><AlertCircle size=16 className="mt-0.5 shrink-0" aria-hidden="true" /><span>Error: {error}</span></div>
+      ? <div role="alert" className="p-3 rounded-lg bg-stone-100 dark:bg-stone-800 border border-stone-400 dark:border-stone-500 text-stone-900 dark:text-stone-100 flex items-start gap-2 text-sm"><AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" /><span>Error: {error}</span></div>
       : <p className="text-sm text-stone-600 dark:text-stone-400">Loading…</p>;
   }
   if (overview.endpoint === '') return <p className="text-sm text-stone-700 dark:text-stone-300">AI connections are turned off on this server.</p>;
