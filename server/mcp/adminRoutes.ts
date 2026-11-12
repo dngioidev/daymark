@@ -68,8 +68,12 @@ export function mcpAdminRoutes(deps: { config: ServerConfig; store: FileStore; m
   router.put('/settings', (req, res, next) => {
     const parsed = settingsUpdate.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid MCP settings.' });
+    const previous = structuredClone(mcp.settings);
     Object.assign(mcp.settings, parsed.data);
-    mcp.persist().then(() => res.json(mcp.settings)).catch(next);
+    mcp.persist().then(() => res.json(mcp.settings)).catch((err) => {
+      Object.assign(mcp.settings, previous); // the save failed, so do not leave the new settings live in memory
+      next(err);
+    });
   });
 
   router.put('/connections/:id', (req, res, next) => {
@@ -77,8 +81,12 @@ export function mcpAdminRoutes(deps: { config: ServerConfig; store: FileStore; m
     if (!connection) return res.status(404).json({ error: 'Connection not found.' });
     const parsed = connectionUpdate.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid connection update.' });
+    const previous = structuredClone(Object.fromEntries(Object.keys(parsed.data).map(key => [key, connection[key as keyof McpConnection]])));
     Object.assign(connection, parsed.data);
-    mcp.persist().then(() => res.json(summary(connection))).catch(next);
+    mcp.persist().then(() => res.json(summary(connection))).catch((err) => {
+      Object.assign(connection, previous); // keep the scope the owner last saved
+      next(err);
+    });
   });
 
   router.delete('/connections/:id', (req, res, next) => {

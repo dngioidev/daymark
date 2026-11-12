@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { NO_GRANTS } from '../../src/sync/mcpProtocol';
 import { createApp } from '../app';
 import { signMcpToken } from '../auth';
@@ -92,6 +92,22 @@ it('device can change scope and the next tool call sees the new scope', async ()
   } finally {
     await client.close();
   }
+});
+
+it('a failed save leaves settings and connection scope as they were', async () => {
+  const conn = connection();
+  const before = structuredClone({ settings: mcp.settings, name: conn.name, access: conn.access, grants: conn.grants });
+  const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const persist = vi.spyOn(mcp, 'persist').mockRejectedValue(new Error('disk full'));
+  try {
+    expect((await request('/settings', 'PUT', { enabled: false, auditRetentionDays: 7, feedback: { kind: 'heading', heading: 'Work' } })).status).toBe(500);
+    expect((await request(`/connections/${conn.id}`, 'PUT', { name: 'Narrow', access: 'read-only', grants: NO_GRANTS })).status).toBe(500);
+  } finally {
+    persist.mockRestore();
+    quiet.mockRestore();
+  }
+  expect(mcp.settings).toEqual(before.settings);
+  expect({ name: conn.name, access: conn.access, grants: conn.grants }).toEqual({ name: before.name, access: before.access, grants: before.grants });
 });
 
 it('settings validation rejects retention 0 and 366 and timezone "Mars/Base"', async () => {
