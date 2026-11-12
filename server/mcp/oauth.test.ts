@@ -5,7 +5,7 @@ import path from 'node:path';
 import express from 'express';
 import { AddressInfo } from 'node:net';
 import { Server } from 'node:http';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../src/utils/defaultData';
 import { createApp } from '../app';
 import { loadConfig } from '../config';
@@ -192,9 +192,11 @@ describe('OAuth connector sign-in', () => {
     const pendingOne = mcp.connections.find(c => c.pending)!;
     pendingOne.createdAt = new Date(Date.now() - 11 * 60 * 1000).toISOString();
     await authorize(await register(), sha256('v'));
-    await mcp.persist(); // queued behind the purge save
-    const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8')) as { connections: { id: string }[] };
-    expect(onDisk.connections.some(c => c.id === pendingOne.id)).toBe(false);
+    // The purge saves on its own; wait for that save rather than persisting here
+    await vi.waitFor(() => {
+      const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8')) as { connections: { id: string }[] };
+      expect(onDisk.connections.some(c => c.id === pendingOne.id)).toBe(false);
+    });
   });
 
   it('register → authorize page shows no vault data and asks for the password', async () => {

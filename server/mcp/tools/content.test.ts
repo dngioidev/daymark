@@ -108,6 +108,13 @@ describe('content write tools', () => {
     expect(await call(ai, 'list_notes', { folder: 'Work/../Personal' })).toMatchObject({ isError: true });
   });
 
+  it('list_notes rejects a dot-segment folder even when no notes are in scope', async () => {
+    const ai = await assistant('read-only', { folders: ['Work'] });
+    const result = await call(ai, 'list_notes', { folder: 'Work/..' });
+    expect(result).toMatchObject({ isError: true });
+    expect(result.content[0].text).toContain('"." or ".."');
+  });
+
   it('create_note in a granted subfolder works; in another folder is refused', async () => {
     const ai = await assistant('full', { folders: ['Work'] });
     const note = await ok(ai, 'create_note', { title: 'Plan', folder: 'Work/Plans', content: 'draft', tags: ['next'] });
