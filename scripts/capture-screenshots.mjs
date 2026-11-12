@@ -14,6 +14,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createHash, randomBytes } from 'node:crypto';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
 import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk, penDrag } from './helpers/cycle-14-qa.mjs';
@@ -31,6 +34,8 @@ const PORT = 3100;
 const password = externalUrl ? process.env.DAYMARK_PASSWORD : 'screenshots-password-123';
 if (!password) throw new Error('Set DAYMARK_PASSWORD to sign in to --url');
 const baseUrl = externalUrl || `http://localhost:${PORT}`;
+// This scenario creates OAuth connections and audit activity, so use only disposable data.
+if (cycle === 'cycle-19' && externalUrl) throw new Error('cycle-19 requires its disposable server; omit --url.');
 // `guide` writes the in-app Help screenshots next to the guide source.
 const outDir = cycle === 'guide' ? path.resolve('docs', 'guide', 'images') : path.resolve('docs', 'releases', cycle, 'images');
 fs.mkdirSync(outDir, { recursive: true });
@@ -363,7 +368,80 @@ const cycle18Help = (topic, { search, platform, list } = {}) => then(async page 
   if (topic) await help.getByRole('navigation', { name: 'Help topics' }).getByRole('button', { name: topic, exact: true }).click();
   if (platform) await help.getByRole('group', { name: 'Help platform' }).getByRole('button', { name: platform, exact: true }).click();
 });
+// Real consent and tool calls against the disposable server, without an owner's AI accounts.
+const cycle19Consent = async (page) => {
+  await loadSample(page);
+  // Remove this scenario's prior connections between shots; leave their audit trail visible.
+  const session = await signIn(page.context(), baseUrl, password);
+  const headers = { Authorization: `Bearer ${session.accessToken}` };
+  const overviewResponse = await page.request.get(`${baseUrl}/api/mcp`, { headers });
+  if (!overviewResponse.ok()) throw new Error(`Screenshot MCP overview failed: ${overviewResponse.status()}`);
+  const overview = await overviewResponse.json();
+  for (const connection of overview.connections.filter(c => c.clientName === 'Cycle 19 screenshots')) {
+    const revoked = await page.request.delete(`${baseUrl}/api/mcp/connections/${connection.id}`, { headers });
+    if (!revoked.ok()) throw new Error(`Screenshot connection cleanup failed: ${revoked.status()}`);
+  }
+  const redirectUri = `${baseUrl}/__cycle19_callback`;
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const response = await page.request.post(`${baseUrl}/register`, { data: {
+    client_name: 'Cycle 19 screenshots', redirect_uris: [redirectUri],
+    grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none',
+  } });
+  if (!response.ok()) throw new Error(`Screenshot OAuth registration failed: ${response.status()}`);
+  const client = await response.json();
+  const params = new URLSearchParams({
+    client_id: client.client_id, redirect_uri: redirectUri, response_type: 'code',
+    code_challenge: challenge, code_challenge_method: 'S256', resource: `${baseUrl}/mcp`, scope: 'daymark',
+  });
+  await page.goto(`${baseUrl}/authorize?${params}`);
+  await page.getByRole('heading', { name: 'Connect Cycle 19 screenshots', exact: true }).waitFor();
+  await page.getByLabel('Connection name', { exact: true }).fill('Personal assistant');
+  await page.getByLabel('Everything', { exact: true }).check();
+  return { clientId: client.client_id, redirectUri, verifier };
+};
+const cycle19Connections = async (page) => {
+  const { clientId, redirectUri, verifier } = await cycle19Consent(page);
+  await page.route(redirectUri + '?*', route => route.fulfill({ contentType: 'text/html', body: '<title>Connected</title>' }));
+  await page.getByLabel('Daymark password', { exact: true }).fill(password);
+  await Promise.all([
+    page.waitForURL(redirectUri + '?*'),
+    page.getByRole('button', { name: 'Allow access', exact: true }).click(),
+  ]);
+  const code = new URL(page.url()).searchParams.get('code');
+  if (!code) throw new Error('Screenshot consent did not return an authorization code.');
+  const response = await page.request.post(`${baseUrl}/token`, { form: {
+    grant_type: 'authorization_code', client_id: clientId, redirect_uri: redirectUri, code, code_verifier: verifier,
+  } });
+  if (!response.ok()) throw new Error(`Screenshot token exchange failed: ${response.status()}`);
+  const tokens = await response.json();
+  const client = new Client({ name: 'cycle-19-screenshots', version: '1.0.0' });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+      requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } },
+    }));
+    for (const name of ['ping', 'get_day_summary']) {
+      const result = await client.callTool({ name, arguments: {} });
+      if (result.isError) throw new Error(`Screenshot MCP call failed: ${name}`);
+    }
+  } finally { await client.close(); }
+  await page.goto(baseUrl);
+  await loadSample(page);
+  await click('button', /^settings$/i)(page);
+  await settings(page).getByRole('tab', { name: 'AI connections', exact: true }).click();
+  await settings(page).getByLabel('Connector address', { exact: true }).waitFor();
+  await settings(page).getByText(/get_day_summary/).first().waitFor();
+};
+
 const SHOTS = [
+  // Cycle 19: real OAuth consent, AI connections and populated Activity.
+  { name: 'ai-connections-desktop', viewport: 'desktop', cycles: ['cycle-19'], prepare: cycle19Connections },
+  { name: 'ai-connections-mobile', viewport: 'android', cycles: ['cycle-19'], prepare: cycle19Connections },
+  { name: 'consent', viewport: 'desktop', fullPage: true, cycles: ['cycle-19'], prepare: cycle19Consent },
+  { name: 'activity', viewport: 'desktop', cycles: ['cycle-19'], prepare: async (page) => {
+    await cycle19Connections(page);
+    await settings(page).getByRole('heading', { name: 'Activity', exact: true }).scrollIntoViewIfNeeded();
+  } },
   // In-app guide screenshots (node scripts/capture-screenshots.mjs guide -> docs/guide/images)
   { name: 'first-task', viewport: 'desktop', cycles: ['guide'], prepare: cycle18FirstTask },
   { name: 'tags', viewport: 'desktop', cycles: ['guide'], prepare: cycle18Tags },
@@ -583,7 +661,8 @@ async function waitForServer(url, ms = 30000) {
 let server;
 if (!externalUrl) {
   server = spawn('npx', ['tsx', 'server.ts', '--production'], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-shots-')), DAYMARK_PASSWORD: password },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-shots-')), DAYMARK_PASSWORD: password,
+      ...(cycle === 'cycle-19' ? { DAYMARK_PUBLIC_URL: baseUrl, DAYMARK_MCP: 'on', DAYMARK_TZ: 'UTC' } : {}) },
     shell: true,
     stdio: 'ignore',
   });
@@ -604,7 +683,9 @@ try {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
-      if (cycle === 'cycle-18' || cycle === 'guide') {
+      if (cycle === 'cycle-19') {
+        await seedVault(page, baseUrl, cycle11Vault(today));
+      } else if (cycle === 'cycle-18' || cycle === 'guide') {
         await seedVault(page, baseUrl, cycle18Vault(today));
       } else if (cycle === 'cycle-14') {
         await seedVault(page, baseUrl, { notes: [{ id: 'cycle14-reading', title: 'Study reading', content: 'Study these words today', folder: '', tags: [], pinned: false, createdAt: today + 'T08:00:00Z', updatedAt: today + 'T08:00:00Z' }] });
@@ -631,7 +712,7 @@ try {
     if (shot.prepare) await shot.prepare(page, today);
     const file = path.join(outDir, `${shot.name}.png`);
     const target = shot.selector ? page.locator(shot.selector) : page;
-    await target.screenshot({ path: file });
+    await target.screenshot({ path: file, ...(shot.fullPage ? { fullPage: true } : {}) });
     console.log('captured', path.relative('.', file));
     await ctx.close();
   }

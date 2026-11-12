@@ -2,6 +2,10 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
+## Cycle 19: MCP server and AI connections
+
+**Status: implemented on `feat/cycle-19-mcp`; controller verification and owner connector checks pending. No version released or tagged.** The self-hosted server exposes `/mcp` with OAuth password consent, per-connection heading/folder/backlog/habit grants, read-only access, a master switch and retained Activity. Tools read and write through the shared vault path, provide spoken day summaries and period reviews, and file Daymark feedback. Local use supports localhost HTTP or the locked stdio entry point (`npm run mcp:stdio -- --data <folder>`), with an installable client skill. Settings → AI connections manages access, time zone, retention and feedback. The guide is available in Help and the website. See the [design](./superpowers/specs/2026-11-12-cycle-19-mcp-server-design.md), [guide](./guide/ai-connections.md) and [release handoff](./releases/cycle-19/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-19`; capture and connector outcomes remain for the controller/owner to record.
+
 ## Cycles 17 and 18: Pen writing, tags, Related and Help
 
 **Status: released in 1.12.0 (tag `v1.12.0`).** Cycle 17 added full screen, the S Pen side button, select, text boxes and shapes ([report](./releases/cycle-17/README.md)). Cycle 18 made `#tags` real tags with a Tags section and Graph tag view, made Related suggestions appear with their reasons, and replaced the Settings Help with a full-size, searchable Help ([report](./releases/cycle-18/README.md)). Specs and plans: [Cycle 17](./superpowers/specs/2026-11-06-cycle-17-pen-writing-fullscreen-design.md), [Cycle 18](./superpowers/specs/2026-11-06-cycle-18-tags-suggestions-help-design.md). **Deferred:** named connections (`Depends on: [[Note]]`), until tags have been used for a while.

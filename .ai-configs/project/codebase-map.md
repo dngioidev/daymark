@@ -84,6 +84,27 @@ daymark/
 | `src/sync/syncClient.ts`, `src/hooks/useSync.ts` | Sync | Client protocol (push changes vs. bases, apply results) and the React hook with auto-sync triggers. |
 | `src/components/sync/SyncPanel.tsx`, `src/components/server/ServerDashboard.tsx` | UI | Connect/disconnect, status; server stats, devices, activity, password. |
 
+## Cycle 19: AI connections and MCP
+
+| File / Directory | Layer | Purpose |
+| :--- | :--- | :--- |
+| `server/config.ts`, `server.ts`, `server/app.ts` | Backend | Public MCP URL, feature switch and time zone; directory locking, audit pruning, OAuth/MCP mounting outside the HTML gate and device-only admin API. |
+| `server/mcp/router.ts` | Protocol | Stateless Streamable HTTP `/mcp`, SDK OAuth discovery/routes and connection bearer verification. |
+| `server/mcp/oauth.ts`, `server/mcp/consentPage.ts` | Authentication | Password consent, scoped connections, PKCE code flow, rotating non-idle-expiring refresh credentials and revocation. |
+| `server/mcp/mcpStore.ts` | Storage | Atomic `mcp.json`: settings, client registrations, connection grants and refresh hashes; built-in Local connection. |
+| `server/mcp/audit.ts` | Storage | Append-only UTC daily `mcp-audit/*.jsonl`, filtering and retention pruning. |
+| `server/mcp/adminRoutes.ts` | API | Device-only `/api/mcp` overview, settings, connection edit/revoke and audit list; credentials excluded from summaries. |
+| `server/mcp/scope.ts`, `server/mcp/vaultView.ts` | Logic | Heading/folder and whole-area grants, scoped reads, time zone dates and shared rollover views. |
+| `server/mcp/tools/define.ts`, `server/mcp/tools/index.ts` | Tool infrastructure | Registration, master/access checks, validation, audit wrapper, serialized vault revisions and backlog reconciliation. |
+| `server/mcp/tools/read.ts`, `server/mcp/tools/summary.ts` | Tools | Scoped day/review/search/list reads and compact spoken summary. |
+| `server/mcp/tools/tasks.ts`, `server/mcp/tools/content.ts`, `server/mcp/tools/feedback.ts` | Tools | Task/section, note, backlog and habit mutations; submission-only feedback exception. |
+| `server/mcp/instructions.ts`, `skills/daymark/SKILL.md` | Client guidance | Condensed MCP instructions and installable Daymark skill for summaries, safe edits and feedback. |
+| `server/mcp/lock.ts`, `server/mcp-stdio.ts` | Local transport | Exclusive data-directory ownership and OS-user-trusted stdio via `npm run mcp:stdio -- --data <folder>`. |
+| `src/sync/mcpProtocol.ts`, `src/components/server/AiConnectionsPanel.tsx` | Types / UI | Shared settings/grants/activity types; Settings → AI connections, master switch, scope, retention, time zone and feedback controls. |
+| `docs/guide/ai-connections.md`, `scripts/capture-screenshots.mjs` | Docs / Tooling | Automatically loaded Help topic and disposable-server `cycle-19` screenshot scenario. |
+
+See [API and persistence details](./api-and-sync.md#7-ai-connections-cycle-19-mcp) and [Cycle 19 handoff](../../docs/releases/cycle-19/README.md).
+
 ## Cycle 6 Modules
 
 | File | Layer | Purpose |

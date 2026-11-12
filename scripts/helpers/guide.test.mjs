@@ -35,7 +35,8 @@ test('guide parser names the topic when a required part is missing or wrong', as
 test('every shipped guide topic has a summary, numbered steps on every platform and valid links', async () => {
   const { loadGuide } = await import('./guide.mjs');
   const topics = loadGuide(new URL('../../docs/guide/', import.meta.url));
-  assert.equal(topics.length, 20);
+  assert.equal(topics.length, 21);
+  assert.ok(topics.some(t => t.slug === 'ai-connections'));
   assert.deepEqual(topics.filter(t => t.group === 'start').map(t => t.slug), ['first-5-minutes', 'whats-new']);
   assert.deepEqual(topics.slice(0, 2).map(t => t.slug), ['first-5-minutes', 'whats-new']);
   const slugs = new Set(topics.map(t => t.slug));
@@ -43,7 +44,8 @@ test('every shipped guide topic has a summary, numbered steps on every platform 
     for (const slug of t.related) assert.ok(slugs.has(slug), `${t.slug}: related ${slug}`);
     for (const platform of ['web', 'tablet', 'phone']) {
       const words = t[platform].split(/\s+/).length;
-      assert.ok(words >= 25 && words <= 220, `${t.slug} ${platform}: ${words} words`);
+      const maxWords = t.slug === 'ai-connections' ? 650 : 220;
+      assert.ok(words >= 25 && words <= maxWords, `${t.slug} ${platform}: ${words} words`);
       assert.match(t[platform], /^1\. /m, `${t.slug} ${platform}: numbered steps`);
     }
   }

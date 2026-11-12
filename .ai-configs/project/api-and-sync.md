@@ -20,11 +20,14 @@ Undo of a move to Backlog appends a cancellation targeting the park event, retai
 | :--- | :--- | :--- |
 | `PORT` | `3000` | HTTP port |
 | `DAYMARK_TRUST_PROXY` | `loopback` | Express `trust proxy` range/list; behind a reverse proxy in Docker set e.g. `uniquelocal` and bind the published port to `127.0.0.1` (example below). Controls HTTPS detection and per-client rate-limit IPs. |
-| `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json`, picture bytes and metadata in `assets/` |
+| `DATA_DIR` | `./data` (`/data` in Docker) | `auth.json`, `vault.json`, `devices.json`, `sync-log.json`, picture bytes and metadata in `assets/`, MCP state in `mcp.json` and activity in `mcp-audit/` |
 | `DAYMARK_USER` | `admin` | Account name |
 | `DAYMARK_PASSWORD` | dev: `daymark-dev`; production: **required on first start** | Creates the account (stored scrypt-hashed). Ignored once `auth.json` exists. 8+ chars, known defaults refused. Reset: stop the server, delete `DATA_DIR/auth.json` and restart with a password; account recreation revokes all devices and clears refresh hashes, preserving the vault. |
 | `DAYMARK_CORS_ORIGINS` | `*` | Origins allowed to call the API; does not enable cross-origin browser sign-in or credentialed CORS |
 | `DAYMARK_REFRESH_TTL_DAYS` | `30` | Refresh token lifetime in days, reset on each refresh. Replaces `DAYMARK_TOKEN_TTL_DAYS`; access tokens always last 900 seconds (15 minutes). Use a positive, finite number; invalid or ≤ 0 values fall back to 30. |
+| `DAYMARK_PUBLIC_URL` | dev: `http://localhost:<PORT>`; production: unset | External origin, without trailing slashes, used for MCP OAuth discovery and Connector address. Set an HTTPS origin for hosted use; HTTP is for localhost. If absent in production, the MCP/OAuth endpoint is not mounted. |
+| `DAYMARK_MCP` | `on` | `off` (case-insensitive) prevents mounting hosted MCP/OAuth routes. Other values enable them when a public URL exists. Separate from the persisted AI access switch. |
+| `DAYMARK_TZ` | unset | Valid IANA time zone fallback for MCP dates. Saved `mcp.json` time zone wins, then this value, then UTC. The AI connections tab adopts the first device's zone when the saved value is empty. |
 | `NODE_ENV` / `--production` | dev | Production serves `dist/` (`npm start` passes `--production`) |
 
 ## 2. Authentication and site gate
@@ -102,4 +105,59 @@ Undo of a move to Backlog appends a cancellation targeting the park event, retai
 
 - Docker: `DAYMARK_PASSWORD='…' docker compose up -d` (see `Dockerfile`, `docker-compose.yml`); data in `./data`; health check on `/api/health`; runs as the `node` user.
 - Bare Node: `npm ci && npm run build && DAYMARK_PASSWORD='…' npm start`.
-- Backup: copy all of `DATA_DIR` (JSON files and the picture `assets/` directory) while the server is stopped, or export a vault ZIP from any device.
+- Backup: stop the server/stdio process and copy all of `DATA_DIR`, including JSON files, picture `assets/`, **`mcp.json` and `mcp-audit/`**. A device vault ZIP exports content, not server OAuth credentials, connection settings or AI activity; it does not replace this server backup.
+
+## 7. AI connections (Cycle 19 MCP)
+
+The existing server exposes stateless Streamable HTTP MCP at `/mcp`, outside the HTML site gate. It shares the vault revision queue with sync: tool writes validate entities and use `writeEntity` plus backlog reconciliation, so devices receive them on their next normal sync. Daily views use shared rollover rules; deletes retain normal tombstones. No separate chatbot or database is introduced. Setup: [AI connections guide](../../docs/guide/ai-connections.md), [client skill](../../skills/daymark/SKILL.md).
+
+### Protocol and OAuth routes
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| POST | `/mcp` | MCP JSON-RPC, with a connection bearer token; missing/invalid credentials receive 401 and a resource-metadata challenge. GET and DELETE return 405. |
+| GET | `/.well-known/oauth-protected-resource/mcp` | Protected-resource metadata for `/mcp` |
+| GET | `/.well-known/oauth-authorization-server` | OAuth discovery |
+| POST | `/register` | Dynamic client registration |
+| GET | `/authorize` | Authorization-code flow with PKCE S256; renders Daymark's password and scope consent page |
+| POST | `/oauth/consent` | Password verification, connection creation, redirect with a single-use code |
+| POST | `/token` | Exchange a code or rotate a connection refresh token |
+| POST | `/revoke` | Revoke the client's connection token |
+
+OAuth routes are mounted only when `DAYMARK_MCP` is enabled and `DAYMARK_PUBLIC_URL` resolves. Consent requires the account password for each new connection, independently of a device's refresh cookie. The SDK supplies protocol validation and PKCE. Pending sign-in requests and codes expire after 10 minutes and are held in memory; restarting requires starting consent again. Failed consent passwords are rate-limited per IP.
+
+Device access tokens have `typ: 'access'` and `{ sub, did, ver, exp }`; MCP access tokens have `typ: 'mcp'` and `{ cid, ver, exp }`, with a 900-second lifetime. The token types are rejected in the opposite API: device tokens cannot call `/mcp`, and MCP tokens cannot call `/api/*`. OAuth metadata advertises this server's `/mcp` resource. MCP refresh tokens are stored only as hashes, rotate on refresh, and have **no idle expiry** (`DAYMARK_REFRESH_TTL_DAYS` applies only to devices). Reuse of a retained retired refresh hash revokes the connection. Password changes revoke hosted connections and invalidate old MCP access tokens through the account version. The built-in Local stdio connection remains an OS-user trust boundary.
+
+### Device-only administration
+
+These routes require a signed-in device bearer token, even when hosted MCP is disabled. Returned connection summaries omit OAuth credentials and hashes.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| GET | `/api/mcp` | Settings, active connections, known headings/folders and connector endpoint (empty when unavailable) |
+| PUT | `/api/mcp/settings` | Partial update of `enabled`, `timezone`, `auditRetentionDays` (integer 1–365), `feedback` |
+| PUT | `/api/mcp/connections/:id` | Partial update of `name`, `access` (`full` / `read-only`) and `grants` |
+| DELETE | `/api/mcp/connections/:id` | Revoke a hosted connection; `local` cannot be revoked |
+| GET | `/api/mcp/audit` | Newest entries first; optional `connectionId`, `action`, `limit` (default 200, capped at 1000) |
+
+Grants are `{ all, headings, folders, backlog, habits }`. Headings match after trimming and case folding on every date; folder paths match exactly or as an ancestor of subfolders (the empty root grant covers only root notes). Backlog and habits are whole-area grants. Read/search/review results are scoped before returning content or counts. Ordinary writes require full access and grants for both source and destination when moving. Unshared/missing items return the same generic error. The master `enabled` switch refuses tool execution without deleting connections; MCP cannot change it, scope, retention or connection management.
+
+### Tools and feedback
+
+| Area | Registered tools |
+| :--- | :--- |
+| Connection | `ping` |
+| Day and search | `get_day_summary`, `get_review`, `get_day`, `list_tasks`, `search` |
+| Tasks and section notes | `create_task`, `update_task`, `complete_task`, `reopen_task`, `delete_task`, `append_section_notes` |
+| Standalone notes | `list_notes`, `get_note`, `create_note`, `update_note`, `append_note`, `delete_note` |
+| Backlog | `list_backlog`, `add_backlog_item`, `update_backlog_item`, `delete_backlog_item`, `pick_backlog_item` |
+| Habits | `list_habits`, `tick_habit` |
+| App feedback | `submit_daymark_feedback` |
+
+`get_day_summary` defaults to today and includes a compact `spoken` answer. `get_review` accepts at most 92 inclusive days. `list_tasks` returns up to 200 and `search` up to 50. Picking a backlog item targets today and requires the backlog and destination heading grants. Feedback accepts `text` (1–4000 characters) and `kind` (`idea`, `bug`, `complaint`, `other`). It writes to the configured backlog (category `Daymark feedback`), today's heading, or a note folder, tagged `daymark-feedback` and attributed to the submitting connection. This submission-only exception works for read-only connections and destinations outside their grants; the result is only `{ filed: true }` and never grants read access.
+
+### Persistence, activity and local mode
+
+`DATA_DIR/mcp.json` holds settings, connections, client registrations and refresh hashes, separately from synced settings; writes use a serialized temp-file rename and mode `0o600`. Activity is appended to `DATA_DIR/mcp-audit/YYYY-MM-DD.jsonl` (UTC day files, mode `0o600`). Entries record connection, tool/action, target keys and optional titles/counts, without credentials or note/task bodies. Tool reads, writes, refused calls and errors are audited, as are successful connect/refresh/revoke events. Invalid bearer requests rejected before dispatch do not reach the tool audit wrapper. Audit write failures are logged; they do not roll back completed writes. Retention defaults to 30 days; the HTTP server prunes on startup and every 24 hours. Stdio appends activity but does not schedule retention pruning.
+
+Option A runs the regular server with network access restricted to loopback and a localhost public URL, using OAuth and a browser against the same local vault. Option B runs `npm run mcp:stdio -- --data <folder>` (entry: `server/mcp-stdio.ts`), with no HTTP/OAuth. `--data` overrides `DATA_DIR`, default `./data`; `--timezone` overrides `DAYMARK_TZ` as the fallback beneath the saved zone. Stdio creates the built-in `local` connection, initially full access to everything; the same master switch, scopes and audit wrapper apply. Both server and stdio take a directory lock and refuse simultaneous ownership. Stop stdio before opening the same folder with the server to edit Local grants. Use a separate vault for local-only work; it never syncs to the hosted vault/phone. A cloud AI client can still transmit tool results to its provider.
