@@ -46,13 +46,19 @@ export class McpStore {
 
   persist(): Promise<void> {
     const snapshot = JSON.stringify({ settings: this.settings, connections: this.connections, clients: this.clients });
-    this.queue = this.queue.then(() => {
+    const run = this.queue.then(() => {
       const target = path.join(this.dir, 'mcp.json');
       const tmp = `${target}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, snapshot, { mode: 0o600 });
-      fs.renameSync(tmp, target);
+      try {
+        fs.writeFileSync(tmp, snapshot, { mode: 0o600 });
+        fs.renameSync(tmp, target);
+      } catch (err) {
+        try { fs.unlinkSync(tmp); } catch { /* Preserve the original write error. */ }
+        throw err;
+      }
     });
-    return this.queue;
+    this.queue = run.catch(() => {});
+    return run;
   }
 
   activeConnection(id: string): McpConnection | null {

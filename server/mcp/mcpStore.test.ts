@@ -99,3 +99,26 @@ it('serializes queued persistence with a snapshot for each call', async () => {
   expect(writes.mock.calls.map(call => JSON.parse(call[1] as string).settings.timezone)).toEqual(['Europe/Paris', 'Asia/Saigon']);
   expect(JSON.parse(fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8')).settings.timezone).toBe('Asia/Saigon');
 });
+
+it.each(['write', 'rename'] as const)('recovers after a failed %s and removes the temp file', async (operation) => {
+  const failure = new Error('transient persistence failure');
+  if (operation === 'write') {
+    const write = fs.writeFileSync;
+    vi.spyOn(fs, 'writeFileSync').mockImplementationOnce((file, data, options) => {
+      write(file, data, options);
+      throw failure;
+    });
+  } else {
+    vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => { throw failure; });
+  }
+  await expect(store.persist()).rejects.toBe(failure);
+  expect.soft(fs.readdirSync(dir)).toEqual([]);
+
+  const connection = create();
+  store.revoke(connection.id);
+  await expect(store.persist()).resolves.toBeUndefined();
+  const loaded = new McpStore(dir);
+  loaded.init();
+  expect(loaded.connections).toEqual([connection]);
+  expect(fs.readdirSync(dir)).toEqual(['mcp.json']);
+});
