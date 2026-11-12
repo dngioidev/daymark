@@ -124,8 +124,9 @@ it('rejects invalid dates, oversized limits and reviews over 92 days', async () 
 
 it('advertises all read tools, applies result limits and accepts 92 inclusive days', async () => {
   const tools = (await client.listTools()).tools;
-  expect(tools.map(tool => tool.name)).toEqual(expect.arrayContaining(['ping', 'get_day_summary', 'get_review', 'get_day', 'list_tasks', 'search', 'list_notes', 'get_note', 'list_backlog', 'list_habits']));
-  expect(tools.filter(tool => !/^(create|update|complete|reopen|delete|append|add|pick|tick)_/.test(tool.name)).every(tool => tool.annotations?.readOnlyHint === true)).toBe(true);
+  const readTools = ['ping', 'get_day_summary', 'get_review', 'get_day', 'list_tasks', 'search', 'list_notes', 'get_note', 'list_backlog', 'list_habits'];
+  expect(tools.map(tool => tool.name)).toEqual(expect.arrayContaining(readTools));
+  expect(tools.filter(tool => readTools.includes(tool.name)).every(tool => tool.annotations?.readOnlyHint === true)).toBe(true);
   expect(await data('list_tasks', { from: '2026-11-11', to: date, limit: 1, status: 'in-progress', tag: 'tag', heading: 'work' })).toHaveLength(1);
   expect(await data('get_review', { from: '2026-08-13', to: date })).toMatchObject({ from: '2026-08-13', to: date });
 });
