@@ -75,8 +75,8 @@ export class FileStore {
     }
   }
 
-  /** Loads all files. Creates the admin account from `initialPassword` if none exists yet. */
-  init(username: string, initialPassword: string | null): { createdAccount: boolean } {
+  /** Loads all files. Creates an admin account if needed unless running in local mode. */
+  init(username: string, initialPassword: string | null, opts?: { requireAccount?: boolean }): { createdAccount: boolean } {
     // Owner-only: auth.json holds the password hash and the token signing secret
     fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     try {
@@ -88,7 +88,7 @@ export class FileStore {
     let createdAccount = false;
     if (auth) {
       this.auth = auth;
-    } else {
+    } else if (opts?.requireAccount !== false) {
       if (!initialPassword) {
         throw new Error('No admin account yet: set DAYMARK_PASSWORD for the first start.');
       }
