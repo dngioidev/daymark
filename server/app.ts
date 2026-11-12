@@ -9,10 +9,13 @@ import { passwordProblem, ServerConfig } from './config';
 import { DeviceRecord, FileStore } from './store';
 import { assetRoutes } from './assets';
 import { isValidEntityValue, reconcileBacklogAfterWrite, VaultQueue, writeEntity } from './vault';
+import type { AuditLog } from './mcp/audit';
+import type { McpStore } from './mcp/mcpStore';
+import { mountMcp } from './mcp/router';
 
 export const SERVER_VERSION = '2.0.0';
 
-type AuthedRequest = Request & { auth: TokenPayload; device: DeviceRecord };
+type AuthedRequest = Request & { deviceAuth: TokenPayload; device: DeviceRecord };
 const authed = (req: Request) => req as unknown as AuthedRequest;
 
 export function checkRefreshToken(store: FileStore, token: string, now = Date.now()): DeviceRecord | null {
@@ -25,7 +28,7 @@ export function checkRefreshToken(store: FileStore, token: string, now = Date.no
  * Builds the REST API (no listening, no static files) so it can be tested in-process.
  * Data routes require a bearer token; refresh/logout use refresh credentials.
  */
-export function createApp(config: ServerConfig, store: FileStore) {
+export function createApp(config: ServerConfig, store: FileStore, mcp?: { store: McpStore; audit: AuditLog }) {
   const app = express();
   const limiter = new LoginRateLimiter();
   // Serialize sync requests so concurrent devices merge against a consistent state
@@ -166,7 +169,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
     if (!payload || payload.ver !== store.auth.tokenVersion || payload.sub !== store.auth.username || !device || device.revoked) {
       return res.status(401).json({ error: 'Not signed in, or this device was disconnected.' });
     }
-    authed(req).auth = payload;
+    authed(req).deviceAuth = payload;
     authed(req).device = device;
     next();
   });
@@ -189,7 +192,9 @@ export function createApp(config: ServerConfig, store: FileStore) {
     const { device } = authed(req);
     for (const entry of store.devices) entry.revoked = true;
     store.addLog({ deviceId: device.id, deviceName: device.name, action: 'password_changed', details: 'All devices were signed out' });
-    await store.persist('auth.json', 'devices.json', 'sync-log.json');
+    // AI connections end with the password too
+    mcp?.store.revokeAll();
+    await Promise.all([store.persist('auth.json', 'devices.json', 'sync-log.json'), mcp?.store.persist()]);
     res.json({ ok: true });
   });
 
@@ -345,6 +350,11 @@ export function createApp(config: ServerConfig, store: FileStore) {
   app.get('/api/sync', (req, res, next) => {
     runSync(req, res, { sinceRev: Number(req.query.since) || 0, changes: [] }).catch(next);
   });
+
+  // OAuth sign-in and /mcp live outside /api so they run before the site gate
+  if (mcp && config.mcpEnabled && config.publicUrl) {
+    mountMcp(app, { config, store, mcp: mcp.store, audit: mcp.audit, vault: vaultQueue });
+  }
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 

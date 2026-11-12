@@ -91,3 +91,33 @@ export class LoginRateLimiter {
     this.attempts.delete(key);
   }
 }
+
+/** Access token for an AI connection; the typ keeps it unusable as a device token and vice versa. */
+export interface McpTokenPayload {
+  typ: 'mcp';
+  cid: string; // connection id
+  ver: number; // token version; bumped on password change to revoke every token
+  exp: number; // unix seconds
+}
+
+export function signMcpToken(p: McpTokenPayload, secret: string): string {
+  const body = b64url(JSON.stringify(p));
+  const sig = b64url(crypto.createHmac('sha256', secret).update(body).digest());
+  return `${body}.${sig}`;
+}
+
+export function verifyMcpToken(token: string, secret: string, now = Date.now()): McpTokenPayload | null {
+  const [body, sig] = token.split('.');
+  if (!body || !sig) return null;
+  const expected = crypto.createHmac('sha256', secret).update(body).digest();
+  const given = Buffer.from(sig, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as McpTokenPayload;
+    if (payload.typ !== 'mcp' || typeof payload.cid !== 'string' || typeof payload.ver !== 'number'
+      || typeof payload.exp !== 'number' || payload.exp * 1000 <= now) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
