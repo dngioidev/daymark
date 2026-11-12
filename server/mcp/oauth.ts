@@ -65,9 +65,10 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       getClient: (clientId) => mcp.clients[clientId],
       registerClient: async (client) => {
         const full = client as OAuthClientInformationFull;
-        mcp.clients[full.client_id] = full;
+        mcp.pruneClients();
+        mcp.clients[full.client_id] = { ...full, client_id_issued_at: full.client_id_issued_at ?? Math.floor(Date.now() / 1000) };
         await mcp.persist();
-        return full;
+        return mcp.clients[full.client_id];
       },
     };
   }

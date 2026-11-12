@@ -12,6 +12,8 @@ export interface McpConnection extends McpConnectionSummary {
   retiredRefreshHashes: string[];
 }
 
+const ORPHAN_CLIENT_MS = 24 * 60 * 60 * 1000;
+
 interface McpData {
   settings: McpSettings;
   connections: McpConnection[];
@@ -42,6 +44,23 @@ export class McpStore {
     this.settings = data.settings;
     this.connections = data.connections;
     this.clients = data.clients;
+    // Clients saved before registration time was tracked start their grace period now, so an upgrade drops nothing.
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    for (const client of Object.values(this.clients)) client.client_id_issued_at ??= nowSeconds;
+    this.pruneClients();
+  }
+
+  /** Dynamic registrations that never produced a connection and are older than a day are dropped. Returns whether any were. */
+  pruneClients(now = Date.now()): boolean {
+    const used = new Set(this.connections.map(connection => connection.clientId));
+    let pruned = false;
+    for (const [id, client] of Object.entries(this.clients)) {
+      const issuedAt = (client.client_id_issued_at ?? now / 1000) * 1000;
+      if (used.has(id) || now - issuedAt <= ORPHAN_CLIENT_MS) continue;
+      delete this.clients[id];
+      pruned = true;
+    }
+    return pruned;
   }
 
   persist(): Promise<void> {

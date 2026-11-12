@@ -27,7 +27,7 @@ it('round-trips settings and connections through mcp.json', async () => {
   const connection = create();
   connection.refreshHash = 'test-hash';
   connection.retiredRefreshHashes.push('retired-test-hash');
-  store.clients['client-1'] = { client_id: 'client-1', redirect_uris: ['http://localhost/callback'] };
+  store.clients['client-1'] = { client_id: 'client-1', redirect_uris: ['http://localhost/callback'], client_id_issued_at: 1_700_000_000 };
   await store.persist();
   const loaded = new McpStore(dir);
   loaded.init();
@@ -121,4 +121,28 @@ it.each(['write', 'rename'] as const)('recovers after a failed %s and removes th
   loaded.init();
   expect(loaded.connections).toEqual([connection]);
   expect(fs.readdirSync(dir)).toEqual(['mcp.json']);
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const client = (id: string, issuedAt?: number) => ({ client_id: id, redirect_uris: ['http://localhost/callback'], ...(issuedAt === undefined ? {} : { client_id_issued_at: issuedAt }) });
+
+it('prunes clients with no connection that are older than 24 hours, and keeps the rest', () => {
+  const now = Date.now();
+  const sec = (ms: number) => Math.floor(ms / 1000);
+  store.clients['old-orphan'] = client('old-orphan', sec(now - 25 * 60 * 60 * 1000));
+  store.clients['fresh-orphan'] = client('fresh-orphan', sec(now - 60 * 60 * 1000));
+  store.clients['client-1'] = client('client-1', sec(now - 3 * DAY_MS));
+  create();
+  expect(store.pruneClients(now)).toBe(true);
+  expect(Object.keys(store.clients).sort()).toEqual(['client-1', 'fresh-orphan']);
+});
+
+it('on load prunes old orphans and gives clients without a timestamp a fresh one', async () => {
+  store.clients['old-orphan'] = client('old-orphan', Math.floor(Date.now() / 1000) - 2 * 86400);
+  store.clients['legacy'] = client('legacy');
+  await store.persist();
+  const loaded = new McpStore(dir);
+  loaded.init();
+  expect(Object.keys(loaded.clients)).toEqual(['legacy']);
+  expect(loaded.clients.legacy.client_id_issued_at).toBeGreaterThan(Date.now() / 1000 - 5);
 });
