@@ -157,20 +157,26 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     const rerender = (status: number, error: string, name?: string) =>
       this.sendPage(res, status, this.page(requestId, request, clientName, error, name));
 
+    // A failed password attempt never shows the scope step, even when an earlier attempt verified this request.
+    const passwordStepAgain = (status: number, error: string, name?: string) =>
+      this.sendPage(res, status, renderConsentPage({
+        requestId, clientName, redirectHost: new URL(request.redirectUri).host, step: 'password', error, name,
+      }));
+
     if (form(body.stage) !== 'grant') {
       const name = form(body.name).trim().slice(0, 80);
       const ip = req.ip || 'unknown';
-      if (this.deps.limiter.isBlocked(ip)) return rerender(429, 'Too many failed attempts. Try again in 15 minutes.', name || undefined);
+      if (this.deps.limiter.isBlocked(ip)) return passwordStepAgain(429, 'Too many failed attempts. Try again in 15 minutes.', name || undefined);
       const password = form(body.password);
       if (!password || !verifyPassword(password, store.auth.salt, store.auth.hash)) {
         this.deps.limiter.recordFailure(ip);
         await this.audit({
           connectionId: '', connectionName: clientName, tool: 'oauth', action: 'refused', targets: [], message: 'wrong password',
         });
-        return rerender(401, 'Wrong password.', name || undefined);
+        return passwordStepAgain(401, 'Wrong password.', name || undefined);
       }
       this.deps.limiter.reset(ip);
-      if (!name) return rerender(400, 'Give this connection a name.');
+      if (!name) return passwordStepAgain(400, 'Give this connection a name.');
       request.verified = true;
       request.name = name;
       return rerender(200, '');

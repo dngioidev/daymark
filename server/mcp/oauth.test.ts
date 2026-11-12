@@ -180,6 +180,23 @@ describe('OAuth connector sign-in', () => {
     expect(refused[0]).toMatchObject({ tool: 'oauth', connectionId: '', connectionName: 'Test <Assistant>' });
   });
 
+  it('a wrong or rate-limited password on an already verified request does not show the scope step', async () => {
+    const clientId = await register();
+    const { requestId } = await authorize(clientId, sha256('v'));
+    expect((await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD })).status).toBe(200);
+    const wrong = await consent({ requestId, stage: 'password', name: 'x', password: 'nope' });
+    expect(wrong.status).toBe(401);
+    const html = await wrong.text();
+    expect(html).toContain('Wrong password.');
+    expect(html).not.toContain('name="headings"');
+    expect(html).not.toContain('name="folders"');
+    expect(html).not.toContain(DEFAULT_SETTINGS.defaultHeadings[0]);
+    for (let i = 0; i < 10; i++) await consent({ requestId, stage: 'password', name: 'x', password: 'nope' });
+    const limited = await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    expect(limited.status).toBe(429);
+    expect(await limited.text()).not.toContain('name="headings"');
+  });
+
   it('login failures count toward the consent lockout (shared limiter)', async () => {
     for (let i = 0; i < 10; i++) {
       await fetch(`${base}/api/auth/login`, {
