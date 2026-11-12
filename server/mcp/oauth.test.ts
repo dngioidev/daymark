@@ -241,6 +241,24 @@ describe('OAuth connector sign-in', () => {
     expect(good.status).toBe(200);
   });
 
+  it('a connection stays pending until its code is exchanged, and stale pending ones are dropped', async () => {
+    const s = await signIn();
+    const connection = mcp.connections.find(c => c.name === 'My assistant')!;
+    expect(connection.pending).toBe(true);
+    expect(mcp.activeConnection(connection.id)).toBeNull();
+    expect((await exchange(s)).status).toBe(200);
+    expect(connection.pending).toBeUndefined();
+    expect(mcp.activeConnection(connection.id)).toBe(connection);
+
+    const stale = await signIn();
+    const pendingOne = mcp.connections.filter(c => c.pending).at(-1)!;
+    pendingOne.createdAt = new Date(Date.now() - 11 * 60 * 1000).toISOString();
+    await register(); // any provider call purges
+    await authorize(await register(), sha256('v'));
+    expect(mcp.connections.some(c => c.id === pendingOne.id)).toBe(false);
+    expect((await exchange(stale)).status).toBe(400);
+  });
+
   it('refresh rotates; reusing the old refresh token revokes the connection', async () => {
     const s = await signIn();
     const first = await (await exchange(s)).json() as { refresh_token: string };

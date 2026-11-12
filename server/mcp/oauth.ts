@@ -105,6 +105,7 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     for (const [id, p] of this.pending) if (p.expiresAt <= now) this.pending.delete(id);
     for (const [id, c] of this.codes) if (c.expiresAt <= now) this.codes.delete(id);
     for (const [id, c] of this.claimed) if (c.expiresAt <= now) this.claimed.delete(id);
+    this.deps.mcp.dropStalePending(TTL_MS, now);
   }
 
   private audit(entry: Omit<AuditEntry, 'id' | 'at'>): Promise<void> {
@@ -188,7 +189,7 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     }
 
     this.pending.delete(requestId);
-    const connection = mcp.createConnection({ name, clientId: request.clientId, clientName, access, grants });
+    const connection = mcp.createConnection({ name, clientId: request.clientId, clientName, access, grants, pending: true });
     const code = randomId();
     this.codes.set(code, {
       connectionId: connection.id,
@@ -230,8 +231,9 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       throw new InvalidTargetError('resource does not identify this server.');
     }
     if (redirectUri !== undefined && redirectUri !== issued.redirectUri) throw new InvalidGrantError('redirect_uri does not match.');
-    const connection = this.deps.mcp.activeConnection(issued.connectionId);
-    if (!connection) throw new InvalidGrantError('This connection was revoked.');
+    const connection = this.deps.mcp.connections.find(c => c.id === issued.connectionId);
+    if (!connection || connection.revoked) throw new InvalidGrantError('This connection was revoked.');
+    delete connection.pending;
     return this.issueTokens(connection.id);
   }
 

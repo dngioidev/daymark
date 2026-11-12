@@ -146,3 +146,14 @@ it('on load prunes old orphans and gives clients without a timestamp a fresh one
   expect(Object.keys(loaded.clients)).toEqual(['legacy']);
   expect(loaded.clients.legacy.client_id_issued_at).toBeGreaterThan(Date.now() / 1000 - 5);
 });
+
+it('pending connections never authorize, and are dropped when stale or on load', async () => {
+  const pending = store.createConnection({ name: 'P', clientId: 'client-1', clientName: 'C', access: 'full', grants: structuredClone(NO_GRANTS), pending: true });
+  expect(store.activeConnection(pending.id)).toBeNull();
+  expect(store.dropStalePending(600_000, Date.now() + 1000)).toBe(false);
+  await store.persist();
+  const loaded = new McpStore(dir);
+  loaded.init();
+  expect(loaded.connections).toHaveLength(0);
+  expect(store.dropStalePending(600_000, Date.now() + 601_000)).toBe(true);
+});

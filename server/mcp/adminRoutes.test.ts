@@ -203,3 +203,10 @@ it.each([{ mcpEnabled: false }, { publicUrl: null }])('overview has no endpoint 
     await new Promise<void>(resolve => other.close(() => resolve()));
   }
 });
+
+it('GET /api/mcp hides connections that are still pending', async () => {
+  const pending = mcp.createConnection({ name: 'Waiting', clientId: 'c', clientName: 'C', access: 'full', grants: structuredClone(NO_GRANTS), pending: true });
+  const overview = await (await request()).json() as { connections: { id: string }[] };
+  expect(overview.connections.some(c => c.id === pending.id)).toBe(false);
+  expect((await request(`/connections/${pending.id}`, 'DELETE')).status).toBe(404);
+});

@@ -8,6 +8,8 @@ import type { McpAccess, McpConnectionSummary, McpGrants, McpSettings } from '..
 export interface McpConnection extends McpConnectionSummary {
   clientId: string | null;
   revoked: boolean;
+  /** Created at consent; becomes false when its authorization code is exchanged. Pending connections authorize nothing. */
+  pending?: boolean;
   refreshHash: string | null;
   retiredRefreshHashes: string[];
 }
@@ -47,7 +49,16 @@ export class McpStore {
     // Clients saved before registration time was tracked start their grace period now, so an upgrade drops nothing.
     const nowSeconds = Math.floor(Date.now() / 1000);
     for (const client of Object.values(this.clients)) client.client_id_issued_at ??= nowSeconds;
+    // Authorization codes live in memory only, so a connection still waiting for its code cannot complete after a restart.
+    this.connections = this.connections.filter(connection => !connection.pending);
     this.pruneClients();
+  }
+
+  /** Drops connections whose authorization code was never exchanged within the code lifetime. Returns whether any were. */
+  dropStalePending(maxAgeMs: number, now = Date.now()): boolean {
+    const before = this.connections.length;
+    this.connections = this.connections.filter(connection => !connection.pending || now - Date.parse(connection.createdAt) < maxAgeMs);
+    return this.connections.length !== before;
   }
 
   /** Dynamic registrations that never produced a connection and are older than a day are dropped. Returns whether any were. */
@@ -81,12 +92,13 @@ export class McpStore {
   }
 
   activeConnection(id: string): McpConnection | null {
-    return this.connections.find(connection => connection.id === id && !connection.revoked) ?? null;
+    return this.connections.find(connection => connection.id === id && !connection.revoked && !connection.pending) ?? null;
   }
 
-  createConnection(input: { name: string; clientId: string; clientName: string; access: McpAccess; grants: McpGrants }): McpConnection {
+  createConnection(input: { name: string; clientId: string; clientName: string; access: McpAccess; grants: McpGrants; pending?: boolean }): McpConnection {
     const connection: McpConnection = {
       ...input,
+      ...(input.pending ? { pending: true } : {}),
       grants: structuredClone(input.grants),
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),

@@ -57,7 +57,7 @@ export function mcpAdminRoutes(deps: { config: ServerConfig; store: FileStore; m
     const today = todayIn(mcp.effectiveTimezone(config.timezone), new Date());
     const overview: McpOverview = {
       settings: mcp.settings,
-      connections: mcp.connections.filter(connection => !connection.revoked).map(summary),
+      connections: mcp.connections.filter(connection => !connection.revoked && !connection.pending).map(summary),
       knownHeadings: knownHeadings(store, today),
       knownFolders: knownFolders(store),
       endpoint: config.mcpEnabled && config.publicUrl ? `${config.publicUrl}/mcp` : '',
