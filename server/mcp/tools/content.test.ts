@@ -105,6 +105,7 @@ describe('content write tools', () => {
     const note = await ok(ai, 'create_note', { title: 'Mv', folder: 'Work', content: '' });
     expect(await call(ai, 'update_note', { id: note.id, folder: 'Work/../Personal' })).toMatchObject({ isError: true });
     expect(await ok(ai, 'list_notes', { folder: '/Work/' })).toHaveLength(3);
+    expect(await call(ai, 'list_notes', { folder: 'Work/../Personal' })).toMatchObject({ isError: true });
   });
 
   it('create_note in a granted subfolder works; in another folder is refused', async () => {

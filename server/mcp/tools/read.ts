@@ -80,9 +80,12 @@ export function registerReadTools(server: McpServer, initialContext: ToolContext
   });
   defineTool(server, initialContext, {
     name: 'list_notes', description: 'Lists shared note metadata, optionally in a folder.', input: { folder: z.string().optional() }, readOnly: true,
-    run: async ({ folder }, ctx) => ({ result: scopeNotes(readNotes(ctx.store), ctx.connection.grants)
-      .filter(note => folder === undefined || note.folder === cleanFolder(folder))
-      .map(({ id, title, folder, tags, updatedAt, pinned }) => ({ id, title, folder, tags, updatedAt, pinned })), action: 'read' }),
+    run: async ({ folder }, ctx) => {
+      const wanted = folder === undefined ? undefined : cleanFolder(folder);
+      return { result: scopeNotes(readNotes(ctx.store), ctx.connection.grants)
+        .filter(note => wanted === undefined || note.folder === wanted)
+        .map(({ id, title, folder, tags, updatedAt, pinned }) => ({ id, title, folder, tags, updatedAt, pinned })), action: 'read' as const };
+    },
   });
   defineTool(server, initialContext, {
     name: 'get_note', description: 'Reads a shared note.', input: { id: z.string() }, readOnly: true,
