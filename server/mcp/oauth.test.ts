@@ -115,6 +115,88 @@ describe('OAuth connector sign-in', () => {
     expect(meta.scopes_supported).toEqual(['daymark']);
   });
 
+  it('registering a client drops old orphan registrations', async () => {
+    const old = await register();
+    mcp.clients[old].client_id_issued_at = Math.floor(Date.now() / 1000) - 2 * 86400;
+    const fresh = await register();
+    expect(mcp.clients[old]).toBeUndefined();
+    expect(mcp.clients[fresh]).toBeDefined();
+  });
+
+  it('registration never prunes a client with a live pending request, and consent fails closed without its client', async () => {
+    const id = await register();
+    mcp.clients[id].client_id_issued_at = Math.floor(Date.now() / 1000) - 2 * 86400;
+    const { requestId } = await authorize(id, sha256('v'));
+    await register();
+    expect(mcp.clients[id]).toBeDefined();
+    delete mcp.clients[id];
+    const res = await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    expect(res.status).toBe(400);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+    const grant = await consent({ requestId, stage: 'grant', access: 'full', everything: '1' });
+    expect(grant.status).toBe(400);
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+  });
+
+  it('a flood from one client does not evict another client pending request; its 6th request evicts its own oldest', async () => {
+    const quiet = await register();
+    const victim = await authorize(quiet, sha256('v'));
+    const noisy = await register();
+    const mine: string[] = [];
+    for (let i = 0; i < 6; i++) mine.push((await authorize(noisy, sha256('v'))).requestId);
+    const check = (requestId: string) => consent({ requestId, stage: 'password', name: 'x', password: 'nope' }).then(r => r.status);
+    expect(await check(victim.requestId)).toBe(401); // still pending (wrong password, not expired)
+    expect(await check(mine[0])).toBe(400); // oldest of the noisy client evicted
+    expect(await check(mine[1])).toBe(401);
+    expect(await check(mine[5])).toBe(401);
+  });
+
+  it('over the per-client cap, unverified requests are evicted before a verified one', async () => {
+    const id = await register();
+    const first = await authorize(id, sha256('v'));
+    expect((await consent({ requestId: first.requestId, stage: 'password', name: 'x', password: PASSWORD })).status).toBe(200);
+    const others: string[] = [];
+    for (let i = 0; i < 5; i++) others.push((await authorize(id, sha256('v'))).requestId);
+    // 6 requests were made; the verified (oldest) one survives and the oldest unverified went
+    expect((await consent({ requestId: first.requestId, stage: 'grant', access: 'full', everything: '1' })).status).toBe(302);
+    expect((await consent({ requestId: others[0], stage: 'password', name: 'x', password: 'nope' })).status).toBe(400);
+  });
+
+  it('after verification, a wrong password unverifies the request', async () => {
+    const id = await register();
+    const { requestId } = await authorize(id, sha256('v'));
+    await consent({ requestId, stage: 'password', name: 'x', password: PASSWORD });
+    expect((await consent({ requestId, stage: 'password', name: 'x', password: 'nope' })).status).toBe(401);
+    const empty = await consent({ requestId, stage: 'grant', access: 'full' });
+    expect(empty.status).toBe(403);
+    const html = await empty.text();
+    expect(html).not.toContain('name="headings"');
+    expect(html).not.toContain('name="folders"');
+    expect((await consent({ requestId, stage: 'grant', access: 'full', everything: '1' })).status).toBe(403);
+    expect(mcp.connections.filter(c => !c.builtIn)).toHaveLength(0);
+  });
+
+  it('a refresh request with a foreign resource is rejected with invalid_target', async () => {
+    const s = await signIn();
+    const tokens = await (await exchange(s)).json() as { refresh_token: string };
+    const bad = await tokenRequest({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: s.clientId, resource: 'https://evil.example.com/mcp' });
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as { error: string }).error).toBe('invalid_target');
+    const ok = await tokenRequest({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: s.clientId, resource: `${base}/mcp` });
+    expect(ok.status).toBe(200);
+  });
+
+  it('dropping a stale pending connection is saved to mcp.json', async () => {
+    await signIn();
+    const pendingOne = mcp.connections.find(c => c.pending)!;
+    pendingOne.createdAt = new Date(Date.now() - 11 * 60 * 1000).toISOString();
+    await authorize(await register(), sha256('v'));
+    await mcp.persist(); // queued behind the purge save
+    const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8')) as { connections: { id: string }[] };
+    expect(onDisk.connections.some(c => c.id === pendingOne.id)).toBe(false);
+  });
+
   it('register → authorize page shows no vault data and asks for the password', async () => {
     const { html } = await authorize(await register(), sha256('v'));
     expect(html).not.toContain(DEFAULT_SETTINGS.defaultHeadings[0]);

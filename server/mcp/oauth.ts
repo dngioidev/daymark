@@ -108,7 +108,9 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     for (const [id, p] of this.pending) if (p.expiresAt <= now) this.pending.delete(id);
     for (const [id, c] of this.codes) if (c.expiresAt <= now) this.codes.delete(id);
     for (const [id, c] of this.claimed) if (c.expiresAt <= now) this.claimed.delete(id);
-    this.deps.mcp.dropStalePending(TTL_MS, now);
+    if (this.deps.mcp.dropStalePending(TTL_MS, now)) {
+      this.deps.mcp.persist().catch((err) => console.error('Could not save MCP state after dropping stale connections:', (err as Error).message));
+    }
   }
 
   private audit(entry: Omit<AuditEntry, 'id' | 'at'>): Promise<void> {
@@ -117,8 +119,10 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
 
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response): Promise<void> {
     this.purge();
-    const own = [...this.pending].filter(([, p]) => p.clientId === client.client_id).map(([id]) => id);
-    for (const id of own.slice(0, Math.max(0, own.length - MAX_PENDING_PER_CLIENT + 1))) this.pending.delete(id);
+    // Over the per-client cap, drop this client's unverified requests first (oldest first), then its oldest verified one.
+    const own = [...this.pending].filter(([, p]) => p.clientId === client.client_id);
+    const order = [...own.filter(([, p]) => !p.verified), ...own.filter(([, p]) => p.verified)].map(([id]) => id);
+    for (const id of order.slice(0, Math.max(0, own.length - MAX_PENDING_PER_CLIENT + 1))) this.pending.delete(id);
     if (this.pending.size >= MAX_PENDING) this.pending.delete(this.pending.keys().next().value as string);
     const requestId = randomId();
     this.pending.set(requestId, {
@@ -150,7 +154,9 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     const client = mcp.clients[request.clientId];
     if (!client) {
       this.pending.delete(requestId);
-      res.status(400).type('text/plain').send('This sign-in request is no longer valid. Start the connection again from your AI app.');
+      res.status(400)
+        .set({ 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'" })
+        .type('text/plain').send('This sign-in request is no longer valid. Start the connection again from your AI app.');
       return;
     }
     const clientName = client.client_name || 'AI assistant';
@@ -158,10 +164,13 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
       this.sendPage(res, status, this.page(requestId, request, clientName, error, name));
 
     // A failed password attempt never shows the scope step, even when an earlier attempt verified this request.
-    const passwordStepAgain = (status: number, error: string, name?: string) =>
-      this.sendPage(res, status, renderConsentPage({
+    const passwordStepAgain = (status: number, error: string, name?: string) => {
+      request.verified = false;
+      request.name = undefined;
+      return this.sendPage(res, status, renderConsentPage({
         requestId, clientName, redirectHost: new URL(request.redirectUri).host, step: 'password', error, name,
       }));
+    };
 
     if (form(body.stage) !== 'grant') {
       const name = form(body.name).trim().slice(0, 80);
@@ -243,9 +252,7 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     this.claimed.delete(authorizationCode); // single use, even when the exchange fails below
     this.codes.delete(authorizationCode);
     if (!issued || issued.clientId !== client.client_id) throw new InvalidGrantError('Invalid authorization code.');
-    if (resource && resource.href !== new URL('/mcp', this.deps.config.publicUrl ?? undefined).href) {
-      throw new InvalidTargetError('resource does not identify this server.');
-    }
+    this.checkResource(resource);
     if (redirectUri !== undefined && redirectUri !== issued.redirectUri) throw new InvalidGrantError('redirect_uri does not match.');
     const connection = this.deps.mcp.connections.find(c => c.id === issued.connectionId);
     if (!connection || connection.revoked) throw new InvalidGrantError('This connection was revoked.');
@@ -272,8 +279,15 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     };
   }
 
-  async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string): Promise<OAuthTokens> {
+  private checkResource(resource?: URL): void {
+    if (resource && resource.href !== new URL('/mcp', this.deps.config.publicUrl ?? undefined).href) {
+      throw new InvalidTargetError('resource does not identify this server.');
+    }
+  }
+
+  async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string, _scopes?: string[], resource?: URL): Promise<OAuthTokens> {
     const { mcp } = this.deps;
+    this.checkResource(resource);
     const connection = mcp.connections.find(c => c.id === refreshToken.split('.', 1)[0]);
     if (!connection || connection.revoked || connection.builtIn || connection.clientId !== client.client_id) {
       throw new InvalidGrantError('Invalid refresh token.');
