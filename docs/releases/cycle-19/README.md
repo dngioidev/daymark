@@ -63,7 +63,7 @@ Full verification run by the controller on branch `feat/cycle-19-mcp` after all 
 
 - Provider/account compatibility and mobile voice behavior await the owner's manual checks above; these are not claimed as passing.
 - The mobile screenshot is the server web app in a phone viewport, not a native Android capture.
-- Audit append failures are logged and do not roll back completed tool writes.
+- Audit append failures are logged and do not roll back completed tool writes; read-only tools now fail closed and return an error instead of data when the audit entry cannot be written.
 
 ## Final review fixes
 
@@ -72,9 +72,11 @@ The whole-branch review found and fixed these before merge:
 - **C1:** the consent page showed heading names and note folders to anyone, without a password. Consent now has two steps: the first shows no vault data, and the heading and folder lists appear only after the password is accepted. A connection is created only for a verified request.
 - **I1:** the consent page says which host will receive access and warns when it is not a known AI app. The consent step shares the sign-in rate limiter, and failed consent passwords are audited as refused.
 - **I2:** `list_tasks` (and search and review) apply today's carry-forward in memory, so a morning read lists yesterday's open tasks.
-- **I3:** a signed token for a revoked connection is audited (at most once a minute per connection), and with AI access off every `/mcp` call, including initialize and tools/list, is refused and audited.
+- **I3:** a signed token for a revoked connection is audited (at most once a minute per connection), and with AI access off every `/mcp` call, including initialize and tools/list, is answered with a JSON-RPC error (HTTP 200, so clients do not treat it as an auth failure) and audited at most once a minute per connection.
 - **I4:** a deterministic held-queue test proves a phone sync and an AI write both survive.
 - **I5:** the stdio entry point prunes the audit log at startup and daily, using the retention setting.
+
+Deferred minors fixed afterwards: an authorization code is burned on its first PKCE lookup and the token endpoint rejects a `resource` that is not this server's `/mcp`; note folder input is normalized and `.`/`..` segments are rejected; unused dynamic client registrations are dropped after 24 hours (capped at 200, never one with a live consent request); a connection stays pending until its code is exchanged and is dropped after 10 minutes or on restart; each client id may hold at most 5 pending authorize requests; a failed password on an already verified consent request shows only the password step; and the AI connections error banner uses stone tokens with an icon. No manual connector check was run for any of these.
 
 Smaller fixes in the same pass: the MCP SDK is pinned to `~1.32.2`, `/revoke` needs the current refresh token, stdio rejects an invalid time zone, a failed admin save restores the old values in memory, and the grant check in Settings ignores heading case.
 
