@@ -5,7 +5,7 @@ import { relativeTime } from '../sync/SyncPanel';
 import { formatDateTime } from '../../utils/dateFormat';
 import { buttonClass } from '../ui/Dialog';
 import { ConfirmOptions, confirmDialog } from '../ui/feedback';
-import { MAX_AUDIT_RETENTION_DAYS } from '../../sync/mcpProtocol';
+import { MAX_AUDIT_RETENTION_DAYS, normalizeHeading } from '../../sync/mcpProtocol';
 import type {
   AuditAction, AuditEntry, FeedbackDestination, McpAccess, McpConnectionSummary, McpGrants, McpOverview,
 } from '../../sync/mcpProtocol';
@@ -93,10 +93,12 @@ interface ScopeEditorProps {
 
 const toggle = (list: string[], value: string, on: boolean) => (on ? [...list.filter(v => v !== value), value] : list.filter(v => v !== value));
 
-const ScopeEditor: React.FC<ScopeEditorProps> = ({ connection, knownHeadings, knownFolders, onSave, onCancel }) => {
+export const ScopeEditor: React.FC<ScopeEditorProps> = ({ connection, knownHeadings, knownFolders, onSave, onCancel }) => {
   const [grants, setGrants] = useState<McpGrants>(connection.grants);
   const [access, setAccess] = useState<McpAccess>(connection.access);
-  const stale = grants.headings.filter(h => !knownHeadings.includes(h));
+  const isKnown = (h: string) => knownHeadings.some(known => normalizeHeading(known) === normalizeHeading(h));
+  const isGranted = (h: string) => grants.headings.some(granted => normalizeHeading(granted) === normalizeHeading(h));
+  const stale = grants.headings.filter(h => !isKnown(h));
   const box = (id: string, text: string, checked: boolean, onChange: (on: boolean) => void) => (
     <label key={id} className="flex items-center gap-2 min-h-11 sm:min-h-8">
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="w-4 h-4" />
@@ -109,7 +111,7 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({ connection, knownHeadings, kn
       {box('all', 'Everything', grants.all, on => setGrants({ ...grants, all: on }))}
       {!grants.all && (
         <div className="pl-2 sm:pl-4">
-          {[...knownHeadings, ...stale].map(h => box(`h:${h}`, knownHeadings.includes(h) ? h : `${h} (not used recently)`, grants.headings.includes(h), on => setGrants({ ...grants, headings: toggle(grants.headings, h, on) })))}
+          {[...knownHeadings, ...stale].map(h => box(`h:${h}`, isKnown(h) ? h : `${h} (not used recently)`, isGranted(h), on => setGrants({ ...grants, headings: [...grants.headings.filter(g => normalizeHeading(g) !== normalizeHeading(h)), ...(on ? [h] : [])] })))}
           {knownFolders.map(f => box(`f:${f}`, `${f}/`, grants.folders.includes(f), on => setGrants({ ...grants, folders: toggle(grants.folders, f, on) })))}
           {box('backlog', 'Backlog', grants.backlog, on => setGrants({ ...grants, backlog: on }))}
           {box('habits', 'Habits', grants.habits, on => setGrants({ ...grants, habits: on }))}

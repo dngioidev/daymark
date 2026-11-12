@@ -58,6 +58,9 @@ export interface McpOverview {
   endpoint: string;
 }
 
+/** Headings are matched ignoring case and surrounding spaces, on the server and in Settings. */
+export const normalizeHeading = (name: string): string => name.trim().toLowerCase();
+
 export const NO_GRANTS: McpGrants = { all: false, headings: [], folders: [], backlog: false, habits: false };
 
 export const DEFAULT_MCP_SETTINGS: McpSettings = {

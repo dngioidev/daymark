@@ -1,3 +1,4 @@
+import { normalizeHeading } from '../../src/sync/mcpProtocol';
 import type { McpGrants } from '../../src/sync/mcpProtocol';
 import type { BacklogData, DailyDocument, HabitData, StandaloneNote } from '../../src/types/daymark';
 import type { McpConnection } from './mcpStore';
@@ -17,7 +18,7 @@ export type WriteTarget =
   | { kind: 'backlog' }
   | { kind: 'habits' };
 
-export const normalizeHeading = (name: string): string => name.trim().toLowerCase();
+export { normalizeHeading };
 
 export function headingGranted(g: McpGrants, name: string): boolean {
   return g.all || g.headings.some(heading => normalizeHeading(heading) === normalizeHeading(name));

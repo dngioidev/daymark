@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { UseSyncResult } from '../../hooks/useSync';
 import type { McpConnectionSummary } from '../../sync/mcpProtocol';
 import { NO_GRANTS } from '../../sync/mcpProtocol';
-import { AiConnectionsPanel, ConnectionRow, adoptDeviceTimezone, revokeConnection, saveGrants, saveRetention } from './AiConnectionsPanel';
+import { AiConnectionsPanel, ConnectionRow, ScopeEditor, adoptDeviceTimezone, revokeConnection, saveGrants, saveRetention } from './AiConnectionsPanel';
 
 const sync: UseSyncResult = {
   mode: 'server', status: 'idle', account: null, lastSyncAt: null, error: null,
@@ -18,6 +18,15 @@ const connection = (patch: Partial<McpConnectionSummary> = {}): McpConnectionSum
 });
 
 describe('AiConnectionsPanel', () => {
+  it('a granted heading that differs only in case or spacing is not flagged as unused', () => {
+    const render = (headings: string[]) => renderToStaticMarkup(React.createElement(ScopeEditor, {
+      connection: connection({ grants: { ...NO_GRANTS, headings } }), knownHeadings: ['Work', 'Personal'], knownFolders: [],
+      onSave: vi.fn(), onCancel: vi.fn(),
+    }));
+    expect(render(['work', ' Personal '])).not.toContain('not used recently');
+    expect(render(['Gone'])).toContain('Gone (not used recently)');
+  });
+
   it('signed out shows the sign-in hint', () => {
     const html = renderToStaticMarkup(React.createElement(AiConnectionsPanel, { sync }));
     expect(html).toContain('Sign in to sync to manage AI connections.');
