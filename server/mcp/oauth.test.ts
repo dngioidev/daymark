@@ -224,6 +224,23 @@ describe('OAuth connector sign-in', () => {
     expect(stored).not.toContain(tokens.refresh_token);
   });
 
+  it('a wrong code_verifier burns the code, so the right verifier cannot be retried', async () => {
+    const s = await signIn();
+    expect((await exchange(s, 'wrong-verifier-wrong-verifier-wrong-verifier-1')).status).toBe(400);
+    expect((await exchange(s)).status).toBe(400);
+  });
+
+  it('the token endpoint rejects a resource that is not this servers /mcp', async () => {
+    const s = await signIn();
+    const params = { grant_type: 'authorization_code', code: s.code, code_verifier: s.verifier, client_id: s.clientId, redirect_uri: REDIRECT };
+    const bad = await tokenRequest({ ...params, resource: 'https://evil.example.com/mcp' });
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as { error: string }).error).toBe('invalid_target');
+    const ok = await signIn();
+    const good = await tokenRequest({ ...params, code: ok.code, code_verifier: ok.verifier, client_id: ok.clientId, resource: `${base}/mcp` });
+    expect(good.status).toBe(200);
+  });
+
   it('refresh rotates; reusing the old refresh token revokes the connection', async () => {
     const s = await signIn();
     const first = await (await exchange(s)).json() as { refresh_token: string };

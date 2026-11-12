@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
-import { InvalidGrantError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import { InvalidGrantError, InvalidTargetError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { AuthorizationParams, OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
@@ -53,6 +53,8 @@ const form = (value: unknown): string => (typeof value === 'string' ? value : ''
 export class DaymarkOAuthProvider implements OAuthServerProvider {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly codes = new Map<string, IssuedCode>();
+  /** Codes whose PKCE challenge was served; the exchange consumes them, and a failed verifier leaves them unusable. */
+  private readonly claimed = new Map<string, IssuedCode>();
   private readonly revokedAudited = new Map<string, number>();
 
   constructor(private readonly deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; limiter: LoginRateLimiter }) {}
@@ -101,6 +103,7 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
   private purge(now = Date.now()): void {
     for (const [id, p] of this.pending) if (p.expiresAt <= now) this.pending.delete(id);
     for (const [id, c] of this.codes) if (c.expiresAt <= now) this.codes.delete(id);
+    for (const [id, c] of this.claimed) if (c.expiresAt <= now) this.claimed.delete(id);
   }
 
   private audit(entry: Omit<AuditEntry, 'id' | 'at'>): Promise<void> {
@@ -208,16 +211,23 @@ export class DaymarkOAuthProvider implements OAuthServerProvider {
     this.purge();
     const issued = this.codes.get(authorizationCode);
     if (!issued || issued.clientId !== client.client_id) throw new InvalidGrantError('Invalid authorization code.');
+    // Single use from the first lookup: a wrong code_verifier burns the code instead of allowing guesses.
+    this.codes.delete(authorizationCode);
+    this.claimed.set(authorizationCode, issued);
     return issued.codeChallenge;
   }
 
   async exchangeAuthorizationCode(
-    client: OAuthClientInformationFull, authorizationCode: string, _codeVerifier?: string, redirectUri?: string,
+    client: OAuthClientInformationFull, authorizationCode: string, _codeVerifier?: string, redirectUri?: string, resource?: URL,
   ): Promise<OAuthTokens> {
     this.purge();
-    const issued = this.codes.get(authorizationCode);
-    this.codes.delete(authorizationCode); // single use, even when the exchange fails below
+    const issued = this.claimed.get(authorizationCode) ?? this.codes.get(authorizationCode);
+    this.claimed.delete(authorizationCode); // single use, even when the exchange fails below
+    this.codes.delete(authorizationCode);
     if (!issued || issued.clientId !== client.client_id) throw new InvalidGrantError('Invalid authorization code.');
+    if (resource && resource.href !== new URL('/mcp', this.deps.config.publicUrl ?? undefined).href) {
+      throw new InvalidTargetError('resource does not identify this server.');
+    }
     if (redirectUri !== undefined && redirectUri !== issued.redirectUri) throw new InvalidGrantError('redirect_uri does not match.');
     const connection = this.deps.mcp.activeConnection(issued.connectionId);
     if (!connection) throw new InvalidGrantError('This connection was revoked.');
