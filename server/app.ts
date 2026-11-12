@@ -1,16 +1,14 @@
-import { isInkEntityKey, parseInkKey } from '../src/ink/inkModel';
-import { isInkPage } from '../src/utils/vaultValidation';
+import { isInkEntityKey } from '../src/ink/inkModel';
 import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
-import { reconcileBacklogVault } from '../src/utils/backlog';
 import type { DailyDocument } from '../src/types/daymark';
-import { isNoteMeta, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
 import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, reconcileMovedTasks, sameValue } from '../src/sync/merge';
 import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
 import { DeviceRecord, FileStore } from './store';
 import { assetRoutes } from './assets';
+import { isValidEntityValue, reconcileBacklogAfterWrite, VaultQueue, writeEntity } from './vault';
 
 export const SERVER_VERSION = '2.0.0';
 
@@ -31,7 +29,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
   const app = express();
   const limiter = new LoginRateLimiter();
   // Serialize sync requests so concurrent devices merge against a consistent state
-  let syncQueue: Promise<unknown> = Promise.resolve();
+  const vaultQueue = new VaultQueue();
 
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy); // trust only the configured reverse-proxy hops
@@ -230,26 +228,9 @@ export function createApp(config: ServerConfig, store: FileStore) {
     res.json({ entries: store.log.slice(0, 100) });
   });
 
-  /** Shape check for a sync value against its entity key. */
-  const validValue = (key: string, value: unknown): boolean => {
-    if (isInkEntityKey(key)) {
-      const identity = parseInkKey(key)!;
-      return isInkPage(value) && value.noteId === identity.noteId && value.page === identity.page;
-    }
-    if (key === 'notemeta') return isNoteMeta(value);
-    if (key === 'backlog') return isBacklogData(value);
-    if (key === 'habits') return typeof value === 'object' && value !== null && !Array.isArray(value) &&
-      isHabitData({ habits: (value as Record<string, unknown>).habits, days: [] });
-    if (key.startsWith('habitday:')) return isHabitData({ habits: [], days: [value] }) &&
-      (value as { date: string }).date === key.slice(9);
-    if (key.startsWith('doc:')) return isDailyDocument(value) && value.date === key.slice(4);
-    if (key.startsWith('note:')) return isStandaloneNote(value) && value.id === key.slice(5);
-    return isSyncedSettings(value);
-  };
-
   const runSync = (req: Request, res: Response, body: SyncRequest) => {
     const receivedAt = Date.now();
-    const job = syncQueue.then(async () => {
+    return vaultQueue.run(async () => {
       const { device } = authed(req);
       const sinceRev = Number.isInteger(body.sinceRev) && body.sinceRev >= 0 ? body.sinceRev : 0;
       const changes = Array.isArray(body.changes) ? body.changes : [];
@@ -262,7 +243,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       if (changes.some(c => isInkEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('ink'))) {
         return res.status(400).json({ error: 'Ink feature is required.' });
       }
-      if (changes.some(c => isInkEntityKey(c.key) && c.base != null && !validValue(c.key, c.base))) {
+      if (changes.some(c => isInkEntityKey(c.key) && c.base != null && !isValidEntityValue(c.key, c.base))) {
         return res.status(400).json({ error: 'Invalid ink base.' });
       }
       if (changes.some(c => isBacklogEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('backlog'))) {
@@ -271,7 +252,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
       if (changes.some(c => isNoteMetaEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('notemeta'))) {
         return res.status(400).json({ error: 'NoteMeta feature is required.' });
       }
-      const invalid = changes.find((c) => c.value !== null && c.value !== undefined && !validValue(c.key, c.value));
+      const invalid = changes.find((c) => c.value !== null && c.value !== undefined && !isValidEntityValue(c.key, c.value));
       if (invalid) {
         return res.status(400).json({ error: `Invalid value for ${invalid.key}.` });
       }
@@ -280,23 +261,19 @@ export function createApp(config: ServerConfig, store: FileStore) {
       const touched = new Set<string>();
       let changedBacklogOrDoc = false;
       const now = new Date().toISOString();
-      const write = (key: string, value: unknown | null) => {
-        store.vault.rev += 1;
-        store.vault.entities[key] = { rev: store.vault.rev, value, updatedBy: device.id, updatedAt: now };
-      };
 
       for (const change of changes) {
         const stored = store.vault.entities[change.key]?.value ?? null;
         // A corrupt stored entity is treated as absent so a valid push can repair it.
-        const current = stored !== null && !validValue(change.key, stored) ? null : stored;
+        const current = stored !== null && !isValidEntityValue(change.key, stored) ? null : stored;
         const merged = mergeEntity(change.key, change.base ?? null, current, change.value ?? null, receivedAt);
         conflicts.push(...merged.conflicts);
         if (!sameValue(merged.value, current)) {
-          write(change.key, merged.value);
+          writeEntity(store, change.key, merged.value, device.id, now);
           if (isBacklogEntityKey(change.key) || change.key.startsWith('doc:')) changedBacklogOrDoc = true;
         }
         for (const extra of merged.extraNotes ?? []) {
-          write(`note:${extra.id}`, extra);
+          writeEntity(store, `note:${extra.id}`, extra, device.id, now);
           touched.add(`note:${extra.id}`);
         }
         touched.add(change.key);
@@ -320,26 +297,19 @@ export function createApp(config: ServerConfig, store: FileStore) {
         const pushedMove = changes.some(c => c.key.startsWith('doc:') && (c.value as DailyDocument | null)?.headings.some(h =>
           h.items.some(t => Array.isArray(t.historyLog) && t.historyLog.some(e => typeof e?.id === 'string' && e.id.startsWith('hist-move-')))));
         if (duplicate || pushedMove) {
-          const keys = Object.keys(store.vault.entities).filter((key) => key.startsWith('doc:') && validValue(key, store.vault.entities[key].value));
+          const keys = Object.keys(store.vault.entities).filter((key) => key.startsWith('doc:') && isValidEntityValue(key, store.vault.entities[key].value));
           const docs = keys.map((key) => store.vault.entities[key].value as DailyDocument);
-          const bases = changes.filter(c => c.key.startsWith('doc:') && validValue(c.key, c.base)).map(c => c.base as DailyDocument);
+          const bases = changes.filter(c => c.key.startsWith('doc:') && isValidEntityValue(c.key, c.base)).map(c => c.base as DailyDocument);
           const fixed = reconcileMovedTasks(docs, bases, conflicts);
           keys.forEach((key, i) => {
-            if (!sameValue(docs[i], fixed[i])) { write(key, fixed[i]); touched.add(key); }
+            if (!sameValue(docs[i], fixed[i])) { writeEntity(store, key, fixed[i], device.id, now); touched.add(key); }
           });
         }
       }
 
-      const backlog = store.vault.entities.backlog?.value;
-      if (changedBacklogOrDoc && isBacklogData(backlog)) {
-        const docs = Object.entries(store.vault.entities).filter(([key, e]) => key.startsWith('doc:') && validValue(key, e.value)).map(([, e]) => e.value as DailyDocument);
+      if (changedBacklogOrDoc) {
         const capable = Array.isArray(body.features) && body.features.includes('backlog');
-        const reconciled = reconcileBacklogVault(backlog, docs, capable);
-        for (const doc of reconciled.docs) {
-          const key = `doc:${doc.date}`;
-          if (!sameValue(store.vault.entities[key]?.value, doc)) { write(key, doc); touched.add(key); }
-        }
-        if (!sameValue(backlog, reconciled.backlog)) write('backlog', reconciled.backlog);
+        reconcileBacklogAfterWrite(store, device.id, now, touched, capable);
       }
 
       const entities: SyncEntity[] = Object.entries(store.vault.entities)
@@ -349,7 +319,7 @@ export function createApp(config: ServerConfig, store: FileStore) {
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('backlog')) || !isBacklogEntityKey(key))
         .filter(([key, e]) => e.rev > sinceRev || touched.has(key))
         // Keep damaged legacy entries available for repair, but never send them to another device.
-        .filter(([key, e]) => e.value === null || validValue(key, e.value))
+        .filter(([key, e]) => e.value === null || isValidEntityValue(key, e.value))
         .map(([key, e]) => ({ key, rev: e.rev, value: e.value }));
 
       device.lastSyncAt = now;
@@ -366,8 +336,6 @@ export function createApp(config: ServerConfig, store: FileStore) {
       const response: SyncResponse = { rev: store.vault.rev, entities, conflicts };
       res.json(response);
     });
-    syncQueue = job.catch(() => undefined);
-    return job;
   };
 
   app.post('/api/sync', (req, res, next) => {
