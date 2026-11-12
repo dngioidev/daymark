@@ -53,18 +53,30 @@ Full verification run by the controller on branch `feat/cycle-19-mcp` after all 
 
 | Check | Outcome |
 | :--- | :--- |
-| MCP Inspector (`npx @modelcontextprotocol/inspector`) against `http://localhost:3000/mcp`: OAuth completes and the tools list | Not run yet — needs the owner's HTTPS server / accounts |
+| MCP Inspector (`npx @modelcontextprotocol/inspector`) against `http://localhost:3000/mcp`: OAuth completes and the tools list | Not run yet — a local check that has simply not been done |
 | Claude web custom connector against the owner's HTTPS server: “what's my day” | Not run yet — needs the owner's HTTPS server / accounts |
 | Claude mobile voice: the same question | Not run yet — needs the owner's HTTPS server / accounts |
 | ChatGPT connector: one read and one write | Not run yet — needs the owner's HTTPS server / accounts |
-| Claude Code with the stdio entry point: one local write | Not run yet — needs the owner's HTTPS server / accounts |
+| Claude Code with the stdio entry point: one local write | Not run yet — needs the owner's machine and Claude Code client |
 
 ## Known gaps
 
 - Provider/account compatibility and mobile voice behavior await the owner's manual checks above; these are not claimed as passing.
 - The mobile screenshot is the server web app in a phone viewport, not a native Android capture.
 - Audit append failures are logged and do not roll back completed tool writes.
-- No version bump, release, tag or commit is performed by Task 15; the controller commits the working tree.
+
+## Final review fixes
+
+The whole-branch review found and fixed these before merge:
+
+- **C1:** the consent page showed heading names and note folders to anyone, without a password. Consent now has two steps: the first shows no vault data, and the heading and folder lists appear only after the password is accepted. A connection is created only for a verified request.
+- **I1:** the consent page says which host will receive access and warns when it is not a known AI app. The consent step shares the sign-in rate limiter, and failed consent passwords are audited as refused.
+- **I2:** `list_tasks` (and search and review) apply today's carry-forward in memory, so a morning read lists yesterday's open tasks.
+- **I3:** a signed token for a revoked connection is audited (at most once a minute per connection), and with AI access off every `/mcp` call, including initialize and tools/list, is refused and audited.
+- **I4:** a deterministic held-queue test proves a phone sync and an AI write both survive.
+- **I5:** the stdio entry point prunes the audit log at startup and daily, using the retention setting.
+
+Smaller fixes in the same pass: the MCP SDK is pinned to `~1.32.2`, `/revoke` needs the current refresh token, stdio rejects an invalid time zone, a failed admin save restores the old values in memory, and the grant check in Settings ignores heading case.
 
 ## Usage vs. estimate
 
