@@ -1,8 +1,8 @@
 # Cycle 19: MCP server and AI connections
 
-Date: 2026-11-12 · Branch: `feat/cycle-19-mcp` · Release: **No version was released or tagged by this plan.**
+Date: 2026-11-12 · Branch: `feat/cycle-19-mcp` · Release: 1.13.0 (tag `v1.13.0`)
 
-Daymark's self-hosted server now offers MCP tools for an AI client to read and update the areas the owner shares. Implementation is complete and verified; owner connector checks are pending. See the [design](../../superpowers/specs/2026-11-12-cycle-19-mcp-server-design.md), [setup guide](../../guide/ai-connections.md), [client skill](../../../skills/daymark/SKILL.md) and [API reference](../../../.ai-configs/project/api-and-sync.md#7-ai-connections-cycle-19-mcp).
+Daymark's self-hosted server now offers MCP tools for an AI client to read and update the areas the owner shares. Released in Daymark 1.13.0. Implementation is complete and verified; owner connector checks are pending. See the [design](../../superpowers/specs/2026-11-12-cycle-19-mcp-server-design.md), [setup guide](../../guide/ai-connections.md), [client skill](../../../skills/daymark/SKILL.md) and [API reference](../../../.ai-configs/project/api-and-sync.md#7-ai-connections-cycle-19-mcp).
 
 ## What shipped
 
@@ -86,4 +86,4 @@ Actual session and token totals are unavailable to this runtime.
 
 ## Next
 
-Full verification and screenshots are done. The owner's connector checks above are still to run before deciding on a release. See [ROADMAP](../../ROADMAP.md).
+Shipped in Daymark 1.13.0 and deployed to the owner's server on 2026-11-13. Over HTTPS, `/api/health` and both OAuth discovery documents answer 200, and `POST /mcp` without a token answers 401 with the resource-metadata challenge. Two release fixes: `docker-compose.yml` now passes `DAYMARK_PUBLIC_URL`, `DAYMARK_MCP` and `DAYMARK_TZ` into the container (without them a production container never served `/mcp`), and the server retries an atomic-write rename that Windows briefly locks. The owner's connector checks above are still to run. See [ROADMAP](../../ROADMAP.md).

@@ -2,31 +2,30 @@
 title: What's new
 order: 2
 group: start
-summary: Tags, clearer Related suggestions, a new Help, full screen and pen tools.
-show: notes-tags
-related: tags, related-and-graph, handwriting
+summary: Connect Claude, ChatGPT or another AI to the parts of Daymark you choose.
+related: ai-connections, sync, sections
 ---
 ## Web
-**Daymark 1.12:**
+**Daymark 1.13:**
 
-1. **Tags.** Type `#word` in a note to tag it. Tags are listed in the Tags section under the folder tree.
-2. **Related explains itself.** Each suggestion says what the notes share, and weaker matches appear under Possibly related.
-3. **Help** opens full size from the side menu or with `?`, with search and Show me buttons.
-4. **Full screen** for every note, with Ctrl/⌘ + . on the keyboard.
-5. **Handwriting:** select and move ink, text boxes you can type into, and shapes that tidy themselves.
+1. **AI connections.** Add your server's Connector address to Claude, ChatGPT or another MCP client, and ask about your day, add tasks or file notes from the chat.
+2. **You choose what it sees.** Each connection gets its own sections, note folders, backlog and habits, with full or read-only access. Change or revoke it any time.
+3. **Activity.** Every read and write is listed in Settings → AI connections, kept for 7, 30 or a custom number of days.
+4. **One switch** turns all AI access off.
+5. **Local mode** runs the AI tools on this computer with no internet, for sensitive notes.
 ## Tablet
-**Daymark 1.12:**
+**Daymark 1.13:**
 
-1. **Tags.** Write `#word` in a note or a text box to tag it, and browse them in the Tags section.
-2. **Related explains itself** and adds a Possibly related group.
-3. **Full screen** with a side rail of pen tools, on the left or right.
-4. **S Pen button erases** while you hold it.
-5. **Select, text boxes and shapes** for handwritten notes.
+1. **AI connections.** Ask Claude or another AI about your day, and its changes reach the tablet on the next sync.
+2. **You choose what it sees:** sections, note folders, backlog and habits, per connection.
+3. **Activity** in Settings → AI connections shows what each AI read or changed.
+4. **One switch** turns all AI access off.
+5. Set it up from the web or the tablet with your server's Connector address.
 ## Phone
-**Daymark 1.12:**
+**Daymark 1.13:**
 
-1. **Tags.** Type `#word` in a note to tag it; open the Tags section in Notes to browse them.
-2. **Related explains itself** and adds a Possibly related group.
-3. **Help** is a full-screen list of topics with search.
-4. **Full screen** for every note; Android Back leaves it.
-5. **Text boxes** let you type on handwritten notes without a pen.
+1. **Ask out loud.** In the Claude app, ask "what's my day?" for a short spoken summary of your tasks.
+2. **Notes from chat.** Tasks and notes an AI adds reach your phone on the next sync.
+3. **You choose what it sees,** per connection, and can revoke it any time.
+4. **Activity** in Settings → AI connections lists every read and write.
+5. **One switch** turns all AI access off.
