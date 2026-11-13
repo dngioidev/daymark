@@ -123,6 +123,20 @@ try {
   // Finished tasks are grouped under a collapsed "Done (n)" row
   const doneOnLaptop = await laptop.getByRole('button', { name: /^done \(1\)$/i }).count();
   check(doneOnLaptop === 1, 'completion made on the phone shows on the laptop', `${doneOnLaptop} done group`);
+
+  // Live refresh (cycle 20): the open laptop page shows a phone change with no reload and no Sync now,
+  // well inside the 60 s timer, because the server tells open pages the vault changed.
+  {
+    const livePush = phone.waitForResponse((r) => r.url().endsWith('/api/sync') && r.request().method() === 'POST'
+      && (r.request().postData() ?? '').includes('Live from the phone') && r.ok(), { timeout: 20000 });
+    await phone.getByRole('button', { name: /^new task$/i }).click();
+    await phone.getByPlaceholder(/what do you need to do/i).fill('Live from the phone');
+    await phone.getByRole('button', { name: /^add task$/i }).click();
+    await livePush;
+    const pushedAt = Date.now();
+    const arrived = await laptop.getByText('Live from the phone').first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+    check(arrived, 'open laptop page shows the phone task without reload or Sync now', arrived ? `${Date.now() - pushedAt} ms` : 'not within 8 s');
+  }
   await shot(laptop, 'sync-4-laptop-today');
 
   // Cycle 6: move and appearance must survive a real two-device settings/doc sync.

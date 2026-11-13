@@ -11,6 +11,7 @@ import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
 import { uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
 import { syncNoteAssets } from '../utils/noteAssets';
+import { readServerEvents } from '../sync/serverEvents';
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -38,6 +39,9 @@ export interface UseSyncResult {
 
 const AUTO_SYNC_DEBOUNCE_MS = 2500;
 const PERIODIC_SYNC_MS = 60_000;
+const EVENTS_RETRY_MAX_MS = 30_000;
+/** The stream opens after start-up settles, so it never competes with the first load and sync. */
+const EVENTS_START_DELAY_MS = 2000;
 
 /**
  * Sync on start, local changes, reconnect, foreground and once a minute. `vault` identities
@@ -234,6 +238,52 @@ export function useSync(
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [mode, state?.deviceId, run]);
+
+  // While the page is visible, the server says when the vault changed (another device, an AI
+  // connection) so this page syncs at once. The timer above stays as the fallback.
+  useEffect(() => {
+    if (mode === 'local-web' || (mode !== 'server' && !state?.deviceId)) return;
+    let stopped = false;
+    let abort: AbortController | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let delay = 1000;
+    const onEvent = (_type: 'ready' | 'changed', rev: number) => {
+      delay = 1000;
+      // `ready` also catches up on anything missed while disconnected.
+      if (rev > (stateRef.current?.lastRev ?? 0)) void run().catch(() => undefined);
+    };
+    const open = () => {
+      clearTimeout(retry);
+      if (stopped || abort || blocked.current || document.visibilityState !== 'visible') return;
+      const controller = new AbortController();
+      abort = controller;
+      readServerEvents(authFetch, '/api/events', onEvent, controller.signal)
+        .catch((err: Error & { status?: number }) => {
+          // A server without the endpoint keeps the timer only, for this session.
+          if (err.status === 404) stopped = true;
+          if (err instanceof SessionEndedError) stopped = true;
+        })
+        .finally(() => {
+          if (abort === controller) abort = null;
+          if (stopped || controller.signal.aborted) return;
+          retry = setTimeout(open, delay);
+          delay = Math.min(delay * 2, EVENTS_RETRY_MAX_MS);
+        });
+    };
+    const close = () => { clearTimeout(retry); abort?.abort(); abort = null; };
+    const onVisible = () => document.visibilityState === 'visible' ? open() : close();
+    void (running.current ?? Promise.resolve(false)).catch(() => false).finally(() => {
+      if (!stopped) retry = setTimeout(open, EVENTS_START_DELAY_MS);
+    });
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', open);
+    return () => {
+      stopped = true;
+      close();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', open);
+    };
+  }, [mode, state?.deviceId, run, authFetch]);
 
   const connect = useCallback(async (serverUrl: string, username: string, password: string, deviceName: string) => {
     if (mode !== 'native') throw new Error('Sign in from your server or the Android app.');

@@ -301,3 +301,16 @@ describe('folder tools', () => {
     expect(dev.local.notes[0].folder).toBe('New');
   });
 });
+
+describe('live refresh', () => {
+  it('an MCP write notifies open pages through the store, a refused one does not', async () => {
+    const revs: number[] = [];
+    const stop = store.onVaultRev(rev => revs.push(rev));
+    const ai = await assistant('full', { folders: ['Work'] });
+    await ok(ai, 'create_note', { title: 'Plan', folder: 'Work', content: '' });
+    expect(revs).toEqual([store.vault.rev]);
+    await call(ai, 'create_note', { title: 'Private', folder: 'Personal', content: '' });
+    expect(revs).toHaveLength(1);
+    stop();
+  });
+});

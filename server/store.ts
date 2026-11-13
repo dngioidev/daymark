@@ -60,8 +60,16 @@ export class FileStore {
   devices: DeviceRecord[] = [];
   log: SyncLogEntry[] = [];
   private queue: Promise<void> = Promise.resolve();
+  private revListeners = new Set<(rev: number) => void>();
+  private notifiedRev = 0;
 
   constructor(readonly dir: string) {}
+
+  /** Called after vault.json is written with a higher rev (sync pushes, AI tools, restores). Returns an unsubscribe. */
+  onVaultRev(listener: (rev: number) => void): () => void {
+    this.revListeners.add(listener);
+    return () => { this.revListeners.delete(listener); };
+  }
 
   private file(name: string) {
     return path.join(this.dir, name);
@@ -100,6 +108,7 @@ export class FileStore {
     }
     const vault = this.read<VaultRecord>('vault.json', { rev: 0, entities: {} });
     this.vault = { rev: vault.rev, entities: Object.assign(Object.create(null), vault.entities) };
+    this.notifiedRev = vault.rev;
     this.devices = this.read<DeviceRecord[]>('devices.json', []).map((device) => ({
       ...device,
       refreshHash: device.refreshHash ?? null,
@@ -131,6 +140,12 @@ export class FileStore {
     const snapshot = names.map((n) => [n, this.dataFor(n)] as const);
     this.queue = this.queue.then(() => {
       for (const [n, data] of snapshot) this.writeNow(n, data);
+      const vault = snapshot.find(([n]) => n === 'vault.json')?.[1] as VaultRecord | undefined;
+      // Only a real change notifies, so a device's no-op sync cannot start a sync loop.
+      if (vault && vault.rev > this.notifiedRev) {
+        this.notifiedRev = vault.rev;
+        for (const listener of this.revListeners) listener(vault.rev);
+      }
     });
     return this.queue;
   }

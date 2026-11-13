@@ -101,8 +101,14 @@ export default function RichNoteEditor({ noteId, markdown, onChange, onOpenLink,
   useEffect(() => {
     if (!editor || markdown === original.current) return;
     original.current = markdown;
+    // A change from sync (another device, an AI connection) keeps the cursor where the user is typing.
+    const keep = editor.isFocused ? editor.state.selection : null;
     editor.chain().setContent(markdown, { contentType: 'markdown', emitUpdate: false })
       .command(({ tr }) => { tr.setMeta('addToHistory', false); return true; }).run();
+    if (keep) {
+      const size = editor.state.doc.content.size;
+      editor.commands.setTextSelection({ from: Math.min(keep.from, size), to: Math.min(keep.to, size) });
+    }
   }, [editor, markdown]);
   if (!editor) return <div className="p-4 text-stone-600 dark:text-stone-300" role="status">Loading editor…</div>;
   return <div className="flex flex-1 min-h-0 min-w-0 flex-col">

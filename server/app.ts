@@ -13,6 +13,7 @@ import type { AuditLog } from './mcp/audit';
 import type { McpStore } from './mcp/mcpStore';
 import { mountMcp } from './mcp/router';
 import { mcpAdminRoutes } from './mcp/adminRoutes';
+import { vaultEventsHandler } from './events';
 
 export const SERVER_VERSION = '2.0.0';
 
@@ -350,6 +351,13 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
   app.get('/api/sync', (req, res, next) => {
     runSync(req, res, { sinceRev: Number(req.query.since) || 0, changes: [] }).catch(next);
   });
+
+  // Tells open pages to sync now; ends when the token expires, the device is revoked or the password changes.
+  app.get('/api/events', vaultEventsHandler(store, (req) => {
+    const { deviceAuth, device } = authed(req);
+    const current = store.devices.find((d) => d.id === device.id);
+    return deviceAuth.exp * 1000 > Date.now() && deviceAuth.ver === store.auth.tokenVersion && !!current && !current.revoked;
+  }));
 
   // OAuth sign-in and /mcp live outside /api so they run before the site gate
   if (mcp && config.mcpEnabled && config.publicUrl) {
