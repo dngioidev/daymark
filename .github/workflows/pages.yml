@@ -41,8 +41,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # build-site packages the AI client skill with jszip
-      - run: npm ci
+      # build-site packages the AI client skill with jszip; no install scripts in a publishing job
+      - run: npm ci --ignore-scripts
       - run: node --test --test-concurrency=1 scripts/helpers/site.test.mjs scripts/helpers/zoom.test.mjs scripts/helpers/guide.test.mjs
       - run: node scripts/build-site.mjs
         env:
