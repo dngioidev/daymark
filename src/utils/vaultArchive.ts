@@ -219,7 +219,7 @@ export async function buildVaultZip(
     'vault_manifest.json',
     JSON.stringify(
       {
-        version: '1.13.0',
+        version: '1.13.1',
         exportedAt: new Date().toISOString(),
         totalDailyNotes: docs.length,
         totalStandaloneNotes: notes.length,

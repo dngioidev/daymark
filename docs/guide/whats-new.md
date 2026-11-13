@@ -3,7 +3,7 @@ title: What's new
 order: 2
 group: start
 summary: Connect Claude, ChatGPT or another AI to the parts of Daymark you choose.
-related: ai-connections, sync, sections
+related: ai-connections, ai-clients, sync, sections
 ---
 ## Web
 **Daymark 1.13:**
