@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { DEFAULT_MCP_SETTINGS, NO_GRANTS } from '../../src/sync/mcpProtocol';
 import type { McpAccess, McpConnectionSummary, McpGrants, McpSettings } from '../../src/sync/mcpProtocol';
+import { renameWithRetry } from '../fsAtomic';
 
 export interface McpConnection extends McpConnectionSummary {
   clientId: string | null;
@@ -103,7 +104,7 @@ export class McpStore {
       const tmp = `${target}.${process.pid}.tmp`;
       try {
         fs.writeFileSync(tmp, snapshot, { mode: 0o600 });
-        fs.renameSync(tmp, target);
+        renameWithRetry(tmp, target);
       } catch (err) {
         try { fs.unlinkSync(tmp); } catch { /* Preserve the original write error. */ }
         throw err;

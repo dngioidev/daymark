@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Router } from 'express';
 import type { NoteAssetMeta } from '../src/types/daymark';
+import { renameWithRetry } from './fsAtomic';
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
 const validId = (id: string) => /^[a-f0-9]{64}$/.test(id);
@@ -12,7 +13,7 @@ function writeAtomic(target: string, data: string | Buffer): void {
   const temporary = `${target}.${process.pid}.tmp`;
   try {
     fs.writeFileSync(temporary, data, { mode: 0o600 });
-    fs.renameSync(temporary, target);
+    renameWithRetry(temporary, target);
   } finally {
     fs.rmSync(temporary, { force: true });
   }

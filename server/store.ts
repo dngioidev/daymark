@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { hashPassword } from './auth';
+import { renameWithRetry } from './fsAtomic';
 
 export interface AuthRecord {
   username: string;
@@ -122,7 +123,7 @@ export class FileStore {
     const target = this.file(name);
     const tmp = `${target}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
-    fs.renameSync(tmp, target);
+    renameWithRetry(tmp, target);
   }
 
   /** Queues an atomic write of the named file(s); resolves when written. */
