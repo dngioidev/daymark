@@ -9,11 +9,11 @@ related: ai-clients, sync, backups, sections
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
 2. Add the address to Claude, Claude Code, ChatGPT, Codex or another MCP client; **AI clients and the skill** has the steps for each. Availability and labels depend on the account.
 3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
-4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
+4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. Open Daymark pages show AI changes within a second, without reloading; other devices get them on their next sync.
 
 **Scope and control**
 
-Share **Everything**, daily headings across all dates, note folders including subfolders, the whole **Backlog**, or **Habits**. Heading matching ignores case and surrounding whitespace. A top-level folder grant covers only top-level notes. Reads, search, summaries and ordinary writes stay within scope. Renamed headings may need granting again.
+Share **Everything**, daily headings across all dates, note folders including subfolders, the whole **Backlog**, or **Habits**. Heading matching ignores case and surrounding whitespace. A top-level folder grant covers only top-level notes. The AI can list, create, rename and delete folders inside shared ones; deleting a folder keeps its notes and moves them to the parent. Reads, search, summaries and ordinary writes stay within scope. Renamed headings may need granting again.
 
 Under **Connections**, **Edit** changes scope and **Full access / Read only**. **Revoke** disconnects a hosted client; add it again to reconnect. The built-in **Local** connection can be edited but not revoked. Turn **AI access** off to refuse tool calls while keeping connections. Only signed-in Daymark devices manage these settings.
 
@@ -41,11 +41,11 @@ Install the Daymark skill (`daymark-skill.zip` on the Daymark website) to teach 
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
 2. Add the address to Claude, Claude Code, ChatGPT, Codex or another MCP client; **AI clients and the skill** has the steps for each. Availability and labels depend on the account.
 3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
-4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
+4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. Open Daymark pages show AI changes within a second, without reloading; other devices get them on their next sync.
 
 **Scope and control**
 
-Share **Everything**, daily headings across all dates, note folders including subfolders, the whole **Backlog**, or **Habits**. Heading matching ignores case and surrounding whitespace. A top-level folder grant covers only top-level notes. Reads, search, summaries and ordinary writes stay within scope. Renamed headings may need granting again.
+Share **Everything**, daily headings across all dates, note folders including subfolders, the whole **Backlog**, or **Habits**. Heading matching ignores case and surrounding whitespace. A top-level folder grant covers only top-level notes. The AI can list, create, rename and delete folders inside shared ones; deleting a folder keeps its notes and moves them to the parent. Reads, search, summaries and ordinary writes stay within scope. Renamed headings may need granting again.
 
 Under **Connections**, **Edit** changes scope and **Full access / Read only**. **Revoke** disconnects a hosted client; add it again to reconnect. The built-in **Local** connection can be edited but not revoked. Turn **AI access** off to refuse tool calls while keeping connections. Only signed-in Daymark devices manage these settings.
 

@@ -434,7 +434,41 @@ const cycle19Connections = async (page) => {
   await settings(page).getByText(/get_day_summary/).first().waitFor();
 };
 
+// Cycle 20: a task description whose [[link]] opens a note in a nested folder.
+const CYCLE20_NOTE = 'Refresh the open page after AI changes';
+const cycle20Vault = (today) => {
+  const vault = cycle11Vault(today);
+  vault.notes.push({ id: 'c20-bug', title: CYCLE20_NOTE, folder: 'Daymark/Bugs', tags: [], pinned: false, createdAt: `${today}T09:00:00Z`, updatedAt: `${today}T09:00:00Z`,
+    content: `# ${CYCLE20_NOTE}
+
+## Expected
+
+Task additions, status changes and note edits made by an AI connection appear on the open page without a reload.` });
+  return vault;
+};
+const cycle20TaskLink = then(async (page) => {
+  await page.getByRole('button', { name: /^new task/i }).first().click();
+  await page.getByPlaceholder(/what do you need to do/i).fill('Live refresh for AI changes');
+  await page.getByRole('button', { name: /^add task$/i }).click();
+  await page.getByRole('button', { name: 'Live refresh for AI changes', exact: true }).first().click();
+  const sheet = page.getByRole('dialog', { name: 'Live refresh for AI changes', exact: true });
+  await sheet.getByLabel('Notes', { exact: true }).fill(`Show changes made by an AI connection without a reload.
+
+Steps and expected behaviour: [[${CYCLE20_NOTE}]]`);
+  await sheet.getByRole('heading', { name: 'Checklist', exact: true }).click(); // blur saves and shows the rendered notes
+  await sheet.locator('[data-internal-note]').waitFor();
+  await page.getByRole('button', { name: 'Dismiss' }).click().catch(() => {}); // the "Added to" toast
+});
+
 const SHOTS = [
+  // Cycle 20: task notes render [[links]] that open the note.
+  { name: 'task-note-link-desktop', viewport: 'desktop', cycles: ['cycle-20'], prepare: cycle20TaskLink },
+  { name: 'task-note-link-mobile', viewport: 'android', cycles: ['cycle-20'], prepare: cycle20TaskLink },
+  { name: 'linked-note-opened', viewport: 'desktop', cycles: ['cycle-20'], prepare: async (page, today) => {
+    await cycle20TaskLink(page, today);
+    await page.locator('[data-internal-note]').first().click();
+    await page.getByRole('textbox', { name: 'Note rich text', exact: true }).waitFor();
+  } },
   // Cycle 19: real OAuth consent, AI connections and populated Activity.
   { name: 'ai-connections-desktop', viewport: 'desktop', cycles: ['cycle-19'], prepare: cycle19Connections },
   { name: 'ai-connections-mobile', viewport: 'android', cycles: ['cycle-19'], prepare: cycle19Connections },
@@ -684,7 +718,9 @@ try {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
-      if (cycle === 'cycle-19') {
+      if (cycle === 'cycle-20') {
+        await seedVault(page, baseUrl, cycle20Vault(today));
+      } else if (cycle === 'cycle-19') {
         await seedVault(page, baseUrl, cycle11Vault(today));
       } else if (cycle === 'cycle-18' || cycle === 'guide') {
         await seedVault(page, baseUrl, cycle18Vault(today));
