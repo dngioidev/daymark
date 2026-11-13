@@ -2,6 +2,10 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
+## Cycle 20: MCP feedback round 1
+
+**Status: released in 1.13.2 (tag `v1.13.2`).** Fixes from the owner's own connector use: open pages update instantly after server-side changes (SSE `/api/events`), MCP folder tools (`list_folders`, `create_folder`, `rename_folder`, `delete_folder`), `[[Note title]]` links that open from task notes and daily notes, and clearer skill guidance for app-issue tasks and new folders. See the [design](./superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md) and [release notes](./releases/cycle-20/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-20`.
+
 ## Cycle 19: MCP server and AI connections
 
 **Status: released in 1.13.0 (tag `v1.13.0`); 1.13.1 publishes the client skill as `daymark-skill.zip` on the website with per-client setup steps. Only the owner's manual connector checks are pending.** The self-hosted server exposes `/mcp` with OAuth password consent, per-connection heading/folder/backlog/habit grants, read-only access, a master switch and retained Activity. Tools read and write through the shared vault path, provide spoken day summaries and period reviews, and file Daymark feedback. Local use supports localhost HTTP or the locked stdio entry point (`npm run mcp:stdio -- --data <folder>`), with a client skill downloadable from the website. Settings → AI connections manages access, time zone, retention and feedback. The guide is available in Help and the website. See the [design](./superpowers/specs/2026-11-12-cycle-19-mcp-server-design.md), [guide](./guide/ai-connections.md) and [release handoff](./releases/cycle-19/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-19`; the screenshots are captured, and only the owner's connector outcomes remain to be recorded.
