@@ -40,6 +40,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      # build-site packages the AI client skill with jszip
+      - run: npm ci
       - run: node --test --test-concurrency=1 scripts/helpers/site.test.mjs scripts/helpers/zoom.test.mjs scripts/helpers/guide.test.mjs
       - run: node scripts/build-site.mjs
         env:
