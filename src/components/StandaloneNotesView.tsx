@@ -1,3 +1,4 @@
+import { resolveNoteLink } from '../utils/noteLinks';
 import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import {
   ArrowLeft,
@@ -381,10 +382,10 @@ export const StandaloneNotesView: React.FC<StandaloneNotesViewProps> = ({ notes,
     openNote(id);
   };
   const openLinkedNote = (noteTitle: string) => {
-    const target = notes.find((n) => n.title.toLowerCase().trim() === noteTitle.toLowerCase().trim());
+    const target = resolveNoteLink(notes, noteTitle, activeNote?.folder);
     if (target) {
       openNote(target.id);
-    } else createNote(activeNote?.folder || 'General', noteTitle);
+    } else createNote(activeNote?.folder || 'General', noteTitle.split('|')[0].trim());
   };
 
   const changeNotesView = (value: 'list' | 'graph', keyboard = false) => {

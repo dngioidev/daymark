@@ -70,6 +70,12 @@
   word-break: break-word;
 }
 
+/* A [[link]] whose note does not exist (yet): dashed and muted instead of a dead amber link */
+.daymark-markdown-body .daymark-internal-link-missing {
+  text-decoration-style: dashed;
+  opacity: 0.7;
+}
+
 .daymark-markdown-body h1 {
   font-size: 1.5rem;
   font-weight: 800;

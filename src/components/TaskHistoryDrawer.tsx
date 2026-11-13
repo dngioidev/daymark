@@ -4,6 +4,7 @@ import { CountingDays, AgingThresholds, StatusDefinition, TaskItem } from '../ty
 import { calculateTaskAge } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { Dialog, buttonClass } from './ui/Dialog';
+import { MarkdownPreview } from './MarkdownPreview';
 import { confirmDialog } from './ui/feedback';
 
 interface TaskDetailsSheetProps {
@@ -41,11 +42,17 @@ export const TaskHistoryDrawer: React.FC<TaskDetailsSheetProps> = ({
   onDeleteTask,
 }) => {
   const [notesDraft, setNotesDraft] = useState(task?.description ?? '');
+  const [editingNotes, setEditingNotes] = useState(false);
   const [newItem, setNewItem] = useState('');
   useEffect(() => {
     setNotesDraft(task?.description ?? '');
+    setEditingNotes(false);
     setNewItem('');
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A description changed elsewhere (another device, an AI connection) shows unless the user is typing.
+  useEffect(() => {
+    if (!editingNotes) setNotesDraft(task?.description ?? '');
+  }, [task?.description]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!task) return <Dialog isOpen={false} onClose={onClose} title="">{null}</Dialog>;
 
@@ -139,18 +146,25 @@ export const TaskHistoryDrawer: React.FC<TaskDetailsSheetProps> = ({
           <label htmlFor="task-notes" className="block text-sm font-semibold mb-1.5">
             Notes
           </label>
-          {editable ? (
+          {editable && (editingNotes || !task.description) ? (
             <textarea
               id="task-notes"
               value={notesDraft}
-              onChange={(e) => setNotesDraft(e.target.value)}
-              onBlur={saveNotes}
+              onChange={(e) => { setNotesDraft(e.target.value); setEditingNotes(true); }}
+              onBlur={() => { saveNotes(); setEditingNotes(false); }}
+              autoFocus={editingNotes && !!task.description}
               rows={3}
-              placeholder="Add details, links or context…"
+              placeholder="Add details, links or context… Link a note with [[Note title]]."
               className="w-full px-3 py-2 text-[15px] sm:text-sm bg-stone-50 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 placeholder:text-stone-500"
             />
+          ) : task.description ? (
+            <div className="space-y-1.5">
+              {/* Rendered so [[Note title]] links open the note */}
+              <MarkdownPreview content={task.description} />
+              {editable && <button type="button" className={buttonClass.ghost} onClick={() => setEditingNotes(true)}>Edit notes</button>}
+            </div>
           ) : (
-            <p className="text-stone-700 dark:text-stone-300 whitespace-pre-wrap">{task.description || 'No notes.'}</p>
+            <p className="text-stone-700 dark:text-stone-300 whitespace-pre-wrap">No notes.</p>
           )}
         </div>
 

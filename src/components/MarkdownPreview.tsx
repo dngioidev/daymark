@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MermaidDiagram } from './notes/mermaidDiagram';
+import { useNoteLinks } from './notes/NoteLinkContext';
 import { renderMarkdownHtml } from '../utils/markdownHtml';
 import { matchFrontmatter } from '../utils/frontmatter';
 import {
@@ -18,6 +19,7 @@ import {
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
+  /** Defaults to opening the note through NoteLinkContext when one is provided. */
   onInternalLinkClick?: (noteTitle: string) => void;
   onToggleTaskItem?: (taskIndex: number, newChecked: boolean) => void;
 }
@@ -63,6 +65,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 }) => {
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const noteLinks = useNoteLinks();
+  const openLink = onInternalLinkClick ?? (noteLinks ? (title: string) => { noteLinks.open(title); } : undefined);
   const [diagrams, setDiagrams] = useState<{ target: HTMLElement; source: string }[]>([]);
 
   // 1. Parse frontmatter and body
@@ -75,6 +79,16 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     () => renderMarkdownHtml(cleanBody, !!onToggleTaskItem),
     [cleanBody, onToggleTaskItem]
   );
+  // Links with no matching note look and read as unresolved instead of failing silently.
+  useEffect(() => {
+    if (onInternalLinkClick || !noteLinks) return;
+    bodyRef.current?.querySelectorAll<HTMLElement>('[data-internal-note]').forEach(link => {
+      const missing = !noteLinks.exists(decodeURIComponent(link.dataset.internalNote ?? ''));
+      link.classList.toggle('daymark-internal-link-missing', missing);
+      if (missing) link.title = 'No note with this title yet';
+      else link.removeAttribute('title');
+    });
+  }, [processedHtml, noteLinks, onInternalLinkClick]);
   useEffect(() => {
     const diagrams = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>('pre > code.language-mermaid') ?? []).map(code => {
       const target = document.createElement('div');
@@ -94,11 +108,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     // 1. Check if user clicked an internal [[Wiki Link]]
     const internalBtn = target.closest('[data-internal-note]') as HTMLElement | null;
-    if (internalBtn && onInternalLinkClick) {
+    if (internalBtn && openLink) {
       e.preventDefault();
       const rawTitle = internalBtn.getAttribute('data-internal-note');
       if (rawTitle) {
-        onInternalLinkClick(decodeURIComponent(rawTitle));
+        openLink(decodeURIComponent(rawTitle));
         return;
       }
     }

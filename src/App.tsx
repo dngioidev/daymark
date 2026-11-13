@@ -95,6 +95,8 @@ import { HelpView } from './components/help/HelpView';
 import type { ShowMeTarget } from './utils/guideData';
 import { isDialogOpen } from './components/ui/Dialog';
 import { isMenuOpen } from './components/ui/Menu';
+import { NoteLinkContext, type NoteLinks } from './components/notes/NoteLinkContext';
+import { resolveNoteLink } from './utils/noteLinks';
 
 const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
 
@@ -883,8 +885,22 @@ export default function App() {
     onPick: handlePickBacklog,
   };
 
+  // [[Note title]] links in task descriptions and daily notes open the note in Notes.
+  const noteLinks: NoteLinks = {
+    exists: link => !!resolveNoteLink(notes, link),
+    open: link => {
+      const target = resolveNoteLink(notes, link);
+      if (!target) return false;
+      setDetailsTaskId(null);
+      setOpenNoteId(target.id);
+      goToTab('notes');
+      return true;
+    },
+  };
+
   return (
     <div onPointerDownCapture={event => { if (event.pointerType === 'pen') rememberPen(); }} className={`dm-app relative isolate min-h-dvh bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col ${background.url ? 'dm-glass' : ''}`}>
+    <NoteLinkContext.Provider value={noteLinks}>
     <InkStoreContext.Provider value={inkStore}>
       {background.url && <div aria-hidden="true" className="dm-photo" style={{ backgroundImage: `url("${background.url}")` }}><div className="dm-photo-overlay" /></div>}
       {appMode === 'desktop' && (
@@ -1103,6 +1119,7 @@ export default function App() {
 
       <FeedbackHost />
     </InkStoreContext.Provider>
+    </NoteLinkContext.Provider>
     </div>
   );
 }
