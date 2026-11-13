@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { DEFAULT_MCP_SETTINGS, NO_GRANTS } from '../../src/sync/mcpProtocol';
+import { DEFAULT_MCP_SETTINGS, NO_GRANTS, needsToolRefresh } from '../../src/sync/mcpProtocol';
 import { McpStore } from './mcpStore';
 
 let dir: string;
@@ -187,4 +187,32 @@ it('keeps protected clients through pruning, and caps clients at 200 by evicting
   expect(store.clients['c0']).toBeDefined(); // protected, so c1 went instead
   expect(store.clients['c1']).toBeUndefined();
   expect(store.clients['client-1']).toBeDefined();
+});
+
+it('records the tool set; a later change with a hosted connection flags clients that listed tools before it', async () => {
+  const t0 = new Date('2026-11-13T10:00:00Z');
+  expect(store.recordToolset(['ping', 'get_day'], '1.13.2', t0)).toBe(true);
+  expect(store.toolset).toMatchObject({ changedAt: null, added: [] }); // nothing to refresh without connections
+  const conn = create();
+  expect(needsToolRefresh(conn, store.toolset)).toBe(false);
+  store.markToolsListed(conn.id, new Date('2026-11-13T11:00:00Z'));
+  expect(store.recordToolset(['get_day', 'ping'], '1.13.2', t0)).toBe(false); // same tools, any order
+  expect(store.recordToolset(['ping', 'get_day', 'delete_folder'], '1.13.3', new Date('2026-11-13T12:00:00Z'))).toBe(true);
+  expect(store.toolset).toMatchObject({ version: '1.13.3', changedAt: '2026-11-13T12:00:00.000Z', added: ['delete_folder'] });
+  expect(needsToolRefresh(conn, store.toolset)).toBe(true);
+  store.markToolsListed(conn.id, new Date('2026-11-13T12:05:00Z'));
+  expect(needsToolRefresh(conn, store.toolset)).toBe(false);
+  await store.persist();
+  const reloaded = new McpStore(dir);
+  reloaded.init();
+  expect(reloaded.toolset).toEqual(store.toolset);
+  expect(reloaded.connections.find(c => c.id === conn.id)?.toolsListedAt).toBe('2026-11-13T12:05:00.000Z');
+});
+
+it('an upgrade from a version that never recorded its tools asks existing clients to refresh', () => {
+  const conn = create();
+  store.recordToolset(['ping'], '1.13.3', new Date('2026-11-13T12:00:00Z'));
+  expect(store.toolset).toMatchObject({ changedAt: '2026-11-13T12:00:00.000Z', added: [] });
+  expect(needsToolRefresh(conn, store.toolset)).toBe(true);
+  expect(needsToolRefresh({ builtIn: true, toolsListedAt: null }, store.toolset)).toBe(false);
 });

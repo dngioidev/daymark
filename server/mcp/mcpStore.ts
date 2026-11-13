@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { DEFAULT_MCP_SETTINGS, NO_GRANTS } from '../../src/sync/mcpProtocol';
-import type { McpAccess, McpConnectionSummary, McpGrants, McpSettings } from '../../src/sync/mcpProtocol';
+import type { McpAccess, McpConnectionSummary, McpGrants, McpSettings, McpToolset } from '../../src/sync/mcpProtocol';
 import { renameWithRetry } from '../fsAtomic';
 
 export interface McpConnection extends McpConnectionSummary {
@@ -18,10 +18,15 @@ export interface McpConnection extends McpConnectionSummary {
 const MAX_CLIENTS = 200;
 const ORPHAN_CLIENT_MS = 24 * 60 * 60 * 1000;
 
+interface StoredToolset extends McpToolset {
+  names: string[];
+}
+
 interface McpData {
   settings: McpSettings;
   connections: McpConnection[];
   clients: Record<string, OAuthClientInformationFull>;
+  toolset?: StoredToolset;
 }
 
 /** MCP state in DATA_DIR, with owner-only atomic writes serialized per store. */
@@ -29,6 +34,7 @@ export class McpStore {
   settings: McpSettings = structuredClone(DEFAULT_MCP_SETTINGS);
   connections: McpConnection[] = [];
   clients: Record<string, OAuthClientInformationFull> = {};
+  toolset: StoredToolset | undefined;
   private queue: Promise<void> = Promise.resolve();
 
   constructor(readonly dir: string) {}
@@ -48,6 +54,7 @@ export class McpStore {
     this.settings = data.settings;
     this.connections = data.connections;
     this.clients = data.clients;
+    this.toolset = data.toolset;
     // Clients saved before registration time was tracked start their grace period now, so an upgrade drops nothing.
     const nowSeconds = Math.floor(Date.now() / 1000);
     let changed = false;
@@ -60,6 +67,33 @@ export class McpStore {
     if (this.connections.length !== before) changed = true;
     if (this.pruneClients()) changed = true;
     if (changed) this.persist().catch((err) => console.error('Could not save MCP state after cleanup:', (err as Error).message));
+  }
+
+  /**
+   * Records the server's current tool names. When they differ from the stored set and a hosted connection
+   * exists, the change time is noted so Settings can ask the owner to refresh those clients. An upgrade from a
+   * version that never recorded its tools counts as a change with unknown additions. Returns whether anything changed.
+   */
+  recordToolset(names: string[], version: string, now = new Date()): boolean {
+    const sorted = [...new Set(names)].sort();
+    const previous = this.toolset;
+    if (previous && previous.names.join() === sorted.join()) {
+      if (previous.version === version) return false;
+      this.toolset = { ...previous, version };
+      return true;
+    }
+    const hosted = this.connections.some(connection => !connection.builtIn && !connection.revoked && !connection.pending);
+    const added = previous ? sorted.filter(name => !previous.names.includes(name)) : [];
+    this.toolset = { names: sorted, version, changedAt: hosted ? now.toISOString() : previous?.changedAt ?? null, added: hosted ? added : previous?.added ?? [] };
+    return true;
+  }
+
+  /** The client behind a connection fetched the tool list. */
+  markToolsListed(connectionId: string, now = new Date()): boolean {
+    const connection = this.activeConnection(connectionId);
+    if (!connection) return false;
+    connection.toolsListedAt = now.toISOString();
+    return true;
   }
 
   /** Drops connections whose authorization code was never exchanged within the code lifetime. Returns whether any were. */
@@ -98,7 +132,7 @@ export class McpStore {
   }
 
   persist(): Promise<void> {
-    const snapshot = JSON.stringify({ settings: this.settings, connections: this.connections, clients: this.clients });
+    const snapshot = JSON.stringify({ settings: this.settings, connections: this.connections, clients: this.clients, toolset: this.toolset });
     const run = this.queue.then(() => {
       const target = path.join(this.dir, 'mcp.json');
       const tmp = `${target}.${process.pid}.tmp`;

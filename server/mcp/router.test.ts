@@ -78,7 +78,7 @@ describe('/mcp endpoint', () => {
     const client = await connect(mcpToken(conn.id));
     const result = await callPing(client);
     expect(result.isError).toBeFalsy();
-    expect(JSON.parse(result.content[0].text)).toEqual({ ok: true });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ ok: true });
     const tools = await client.listTools();
     expect(tools.tools[0].annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
     await client.close();
@@ -224,5 +224,25 @@ describe('/mcp endpoint', () => {
       expect(entries).toHaveLength(1);
       expect(entries[0].action).toBe('refused');
     });
+  });
+});
+
+describe('tool list refresh', () => {
+  it('ping reports the Daymark version; listing tools records when this client fetched them', async () => {
+    const conn = connection();
+    const client = await connect(mcpToken(conn.id));
+    const ping = await callPing(client);
+    expect(JSON.parse(ping.content[0].text)).toEqual({ ok: true, version: JSON.parse(fs.readFileSync('package.json', 'utf8')).version });
+    expect(client.getServerVersion()?.version).toBe(JSON.parse(fs.readFileSync('package.json', 'utf8')).version);
+    expect(mcp.connections.find(c => c.id === conn.id)?.toolsListedAt ?? null).toBeNull();
+    const { tools } = await client.listTools();
+    expect(tools.map(t => t.name)).toContain('delete_folder');
+    expect(mcp.connections.find(c => c.id === conn.id)?.toolsListedAt).toEqual(expect.any(String));
+    await client.close();
+  });
+
+  it('the server records its tool set at start', () => {
+    expect(mcp.toolset?.names).toContain('list_folders');
+    expect(mcp.toolset?.names).toContain('ping');
   });
 });

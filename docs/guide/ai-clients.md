@@ -31,6 +31,10 @@ related: ai-connections
 | Codex CLI | Unzip into `~/.codex/skills/`. |
 | ChatGPT, others | No skills: the connector already sends short Daymark instructions. Optionally paste `skill/SKILL.md` from the same site into project instructions. |
 
+**After a Daymark update**
+
+AI clients remember Daymark's tools. When an update adds tools, **Settings → AI connections** marks each connection that still has the old list **Needs refresh**. In ChatGPT open Settings → Apps → Daymark → **Refresh**; in Claude start a new chat, or reconnect Daymark under Settings → Connectors; in Claude Code or Codex start a new session. The mark clears once the client fetches the tools again.
+
 Menu names change between client versions. For a computer-only vault without a server, see **Local mode** in **AI connections**.
 
 ## Phone
@@ -38,5 +42,7 @@ Menu names change between client versions. For a computer-only vault without a s
 2. In Claude on the phone, open the tools menu in a chat and make sure **Daymark** is on.
 3. In ChatGPT on the phone, pick the Daymark app from the tools menu; if it is missing, use ChatGPT on the web.
 4. Ask “what's my day?” for a short spoken rundown.
+
+After a Daymark update that adds tools, refresh Daymark in the client's web or desktop app (see **Web**); **Settings → AI connections** shows which connections need it.
 
 The connector address is in **Settings → AI connections** on any signed-in device. Download the skill zip from `https://dngioidev.github.io/daymark/daymark-skill.zip` and upload or unzip it from a computer.

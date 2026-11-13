@@ -5,9 +5,9 @@ import { relativeTime } from '../sync/SyncPanel';
 import { formatDateTime } from '../../utils/dateFormat';
 import { buttonClass } from '../ui/Dialog';
 import { ConfirmOptions, confirmDialog } from '../ui/feedback';
-import { MAX_AUDIT_RETENTION_DAYS, normalizeHeading } from '../../sync/mcpProtocol';
+import { MAX_AUDIT_RETENTION_DAYS, needsToolRefresh, normalizeHeading } from '../../sync/mcpProtocol';
 import type {
-  AuditAction, AuditEntry, FeedbackDestination, McpAccess, McpConnectionSummary, McpGrants, McpOverview,
+  AuditAction, AuditEntry, FeedbackDestination, McpAccess, McpConnectionSummary, McpGrants, McpOverview, McpToolset,
 } from '../../sync/mcpProtocol';
 
 export type McpApi = (path: string, init?: RequestInit) => Promise<any>;
@@ -63,14 +63,19 @@ const label = 'block text-sm font-medium mb-1';
 
 interface ConnectionRowProps {
   connection: McpConnectionSummary;
+  /** The client still has the tool list from before the server's tools changed. */
+  stale?: boolean;
   onEdit: () => void;
   onRevoke: () => void;
 }
 
-export const ConnectionRow: React.FC<ConnectionRowProps> = ({ connection, onEdit, onRevoke }) => (
+export const ConnectionRow: React.FC<ConnectionRowProps> = ({ connection, stale, onEdit, onRevoke }) => (
   <div className="py-3 flex flex-col sm:flex-row sm:items-center gap-2">
     <div className="min-w-0 flex-1">
-      <div className="font-medium truncate">{connection.name}</div>
+      <div className="font-medium truncate">
+        {connection.name}
+        {stale && <span className="ml-2 align-middle text-xs font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Needs refresh</span>}
+      </div>
       <div className={hint}>
         {connection.clientName} · Last used {relativeTime(connection.lastUsedAt)} · {connection.access === 'full' ? 'Full access' : 'Read only'}
       </div>
@@ -80,6 +85,22 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({ connection, onEdit
       <button type="button" onClick={onEdit} className={buttonClass.secondary}>Edit</button>
       {!connection.builtIn && <button type="button" onClick={onRevoke} className={buttonClass.secondary}>Revoke</button>}
     </div>
+  </div>
+);
+
+/** Clients cache the tool list, so after an update that changes the tools they must be told to fetch it again. */
+export const ToolRefreshNotice: React.FC<{ toolset: McpToolset; stale: McpConnectionSummary[] }> = ({ toolset, stale }) => (
+  <div role="status" className="mb-3 p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-sm text-stone-800 dark:text-stone-200 space-y-2">
+    <p className="flex gap-2 font-medium"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
+      Daymark {toolset.version} changed its AI tools{toolset.added.length ? ` (new: ${toolset.added.join(', ')})` : ''}.
+    </p>
+    <p>{stale.map(c => c.name).join(', ')} {stale.length === 1 ? 'still uses' : 'still use'} the old list. Refresh each AI client:</p>
+    <ul className="list-disc pl-5 space-y-1">
+      <li><strong>ChatGPT:</strong> Settings → Apps (or Connectors) → Daymark → <strong>Refresh</strong>, then start a new chat.</li>
+      <li><strong>Claude (web, desktop):</strong> start a new chat; if the new tools are still missing, disconnect and reconnect Daymark under Settings → Connectors.</li>
+      <li><strong>Claude Code, Codex and other apps:</strong> start a new session, or reconnect the server (in Claude Code, <code>/mcp</code>).</li>
+    </ul>
+    <p className={hint}>The mark clears by itself once a client fetches the tools again.</p>
   </div>
 );
 
@@ -367,11 +388,14 @@ export const AiConnectionsPanel: React.FC<{ sync: UseSyncResult }> = ({ sync }) 
 
       <div className={card}>
         <h3 className={heading}>Connections</h3>
+        {overview.toolset && connections.some(c => needsToolRefresh(c, overview.toolset)) && (
+          <ToolRefreshNotice toolset={overview.toolset} stale={connections.filter(c => needsToolRefresh(c, overview.toolset))} />
+        )}
         {connections.length === 0 && <p className={hint}>No AI connections yet.</p>}
         <div className="divide-y divide-stone-100 dark:divide-stone-800">
           {connections.map(c => (
             <div key={c.id}>
-              <ConnectionRow connection={c} onEdit={() => setEditing(editing === c.id ? null : c.id)} onRevoke={() => void onRevoke(c)} />
+              <ConnectionRow connection={c} stale={needsToolRefresh(c, overview.toolset)} onEdit={() => setEditing(editing === c.id ? null : c.id)} onRevoke={() => void onRevoke(c)} />
               {editing === c.id && (
                 <ScopeEditor
                   key={c.id} connection={c} knownHeadings={knownHeadings} knownFolders={knownFolders}

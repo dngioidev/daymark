@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { UseSyncResult } from '../../hooks/useSync';
 import type { McpConnectionSummary } from '../../sync/mcpProtocol';
 import { NO_GRANTS } from '../../sync/mcpProtocol';
-import { AiConnectionsPanel, ConnectionRow, ScopeEditor, adoptDeviceTimezone, revokeConnection, saveGrants, saveRetention } from './AiConnectionsPanel';
+import { AiConnectionsPanel, ConnectionRow, ScopeEditor, ToolRefreshNotice, adoptDeviceTimezone, revokeConnection, saveGrants, saveRetention } from './AiConnectionsPanel';
 
 const sync: UseSyncResult = {
   mode: 'server', status: 'idle', account: null, lastSyncAt: null, error: null,
@@ -76,5 +76,18 @@ describe('AiConnectionsPanel', () => {
     expect(api).not.toHaveBeenCalled();
     expect(await saveRetention(api, 90)).toBe(true);
     expect(api).toHaveBeenCalledWith('/api/mcp/settings', { method: 'PUT', body: JSON.stringify({ auditRetentionDays: 90 }) });
+  });
+
+  it('a connection with an old tool list is marked and the notice says how to refresh each client', () => {
+    const row = (stale: boolean) => renderToStaticMarkup(React.createElement(ConnectionRow, { connection: connection(), stale, onEdit: vi.fn(), onRevoke: vi.fn() }));
+    expect(row(true)).toContain('Needs refresh');
+    expect(row(false)).not.toContain('Needs refresh');
+    const notice = renderToStaticMarkup(React.createElement(ToolRefreshNotice, {
+      toolset: { version: '1.13.3', changedAt: '2026-11-13T12:00:00Z', added: ['list_folders', 'delete_folder'] },
+      stale: [connection({ name: 'ChatGPT' }), connection({ id: 'c2', name: 'Claude Code' })],
+    }));
+    expect(notice).toContain('Daymark 1.13.3 changed its AI tools (new: list_folders, delete_folder)');
+    expect(notice).toContain('ChatGPT, Claude Code still use the old list');
+    expect(notice).toContain('<strong>Refresh</strong>');
   });
 });

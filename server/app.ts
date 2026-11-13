@@ -1,5 +1,6 @@
 import { isInkEntityKey } from '../src/ink/inkModel';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import express, { NextFunction, Request, Response } from 'express';
 import type { DailyDocument } from '../src/types/daymark';
 import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, reconcileMovedTasks, sameValue } from '../src/sync/merge';
@@ -15,7 +16,8 @@ import { mountMcp } from './mcp/router';
 import { mcpAdminRoutes } from './mcp/adminRoutes';
 import { vaultEventsHandler } from './events';
 
-export const SERVER_VERSION = '2.0.0';
+/** The Daymark release (package.json), reported to devices, the Sync dashboard and MCP clients. */
+export const SERVER_VERSION: string = (JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 type AuthedRequest = Request & { deviceAuth: TokenPayload; device: DeviceRecord };
 const authed = (req: Request) => req as unknown as AuthedRequest;

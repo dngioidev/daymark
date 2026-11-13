@@ -15,10 +15,14 @@ import type { McpStore } from './mcpStore';
 import { DaymarkOAuthProvider } from './oauth';
 import { createCommit } from './tools/define';
 import type { ToolContext } from './tools/define';
-import { registerAllTools } from './tools/index';
+import { registerAllTools, toolNames } from './tools/index';
 import { todayIn } from './vaultView';
 
 const LAST_USED_PERSIST_MS = 60_000;
+
+/** Whether a JSON-RPC body (single or batch) asks for the tool list. */
+const listsTools = (body: unknown): boolean =>
+  (Array.isArray(body) ? body : [body]).some(message => (message as { method?: unknown } | null)?.method === 'tools/list');
 const OFF_AUDIT_MS = 60_000;
 
 export function mountMcp(app: express.Express, deps: { config: ServerConfig; store: FileStore; mcp: McpStore; audit: AuditLog; vault: VaultQueue; limiter: LoginRateLimiter }): void {
@@ -32,6 +36,11 @@ export function mountMcp(app: express.Express, deps: { config: ServerConfig; sto
   app.post('/oauth/consent', express.urlencoded({ extended: false, limit: '64kb' }), (req, res, next) => {
     provider.consentHandler(req, res).catch(next);
   });
+
+  // Remember the tool set so Settings can flag clients that still cache an older list.
+  if (mcp.recordToolset(toolNames(), SERVER_VERSION)) {
+    mcp.persist().catch((err) => console.error('Could not save the MCP tool set:', (err as Error).message));
+  }
 
   const lastPersisted = new Map<string, number>();
   const offAudited = new Map<string, number>();
@@ -71,6 +80,9 @@ export function mountMcp(app: express.Express, deps: { config: ServerConfig; sto
         return res.status(200).json({ jsonrpc: '2.0', error: { code: -32000, message: 'AI access is turned off in Daymark.' }, id: typeof id === 'string' || typeof id === 'number' ? id : null });
       }
       touchConnection(connectionId);
+      if (listsTools(req.body) && mcp.markToolsListed(connectionId)) {
+        mcp.persist().catch((err) => console.error('Could not save MCP connection state:', (err as Error).message));
+      }
       const now = () => new Date();
       const ctx: ToolContext = {
         store, mcp, audit, vault, connection, now,

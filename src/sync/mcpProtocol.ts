@@ -32,6 +32,23 @@ export interface McpConnectionSummary {
   access: McpAccess;
   grants: McpGrants;
   builtIn: boolean;
+  /** When this client last asked for the tool list; null when never seen (connections from before 1.13.3). */
+  toolsListedAt?: string | null;
+}
+
+/** The server's MCP tool set and when it last changed, so Settings can flag clients that still have the old list. */
+export interface McpToolset {
+  version: string;
+  /** null until the tools change after a connection exists. */
+  changedAt: string | null;
+  /** Tools added in that change; empty when unknown (an upgrade from a version that did not record its tools). */
+  added: string[];
+}
+
+/** A client caches its tool list; it needs a refresh when the tools changed after it last fetched them. */
+export function needsToolRefresh(connection: Pick<McpConnectionSummary, 'builtIn' | 'toolsListedAt'>, toolset: McpToolset | undefined): boolean {
+  if (connection.builtIn || !toolset?.changedAt) return false;
+  return !connection.toolsListedAt || connection.toolsListedAt < toolset.changedAt;
 }
 
 export type AuditAction =
@@ -56,6 +73,7 @@ export interface McpOverview {
   knownHeadings: string[];
   knownFolders: string[];
   endpoint: string;
+  toolset?: McpToolset;
 }
 
 /** Headings are matched ignoring case and surrounding spaces, on the server and in Settings. */

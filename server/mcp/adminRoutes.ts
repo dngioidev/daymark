@@ -44,8 +44,8 @@ const auditQuery = z.object({
 
 /** Explicit allowlist: persisted OAuth credentials never leave the admin API. */
 function summary(connection: McpConnection): McpConnectionSummary {
-  const { id, name, clientName, createdAt, lastUsedAt, access, grants, builtIn } = connection;
-  return { id, name, clientName, createdAt, lastUsedAt, access, grants, builtIn };
+  const { id, name, clientName, createdAt, lastUsedAt, access, grants, builtIn, toolsListedAt } = connection;
+  return { id, name, clientName, createdAt, lastUsedAt, access, grants, builtIn, toolsListedAt: toolsListedAt ?? null };
 }
 
 /** Mounted behind createApp's device authentication middleware. */
@@ -61,6 +61,7 @@ export function mcpAdminRoutes(deps: { config: ServerConfig; store: FileStore; m
       knownHeadings: knownHeadings(store, today),
       knownFolders: knownFolders(store),
       endpoint: config.mcpEnabled && config.publicUrl ? `${config.publicUrl}/mcp` : '',
+      ...(mcp.toolset ? { toolset: { version: mcp.toolset.version, changedAt: mcp.toolset.changedAt, added: mcp.toolset.added } } : {}),
     };
     res.json(overview);
   });
