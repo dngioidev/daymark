@@ -5,6 +5,7 @@ import { registerReadTools } from './read';
 import { registerTaskTools } from './tasks';
 import { registerContentTools } from './content';
 import { registerFeedbackTools } from './feedback';
+import { registerFolderTools } from './folders';
 
 export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   defineTool(server, ctx, {
@@ -17,5 +18,6 @@ export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   registerReadTools(server, ctx);
   registerTaskTools(server, ctx);
   registerContentTools(server, ctx);
+  registerFolderTools(server, ctx);
   registerFeedbackTools(server, ctx);
 }

@@ -222,3 +222,82 @@ describe('content write tools', () => {
     }
   });
 });
+
+describe('folder tools', () => {
+  const meta = () => (store.vault.entities.notemeta?.value ?? { folders: [] }) as { folders: { path: string; removed?: boolean }[] };
+  const live = () => meta().folders.filter(f => !f.removed).map(f => f.path);
+  const note = (id: string) => store.vault.entities[`note:${id}`]?.value as { folder: string } | undefined;
+
+  it('create_folder makes an empty folder that list_folders shows; outside scope is refused', async () => {
+    const ai = await assistant('full', { folders: ['Learning-hub'] });
+    expect(await ok(ai, 'create_folder', { path: ' Learning-hub / BE Career ' })).toEqual({ path: 'Learning-hub/BE Career' });
+    expect(live()).toContain('Learning-hub/BE Career');
+    expect(await ok(ai, 'list_folders', {})).toEqual([{ path: 'Learning-hub', notes: 0 }, { path: 'Learning-hub/BE Career', notes: 0 }]);
+    const rev = store.vault.rev;
+    expect(await call(ai, 'create_folder', { path: 'Personal' })).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });
+    expect(await call(ai, 'create_folder', { path: 'Learning-hub/../Personal' })).toMatchObject({ isError: true });
+    expect(store.vault.rev).toBe(rev);
+  });
+
+  it('list_folders hides folders outside the grants', async () => {
+    const full = await assistant('full', { all: true });
+    await ok(full, 'create_note', { title: 'A', folder: 'Work/Plans', content: '' });
+    await ok(full, 'create_folder', { path: 'Personal' });
+    const ai = await assistant('read-only', { folders: ['Work'] });
+    expect(await ok(ai, 'list_folders', {})).toEqual([{ path: 'Work', notes: 0 }, { path: 'Work/Plans', notes: 1 }]);
+  });
+
+  it('delete_folder removes an empty folder, matching its path case-insensitively', async () => {
+    const ai = await assistant('full', { folders: ['Learning-hub'] });
+    await ok(ai, 'create_folder', { path: 'Learning-hub/BE Career' });
+    expect(await ok(ai, 'delete_folder', { path: 'learning-hub/be career' })).toEqual({ path: 'Learning-hub/BE Career', notesMovedTo: 'Learning-hub', notesMoved: 0 });
+    expect(live()).not.toContain('Learning-hub/BE Career');
+    expect(await ok(ai, 'list_folders', {})).not.toContainEqual(expect.objectContaining({ path: 'Learning-hub/BE Career' }));
+  });
+
+  it('delete_folder keeps notes, moving them and subfolder notes to the parent', async () => {
+    const ai = await assistant('full', { folders: ['Work'] });
+    const a = await ok(ai, 'create_note', { title: 'A', folder: 'Work/Old', content: '' });
+    const b = await ok(ai, 'create_note', { title: 'B', folder: 'Work/Old/Deep', content: '' });
+    expect(await ok(ai, 'delete_folder', { path: 'Work/Old' })).toMatchObject({ notesMoved: 2, notesMovedTo: 'Work' });
+    expect(note(a.id)?.folder).toBe('Work');
+    expect(note(b.id)?.folder).toBe('Work');
+  });
+
+  it('delete_folder needs the parent shared, an existing folder and full access', async () => {
+    const ai = await assistant('full', { folders: ['Work'] });
+    await ok(ai, 'create_note', { title: 'A', folder: 'Work', content: '' });
+    const rev = store.vault.rev;
+    // Deleting the granted root would move notes to the unshared top level.
+    expect(await call(ai, 'delete_folder', { path: 'Work' })).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });
+    expect(await call(ai, 'delete_folder', { path: 'Work/Missing' })).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });
+    const reader = await assistant('read-only', { all: true });
+    expect(await call(reader, 'delete_folder', { path: 'Work' })).toMatchObject({ isError: true });
+    expect(store.vault.rev).toBe(rev);
+  });
+
+  it('rename_folder moves the subtree and its notes; both paths must be shared', async () => {
+    const ai = await assistant('full', { folders: ['Work'] });
+    const a = await ok(ai, 'create_note', { title: 'A', folder: 'Work/Drafts/Q4', content: '' });
+    expect(await ok(ai, 'rename_folder', { path: 'Work/Drafts', newPath: 'Work/Plans' })).toMatchObject({ newPath: 'Work/Plans', notesMoved: 1 });
+    expect(note(a.id)?.folder).toBe('Work/Plans/Q4');
+    const rev = store.vault.rev;
+    expect(await call(ai, 'rename_folder', { path: 'Work/Plans', newPath: 'Personal/Plans' })).toMatchObject({ isError: true, content: [{ text: NOT_SHARED }] });
+    expect(await call(ai, 'rename_folder', { path: 'Work/Plans', newPath: 'Work/Plans/Inner' })).toMatchObject({ isError: true });
+    expect(store.vault.rev).toBe(rev);
+  });
+
+  it('a device pull applies folder changes made through MCP', async () => {
+    const ai = await assistant('full', { all: true });
+    const dev = await device('phone');
+    await ok(ai, 'create_note', { title: 'A', folder: 'Old', content: '' });
+    await ok(ai, 'create_folder', { path: 'Empty' });
+    await sync(dev);
+    expect(dev.local.notemeta.folders.map(f => f.path)).toContain('Empty');
+    await ok(ai, 'delete_folder', { path: 'Empty' });
+    await ok(ai, 'rename_folder', { path: 'Old', newPath: 'New' });
+    await sync(dev);
+    expect(dev.local.notemeta.folders.filter(f => !f.removed).map(f => f.path)).not.toContain('Empty');
+    expect(dev.local.notes[0].folder).toBe('New');
+  });
+});

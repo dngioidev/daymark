@@ -150,11 +150,12 @@ Grants are `{ all, headings, folders, backlog, habits }`. Headings match after t
 | Day and search | `get_day_summary`, `get_review`, `get_day`, `list_tasks`, `search` |
 | Tasks and section notes | `create_task`, `update_task`, `complete_task`, `reopen_task`, `delete_task`, `append_section_notes` |
 | Standalone notes | `list_notes`, `get_note`, `create_note`, `update_note`, `append_note`, `delete_note` |
+| Note folders | `list_folders`, `create_folder`, `rename_folder`, `delete_folder` |
 | Backlog | `list_backlog`, `add_backlog_item`, `update_backlog_item`, `delete_backlog_item`, `pick_backlog_item` |
 | Habits | `list_habits`, `tick_habit` |
 | App feedback | `submit_daymark_feedback` |
 
-`get_day_summary` defaults to today and includes a compact `spoken` answer. `get_review` accepts at most 92 inclusive days. `list_tasks` returns up to 200 and `search` up to 50. Picking a backlog item targets today and requires the backlog and destination heading grants. Feedback accepts `text` (1–4000 characters) and `kind` (`idea`, `bug`, `complaint`, `other`). It writes to the configured backlog (category `Daymark feedback`), today's heading, or a note folder, tagged `daymark-feedback` and attributed to the submitting connection. This submission-only exception works for read-only connections and destinations outside their grants; the result is only `{ filed: true }` and never grants read access.
+`get_day_summary` defaults to today and includes a compact `spoken` answer. `get_review` accepts at most 92 inclusive days. `list_tasks` returns up to 200 and `search` up to 50. Folder tools reuse the app's `noteFolders` operations on the `notemeta` entity and match paths case-insensitively. `delete_folder` never deletes notes: they move to the parent folder, so it needs write grants on the folder and its parent; `rename_folder` needs both paths. Picking a backlog item targets today and requires the backlog and destination heading grants. Feedback accepts `text` (1–4000 characters) and `kind` (`idea`, `bug`, `complaint`, `other`). It writes to the configured backlog (category `Daymark feedback`), today's heading, or a note folder, tagged `daymark-feedback` and attributed to the submitting connection. This submission-only exception works for read-only connections and destinations outside their grants; the result is only `{ filed: true }` and never grants read access.
 
 ### Persistence, activity and local mode
 

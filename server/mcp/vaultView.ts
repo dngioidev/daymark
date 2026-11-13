@@ -93,6 +93,10 @@ export function knownHeadings(store: FileStore, today: string): string[] {
   });
 }
 
+export function readNoteMeta(store: FileStore): NoteMeta {
+  return readEntity<NoteMeta>(store, 'notemeta') ?? { folders: [], dismissed: [] };
+}
+
 export function knownFolders(store: FileStore): string[] {
   const paths = [
     ...readNotes(store).map(note => note.folder),

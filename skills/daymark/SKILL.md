@@ -18,7 +18,9 @@ Daymark is a personal daily Markdown notebook with tasks, automatic carry-forwar
 
 ## Writing and scope
 
-Put tasks under the right existing heading. Never invent headings or folders or write outside the connection's scope: use `get_day` to inspect headings and `list_notes` to see existing folders. If the intended location is unclear, ask the user. Keep the owner's wording, including meaningful Markdown formatting.
+Put tasks under the right existing heading. Never invent headings or write outside the connection's scope: use `get_day` to inspect headings and `list_folders` to see existing folders, including empty ones. If several headings or folders fit and the intended location is unclear, ask the user. Create a new folder only when the user asks for one and the connection can write there. Keep the owner's wording, including meaningful Markdown formatting.
+
+To link a task description or a note to a standalone note, write `[[Note title]]`; Daymark opens the matching note.
 
 Append rather than rewrite notes: use `append_section_notes` for daily section notes and `append_note` for standalone notes. Use `update_note` when the user requests a specific edit, preserving unrelated content. Confirm deletes before calling destructive tools unless the user was explicit about the deletion.
 
@@ -56,6 +58,13 @@ For example, answer "What's my day?" by calling `get_day_summary` and summarizin
 - `append_note`: add text while retaining existing note content.
 - `delete_note`: delete a note only when the user was explicit or has confirmed.
 
+## Folder tools
+
+- `list_folders`: list shared folders, including empty ones, with their note counts.
+- `create_folder`: create a folder when the user asks for one; nested paths use `/`.
+- `rename_folder`: rename or move a folder with its subfolders and notes; both paths must be shared.
+- `delete_folder`: delete a folder and its subfolders after an explicit request or confirmation. Notes are never deleted: they move to the parent folder, which must be shared.
+
 ## Backlog tools
 
 - `list_backlog`: inspect visible shared backlog items.
@@ -71,7 +80,7 @@ For example, answer "What's my day?" by calling `get_day_summary` and summarizin
 
 ## Daymark feedback
 
-When the user talks about Daymark itself—an idea, bug, complaint, or "Daymark should…"—call `submit_daymark_feedback` instead of writing an ordinary note or backlog item. Pass the user's feedback as `text` (1–4000 characters) and choose `kind`: `idea`, `bug`, `complaint` or `other`. Keep their wording and avoid adding unrelated personal data.
+When the user talks about Daymark itself—an idea, bug, complaint, or "Daymark should…"—and does not say how to track it, call `submit_daymark_feedback` rather than writing an ordinary note or backlog item. If the user explicitly asks for a task, note or backlog item about the app, create exactly that with the ordinary tools instead. Pass the user's feedback as `text` (1–4000 characters) and choose `kind`: `idea`, `bug`, `complaint` or `other`. Keep their wording and avoid adding unrelated personal data.
 
 The owner configures the destination in AI connections: the backlog by default, a heading on today's page, or a note folder. Feedback is tagged `daymark-feedback`; backlog feedback uses the `Daymark feedback` category. The filed item records which connection submitted it and the kind of feedback.
 
