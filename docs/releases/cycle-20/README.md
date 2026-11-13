@@ -53,9 +53,13 @@ Captured with `node scripts/capture-screenshots.mjs cycle-20` against a disposab
 - `npm run test:qa`: 750 of 808. The same 58 checks fail on `main` (1.13.1) on this machine (C101 short-window tooltips, R1/D4 timeouts, two axe tree checks). They were present before this cycle and are not caused by it.
 - `npm run validate:ai`: passes.
 
+## Deployment
+
+Deployed to the owner's server on 2026-11-13, behind Caddy, after a data backup (`daymark-backups/data-20261113-180007.tgz`). The container reports healthy and runs 1.13.2. Over HTTPS, `/api/health` and OAuth discovery answer 200; `/api/events` and `POST /mcp` without a token answer 401.
+
 ## Known gaps
 
-- Not yet confirmed on a real phone and through a reverse proxy. Caddy streams SSE by default; other proxies must not buffer `/api/events` (the server sends `X-Accel-Buffering: no`).
+- Live updates through the owner's Caddy proxy and on a real phone still need a hands-on check: open Daymark, ask the AI to add a task, and watch it appear. Other proxies must not buffer `/api/events` (the server sends `X-Accel-Buffering: no`).
 - The owner's real-account connector checks from cycle 19 are still pending.
 - The 58 pre-existing QA failures need their own investigation.
 
