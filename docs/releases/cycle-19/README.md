@@ -13,7 +13,8 @@ Daymark's self-hosted server now offers MCP tools for an AI client to read and u
 - Daily `mcp-audit/` activity and server-only `mcp.json` state. Retention is 30 days by default, configurable to 7 or a custom 1–365 days. The HTTP server and the stdio entry point both prune on startup and daily.
 - Daymark feedback via `submit_daymark_feedback`, routed to backlog, today's section or a note folder. This submission-only exception also works for read-only connections without exposing the destination.
 - Localhost HTTP and `npm run mcp:stdio -- --data <folder>` for separate local vaults, with exclusive directory locks and an editable built-in Local connection.
-- An installable `skills/daymark/SKILL.md`, condensed MCP instructions, and an AI connections guide automatically loaded by Help and the website.
+- A client skill in `skills/daymark/SKILL.md`, condensed MCP instructions, and an AI connections guide automatically loaded by Help and the website.
+- Follow-up: the skill is published as `daymark-skill.zip` (and `skill/SKILL.md`) on the website, with per-client connector and skill steps (Claude, Claude Code, ChatGPT, Codex, other MCP clients) in the new **AI clients and the skill** guide topic and the README.
 
 ## Decisions made while building
 

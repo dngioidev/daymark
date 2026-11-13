@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { fillTemplate, releaseValues, REPO_URL } from './site.mjs';
 
 test('published site serves the rich Notes screenshot and resolves every local image', () => {
@@ -33,4 +34,15 @@ test('without a release or an APK the buttons open the release page', () => {
 test('fillTemplate fills and escapes placeholders and rejects unknown ones', () => {
   assert.equal(fillTemplate('<a href="{{U}}">{{V}}</a>', { U: 'a"b', V: '<1>' }), '<a href="a&quot;b">&lt;1></a>');
   assert.throws(() => fillTemplate('{{MISSING}}', {}), /MISSING/);
+});
+
+test('the AI client skill zip holds daymark/SKILL.md, as Claude skill upload expects', async () => {
+  const { default: JSZip } = await import('jszip');
+  const { buildSkillZip } = await import('./skill.mjs');
+  const dir = new URL('../../skills/daymark/', import.meta.url);
+  const zip = await JSZip.loadAsync(await buildSkillZip(fileURLToPath(dir)));
+  const files = Object.values(zip.files).filter(entry => !entry.dir).map(entry => entry.name);
+  assert.ok(files.includes('daymark/SKILL.md'), files.join(', '));
+  assert.ok(files.every(name => name.startsWith('daymark/')), 'everything is inside the skill folder');
+  assert.equal(await zip.file('daymark/SKILL.md').async('string'), readFileSync(new URL('SKILL.md', dir), 'utf8'));
 });

@@ -3,11 +3,11 @@ title: AI connections
 order: 21
 group: features
 summary: Connect an AI to the parts of Daymark you choose, with activity history and a local option.
-related: sync, backups, sections
+related: ai-clients, sync, backups, sections
 ---
 ## Web
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
-2. In **Claude**, use Settings → Connectors → Add custom connector. Workspace administrators may need to allow it. In **Claude Code**, run `claude mcp add --transport http daymark <address>`. In **ChatGPT**, use connectors / developer mode to add a remote MCP server with OAuth. Availability and labels depend on the account; owner account checks are pending.
+2. Add the address to Claude, Claude Code, ChatGPT, Codex or another MCP client; **AI clients and the skill** has the steps for each. Availability and labels depend on the account.
 3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
 4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
 
@@ -35,11 +35,11 @@ For ideas, bugs or complaints about Daymark, ask the AI to use `submit_daymark_f
 
 From the repo, use `npm run mcp:stdio -- --data <folder>`. There is no HTTP or OAuth; the OS user is trusted. Local defaults to full access; scope, AI access and audit still apply. A lock prevents simultaneous server/stdio use of one folder. Stop stdio before opening that folder with the server to edit settings. Use a separate local vault; it does not sync to the hosted server or phone. Cloud clients can still send tool results to their provider; fully local use also requires a local AI client/model.
 
-Install the repository's `skills/daymark/SKILL.md` in your client's skill location (Claude Code: `.claude/skills/daymark/SKILL.md`). It teaches summaries, safe edits and feedback. MCP supplies condensed instructions too.
+Install the Daymark skill (`daymark-skill.zip` on the Daymark website) to teach the AI summaries, safe edits and feedback; **AI clients and the skill** shows where each client keeps skills. MCP supplies condensed instructions too.
 
 ## Phone
 1. Sign in to your Daymark server. Open **Settings → AI connections** and copy **Connector address**. Hosted access needs `DAYMARK_PUBLIC_URL` set to the HTTPS origin; `DAYMARK_MCP=off` disables the hosted endpoint.
-2. In **Claude**, use Settings → Connectors → Add custom connector. Workspace administrators may need to allow it. In **Claude Code**, run `claude mcp add --transport http daymark <address>`. In **ChatGPT**, use connectors / developer mode to add a remote MCP server with OAuth. Availability and labels depend on the account; owner account checks are pending.
+2. Add the address to Claude, Claude Code, ChatGPT, Codex or another MCP client; **AI clients and the skill** has the steps for each. Availability and labels depend on the account.
 3. On Daymark's consent page, check the address it says it will send access to, name the connection and enter your **Daymark password**, then **Continue**. After the password is accepted, choose **Read and write** or **Read only**, select sharing areas, then **Allow access**. Your headings and folders are shown only after you sign in.
 4. Ask “what's my day?” The AI uses `get_day_summary` for a short spoken rundown. AI writes reach devices through normal sync.
 
@@ -67,4 +67,4 @@ For ideas, bugs or complaints about Daymark, ask the AI to use `submit_daymark_f
 
 From the repo, use `npm run mcp:stdio -- --data <folder>`. There is no HTTP or OAuth; the OS user is trusted. Local defaults to full access; scope, AI access and audit still apply. A lock prevents simultaneous server/stdio use of one folder. Stop stdio before opening that folder with the server to edit settings. Use a separate local vault; it does not sync to the hosted server or phone. Cloud clients can still send tool results to their provider; fully local use also requires a local AI client/model.
 
-Install the repository's `skills/daymark/SKILL.md` in your client's skill location (Claude Code: `.claude/skills/daymark/SKILL.md`). It teaches summaries, safe edits and feedback. MCP supplies condensed instructions too.
+Install the Daymark skill (`daymark-skill.zip` on the Daymark website) to teach the AI summaries, safe edits and feedback; **AI clients and the skill** shows where each client keeps skills. MCP supplies condensed instructions too.

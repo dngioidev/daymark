@@ -51,6 +51,19 @@ services:
       DAYMARK_TRUST_PROXY: uniquelocal
 ```
 
+### Connect an AI (MCP)
+The server offers MCP tools at `<DAYMARK_PUBLIC_URL>/mcp` (copy it from **Settings → AI connections**). Daymark's consent page asks for your Daymark password and which areas to share.
+
+| Client | Add Daymark |
+|---|---|
+| Claude (web, desktop, mobile) | Settings → Connectors → **Add custom connector**, paste the address |
+| Claude Code | `claude mcp add --transport http daymark <address>`, then `/mcp` to sign in |
+| ChatGPT | Settings → Apps/Connectors → Advanced → **Developer mode**, then **Create** with the address and **OAuth** (availability depends on plan and workspace) |
+| Codex CLI | `codex mcp add daymark --url <address>`, then `codex mcp login daymark` |
+| Other MCP clients | Remote streamable-HTTP server at the address, OAuth sign-in |
+
+**Daymark skill:** download [`daymark-skill.zip`](https://dngioidev.github.io/daymark/daymark-skill.zip), built from [`skills/daymark/SKILL.md`](./skills/daymark/SKILL.md). For Claude (web, desktop), upload it under Skills. For Claude Code, unzip it into `~/.claude/skills/`. For Codex, unzip it into `~/.codex/skills/`. ChatGPT has no skills; the connector sends condensed instructions instead. For local stdio mode and full steps, see the [AI clients](./docs/guide/ai-clients.md) and [AI connections](./docs/guide/ai-connections.md) guides.
+
 ### Your data
 - Stored in the browser/app (IndexedDB) on each device. The server-hosted web app syncs automatically after sign-in; Android sync is optional and a standalone web build stays local-only.
 - **Settings → Backup & restore → Back up now** saves a ZIP of Markdown files (plus a full snapshot); **Choose a backup file…** restores one. A technical JSON backup is under **Advanced**. On Android the file opens in the share sheet (save to Drive, Files, email…). Restoring while sync is on merges the backup with your server instead of deleting anything.
