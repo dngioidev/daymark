@@ -1,6 +1,6 @@
 # Cycle 20: MCP feedback round 1
 
-Date: 2026-11-13 · Branch: `feat/cycle-20-mcp-feedback` · Release: 1.13.2 (tag `v1.13.2`)
+Date: 2026-11-13 · Branch: `feat/cycle-20-mcp-feedback` · Release: 1.13.2 (tag `v1.13.2`); follow-up 1.13.3 (tag `v1.13.3`)
 
 The first round of fixes from the owner's own use of the Daymark connector. The four items were filed in Daymark on 2026-11-13, under the **Daymark** heading and in the note `Daymark/Bugs/Daymark - Refresh the open page after MCP changes`. See the [design](../../superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md).
 
@@ -26,6 +26,10 @@ The first round of fixes from the owner's own use of the Daymark connector. The 
   - the AI connections guide covers instant updates and folder tools;
   - **What's new** lists 1.13.2;
   - the MCP API reference lists the folder tools.
+
+## Follow-up in 1.13.3
+
+After 1.13.2 was deployed, ChatGPT and an open Claude Code session still offered no folder tools, because AI clients cache the tool list. The server now records its tool set and, per connection, when the client last fetched it. **Settings → AI connections** marks connections with an old list **Needs refresh** and explains how to refresh ChatGPT, Claude and Claude Code / Codex; the mark clears on the client's next tool fetch. `serverInfo.version`, `/api/health` and `ping` report the Daymark release instead of a fixed `2.0.0`, and the skill tells the AI to suggest a refresh when a tool is missing.
 
 ## Screenshots
 

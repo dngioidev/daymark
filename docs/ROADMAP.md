@@ -4,7 +4,7 @@ Goal: Android user first, then self-hosted app, then everything else. Each cycle
 
 ## Cycle 20: MCP feedback round 1
 
-**Status: released in 1.13.2 (tag `v1.13.2`).** Fixes from the owner's own connector use: open pages update instantly after server-side changes (SSE `/api/events`), MCP folder tools (`list_folders`, `create_folder`, `rename_folder`, `delete_folder`), `[[Note title]]` links that open from task notes and daily notes, and clearer skill guidance for app-issue tasks and new folders. See the [design](./superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md) and [release notes](./releases/cycle-20/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-20`.
+**Status: released in 1.13.2 (tag `v1.13.2`); 1.13.3 flags AI connections whose cached tool list is out of date.** Fixes from the owner's own connector use: open pages update instantly after server-side changes (SSE `/api/events`), MCP folder tools (`list_folders`, `create_folder`, `rename_folder`, `delete_folder`), `[[Note title]]` links that open from task notes and daily notes, and clearer skill guidance for app-issue tasks and new folders. See the [design](./superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md) and [release notes](./releases/cycle-20/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-20`.
 
 ## Cycle 19: MCP server and AI connections
 
