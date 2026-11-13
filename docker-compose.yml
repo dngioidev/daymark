@@ -14,5 +14,9 @@ services:
       DAYMARK_USER: ${DAYMARK_USER:-admin}
       DAYMARK_PASSWORD: ${DAYMARK_PASSWORD:-}
       DAYMARK_TRUST_PROXY: ${DAYMARK_TRUST_PROXY:-loopback}
+      # AI connections (MCP): /mcp is only served when the public HTTPS address is set
+      DAYMARK_PUBLIC_URL: ${DAYMARK_PUBLIC_URL:-}
+      DAYMARK_MCP: ${DAYMARK_MCP:-}
+      DAYMARK_TZ: ${DAYMARK_TZ:-}
     volumes:
       - ./data:/data
