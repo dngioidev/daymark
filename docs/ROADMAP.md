@@ -2,6 +2,10 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
+## Cycle 21: One-time event tracking
+
+**Status: specification approved 2026-11-15; implementation plan drafted for review.** Planned and past events mix with tasks in sections and have a dedicated Calendar agenda. Time and duration are independently optional; timed events support end-time/duration entry, cross-midnight spans, original-zone primary display, local secondary display and configurable in-app advance warnings. Events have notes and checklists, without completion, aging or rollover. See the [approved spec](./superpowers/specs/2026-11-15-cycle-21-events-design.md), [implementation plan](./superpowers/plans/2026-11-15-cycle-21-events.md) and [discovery record](./superpowers/specs/2026-11-15-cycle-21-events-discovery.md).
+
 ## Cycle 20: MCP feedback round 1
 
 **Status: released in 1.13.2 (tag `v1.13.2`); 1.13.3 flags AI connections whose cached tool list is out of date.** Fixes from the owner's own connector use: open pages update instantly after server-side changes (SSE `/api/events`), MCP folder tools (`list_folders`, `create_folder`, `rename_folder`, `delete_folder`), `[[Note title]]` links that open from task notes and daily notes, and clearer skill guidance for app-issue tasks and new folders. See the [design](./superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md) and [release notes](./releases/cycle-20/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-20`.
