@@ -5,7 +5,7 @@ import { CalendarView } from './CalendarView';
 import { WeekRows } from './WeekRows';
 import { weekCells } from '../utils/calendarGrid';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import type { DailyDocument, HabitData } from '../types/daymark';
+import type { DailyDocument, EventItem, HabitData } from '../types/daymark';
 import { formatLongDate } from '../utils/dateFormat';
 
 const habits: HabitData = {
@@ -116,6 +116,24 @@ it('future row has no habit dots', () => {
     expect(row).not.toContain('bg-stone-300 dark:bg-stone-600');
   }
   expect(html).not.toContain('type="checkbox"');
+});
+
+it('shows an Events agenda and separate month/week counts on a task-empty date', () => {
+  const date = '2026-10-20';
+  const event: EventItem = { id: 'calendar-only', title: 'Community event', date, heading: 'Personal', order: 1,
+    durationMinutes: 90, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+  const props = { ...calendarProps, selectedDate: date, events: [event], deviceZone: 'Asia/Saigon', onEditEvent: vi.fn() };
+  const monthHtml = renderToStaticMarkup(React.createElement(CalendarView, props));
+  expect(monthHtml).toContain('aria-label="Events"');
+  expect(monthHtml).toContain('Community event');
+  expect(monthHtml).toContain('No set time · 1 hour 30 minutes');
+  expect(monthHtml).toContain('No tasks recorded on');
+  expect(monthHtml).toContain(', 1 event"');
+
+  const weekHtml = renderToStaticMarkup(React.createElement(CalendarView, { ...props, initialView: 'week' }));
+  expect(weekHtml).toContain('1 event');
+  expect(weekHtml).toContain('No tasks');
+  expect(weekHtml).toContain('Community event');
 });
 
 it('past day detail shows habit checkboxes', () => {

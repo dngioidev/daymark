@@ -48,6 +48,7 @@ interface TodayViewProps {
   onMoveToSection?: (taskId: string, section: string) => void;
   onMoveToBacklog?: (taskId: string) => void;
   events?: EventItem[];
+  deviceZone?: string;
   onEditEvent?: (event: EventItem) => void;
   onUpdateEvent?: (event: EventItem) => void;
   onDeleteEvent?: (eventId: string) => void;
@@ -109,6 +110,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onMoveToSection,
   onMoveToBacklog,
   events = [],
+  deviceZone,
   onEditEvent = () => undefined,
   onUpdateEvent = () => undefined,
   onDeleteEvent = () => undefined,
@@ -637,7 +639,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {mixedSectionItems(open, sectionEvents).map((entry) => (
               entry.kind === 'task'
                 ? <TaskItemCard key={entry.item.id} task={entry.item} {...cardProps} />
-                : <EventCard key={entry.item.id} event={entry.item} sectionNames={displayHeadings.map(h => h.name)} onEdit={onEditEvent} onUpdate={onUpdateEvent} onDelete={onDeleteEvent} onMove={onMoveEvent} />
+                : <EventCard key={entry.item.id} event={entry.item} sectionNames={displayHeadings.map(h => h.name)} deviceZone={deviceZone} onEdit={onEditEvent} onUpdate={onUpdateEvent} onDelete={onDeleteEvent} onMove={onMoveEvent} />
             ))}
           </div>
         )}

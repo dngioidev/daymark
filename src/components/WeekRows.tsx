@@ -22,7 +22,7 @@ export const WeekRows: React.FC<WeekRowsProps> = ({ countingDays = 'all', cells,
   }])), [habitDates, habits, today, countingDays]);
   return (
     <div className="space-y-2">
-      {cells.map(({ date, items, total, done, isToday }) => {
+      {cells.map(({ date, items, total, done, eventCount, isToday }) => {
         const selected = date === selectedDate;
         const { items: habitItems, summary } = habitDays.get(date)!;
         const dayLabel = formatDayParts(date, today);
@@ -39,6 +39,7 @@ export const WeekRows: React.FC<WeekRowsProps> = ({ countingDays = 'all', cells,
                 <span className="font-semibold">{dayLabel.label}</span>
                 <span>{dayLabel.date}</span>
                 {total > 0 && <span className="text-xs">{done}/{total}<span className="sr-only"> tasks done</span></span>}
+                {eventCount > 0 && <span aria-label={`${eventCount} ${eventCount === 1 ? 'event' : 'events'}`} className="rounded-full bg-amber-200 px-1.5 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-900 dark:text-amber-100">{eventCount} {eventCount === 1 ? 'event' : 'events'}</span>}
               </span>
               {habitItems.length > 0 && summary && (
                 <span className="flex min-w-0 flex-wrap items-center gap-1.5 md:col-start-3 md:row-start-1">
@@ -58,7 +59,7 @@ export const WeekRows: React.FC<WeekRowsProps> = ({ countingDays = 'all', cells,
                     : <Circle className="mt-0.5 h-4 w-4 shrink-0" role="img" aria-label="Not done" />}
                   <span className={`min-w-0 break-words ${item.done ? 'line-through' : ''}`}>{item.title}</span>
                 </span>
-              )) : <span>Nothing planned</span>}
+              )) : <span>{eventCount > 0 ? 'No tasks' : 'Nothing planned'}</span>}
             </span>
           </button>
         );

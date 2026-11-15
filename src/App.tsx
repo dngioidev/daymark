@@ -102,9 +102,11 @@ import { NoteLinkContext, type NoteLinks } from './components/notes/NoteLinkCont
 import { resolveNoteLink } from './utils/noteLinks';
 import { eventEndInstant } from './utils/eventTime';
 import { nextEventOrder, upsertEvent, removeEvent, validateEvent } from './utils/events';
+import { shouldFallbackFromCalendarDate } from './utils/calendarGrid';
 import { resolveEventMove } from './utils/eventDraft';
 import { mergeEvent } from './sync/eventMerge';
 import { EventEditor } from './components/events/EventEditor';
+import { useDeviceTimeZone } from './hooks/useDeviceTimeZone';
 
 const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
 
@@ -162,6 +164,7 @@ export default function App() {
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
   const realToday = useRealToday();
+  const deviceZone = useDeviceTimeZone();
   const today = resolveToday(settings.simulatedToday, realToday);
   const [currentDate, setCurrentDate] = useState<string>(today);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
@@ -339,7 +342,7 @@ export default function App() {
 
   // Keep the latest recorded past day as the initial review, preserving future selections.
   useEffect(() => {
-    if (activeDesktopTab === 'calendar' && calendarSelectedDate <= today && !dailyDocs.some((d) => d.date === calendarSelectedDate)) {
+    if (activeDesktopTab === 'calendar' && shouldFallbackFromCalendarDate(calendarSelectedDate, today, dailyDocsRef.current, eventsRef.current)) {
       setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
   }, [activeDesktopTab]);
@@ -1025,6 +1028,7 @@ export default function App() {
                 onMoveToSection={handleMoveToSection}
                 onMoveToBacklog={handleMoveToBacklog}
                 events={events}
+                deviceZone={deviceZone}
                 onEditEvent={setEditingEvent}
                 onUpdateEvent={(event) => updateEvents((current) => upsertEvent(current, event))}
                 onDeleteEvent={handleDeleteEvent}
@@ -1038,6 +1042,9 @@ export default function App() {
                 habits={habits}
                 onHabitsChange={setHabits}
                 dailyDocuments={dailyDocs}
+                events={events}
+                deviceZone={deviceZone}
+                onEditEvent={setEditingEvent}
                 selectedDate={calendarSelectedDate}
                 simulatedToday={today}
                 statuses={settings.statuses}
@@ -1147,6 +1154,7 @@ export default function App() {
         statuses={settings.statuses}
         simulatedToday={today}
         targetDate={currentDate}
+        deviceZone={deviceZone}
         onCapture={handleQuickCapture}
         onCaptureEvent={handleCaptureEvent}
         onCaptureBacklog={handleCaptureBacklog}
@@ -1157,6 +1165,7 @@ export default function App() {
         event={editingEvent}
         latestEvent={events.find((event) => event.id === editingEvent.id) ?? null}
         date={editingEvent.date}
+        deviceZone={deviceZone}
         headings={[...new Set([...settings.defaultHeadings, ...dailyDocs.find((doc) => doc.date === editingEvent.date)?.headings.map((heading) => heading.name) ?? [], ...events.filter((event) => event.date === editingEvent.date).map((event) => event.heading)])]}
         onSave={handleSaveEvent}
         onClose={() => setEditingEvent(null)}

@@ -112,6 +112,7 @@ export interface CalendarCell {
   isFuture: boolean;
   done: number;
   total: number;
+  eventCount: number;
   hasNotes: boolean;
   titles: string[];
   items: { title: string; done: boolean }[];

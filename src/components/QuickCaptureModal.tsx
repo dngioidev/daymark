@@ -14,6 +14,7 @@ interface QuickCaptureModalProps {
   statuses: StatusDefinition[];
   simulatedToday: string;
   targetDate: string;
+  deviceZone?: string;
   onCapture: (task: { title: string; description?: string; heading: string; status: string }) => void;
   onCaptureEvent?: (event: EventItem) => void;
   onCaptureBacklog?: (task: { title: string; description?: string; category?: string }) => void;
@@ -33,7 +34,7 @@ const readLast = (): { heading?: string; status?: string } => {
  * New task sheet: docked at the bottom on phones (next to the + that opened it), centred on
  * desktop. Remembers the last section and status used. "Save & add another" keeps it open.
  */
-export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture, onCaptureEvent, onCaptureBacklog, categories = [] }) => {
+export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, deviceZone, onCapture, onCaptureEvent, onCaptureBacklog, categories = [] }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showDetails, setShowDetails] = useState(false);
@@ -126,7 +127,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
           <button type="button" aria-pressed={target === 'date'} className={target === 'date' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('date')}>Date</button>
           <button type="button" aria-pressed={target === 'backlog'} className={target === 'backlog' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('backlog')}>Backlog</button>
         </div>}
-        {itemType === 'event' ? <EventFields draft={eventDraft} onChange={setEventDraft} headings={headings} showValidation={eventAttempted} /> : <>
+        {itemType === 'event' ? <EventFields draft={eventDraft} onChange={setEventDraft} headings={headings} deviceZone={deviceZone} showValidation={eventAttempted} /> : <>
         <div>
           <label htmlFor="capture-title" className="sr-only">
             Task

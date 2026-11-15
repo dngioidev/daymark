@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { DailyDocument } from '../types/daymark';
-import { monthCells, weekCells } from './calendarGrid';
+import type { DailyDocument, EventItem } from '../types/daymark';
+import { monthCells, shouldFallbackFromCalendarDate, weekCells } from './calendarGrid';
 
 const docs: DailyDocument[] = [{
   date: '2026-10-16', type: 'daily', updatedAt: '',
@@ -43,8 +43,30 @@ describe('monthCells', () => {
     const cells = monthCells(2028, 1, [], '2028-02-01');
     expect(cells).toHaveLength(35);
     expect(cells[0].date).toBe('2028-01-30');
-    expect(cells.at(-1)).toEqual({ date: '2028-03-04', inMonth: false, isToday: false, isFuture: true, done: 0, total: 0, hasNotes: false, titles: [], items: [] });
+    expect(cells.at(-1)).toEqual({ date: '2028-03-04', inMonth: false, isToday: false, isFuture: true, done: 0, total: 0, eventCount: 0, hasNotes: false, titles: [], items: [] });
     expect(cells.some((c) => c.date === '2028-02-29')).toBe(true);
+  });
+
+  it('counts event occupancy separately from task totals, including spanning and excluding exact-midnight end dates', () => {
+    const spanning: EventItem = { id: 'span-grid', title: 'Overnight', date: '2026-10-15', heading: 'Work', order: 1,
+      timing: { localTime: '23:00', timeZone: 'UTC', startInstant: '2026-10-15T23:00:00.000Z' }, durationMinutes: 120,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    const midnightEnd: EventItem = { ...spanning, id: 'midnight-grid', date: '2026-10-16', title: 'Ends at midnight',
+      timing: { localTime: '22:00', timeZone: 'UTC', startInstant: '2026-10-16T22:00:00.000Z' } };
+    const events = [spanning, midnightEnd];
+    const cells = monthCells(2026, 9, [], '2026-10-21', events);
+    expect(cells.find(cell => cell.date === '2026-10-15')?.eventCount).toBe(1);
+    expect(cells.find(cell => cell.date === '2026-10-16')?.eventCount).toBe(2);
+    expect(cells.find(cell => cell.date === '2026-10-17')?.eventCount).toBe(0);
+    expect(cells.find(cell => cell.date === '2026-10-16')?.total).toBe(0);
+  });
+
+  it('does not redirect a past calendar date occupied only by an event', () => {
+    const event: EventItem = { id: 'selected-event', title: 'Late shift', date: '2026-10-15', heading: 'Work', order: 1,
+      timing: { localTime: '23:00', timeZone: 'UTC', startInstant: '2026-10-15T23:00:00.000Z' }, durationMinutes: 120,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    expect(shouldFallbackFromCalendarDate('2026-10-16', '2026-10-21', [], [event])).toBe(false);
+    expect(shouldFallbackFromCalendarDate('2026-10-17', '2026-10-21', [], [event])).toBe(true);
   });
 });
 

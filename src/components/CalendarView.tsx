@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Check, ChevronLeft, ChevronRight, Circle, ExternalLink, MoreHorizontal, RotateCcw } from 'lucide-react';
-import { CountingDays, DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, DailyDocument, EventItem, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
@@ -11,6 +11,8 @@ import { Menu } from './ui/Menu';
 import { WeekRows } from './WeekRows';
 import { HabitChecklist } from './habits/HabitChecklist';
 import { habitsForDay, setTick } from '../utils/habits';
+import { CalendarEvents } from './events/CalendarEvents';
+import { eventsForDate } from '../utils/events';
 
 interface CalendarViewProps {
   countingDays: CountingDays;
@@ -18,6 +20,8 @@ interface CalendarViewProps {
   onHabitsChange: (next: HabitData) => void;
   initialView?: 'month' | 'week';
   dailyDocuments: DailyDocument[];
+  events?: EventItem[];
+  deviceZone?: string;
   selectedDate: string;
   simulatedToday: string;
   statuses: StatusDefinition[];
@@ -28,6 +32,7 @@ interface CalendarViewProps {
   /** Opens the day in the Today view (editable). */
   onOpenDay?: (date: string) => void;
   onMoveTask: (taskId: string, fromDate: string, toDate: string) => void;
+  onEditEvent?: (event: EventItem) => void;
   compact?: boolean;
 }
 
@@ -45,6 +50,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onHabitsChange,
   initialView = 'month',
   dailyDocuments,
+  events = [],
+  deviceZone = 'UTC',
   selectedDate,
   simulatedToday,
   statuses,
@@ -53,6 +60,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onMarkDoneOnDay,
   onOpenDay,
   onMoveTask,
+  onEditEvent = () => undefined,
   compact = false,
 }) => {
   const [year, setYear] = useState(() => Number(selectedDate.slice(0, 4)));
@@ -85,6 +93,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const docMap = useMemo(() => new Map(dailyDocuments.map((d) => [d.date, d])), [dailyDocuments]);
   const selectedDoc = docMap.get(selectedDate);
+  const selectedEvents = eventsForDate(events, selectedDate);
   const selectedSections = (selectedDoc?.headings ?? []).map((section) => ({
     ...section, items: section.items.filter((task) => !task.movedToBacklogDate),
   }));
@@ -106,7 +115,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyDocuments, simulatedToday]);
 
-  const cells = view === 'month' ? monthCells(year, month, dailyDocuments, simulatedToday) : weekCells(weekAnchor, dailyDocuments, simulatedToday);
+  const cells = view === 'month' ? monthCells(year, month, dailyDocuments, simulatedToday, events) : weekCells(weekAnchor, dailyDocuments, simulatedToday, events);
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const recentDays = dailyDocuments
     .filter((d) => d.date <= simulatedToday)
@@ -191,7 +200,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {cells.map(({ date, done, total, hasNotes, inMonth, isToday }) => {
+              {cells.map(({ date, done, total, eventCount, hasNotes, inMonth, isToday }) => {
                 const doc = docMap.get(date);
                 const isSelected = date === selectedDate;
                 const ratio = total ? done / total : 0;
@@ -212,7 +221,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onClick={() => onSelectDate(date)}
                     {...dropProps(date)}
                     aria-pressed={isSelected}
-                    aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : ': nothing recorded'}`}
+                    aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : eventCount ? ': no tasks' : ': nothing recorded'}${eventCount ? `, ${eventCount} ${eventCount === 1 ? 'event' : 'events'}` : ''}`}
                     className={`min-h-20 justify-center min-w-0 px-1 rounded-lg flex flex-col items-center gap-1 text-sm tabular-nums ${
                       isSelected
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-bold'
@@ -227,6 +236,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   >
                     <span>{Number(date.slice(8))}</span>
                     {total > 0 && <span className="text-xs">{done}/{total}</span>}
+                    {eventCount > 0 && <span aria-label={`${eventCount} ${eventCount === 1 ? 'event' : 'events'}`} className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-950 dark:bg-amber-900 dark:text-amber-100">{eventCount}</span>}
                     {hasNotes && <span role="img" aria-label="has notes" className="w-1.5 h-1.5 rounded-full bg-current" />}
                     <span className={`w-4 h-1 rounded-full ${marker || 'bg-transparent'}`} />
                   </button>
@@ -294,6 +304,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             )}
           </div>
+
+          <CalendarEvents events={selectedEvents} selectedDate={selectedDate} deviceZone={deviceZone} onEdit={onEditEvent} />
 
           {selectedHabits.length > 0 && (
             <section className="space-y-2">
@@ -373,7 +385,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </section>
               ))
           ) : (
-            <p className="py-10 text-center text-stone-600 dark:text-stone-400">Nothing was recorded on {formatDay(selectedDate, simulatedToday)}.</p>
+            <p className="py-10 text-center text-stone-600 dark:text-stone-400">{selectedEvents.length > 0 ? `No tasks recorded on ${formatDay(selectedDate, simulatedToday)}.` : `Nothing was recorded on ${formatDay(selectedDate, simulatedToday)}.`}</p>
           )}
         </div>
       </div>
