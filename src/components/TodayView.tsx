@@ -13,7 +13,7 @@ import {
   RotateCw,
   X,
 } from 'lucide-react';
-import { CountingDays, AgingThresholds, DailyDocument, EditorMode, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, AgingThresholds, DailyDocument, EditorMode, EventItem, StatusDefinition, TaskItem } from '../types/daymark';
 import { TaskItemCard, pickableStatuses } from './TaskItemCard';
 import { getAgingSeverity, getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { applyMarkdownEdit, isClosedCopy, removeTaskFromDocument, replaceTaskInDocument, restoreTaskToDocument } from '../utils/taskActions';
@@ -25,6 +25,8 @@ import { MarkdownPreview } from './MarkdownPreview';
 import { Menu } from './ui/Menu';
 import { buttonClass } from './ui/Dialog';
 import { confirmDialog, showToast } from './ui/feedback';
+import { EventCard } from './events/EventCard';
+import { eventsForDate, mixedSectionItems } from '../utils/events';
 
 interface TodayViewProps {
   countingDays: CountingDays;
@@ -45,6 +47,11 @@ interface TodayViewProps {
   onMoveTask?: (taskId: string, toDate: string) => void;
   onMoveToSection?: (taskId: string, section: string) => void;
   onMoveToBacklog?: (taskId: string) => void;
+  events?: EventItem[];
+  onEditEvent?: (event: EventItem) => void;
+  onUpdateEvent?: (event: EventItem) => void;
+  onDeleteEvent?: (eventId: string) => void;
+  onMoveEvent?: (eventId: string, change: { date?: string; heading?: string }) => void;
   onTriggerRollover: () => void;
   /** Phone layout: tighter spacing, no Split view, no manual refresh (rollover runs automatically). */
   compact?: boolean;
@@ -101,6 +108,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onMoveTask,
   onMoveToSection,
   onMoveToBacklog,
+  events = [],
+  onEditEvent = () => undefined,
+  onUpdateEvent = () => undefined,
+  onDeleteEvent = () => undefined,
+  onMoveEvent = () => undefined,
   onTriggerRollover,
 }) => {
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
@@ -153,6 +165,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const noteAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const date = currentDocument.date;
+  const dayEvents = eventsForDate(events, date);
   const isToday = date === simulatedToday;
   const allTasks = useMemo(() => currentDocument.headings.flatMap((h) => h.items).filter(task => !task.movedToBacklogDate), [currentDocument]);
 
@@ -503,16 +516,24 @@ export const TodayView: React.FC<TodayViewProps> = ({
   );
 
   // ---------- Sections ----------
+  const displayHeadings = [...currentDocument.headings];
+  for (const event of dayEvents) {
+    if (!displayHeadings.some((heading) => heading.name.toLowerCase() === event.heading.toLowerCase())) {
+      displayHeadings.push({ name: event.heading, items: [], notesContent: '' });
+    }
+  }
+  const eventsForHeading = (name: string) => dayEvents.filter((event) => event.heading.toLowerCase() === name.toLowerCase());
   const isEmpty = (s: DailyDocument['headings'][number]) =>
-    !s.items.some(task => !task.movedToBacklogDate) && !s.notesContent && activeAddHeading !== s.name && activeNoteHeading !== s.name;
-  const shownSections = currentDocument.headings.filter((s) => !isEmpty(s));
-  const emptySections = currentDocument.headings.filter(isEmpty);
-  const nothingYet = allTasks.length === 0 && currentDocument.headings.every((h) => !h.notesContent);
+    !s.items.some(task => !task.movedToBacklogDate) && eventsForHeading(s.name).length === 0 && !s.notesContent && activeAddHeading !== s.name && activeNoteHeading !== s.name;
+  const shownSections = displayHeadings.filter((s) => !isEmpty(s));
+  const emptySections = displayHeadings.filter(isEmpty);
+  const nothingYet = allTasks.length === 0 && dayEvents.length === 0 && currentDocument.headings.every((h) => !h.notesContent);
 
   const renderSection = (section: DailyDocument['headings'][number]) => {
     const visibleItems = section.items.filter(task => !task.movedToBacklogDate);
     const items = attentionOnly ? visibleItems.filter((t) => severityOf(t) !== 'normal') : visibleItems;
-    if (attentionOnly && items.length === 0) return null;
+    const sectionEvents = eventsForHeading(section.name);
+    if (attentionOnly && items.length === 0 && sectionEvents.length === 0) return null;
     const open = items.filter((t) => t.status !== 'done');
     const done = items.filter((t) => t.status === 'done');
     const doneOpen = openDone.has(section.name);
@@ -611,10 +632,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </form>
         )}
 
-        {open.length > 0 && (
+        {(open.length > 0 || sectionEvents.length > 0) && (
           <div className="space-y-1.5">
-            {open.map((task) => (
-              <TaskItemCard key={task.id} task={task} {...cardProps} />
+            {mixedSectionItems(open, sectionEvents).map((entry) => (
+              entry.kind === 'task'
+                ? <TaskItemCard key={entry.item.id} task={entry.item} {...cardProps} />
+                : <EventCard key={entry.item.id} event={entry.item} sectionNames={displayHeadings.map(h => h.name)} onEdit={onEditEvent} onUpdate={onUpdateEvent} onDelete={onDeleteEvent} onMove={onMoveEvent} />
             ))}
           </div>
         )}
@@ -915,7 +938,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         </div>
       )}
 
-      {editorMode === 'raw' && <div>{markdownEditor(compact ? 18 : 26, true)}</div>}
+          {editorMode === 'raw' && <div>{dayEvents.length > 0 && <button type="button" onClick={() => switchMode('visual')} className="mb-2 text-sm font-medium text-amber-800 underline dark:text-amber-300">Events appear in List view</button>}{markdownEditor(compact ? 18 : 26, true)}</div>}
     </div>
   );
 };

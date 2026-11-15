@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EventItem, TaskItem } from '../types/daymark';
-import { eventsForDate, mixedSectionItems, removeEvent, upsertEvent, validateEvent } from './events';
+import { eventsForDate, mixedSectionItems, nextEventOrder, removeEvent, upsertEvent, validateEvent } from './events';
 
 const event = (id: string, order: number, date = '2026-11-20', overrides: Partial<EventItem> = {}): EventItem => ({
   id,
@@ -120,6 +120,12 @@ describe('event domain helpers', () => {
     const existingTasks = [task('kept', 9)];
     mixedSectionItems(existingTasks, [event('new-event', 9)]);
     expect(existingTasks[0].order).toBe(9);
+  });
+
+  it('appends after the last task and event order within a section', () => {
+    const docs = [{ date: '2026-11-20', type: 'daily' as const, updatedAt: '', headings: [{ name: 'Work', items: [task('one', 3), { ...task('backlog', 11), movedToBacklogDate: '2026-11-20' }] }] }];
+    expect(nextEventOrder(docs, [event('older', 7)], '2026-11-20', 'work')).toBe(8);
+    expect(nextEventOrder(docs, [], '2026-11-20', 'Personal')).toBe(1);
   });
 });
 

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TodayView } from './TodayView';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import type { DailyDocument, TaskItem } from '../types/daymark';
+import type { DailyDocument, EventItem, TaskItem } from '../types/daymark';
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
@@ -152,4 +152,30 @@ it('renders the full-width list, accessible section toggle and fuller desktop si
   expect(html).toContain('Next planned day');
   expect(html).toContain('1 task');
   expect(html).toContain('Open</button>');
+});
+
+it('projects event-only sections and mixes events with tasks in shared order without task controls', () => {
+  const currentDocument: DailyDocument = { date: '2026-11-15', type: 'daily', updatedAt: '', headings: [
+    { name: 'Work', items: [{ id: 'task-first', title: 'Write outline', status: 'not-started', createdDate: '2026-11-15',
+      originalNoteDate: '2026-11-15', heading: 'Work', order: 2, historyLog: [] }] },
+  ] };
+  const events: EventItem[] = [
+    { id: 'event-first', title: 'Design review', date: currentDocument.date, heading: 'Work', order: 1,
+      createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z', checklist: [{ id: 'prep', text: 'Prepare deck', done: false }] },
+    { id: 'event-only', title: 'Evening concert', date: currentDocument.date, heading: 'Personal', order: 1,
+      durationMinutes: 120, createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z' },
+  ];
+  const html = renderToStaticMarkup(React.createElement(TodayView, { countingDays: 'all', currentDocument,
+    events, allDocs: [currentDocument], simulatedToday: currentDocument.date, statuses: DEFAULT_SETTINGS.statuses,
+    agingThresholds: DEFAULT_SETTINGS.agingThresholds, defaultHeadings: DEFAULT_SETTINGS.defaultHeadings,
+    onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(), onOpenHistoricalModal: vi.fn(),
+    onOpenHistoryDrawer: vi.fn(), onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(),
+    onUpdateEvent: vi.fn(), onDeleteEvent: vi.fn(), onEditEvent: vi.fn(),
+  }));
+  expect(html).toContain('Evening concert');
+  expect(html).toContain('Personal');
+  expect(html).toContain('No set time');
+  expect(html.indexOf('Design review')).toBeLessThan(html.indexOf('Write outline'));
+  expect(html).toContain('Event');
+  expect(html).not.toContain('Mark "Design review" done');
 });

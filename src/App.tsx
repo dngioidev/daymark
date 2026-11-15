@@ -100,6 +100,11 @@ import { isDialogOpen } from './components/ui/Dialog';
 import { isMenuOpen } from './components/ui/Menu';
 import { NoteLinkContext, type NoteLinks } from './components/notes/NoteLinkContext';
 import { resolveNoteLink } from './utils/noteLinks';
+import { eventEndInstant } from './utils/eventTime';
+import { nextEventOrder, upsertEvent, removeEvent, validateEvent } from './utils/events';
+import { resolveEventMove } from './utils/eventDraft';
+import { mergeEvent } from './sync/eventMerge';
+import { EventEditor } from './components/events/EventEditor';
 
 const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
 
@@ -132,6 +137,12 @@ export default function App() {
   }, [background.url]);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
   const [events, setEvents] = useState<EventItem[]>(loadEvents);
+  const eventsRef = React.useRef(events);
+  const updateEvents = (update: EventItem[] | ((current: EventItem[]) => EventItem[])) => {
+    const next = typeof update === 'function' ? update(eventsRef.current) : update;
+    eventsRef.current = next;
+    setEvents(next);
+  };
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
@@ -171,6 +182,7 @@ export default function App() {
 
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // Help topic slug while Help is open; one Help for the rail, Settings and `?`.
   const [helpTopic, setHelpTopic] = useState<string | null>(null);
@@ -318,6 +330,7 @@ export default function App() {
     if (isSearchOpen) return (setIsSearchOpen(false), true);
     if (helpTopic) return (setHelpTopic(null), true);
     if (isQuickCaptureOpen) return (setIsQuickCaptureOpen(false), true);
+    if (editingEvent) return (setEditingEvent(null), true);
     if (historicalModalTask) return (setHistoricalModalTask(null), true);
     if (detailsTaskId) return (setDetailsTaskId(null), true);
     if (isSettingsOpen) return (setIsSettingsOpen(false), true);
@@ -379,7 +392,7 @@ export default function App() {
       subscribeExternalChanges((key, value) => {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
-        else if (key === 'events') setEvents(loadEvents());
+        else if (key === 'events') updateEvents(loadEvents());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
         else if (key === 'ink') setInk(readInkPages());
         else if (key === 'notemeta') setNoteMeta(loadNoteMeta());
@@ -634,6 +647,57 @@ export default function App() {
     showToast(`Added to ${heading.name}`);
   };
 
+  const handleCaptureEvent = (event: EventItem) => {
+    const next = { ...event, order: nextEventOrder(dailyDocsRef.current, eventsRef.current, event.date, event.heading) };
+    updateEvents((current) => upsertEvent(current, next));
+    showToast(`Added event to ${event.heading}`);
+  };
+
+  const handleSaveEvent = (candidate: EventItem, editorBase: EventItem | null) => {
+    const latest = eventsRef.current.find((event) => event.id === candidate.id) ?? null;
+    const merged = mergeEvent(editorBase, latest, candidate);
+    if (merged.conflicts.length) showToast(merged.conflicts.length === 1 ? merged.conflicts[0] : `${merged.conflicts.length} event edits changed on two devices; your changes were merged.`, { tone: 'info' });
+    if (!merged.value) {
+      showToast('This event was deleted elsewhere. Your draft was kept open.', { tone: 'error' });
+      return;
+    }
+    if (!validateEvent(merged.value)) {
+      showToast('This event could not be saved because its schedule is invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((current) => upsertEvent(current, merged.value!));
+    setEditingEvent(null);
+  };
+
+  const handleDeleteEvent = (id: string) => updateEvents((current) => removeEvent(current, id));
+
+  const handleMoveEvent = (id: string, change: { date?: string; heading?: string; startInstant?: string }) => {
+    const current = eventsRef.current.find((event) => event.id === id);
+    if (!current) return;
+    const targetDate = change.date ?? current.date;
+    const targetHeading = change.heading ?? current.heading;
+    const schedule = targetDate === current.date ? { kind: 'ready' as const, timing: current.timing } : resolveEventMove(current, targetDate, change.startInstant);
+    if (schedule.kind === 'choice') {
+      showToast('Choose an occurrence of this time in the move dialog.', { tone: 'error' });
+      return;
+    }
+    if (schedule.kind === 'invalid') {
+      showToast(schedule.message, { tone: 'error' });
+      return;
+    }
+    const moved: EventItem = {
+      ...current, date: targetDate, heading: targetHeading,
+      order: targetDate === current.date && targetHeading.toLowerCase() === current.heading.toLowerCase()
+        ? current.order : nextEventOrder(dailyDocsRef.current, eventsRef.current, targetDate, targetHeading),
+      timing: schedule.timing, updatedAt: new Date().toISOString(),
+    };
+    if (!validateEvent(moved) || (moved.timing && moved.durationMinutes !== undefined && !eventEndInstant(moved))) {
+      showToast('This event cannot move there because its schedule would be invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((currentEvents) => upsertEvent(currentEvents, moved));
+  };
+
   // Handler: Quick add task from widget/mobile hub
   const handleQuickAddTaskFromHub = (title: string, sectionName: string) => {
     handleQuickCapture({
@@ -735,7 +799,7 @@ export default function App() {
     }
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
-    setEvents(current => mergeRestoredEvents(current, parsed.events));
+    updateEvents(current => mergeRestoredEvents(current, parsed.events));
     setNotes(parsed.standalone_notes);
     setInk(current => mergeRestoredInk(current, parsed.ink));
     setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
@@ -754,7 +818,7 @@ export default function App() {
       const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
-      setEvents(current => mergeRestoredEvents(current, snapshot.events));
+      updateEvents(current => mergeRestoredEvents(current, snapshot.events));
       setNotes(snapshot.notes);
       setInk(current => mergeRestoredInk(current, snapshot.ink));
       setNoteMeta(current => mergeRestoredNoteMeta(current, snapshot.notemeta));
@@ -776,7 +840,7 @@ export default function App() {
     const res = resetVaultToSeedData();
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
-    setEvents(res.events);
+    updateEvents(res.events);
     setNotes(res.notes);
     setInk(res.ink);
     setNoteMeta(res.notemeta);
@@ -809,7 +873,7 @@ export default function App() {
       setDailyDocs(next.docs);
       notesRef.current = next.notes;
       setNotes(next.notes);
-      setEvents(next.events);
+      updateEvents(next.events);
       setHabits(next.habits);
       setBacklog(next.backlog);
       setNoteMeta(next.notemeta);
@@ -960,6 +1024,11 @@ export default function App() {
                 onMoveTask={handleMoveTask}
                 onMoveToSection={handleMoveToSection}
                 onMoveToBacklog={handleMoveToBacklog}
+                events={events}
+                onEditEvent={setEditingEvent}
+                onUpdateEvent={(event) => updateEvents((current) => upsertEvent(current, event))}
+                onDeleteEvent={handleDeleteEvent}
+                onMoveEvent={handleMoveEvent}
                 onTriggerRollover={handleTriggerRollover}
               />
             )}
@@ -1079,9 +1148,20 @@ export default function App() {
         simulatedToday={today}
         targetDate={currentDate}
         onCapture={handleQuickCapture}
+        onCaptureEvent={handleCaptureEvent}
         onCaptureBacklog={handleCaptureBacklog}
         categories={visibleBacklog(backlog).map((item) => item.category).filter((category): category is string => !!category)}
       />
+
+      {editingEvent && <EventEditor
+        event={editingEvent}
+        latestEvent={events.find((event) => event.id === editingEvent.id) ?? null}
+        date={editingEvent.date}
+        headings={[...new Set([...settings.defaultHeadings, ...dailyDocs.find((doc) => doc.date === editingEvent.date)?.headings.map((heading) => heading.name) ?? [], ...events.filter((event) => event.date === editingEvent.date).map((event) => event.heading)])]}
+        onSave={handleSaveEvent}
+        onClose={() => setEditingEvent(null)}
+        onConflict={(messages) => messages.forEach((message) => showToast(message, { tone: 'info' }))}
+      />}
 
       <WelcomeModal
         isOpen={showWelcome}

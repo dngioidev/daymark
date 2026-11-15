@@ -34,3 +34,31 @@ it('switches between dated capture and backlog capture with category suggestions
     expect(close).toHaveBeenCalledOnce();
   } finally { await act(async () => root.unmount()); }
 });
+
+it('captures an event from the task entry without allowing Backlog as its target', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const capture = vi.fn(), captureEvent = vi.fn(), backlog = vi.fn();
+  const change = (input: HTMLInputElement, value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  try {
+    await act(async () => root.render(React.createElement(QuickCaptureModal, {
+      isOpen: true, onClose: vi.fn(), headings: ['Work'], statuses: DEFAULT_SETTINGS.statuses,
+      simulatedToday: '2026-11-14', targetDate: '2026-11-15', onCapture: capture,
+      onCaptureEvent: captureEvent, onCaptureBacklog: backlog,
+    })));
+    const portal = document.body;
+    act(() => [...portal.querySelectorAll('button')].find(button => button.textContent === 'Event')!.click());
+    expect(portal.querySelector('[aria-label="Task target"]')).toBeNull();
+    change(portal.querySelector('[aria-label="Event title"]')!, 'Concert');
+    change(portal.querySelector('[aria-label="Event date"]')!, '2026-11-20');
+    act(() => portal.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(captureEvent).toHaveBeenCalledWith(expect.objectContaining({ title: 'Concert', date: '2026-11-20', heading: 'Work' }));
+    expect(capture).not.toHaveBeenCalled();
+    expect(backlog).not.toHaveBeenCalled();
+  } finally { await act(async () => root.unmount()); }
+});

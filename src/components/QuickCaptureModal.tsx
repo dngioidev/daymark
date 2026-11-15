@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
-import { StatusDefinition } from '../types/daymark';
+import { EventItem, StatusDefinition } from '../types/daymark';
 import { Dialog, buttonClass } from './ui/Dialog';
 import { pickableStatuses } from './TaskItemCard';
 import { formatDay } from '../utils/dateFormat';
+import { EventFields } from './events/EventFields';
+import { createEventDraft, eventFromDraft, EventDraft } from '../utils/eventDraft';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ interface QuickCaptureModalProps {
   simulatedToday: string;
   targetDate: string;
   onCapture: (task: { title: string; description?: string; heading: string; status: string }) => void;
+  onCaptureEvent?: (event: EventItem) => void;
   onCaptureBacklog?: (task: { title: string; description?: string; category?: string }) => void;
   categories?: string[];
 }
@@ -30,7 +33,7 @@ const readLast = (): { heading?: string; status?: string } => {
  * New task sheet: docked at the bottom on phones (next to the + that opened it), centred on
  * desktop. Remembers the last section and status used. "Save & add another" keeps it open.
  */
-export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture, onCaptureBacklog, categories = [] }) => {
+export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, onClose, headings, statuses, simulatedToday, targetDate, onCapture, onCaptureEvent, onCaptureBacklog, categories = [] }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showDetails, setShowDetails] = useState(false);
@@ -39,6 +42,9 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
   const [savedCount, setSavedCount] = useState(0);
   const [target, setTarget] = useState<'date' | 'backlog'>('date');
   const [category, setCategory] = useState('');
+  const [itemType, setItemType] = useState<'task' | 'event'>('task');
+  const [eventDraft, setEventDraft] = useState<EventDraft>(() => createEventDraft(null, targetDate, headings));
+  const [eventAttempted, setEventAttempted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -48,12 +54,27 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
     setShowDetails(false);
     setSavedCount(0);
     setTarget('date');
+    setItemType('task');
+    setEventDraft(createEventDraft(null, targetDate, headings));
+    setEventAttempted(false);
     setCategory('');
     setHeading(last.heading && headings.includes(last.heading) ? last.heading : headings[0] || 'Work');
     setStatus(last.status && statuses.some((s) => s.id === last.status) ? last.status : 'not-started');
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (keepOpen: boolean) => {
+    if (itemType === 'event') {
+      const built = eventFromDraft(eventDraft);
+      if (!built.event) { setEventAttempted(true); return; }
+      onCaptureEvent?.(built.event);
+      localStorage.setItem(LAST_KEY, JSON.stringify({ heading: eventDraft.heading, status }));
+      if (keepOpen) {
+        setEventDraft(createEventDraft(null, targetDate, headings));
+        setSavedCount((n) => n + 1);
+        document.getElementById('event-title')?.focus();
+      } else onClose();
+      return;
+    }
     if (!title.trim()) return;
     if (target === 'backlog') onCaptureBacklog?.({ title: title.trim(), description: description.trim() || undefined, category: category.trim() || undefined });
     else onCapture({ title: title.trim(), description: description.trim() || undefined, heading, status });
@@ -74,17 +95,17 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
       isOpen={isOpen}
       onClose={onClose}
       variant="sheet"
-      title={`New task · ${target === 'backlog' ? 'Backlog' : formatDay(targetDate, simulatedToday)}`}
+      title={`New ${itemType} · ${target === 'backlog' ? 'Backlog' : formatDay(targetDate, simulatedToday)}`}
       footer={
         <>
-          <button type="button" className={`${buttonClass.ghost} mr-auto hidden sm:inline-flex`} disabled={!title.trim()} onClick={() => save(true)}>
+          <button type="button" className={`${buttonClass.ghost} mr-auto hidden sm:inline-flex`} disabled={itemType === 'event' ? !eventDraft.title.trim() : !title.trim()} onClick={() => save(true)}>
             Save & add another
           </button>
           <button type="button" className={buttonClass.ghost} onClick={onClose}>
             {savedCount ? 'Done' : 'Cancel'}
           </button>
-          <button type="submit" form="capture-form" className={buttonClass.primary} disabled={!title.trim()}>
-            <Plus className="w-4 h-4" /> Add task
+          <button type="submit" form="capture-form" className={buttonClass.primary} disabled={itemType === 'event' ? !eventDraft.title.trim() : !title.trim()}>
+            <Plus className="w-4 h-4" /> Add {itemType}
           </button>
         </>
       }
@@ -97,10 +118,15 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
         }}
         className="px-5 py-4 space-y-3"
       >
-        {onCaptureBacklog && <div role="group" aria-label="Task target" className="flex gap-2">
+        {onCaptureEvent && target === 'date' && <div role="group" aria-label="Item type" className="flex gap-2">
+          <button type="button" aria-pressed={itemType === 'task'} className={itemType === 'task' ? buttonClass.primary : buttonClass.secondary} onClick={() => setItemType('task')}>Task</button>
+          <button type="button" aria-pressed={itemType === 'event'} className={itemType === 'event' ? buttonClass.primary : buttonClass.secondary} onClick={() => { setItemType('event'); setTarget('date'); }}>Event</button>
+        </div>}
+        {onCaptureBacklog && itemType === 'task' && <div role="group" aria-label="Task target" className="flex gap-2">
           <button type="button" aria-pressed={target === 'date'} className={target === 'date' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('date')}>Date</button>
           <button type="button" aria-pressed={target === 'backlog'} className={target === 'backlog' ? buttonClass.primary : buttonClass.secondary} onClick={() => setTarget('backlog')}>Backlog</button>
         </div>}
+        {itemType === 'event' ? <EventFields draft={eventDraft} onChange={setEventDraft} headings={headings} showValidation={eventAttempted} /> : <>
         <div>
           <label htmlFor="capture-title" className="sr-only">
             Task
@@ -183,6 +209,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({ isOpen, on
             </div>
           </div>
         </div>}
+        </>}
       </form>
     </Dialog>
   );

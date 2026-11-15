@@ -1,4 +1,4 @@
-import type { EventItem, TaskItem } from '../types/daymark';
+import type { DailyDocument, EventItem, TaskItem } from '../types/daymark';
 import { eventDateAtInstant, eventDateHasInstant, eventEndInstant, isValidEventDate, isValidEventInstant, resolveEventTime } from './eventTime';
 
 /** Recovered events are protected from save/sync until a user edit creates a new array. */
@@ -94,4 +94,14 @@ export function mixedSectionItems(tasks: readonly TaskItem[], events: readonly E
     ...tasks.map((item): MixedSectionItem => ({ kind: 'task', item })),
     ...events.map((item): MixedSectionItem => ({ kind: 'event', item })),
   ].sort((a, b) => a.item.order - b.item.order || (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0));
+}
+
+/** Appends after the last task or event in a day/section without changing existing order values. */
+export function nextEventOrder(docs: readonly DailyDocument[], events: readonly EventItem[], date: string, heading: string): number {
+  const key = heading.toLowerCase();
+  const taskOrders = (docs.find((doc) => doc.date === date)?.headings ?? [])
+    .filter((section) => section.name.toLowerCase() === key)
+    .flatMap((section) => section.items.filter((task) => !task.movedToBacklogDate).map((task) => task.order));
+  const eventOrders = events.filter((event) => event.date === date && event.heading.toLowerCase() === key).map((event) => event.order);
+  return Math.max(0, ...taskOrders, ...eventOrders) + 1;
 }
