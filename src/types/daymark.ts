@@ -29,6 +29,26 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export interface EventTiming {
+  localTime: string; // HH:mm on EventItem.date in timeZone
+  timeZone: string; // IANA zone
+  startInstant: string; // canonical ISO instant; preserves fold selection
+}
+
+export interface EventItem {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD, original calendar placement
+  heading: string;
+  order: number; // shared numeric placement relative to task.order
+  description?: string;
+  checklist?: ChecklistItem[];
+  timing?: EventTiming;
+  durationMinutes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskItem {
   id: string;
   title: string;
