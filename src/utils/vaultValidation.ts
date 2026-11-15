@@ -1,7 +1,8 @@
 import { inkKey, PAGE_WIDTH } from '../ink/inkModel';
 import { TEXT_BOX_MAX, TEXT_SIZE_MAX, TEXT_SIZE_MIN, TEXT_WIDTH_MIN } from '../ink/inkText';
 import type { InkPage } from '../types/daymark';
-import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
+import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, EventItem, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
+import { validateEvent } from './events';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
 
@@ -83,6 +84,16 @@ export function isStandaloneNote(v: unknown): v is StandaloneNote {
   return (
     isObject(v) && isString(v.id) && isString(v.title) && isString(v.content) && isString(v.folder) && Array.isArray(v.tags)
   );
+}
+
+export function isEventItem(value: unknown): value is EventItem {
+  return validateEvent(value);
+}
+
+export function isEventItems(value: unknown): value is EventItem[] {
+  if (!Array.isArray(value) || !value.every(isEventItem)) return false;
+  const ids = value.map(event => event.id);
+  return new Set(ids).size === ids.length;
 }
 
 export function isSyncedSettings(v: unknown): boolean {

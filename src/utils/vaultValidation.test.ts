@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DailyDocument } from '../types/daymark';
+import { DailyDocument, EventItem } from '../types/daymark';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { isNoteFolder, isDismissedPair, isNoteMeta, isBacklogItem, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, vaultProblem } from './vaultValidation';
+import { isNoteFolder, isDismissedPair, isNoteMeta, isBacklogItem, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings, isEventItem, isEventItems, vaultProblem } from './vaultValidation';
 
 const day = (date: string): DailyDocument => ({ date, type: 'daily', headings: [], updatedAt: `${date}T00:00:00.000Z` });
 
@@ -88,5 +88,24 @@ describe('vault validation', () => {
     expect(isSyncedSettings(DEFAULT_SETTINGS)).toBe(true);
     expect(isSyncedSettings({ statuses: [] })).toBe(false);
     expect(isSyncedSettings(null)).toBe(false);
+  });
+});
+
+const event: EventItem = {
+  id: 'event-1', title: 'Launch', date: '2026-11-20', heading: 'Work', order: 1,
+  createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:00:00.000Z',
+};
+
+describe('event validation', () => {
+  it('accepts valid events and an empty event collection', () => {
+    expect(isEventItem(event)).toBe(true);
+    expect(isEventItems([])).toBe(true);
+    expect(isEventItems([event])).toBe(true);
+  });
+
+  it('rejects unsafe IDs, invalid event fields and duplicate event IDs', () => {
+    expect(isEventItem({ ...event, id: '../escape' })).toBe(false);
+    expect(isEventItem({ ...event, date: '2026-02-30' })).toBe(false);
+    expect(isEventItems([event, event])).toBe(false);
   });
 });

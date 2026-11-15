@@ -1,6 +1,9 @@
 import type { EventItem, TaskItem } from '../types/daymark';
 import { eventDateAtInstant, eventDateHasInstant, eventEndInstant, isValidEventDate, isValidEventInstant, resolveEventTime } from './eventTime';
 
+/** Recovered events are protected from save/sync until a user edit creates a new array. */
+export const uneditedRecoveredEvents = new WeakSet<EventItem[]>();
+
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -19,10 +22,10 @@ function validChecklist(value: unknown): boolean {
 
 function validEventCore(value: unknown): value is EventItem {
   if (!record(value)) return false;
-  if (typeof value.id !== 'string' || !value.id.trim()) return false;
-  if (typeof value.title !== 'string' || !value.title.trim()) return false;
+  if (typeof value.id !== 'string' || !/^[\w.-]{1,200}$/.test(value.id)) return false;
+  if (typeof value.title !== 'string' || !value.title.trim() || /[\r\n]/.test(value.title)) return false;
   if (typeof value.date !== 'string' || !isValidEventDate(value.date)) return false;
-  if (typeof value.heading !== 'string' || !value.heading.trim()) return false;
+  if (typeof value.heading !== 'string' || !value.heading.trim() || /[\r\n]/.test(value.heading)) return false;
   if (typeof value.order !== 'number' || !Number.isFinite(value.order)) return false;
   if (value.description !== undefined && typeof value.description !== 'string') return false;
   if (!validChecklist(value.checklist)) return false;

@@ -41,6 +41,8 @@ export interface SyncState {
   backlogSynced?: boolean;
   /** Whether this device has backfilled note metadata at least once. */
   notemetaSynced?: boolean;
+  /** Whether this device has backfilled events at least once. */
+  eventsSynced?: boolean;
   /** Canonical JSON of the last version agreed with the server, per entity key. */
   bases: Record<string, string>;
   lastSyncAt: string | null;

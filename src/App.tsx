@@ -13,6 +13,7 @@ import {
   HabitData,
   BacklogData,
   BacklogItem,
+  EventItem,
   AppSettings,
   ViewTab,
   TaskItem,
@@ -24,6 +25,8 @@ import {
   saveSettings,
   loadDailyDocuments,
   saveDailyDocuments,
+  loadEvents,
+  saveEvents,
   loadStandaloneNotes,
   saveStandaloneNotes,
   loadHabits,
@@ -43,7 +46,7 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importBackupAssets, importVaultFromZip, mergeRestoredInk, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredInk, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, mergeRestoredEvents, removeUnusedPictures } from './utils/vaultArchive';
 import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, undoBacklogMove, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
@@ -128,6 +131,7 @@ export default function App() {
     return () => document.documentElement.classList.remove('dm-glass');
   }, [background.url]);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
+  const [events, setEvents] = useState<EventItem[]>(loadEvents);
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
@@ -342,6 +346,8 @@ export default function App() {
     saveDailyDocuments(dailyDocs);
   }, [dailyDocs]);
 
+  useEffect(() => { saveEvents(events); }, [events]);
+
   useEffect(() => {
     saveStandaloneNotes(notes);
   }, [notes]);
@@ -373,6 +379,7 @@ export default function App() {
       subscribeExternalChanges((key, value) => {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
+        else if (key === 'events') setEvents(loadEvents());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
         else if (key === 'ink') setInk(readInkPages());
         else if (key === 'notemeta') setNoteMeta(loadNoteMeta());
@@ -671,7 +678,7 @@ export default function App() {
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
       let missingPictures = 0;
-      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, inkStore.get())) {
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, inkStore.get(), events)) {
         setLastBackupAt(getLastBackupDate());
         showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
@@ -690,7 +697,7 @@ export default function App() {
 
   // Importing replaces the whole vault, so ask first when there is existing data
   const confirmReplaceVault = async () =>
-    (dailyDocs.length === 0 && notes.length === 0 && backlog.items.length === 0) ||
+    (dailyDocs.length === 0 && notes.length === 0 && events.length === 0 && backlog.items.length === 0) ||
     confirmDialog({
       title: 'Restore this backup?',
       message: sync.account
@@ -712,6 +719,9 @@ export default function App() {
     }
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
+    try { mergeRestoredEvents([], parsed.events); } catch (error) {
+      return alertDialog("This file can't be restored", (error as Error).message);
+    }
     // Validate now; merge into the live pages at the end so strokes written meanwhile stay.
     try { mergeRestoredInk(inkStore.get(), parsed.ink); } catch (error) {
       return alertDialog("This file can't be restored", (error as Error).message);
@@ -725,6 +735,7 @@ export default function App() {
     }
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
+    setEvents(current => mergeRestoredEvents(current, parsed.events));
     setNotes(parsed.standalone_notes);
     setInk(current => mergeRestoredInk(current, parsed.ink));
     setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
@@ -743,6 +754,7 @@ export default function App() {
       const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
+      setEvents(current => mergeRestoredEvents(current, snapshot.events));
       setNotes(snapshot.notes);
       setInk(current => mergeRestoredInk(current, snapshot.ink));
       setNoteMeta(current => mergeRestoredNoteMeta(current, snapshot.notemeta));
@@ -764,6 +776,7 @@ export default function App() {
     const res = resetVaultToSeedData();
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
+    setEvents(res.events);
     setNotes(res.notes);
     setInk(res.ink);
     setNoteMeta(res.notemeta);

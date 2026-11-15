@@ -160,6 +160,7 @@ describe('validateEvent timing contract', () => {
 
   it('rejects blank titles, impossible dates and invalid time fields', () => {
     expect(validateEvent(event({ title: '  \n' }))).toBe(false);
+    expect(validateEvent(event({ title: 'Line one\nLine two' }))).toBe(false);
     expect(validateEvent(event({ date: '2026-02-30' }))).toBe(false);
     expect(validateEvent(event({ timing: timing('25:00', 'UTC', '2026-11-20T00:00:00.000Z') }))).toBe(false);
     expect(validateEvent(event({ timing: timing('15:00', 'No/Such_Zone', '2026-11-20T08:00:00.000Z') }))).toBe(false);
@@ -170,7 +171,10 @@ describe('validateEvent timing contract', () => {
   it('rejects non-object values and duplicate identity fields that are missing', () => {
     expect(validateEvent(null)).toBe(false);
     expect(validateEvent({ ...event(), id: '' })).toBe(false);
+    expect(validateEvent({ ...event(), id: 'path/escape' })).toBe(false);
+    expect(validateEvent({ ...event(), id: 'x'.repeat(201) })).toBe(false);
     expect(validateEvent({ ...event(), heading: '' })).toBe(false);
+    expect(validateEvent({ ...event(), heading: 'Work\nInjected field: value' })).toBe(false);
   });
 
   it('rejects duplicate checklist IDs', () => {

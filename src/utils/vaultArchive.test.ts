@@ -1,13 +1,106 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { DEFAULT_SETTINGS, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
-import { buildVaultZip, importVaultFromZip, mergeRestoredHabits } from './vaultArchive';
-import type { HabitData } from '../types/daymark';
+import { buildVaultZip, importVaultFromZip, mergeRestoredEvents, mergeRestoredHabits } from './vaultArchive';
+import type { EventItem, HabitData } from '../types/daymark';
+import { serializeEvent } from './eventMarkdown';
 
 const habits: HabitData = {
   habits: [{ id: 'read', name: 'Read', order: 0, warnAfterDays: 3, addedOn: '2026-10-24', updatedAt: '2026-10-24T10:00:00Z' }],
   days: [{ date: '2026-10-24', ticks: { read: { done: true, at: '2026-10-24T10:00:00Z' } } }],
 };
+
+const event: EventItem = {
+  id: 'event-2026-11-20-a', title: 'Launch review', date: '2026-11-20', heading: 'Work', order: 2,
+  description: 'Bring the [draft].', checklist: [{ id: 'check-1', text: 'Prepare [demo]', done: true }],
+  timing: { localTime: '15:00', timeZone: 'Asia/Ho_Chi_Minh', startInstant: '2026-11-20T08:00:00.000Z' },
+  durationMinutes: 90, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z',
+};
+
+it('missing backup events preserve current data, invalid events fail, and explicit empty replaces', () => {
+  const current = [event];
+  expect(mergeRestoredEvents(current, undefined)).toBe(current);
+  expect(() => mergeRestoredEvents(current, [null])).toThrow(/damaged.*event/i);
+  const empty: EventItem[] = [];
+  expect(mergeRestoredEvents(current, empty)).toBe(empty);
+});
+
+it('old JSON snapshots keep local events while explicit empty snapshots replace them', async () => {
+  const old = new JSZip();
+  old.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [] }));
+  const legacy = await importVaultFromZip(await old.generateAsync({ type: 'uint8array' }));
+  const current = [event];
+  expect(legacy.events).toBeUndefined();
+  expect(mergeRestoredEvents(current, legacy.events)).toBe(current);
+
+  old.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], events: [] }));
+  const explicitEmpty = await importVaultFromZip(await old.generateAsync({ type: 'uint8array' }));
+  expect(mergeRestoredEvents(current, explicitEmpty.events)).toEqual([]);
+});
+
+it('rejects malformed or duplicate event arrays in JSON snapshots', async () => {
+  const zip = new JSZip();
+  for (const events of [null, [event, event], [{ ...event, id: '../unsafe' }]]) {
+    zip.file('Daymark/.daymark/vault.json', JSON.stringify({ daily_documents: [], standalone_notes: [], events }));
+    await expect(importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/damaged.*event/i);
+  }
+});
+
+it('ZIP round-trips event JSON and includes readable independent event Markdown', async () => {
+  const bytes = await buildVaultZip([], [], DEFAULT_SETTINGS, undefined, undefined, undefined, undefined, [], [event]);
+  const restored = await importVaultFromZip(bytes);
+  expect(restored.events).toEqual([event]);
+  const zip = await JSZip.loadAsync(bytes);
+  const markdown = await zip.file(`Daymark/events/${event.id}.md`)!.async('string');
+  expect(markdown).toContain('# Launch review');
+  expect(markdown).toContain('**Date:** 2026-11-20');
+});
+
+it('snapshot ZIP import uses readable event edits instead of stale snapshot notes/checklist', async () => {
+  const zip = await JSZip.loadAsync(await buildVaultZip([], [], DEFAULT_SETTINGS, undefined, undefined, undefined, undefined, [], [event]));
+  const path = `Daymark/events/${event.id}.md`;
+  const markdown = serializeEvent(event);
+  const noteAt = markdown.lastIndexOf('Bring the [draft].');
+  zip.file(path, markdown.slice(0, noteAt).concat('Updated visible note.', markdown.slice(noteAt + 'Bring the [draft].'.length))
+    .replace('- [x] Prepare [demo]', '- [ ] Prepare [demo]'));
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.events?.[0].description).toBe('Updated visible note.');
+  expect(restored.events?.[0].checklist?.[0]).toEqual({ id: 'check-1', text: 'Prepare [demo]', done: false });
+});
+
+it('snapshot-less ZIP imports event-only backups and verifies path identity', async () => {
+  const zip = new JSZip();
+  zip.file(`Vault/events/${event.id}.md`, serializeEvent(event));
+  expect((await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }))).events).toEqual([event]);
+
+  const mismatched = new JSZip();
+  mismatched.file('Vault/events/another-id.md', serializeEvent(event));
+  await expect(importVaultFromZip(await mismatched.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/event.*filename|filename.*event/i);
+});
+
+it('does not treat Markdown files inside Notes/events folders as event files', async () => {
+  const zip = new JSZip();
+  zip.file('Vault/Notes/events/Shopping.md', 'grocery list');
+  zip.file('Vault/Notes/Work/events/Meeting.md', 'meeting notes');
+  zip.file('Vault/Other/events/not-an-event.md', 'unrelated markdown');
+  const restored = await importVaultFromZip(await zip.generateAsync({ type: 'uint8array' }));
+  expect(restored.events).toBeUndefined();
+  expect(restored.notes.map(note => ({ title: note.title, folder: note.folder, content: note.content }))).toEqual([
+    { title: 'Shopping', folder: 'events', content: 'grocery list' },
+    { title: 'Meeting', folder: 'Work/events', content: 'meeting notes' },
+  ]);
+});
+
+it('rejects malformed and duplicate event backup entries before replacement', async () => {
+  const malformed = new JSZip();
+  malformed.file('Vault/events/event.md', 'not an event file');
+  await expect(importVaultFromZip(await malformed.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/event/i);
+
+  const duplicate = new JSZip();
+  duplicate.file('Vault/events/one.md', serializeEvent(event));
+  duplicate.file('Vault/events/two.md', serializeEvent(event));
+  await expect(importVaultFromZip(await duplicate.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/duplicate|filename|event/i);
+});
 
 it('zip export/import round-trips habits', async () => {
   const bytes = await buildVaultZip([], [], DEFAULT_SETTINGS, habits);
