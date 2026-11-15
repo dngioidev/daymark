@@ -10,6 +10,7 @@ import { getHostMode } from '../utils/hostMode';
 import { LOGOUT_PENDING_KEY } from '../utils/logoutPending';
 import { uneditedRecoveredBacklog } from '../utils/backlog';
 import { uneditedRecoveredHabits } from '../utils/habits';
+import { uneditedRecoveredEvents } from '../utils/events';
 import { syncNoteAssets } from '../utils/noteAssets';
 import { readServerEvents } from '../sync/serverEvents';
 
@@ -156,12 +157,14 @@ export function useSync(
           if (stateRef.current && ((unsupported.current.has('habits') && stateRef.current.habitsSynced) ||
             (unsupported.current.has('backlog') && stateRef.current.backlogSynced) ||
             (unsupported.current.has('notemeta') && stateRef.current.notemetaSynced) ||
-            (unsupported.current.has('ink') && stateRef.current.inkSynced))) {
+            (unsupported.current.has('ink') && stateRef.current.inkSynced) ||
+            (unsupported.current.has('events') && stateRef.current.eventsSynced))) {
             await persistState({ ...stateRef.current,
               inkSynced: unsupported.current.has('ink') ? false : stateRef.current.inkSynced,
               habitsSynced: unsupported.current.has('habits') ? false : stateRef.current.habitsSynced,
               backlogSynced: unsupported.current.has('backlog') ? false : stateRef.current.backlogSynced,
-              notemetaSynced: unsupported.current.has('notemeta') ? false : stateRef.current.notemetaSynced });
+              notemetaSynced: unsupported.current.has('notemeta') ? false : stateRef.current.notemetaSynced,
+              eventsSynced: unsupported.current.has('events') ? false : stateRef.current.eventsSynced });
           }
           if (startedAt !== epoch.current) {
             rerun.current = true;
@@ -173,9 +176,11 @@ export function useSync(
             const recoveredHabitsReleased = uneditedRecoveredHabits.has(before.habits) && !uneditedRecoveredHabits.has(next.habits);
             const recoveredNoteMetaReleased = uneditedRecoveredNoteMeta.has(before.notemeta) && !uneditedRecoveredNoteMeta.has(next.notemeta);
             const recoveredBacklogReleased = uneditedRecoveredBacklog.has(before.backlog) && !uneditedRecoveredBacklog.has(next.backlog);
+            const recoveredEventsReleased = uneditedRecoveredEvents.has(before.events) && !uneditedRecoveredEvents.has(next.events);
             if (canonicalJson(next.docs) !== canonicalJson(before.docs) || canonicalJson(next.notes) !== canonicalJson(before.notes) ||
               canonicalJson(next.settings) !== canonicalJson(before.settings) || canonicalJson(next.habits) !== canonicalJson(before.habits) || recoveredHabitsReleased ||
               canonicalJson(next.backlog) !== canonicalJson(before.backlog) || recoveredBacklogReleased ||
+              canonicalJson(next.events) !== canonicalJson(before.events) || recoveredEventsReleased ||
               !sameInkPages(next.ink, before.ink) ||
               canonicalJson(next.notemeta) !== canonicalJson(before.notemeta) || recoveredNoteMetaReleased) {
               vaultRef.current = next;
@@ -222,7 +227,7 @@ export function useSync(
     if (!state) return;
     const timer = setTimeout(() => { void run().catch(() => undefined); }, AUTO_SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [vault.docs, vault.notes, vault.settings, vault.habits, vault.backlog, vault.notemeta, vault.ink, state?.deviceId, run]);
+  }, [vault.docs, vault.notes, vault.events, vault.settings, vault.habits, vault.backlog, vault.notemeta, vault.ink, state?.deviceId, run]);
 
   useEffect(() => {
     if (mode !== 'server' && !state?.deviceId) return;
@@ -306,11 +311,12 @@ export function useSync(
     }
   }, [mode, platform]);
 
-  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(latest(), !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), true), stateRef.current,
+  const pendingChanges = () => stateRef.current ? collectChanges(toEntities(latest(), !unsupported.current.has('habits'), !unsupported.current.has('backlog'), !unsupported.current.has('notemeta'), true, !unsupported.current.has('events')), stateRef.current,
     !unsupported.current.has('habits') && !uneditedRecoveredHabits.has(vaultRef.current.habits),
     !unsupported.current.has('backlog') && !uneditedRecoveredBacklog.has(vaultRef.current.backlog),
     !unsupported.current.has('notemeta') && !uneditedRecoveredNoteMeta.has(vaultRef.current.notemeta),
-    true).length : 0;
+    true,
+    !unsupported.current.has('events') && !uneditedRecoveredEvents.has(vaultRef.current.events)).length : 0;
 
   const signOut = async (opts?: { force?: boolean }): Promise<'done' | 'needs-confirm' | 'needs-confirm-unreachable'> => {
     if (mode === 'local-web') return 'done';

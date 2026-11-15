@@ -2,7 +2,7 @@ import { isInkEntityKey, parseInkKey } from '../src/ink/inkModel';
 import type { DailyDocument } from '../src/types/daymark';
 import { sameValue } from '../src/sync/merge';
 import { reconcileBacklogVault } from '../src/utils/backlog';
-import { isInkPage, isNoteMeta, isBacklogData, isDailyDocument, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
+import { isInkPage, isNoteMeta, isBacklogData, isDailyDocument, isEventItem, isHabitData, isStandaloneNote, isSyncedSettings } from '../src/utils/vaultValidation';
 import type { FileStore } from './store';
 
 /** Shape check for a sync value against its entity key. */
@@ -11,6 +11,7 @@ export function isValidEntityValue(key: string, value: unknown): boolean {
     const identity = parseInkKey(key)!;
     return isInkPage(value) && value.noteId === identity.noteId && value.page === identity.page;
   }
+  if (key.startsWith('event:')) return isEventItem(value) && value.id === key.slice(6);
   if (key === 'notemeta') return isNoteMeta(value);
   if (key === 'backlog') return isBacklogData(value);
   if (key === 'habits') return typeof value === 'object' && value !== null && !Array.isArray(value) &&

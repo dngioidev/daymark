@@ -84,7 +84,7 @@ const note = (id: string, content: string): StandaloneNote => ({
   createdAt: '2026-10-20T00:00:00Z',
   updatedAt: '2026-10-20T00:00:00Z',
 });
-const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ ink: [], docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+const vault = (docs: DailyDocument[], notes: StandaloneNote[] = []): VaultData => ({ ink: [], events: [], docs, notes, settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 
 it('skips move reconciliation for unique tasks but runs it for duplicate-day ids', async () => {
   const client = await connect('prefilter');
@@ -1084,6 +1084,29 @@ it('gates NoteMeta reads and writes including tombstones from legacy clients', a
   expect((await fresh.json()).entities).toContainEqual(expect.objectContaining({ key: 'notemeta', value }));
   const invalid = await post('/api/sync', { features: ['notemeta'], changes: [{ key: 'notemeta', base: value, value: { folders: [null], dismissed: [] } }] }, a.accessToken);
   expect((await invalid.json()).error).toBe('Invalid value for notemeta.');
+});
+
+it('gates event reads, writes, tombstones, key identity and bases by the events capability', async () => {
+  const client = await connect('event-capability');
+  const event = { id: 'event-one', title: 'Planning', date: '2026-11-15', heading: 'Work', order: 1,
+    createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z' };
+  const key = `event:${event.id}`;
+  const saved = await post('/api/sync', { sinceRev: 0, features: ['events'], changes: [{ key, base: null, value: event }] }, client.accessToken);
+  expect(saved.status).toBe(200);
+  for (const features of [undefined, [], ['habits', 'backlog']]) {
+    const response = await post('/api/sync', { sinceRev: 0, features, changes: [] }, client.accessToken);
+    expect((await response.json()).entities.some((entity: { key: string }) => entity.key === key)).toBe(false);
+    const write = await post('/api/sync', { features, changes: [{ key, base: event, value: event }] }, client.accessToken);
+    expect(write.status).toBe(400);
+    expect((await write.json()).error).toBe('Events feature is required.');
+    const deletion = await post('/api/sync', { features, changes: [{ key, base: event, value: null }] }, client.accessToken);
+    expect(deletion.status).toBe(400);
+  }
+  const invalidBase = await post('/api/sync', { features: ['events'], changes: [{ key, base: { ...event, id: 'other' }, value: event }] }, client.accessToken);
+  expect(invalidBase.status).toBe(400);
+  expect((await invalidBase.json()).error).toBe(`Invalid base for ${key}.`);
+  const fresh = await post('/api/sync', { sinceRev: 0, features: ['events'], changes: [] }, client.accessToken);
+  expect((await fresh.json()).entities).toContainEqual(expect.objectContaining({ key, value: event }));
 });
 
 it('requires ink capability, filters ink for legacy clients, and validates key identity and bases', async () => {

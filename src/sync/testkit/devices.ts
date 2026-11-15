@@ -10,7 +10,7 @@ import { FileStore } from '../../../server/store';
 import { DEFAULT_SETTINGS } from '../../utils/defaultData';
 import { signIn } from '../authClient';
 import { SyncRequest, SyncResponse } from '../protocol';
-import { applySyncOutcome, FetchLike, syncOnce, SyncOutcome, SyncState, VaultData } from '../syncClient';
+import { applySyncOutcome, FetchLike, syncOnce, SyncFeature, SyncOutcome, SyncState, VaultData } from '../syncClient';
 
 export interface Device {
   name: string;
@@ -24,7 +24,7 @@ export interface Device {
 function defaultVault(): VaultData {
   return structuredClone({
     docs: [{ date: '2026-10-24', type: 'daily', headings: [], updatedAt: '2026-10-24T08:00:00Z' }],
-    ink: [], notes: [], settings: DEFAULT_SETTINGS,
+    ink: [], notes: [], events: [], settings: DEFAULT_SETTINGS,
     habits: {
       habits: [{ id: 'water', name: 'Water', order: 1, warnAfterDays: 3, addedOn: '2026-10-23', updatedAt: '2026-10-24T08:00:00Z' }],
       days: [
@@ -44,9 +44,16 @@ function withoutAlertDays<T>(settings: T): T {
   return copy;
 }
 
+function withoutEventWarningMinutes<T>(settings: T): T {
+  if (!settings || typeof settings !== 'object') return settings;
+  const copy = { ...settings } as T & { eventWarningMinutes?: unknown };
+  delete copy.eventWarningMinutes;
+  return copy;
+}
+
 export async function startSyncRig(): Promise<{
   dataDir: string;
-  device(name: string, opts?: { legacy?: boolean }): Device;
+  device(name: string, opts?: { legacy?: boolean; legacyEvents?: boolean; legacySettings?: boolean }): Device;
   restartServer(): Promise<void>;
   stop(): Promise<void>;
 }> {
@@ -118,19 +125,21 @@ export async function startSyncRig(): Promise<{
               await response.arrayBuffer();
               throw new Error('Sync response dropped.');
             }
-            if (!opts.legacy || !response.ok) return response;
+            if ((!opts.legacy && !opts.legacySettings) || !response.ok) return response;
             const body = await response.json() as SyncResponse;
-            body.entities = body.entities.map(entity => entity.key === 'settings'
-              ? { ...entity, value: withoutAlertDays(entity.value) } : entity);
+            body.entities = body.entities.map(entity => entity.key === 'settings' ? { ...entity, value:
+              opts.legacySettings ? withoutEventWarningMinutes(entity.value) : withoutAlertDays(entity.value) } : entity);
             return Response.json(body);
           };
-          const local = opts.legacy
-            ? { ...device.vault, settings: withoutAlertDays(device.vault.settings) } : device.vault;
+          const local = opts.legacy || opts.legacySettings
+            ? { ...device.vault, settings: opts.legacy ? withoutAlertDays(device.vault.settings) : withoutEventWarningMinutes(device.vault.settings) } : device.vault;
           // 1.10 note edits spread the note and its merge iterates unknown keys,
           // so kind/paper survive unchanged. Only ink capability is absent.
-          const outcome = await syncOnce(fetcher, local, { ...state, serverUrl: base }, accessToken, opts.legacy ? new Set(['ink']) : new Set());
+          const unsupported = new Set<SyncFeature>([...(opts.legacy ? ['ink' as const] : []), ...(opts.legacyEvents ? ['events' as const] : [])]);
+          const outcome = await syncOnce(fetcher, local, { ...state, serverUrl: base }, accessToken, unsupported);
           const next = applySyncOutcome(device.vault, outcome);
-          device.vault = opts.legacy ? { ...next, settings: withoutAlertDays(next.settings) } : next;
+          device.vault = opts.legacy || opts.legacySettings
+            ? { ...next, settings: opts.legacy ? withoutAlertDays(next.settings) : withoutEventWarningMinutes(next.settings) } : next;
           state = outcome.state;
           return outcome;
         },

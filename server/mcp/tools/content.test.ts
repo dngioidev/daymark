@@ -74,7 +74,7 @@ const ok = async (client: Client, name: string, args: Record<string, unknown>) =
   return JSON.parse(result.content[0].text);
 };
 
-const vault = (docs: DailyDocument[]): VaultData => ({ ink: [], docs, notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+const vault = (docs: DailyDocument[]): VaultData => ({ ink: [], events: [], docs, notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 
 interface Device { state: SyncState & { accessToken: string }; local: VaultData }
 async function device(name: string, docs: DailyDocument[] = []): Promise<Device> {

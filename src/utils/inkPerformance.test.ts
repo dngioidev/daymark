@@ -34,7 +34,7 @@ it('one-page save and sync stay below 15ms median in a 50-page study vault', asy
   vi.stubGlobal('navigator', {});
   const win = new EventTarget(); vi.stubGlobal('window', win);
   vi.resetModules(); const store = await import('./vaultStore'); await store.initVaultStore();
-  const local: VaultData = { ink: pages, docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
+  const local: VaultData = { ink: pages, events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
   const state: SyncState = { serverUrl: '', username: '', deviceId: '', deviceName: '', lastRev: 1, lastSyncAt: null,
     bases: Object.fromEntries([...toEntities(local)].map(([key, value]) => [key, canonicalJson(value)])) };
   collectChanges(toEntities(local), state); // Warm version metadata once, as on startup.
@@ -53,7 +53,7 @@ it('one-page save and sync stay below 15ms median in a 50-page study vault', asy
     calls.mockClear();
     const begin = performance.now();
     const changes = collectChanges(toEntities(current), state);
-    const outcome: SyncOutcome = { unsupported: new Set(), backlogRecovered: false, notemetaRecovered: false, habitsRecovered: false,
+    const outcome: SyncOutcome = { unsupported: new Set(), backlogRecovered: false, notemetaRecovered: false, eventsRecovered: false, habitsRecovered: false,
       snapshot: toEntities(local), serverValues: new Map([['ink:study:7', changed]]), state, conflicts: [], pushed: 0, received: 1 };
     const applied = applySyncOutcome(local, outcome);
     syncTimes.push(performance.now() - begin);

@@ -800,7 +800,7 @@ export default function App() {
   // Self-hosted sync: merges this vault with the server in the background
   // `ink` is App's snapshot (refreshed after a writing pause), so it only schedules the debounced
   // sync; the sync itself sends and merges against the live pages, never a snapshot missing strokes.
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, settings, habits, backlog, notemeta, ink]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, events, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, events, settings, habits, backlog, notemeta, ink]);
   const liveVault = React.useCallback((vault: typeof vaultForSync) => ({ ...vault, ink: inkStore.get() }), [inkStore]);
   const sync = useSync(
     vaultForSync,
@@ -809,6 +809,7 @@ export default function App() {
       setDailyDocs(next.docs);
       notesRef.current = next.notes;
       setNotes(next.notes);
+      setEvents(next.events);
       setHabits(next.habits);
       setBacklog(next.backlog);
       setNoteMeta(next.notemeta);

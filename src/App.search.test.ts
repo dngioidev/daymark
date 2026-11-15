@@ -193,7 +193,7 @@ it('parks the latest open copy when moving an older carried copy and keeps its n
   const latest: DailyDocument = { ...docs[0], date: '2026-10-22', headings: [{ name: 'Personal', notesContent: 'Latest daily note', items: [{ ...original, title: 'Latest title', description: 'Edited on the latest day', heading: 'Personal', tags: ['latest'], checklist: [{ id: 'step', text: 'Keep this step', done: true }] }] }] };
   const archived: DailyDocument = { ...docs[0], date: '2026-10-23', headings: [{ name: 'Archive', notesContent: 'Archived daily note', items: [{ ...original, status: 'archived', title: 'Archived copy' }] }] };
   const closed: DailyDocument = { ...docs[0], date: '2026-10-24', headings: [{ name: 'Work', items: [{ ...original, movedToBacklogDate: '2026-10-25' }] }] };
-  incomingSettings.sync({ ink: [], notemeta: { folders: [], dismissed: [] }, docs: [archived, earlier, closed, latest], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
+  incomingSettings.sync({ ink: [], events: [], notemeta: { folders: [], dismissed: [] }, docs: [archived, earlier, closed, latest], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
   (props(TodayView).onMoveToBacklog as (id: string) => void)(original.id);
   const undo = toast.mock.calls.at(-1)![1].action.onClick;
   const search = props(SearchDialog) as unknown as React.ComponentProps<typeof SearchDialog>;
@@ -239,7 +239,7 @@ it('restores deleted backlog items without replacing concurrent item edits', () 
   let current = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
   expect(current.backlog.items.find((i) => i.id === id)?.deletedAt).toBeUndefined();
   current.onRemove(id); current = props(BacklogView) as unknown as React.ComponentProps<typeof BacklogView>;
-  incomingSettings.sync({ ink: [], notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS,
+  incomingSettings.sync({ ink: [], events: [], notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS,
     backlog: { items: current.backlog.items.map((i) => i.id === id ? { ...i, title: 'Edited elsewhere' } : i) } });
   render(); page.onRestore(id);
   expect(toast).toHaveBeenLastCalledWith("Can't undo: the list changed since.", { tone: 'error' });
@@ -248,7 +248,7 @@ it('restores deleted backlog items without replacing concurrent item edits', () 
 it('keeps damaged backlog recovery protected during automatic reconciliation', () => {
   const recovered = { items: [{ id: 't1', title: 'Recovered', order: 1, createdAt: '', updatedAt: '' }] };
   uneditedRecoveredBacklog.add(recovered);
-  incomingSettings.sync({ ink: [], notemeta: { folders: [], dismissed: [] }, docs: [{ ...docs[0], headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], status: 'in-progress' }] }] }], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS, backlog: recovered });
+  incomingSettings.sync({ ink: [], events: [], notemeta: { folders: [], dismissed: [] }, docs: [{ ...docs[0], headings: [{ name: 'Work', items: [{ ...docs[0].headings[0].items[0], status: 'in-progress' }] }] }], notes: [], habits: { habits: [], days: [] }, settings: DEFAULT_SETTINGS, backlog: recovered });
   render(); hooks.effects.forEach((effect) => effect());
   const reconciled = props(SearchDialog).backlog as typeof recovered;
   expect(reconciled.items[0]).toHaveProperty('pickedOn', '2026-10-20');
@@ -258,8 +258,8 @@ it('includes the stored backlog in both backup formats', async () => {
   const stored = loadBacklog();
   await (props(SettingsModal).onExportZip as () => Promise<void>)();
   await (props(SettingsModal).onExportJson as () => Promise<void>)();
-  expect(backups.zip).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored, expect.any(Object), expect.any(Array));
-  expect(backups.json).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored, expect.any(Object), expect.any(Array));
+  expect(backups.zip).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored, expect.any(Object), expect.any(Array), expect.any(Array));
+  expect(backups.json).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), expect.any(Object), expect.any(Object), expect.any(Function), stored, expect.any(Object), expect.any(Array), expect.any(Array));
 });
 it('preserves backlog for old or damaged backups and replaces it for valid backups', async () => {
   (props(QuickCaptureModal).onCaptureBacklog as (input: unknown) => void)({ title: 'Keep on legacy restore' });
@@ -291,7 +291,7 @@ it.each(['external', 'sync'] as const)('preserves the latest local appearance fo
   const { appearance: _appearance, ...legacy } = DEFAULT_SETTINGS;
   const incoming = { ...legacy, defaultHeadings: [], timeZone: 'Asia/Saigon' };
   if (path === 'external') incomingSettings.external('settings', incoming);
-  else incomingSettings.sync({ ink: [], notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], settings: incoming, habits: { habits: [], days: [] }, backlog: { items: [] } });
+  else incomingSettings.sync({ ink: [], events: [], notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], settings: incoming, habits: { habits: [], days: [] }, backlog: { items: [] } });
   expect(props(SettingsModal).settings).toMatchObject({
     appearance: local.appearance, timeZone: 'Asia/Saigon', defaultHeadings: ['Work', 'Meetings', 'Ideas', 'Attention'],
   });
@@ -397,7 +397,7 @@ it.each(['today', 'calendar', 'notes', 'backlog', 'mobile-code'])('names the des
 
 it('includes incoming ink in app backups', async () => {
   const ink = [{ noteId: 'study', page: 0, strokes: [], removed: ['old'], updatedAt: 'now' }];
-  incomingSettings.sync({ ink, notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
+  incomingSettings.sync({ ink, events: [], notemeta: { folders: [], dismissed: [] }, docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] } });
   render();
   await (props(SettingsModal).onExportZip as () => Promise<void>)();
   await (props(SettingsModal).onExportJson as () => Promise<void>)();

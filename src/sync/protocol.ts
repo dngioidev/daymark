@@ -1,7 +1,7 @@
 /** Wire format of the self-hosted sync API, shared by server.ts and the client. */
 
 export interface SyncChange {
-  key: string; // doc:<date> | note:<id> | settings | backlog | notemeta | habits | habitday:<date>
+  key: string; // doc:<date> | note:<id> | event:<id> | settings | backlog | notemeta | habits | habitday:<date>
   /** The client's last synced version (null if the client never synced this entity). */
   base: unknown | null;
   /** The client's current version (null = deleted on the client). */
@@ -25,6 +25,8 @@ export interface SyncResponse {
   /** Every entity changed after sinceRev, plus the merged result of every pushed key. */
   entities: SyncEntity[];
   conflicts: string[];
+  /** Server capabilities this client can use. Absent on older servers. */
+  supportedFeatures?: string[];
 }
 
 export interface LoginRequest {

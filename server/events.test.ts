@@ -36,7 +36,7 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const emptyVault = (): VaultData => ({ ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+const emptyVault = (): VaultData => ({ ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 async function device(name: string) {
   const data = await signIn(fetch, base, 'body', { username: 'admin', password: PASSWORD, deviceName: name, platform: 'test' });
   const state: SyncState & { accessToken: string } = { serverUrl: base, username: data.username, deviceName: name, accessToken: data.accessToken, deviceId: data.device.id, refreshToken: data.refreshToken, lastRev: 0, bases: {}, lastSyncAt: null };
@@ -83,6 +83,21 @@ it('an open page hears about another device’s change, and not about a no-op sy
   await sync(phone);
   await until(() => stream.events.some(e => e.type === 'changed'));
   expect(stream.events.find(e => e.type === 'changed')!.rev).toBe(store.vault.rev);
+});
+
+it('broadcasts an event entity write to pages already watching the server', async () => {
+  const app = express();
+  app.use(createApp({ ...loadConfig({ NODE_ENV: 'test' }), dataDir: dir, initialPassword: PASSWORD }, store));
+  listen(app);
+  const editor = await device('event-editor');
+  await sync(editor);
+  const stream = watch(editor.state.accessToken);
+  await until(() => stream.events.some(event => event.type === 'ready'));
+  editor.local = { ...editor.local, events: [{ id: 'broadcast-event', title: 'Planning', date: '2026-11-15', heading: 'Work', order: 1,
+    createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z' }] };
+  await sync(editor);
+  await until(() => stream.events.some(event => event.type === 'changed'));
+  expect(stream.events.find(event => event.type === 'changed')!.rev).toBe(store.vault.rev);
 });
 
 it('refuses a stream without a valid sign-in', async () => {

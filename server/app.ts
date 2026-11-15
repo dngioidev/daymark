@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import express, { NextFunction, Request, Response } from 'express';
 import type { DailyDocument } from '../src/types/daymark';
-import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isValidEntityKey, mergeEntity, reconcileMovedTasks, sameValue } from '../src/sync/merge';
+import { isNoteMetaEntityKey, isBacklogEntityKey, isHabitEntityKey, isEventEntityKey, isValidEntityKey, mergeEntity, reconcileMovedTasks, sameValue } from '../src/sync/merge';
 import { LoginRequest, LoginResponse, MAX_CHANGES_PER_SYNC, REFRESH_COOKIE, SIGNED_IN_COOKIE, SyncEntity, SyncRequest, SyncResponse, WEB_CLIENT_HEADER } from '../src/sync/protocol';
 import { hashPassword, hashRefreshToken, LoginRateLimiter, newRefreshToken, parseCookies, signToken, TokenPayload, verifyPassword, verifyToken } from './auth';
 import { passwordProblem, ServerConfig } from './config';
@@ -260,10 +260,15 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
       if (changes.some(c => isNoteMetaEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('notemeta'))) {
         return res.status(400).json({ error: 'NoteMeta feature is required.' });
       }
+      if (changes.some(c => isEventEntityKey(c.key)) && !(Array.isArray(body.features) && body.features.includes('events'))) {
+        return res.status(400).json({ error: 'Events feature is required.' });
+      }
       const invalid = changes.find((c) => c.value !== null && c.value !== undefined && !isValidEntityValue(c.key, c.value));
       if (invalid) {
         return res.status(400).json({ error: `Invalid value for ${invalid.key}.` });
       }
+      const invalidEventBase = changes.find(c => isEventEntityKey(c.key) && c.base != null && !isValidEntityValue(c.key, c.base));
+      if (invalidEventBase) return res.status(400).json({ error: `Invalid base for ${invalidEventBase.key}.` });
 
       const conflicts: string[] = [];
       const touched = new Set<string>();
@@ -325,6 +330,7 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('notemeta')) || !isNoteMetaEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('habits')) || !isHabitEntityKey(key))
         .filter(([key]) => (Array.isArray(body.features) && body.features.includes('backlog')) || !isBacklogEntityKey(key))
+        .filter(([key]) => (Array.isArray(body.features) && body.features.includes('events')) || !isEventEntityKey(key))
         .filter(([key, e]) => e.rev > sinceRev || touched.has(key))
         // Keep damaged legacy entries available for repair, but never send them to another device.
         .filter(([key, e]) => e.value === null || isValidEntityValue(key, e.value))
@@ -341,7 +347,7 @@ export function createApp(config: ServerConfig, store: FileStore, mcp?: { store:
         });
       }
       await store.persist('vault.json', 'devices.json', 'sync-log.json');
-      const response: SyncResponse = { rev: store.vault.rev, entities, conflicts };
+      const response: SyncResponse = { rev: store.vault.rev, entities, conflicts, supportedFeatures: ['habits', 'backlog', 'notemeta', 'ink', 'events'] };
       res.json(response);
     });
   };

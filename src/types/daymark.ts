@@ -270,6 +270,8 @@ export interface AlertDaysSettings {
 export interface AppSettings {
   /** Partial on purpose: a click stores only the key it changed, so two devices changing different keys merge without loss. */
   alertDays?: Partial<AlertDaysSettings>;
+  /** Shared event warning lead time in minutes; absent defaults to 15 and null disables warnings. */
+  eventWarningMinutes?: number | null;
   appearance?: AppearanceSettings;
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;

@@ -160,7 +160,7 @@ describe('habit storage', () => {
       await syncOnce(async (_url, init) => {
         sent.push(JSON.parse(String(init?.body)));
         return Response.json({ rev: 2, entities: [], conflicts: [] });
-      }, { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
+      }, { ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
         serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
         bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
       }, 'access');
@@ -470,7 +470,7 @@ it('damaged backlog resets only its sync base and cannot be pushed before backfi
     expect(uneditedRecoveredBacklog.has(recovered)).toBe(true);
     expect(store.loadSyncState()).toMatchObject({ backlogSynced: false, habitsSynced: true, bases: { habits: '{"habits":[]}' } });
     expect(store.loadSyncState()!.bases).not.toHaveProperty('backlog');
-    const local = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
+    const local = { ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
     const requests: { sinceRev: number; changes: { key: string }[] }[] = [];
     const outcome = await syncOnce(async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)));

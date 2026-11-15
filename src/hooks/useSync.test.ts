@@ -36,13 +36,13 @@ vi.mock('../utils/vaultStore', () => ({
 
 const state = { serverUrl: 'https://daymark.test', username: 'admin', deviceId: 'device', deviceName: 'Browser',
   lastRev: 0, bases: {}, lastSyncAt: null };
-const vault: VaultData = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
+const vault: VaultData = { ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } };
 let fetchFn: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
 let replace: ReturnType<typeof vi.fn>;
-function render(next = vault) {
+function render(next = vault, onConflicts = vi.fn()) {
   hooks.index = 0;
   hooks.effects = [];
-  return useSync(next, vi.fn(), vi.fn(), 'web');
+  return useSync(next, vi.fn(), onConflicts, 'web');
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -133,6 +133,23 @@ it('requires confirmation when sync leaves unsent changes', async () => {
   expect(render().pendingChanges()).toBe(4);
   expect(fetchFn.mock.calls.some(([url]) => url.endsWith('/sync'))).toBe(true);
   expect(wipeLocalVault).not.toHaveBeenCalled();
+});
+
+it('counts a local event as pending and tells the user when an older server rejects event keys', async () => {
+  const event = { id: 'pending-event', title: 'Planning', date: '2026-11-15', heading: 'Work', order: 1,
+    createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z' };
+  const notices = vi.fn();
+  const local = { ...vault, events: [event] };
+  fetchFn.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/refresh')) return Response.json({ accessToken: 'access', expiresIn: 900, username: 'admin', device: { id: 'device', name: 'Browser' } });
+    const body = JSON.parse(String(init?.body));
+    if (body.changes.some((change: { key: string }) => change.key.startsWith('event:'))) return Response.json({ error: 'Invalid entity key in sync request.' }, { status: 400 });
+    return Response.json({ rev: 1, entities: [], conflicts: [] });
+  });
+  const hook = render(local, notices);
+  expect(hook.pendingChanges()).toBe(5);
+  await hook.syncNow();
+  expect(notices).toHaveBeenCalledWith([expect.stringMatching(/Events stay on this device until the sync server is updated/i)]);
 });
 
 it('waits for an already running sync before signing out', async () => {
