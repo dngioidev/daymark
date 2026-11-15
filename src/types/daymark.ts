@@ -296,7 +296,7 @@ export interface ServerAuthState {
 
 export type EditorMode = 'visual' | 'split' | 'raw';
 
-export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'ai' | 'lifecycle' | 'aging' | 'headings' | 'widget' | 'advanced' | 'help';
+export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'ai' | 'lifecycle' | 'aging' | 'events' | 'headings' | 'widget' | 'advanced' | 'help';
 
 /** Metadata for a background photo stored only on this device. */
 export interface PhotoMeta {

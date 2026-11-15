@@ -105,3 +105,16 @@ export function nextEventOrder(docs: readonly DailyDocument[], events: readonly 
   const eventOrders = events.filter((event) => event.date === date && event.heading.toLowerCase() === key).map((event) => event.order);
   return Math.max(0, ...taskOrders, ...eventOrders) + 1;
 }
+
+/** Returns upcoming timed events whose start lies inside the inclusive lead window. */
+export function dueEventWarnings(events: readonly EventItem[], nowMs: number, leadMinutes: number | null): EventItem[] {
+  if (!Number.isFinite(nowMs) || leadMinutes === null || !Number.isSafeInteger(leadMinutes) || leadMinutes <= 0) return [];
+  const leadMs = leadMinutes * 60_000;
+  if (!Number.isSafeInteger(leadMs)) return [];
+  return events.filter((event) => {
+    if (!validEventCore(event) || !event.timing) return false;
+    const startMs = Date.parse(event.timing.startInstant);
+    return Number.isFinite(startMs) && startMs - leadMs <= nowMs && nowMs < startMs;
+  }).sort((a, b) => Date.parse(a.timing!.startInstant) - Date.parse(b.timing!.startInstant) ||
+    a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}

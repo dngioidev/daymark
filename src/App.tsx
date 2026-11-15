@@ -106,6 +106,8 @@ import { shouldFallbackFromCalendarDate } from './utils/calendarGrid';
 import { resolveEventMove } from './utils/eventDraft';
 import { mergeEvent } from './sync/eventMerge';
 import { EventEditor } from './components/events/EventEditor';
+import { EventWarningQueue } from './components/events/EventWarningQueue';
+import { useEventWarnings } from './hooks/useEventWarnings';
 import { useDeviceTimeZone } from './hooks/useDeviceTimeZone';
 
 const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
@@ -139,6 +141,13 @@ export default function App() {
   }, [background.url]);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
   const [events, setEvents] = useState<EventItem[]>(loadEvents);
+  const [eventWarningAnnouncement, setEventWarningAnnouncement] = useState('');
+  const eventWarningAnnouncementHistory = React.useRef<string[]>([]);
+  const announceEventWarning = React.useCallback((event: EventItem) => {
+    const message = `${event.title} is coming up.`;
+    eventWarningAnnouncementHistory.current = [...eventWarningAnnouncementHistory.current.slice(-4), message];
+    setEventWarningAnnouncement(eventWarningAnnouncementHistory.current.join(' '));
+  }, []);
   const eventsRef = React.useRef(events);
   const updateEvents = (update: EventItem[] | ((current: EventItem[]) => EventItem[])) => {
     const next = typeof update === 'function' ? update(eventsRef.current) : update;
@@ -165,6 +174,7 @@ export default function App() {
   // "Today" is the real local date (updates at midnight) unless a developer override is set
   const realToday = useRealToday();
   const deviceZone = useDeviceTimeZone();
+  const eventWarningState = useEventWarnings(events, settings.eventWarningMinutes === undefined ? 15 : settings.eventWarningMinutes, announceEventWarning);
   const today = resolveToday(settings.simulatedToday, realToday);
   const [currentDate, setCurrentDate] = useState<string>(today);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
@@ -1160,6 +1170,13 @@ export default function App() {
         onCaptureBacklog={handleCaptureBacklog}
         categories={visibleBacklog(backlog).map((item) => item.category).filter((category): category is string => !!category)}
       />
+
+      {eventWarningAnnouncement && <div className="sr-only" aria-live="polite" aria-atomic="false">{eventWarningAnnouncement}</div>}
+      <EventWarningQueue deviceZone={deviceZone} notices={eventWarningState.notices} onDismiss={eventWarningState.dismiss} onOpen={(event) => {
+        const notice = eventWarningState.notices.find((item) => item.key === `${event.id}|${event.timing?.startInstant ?? ''}`);
+        if (notice) eventWarningState.dismiss(notice);
+        setEditingEvent(event);
+      }} />
 
       {editingEvent && <EventEditor
         event={editingEvent}

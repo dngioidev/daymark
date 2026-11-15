@@ -109,3 +109,8 @@ describe('event validation', () => {
     expect(isEventItems([event, event])).toBe(false);
   });
 });
+    expect(isSyncedSettings({ ...DEFAULT_SETTINGS, eventWarningMinutes: 15 })).toBe(true);
+    expect(isSyncedSettings({ ...DEFAULT_SETTINGS, eventWarningMinutes: null })).toBe(true);
+    for (const eventWarningMinutes of [0, -1, 1.5, NaN, Infinity, '15']) {
+      expect(isSyncedSettings({ ...DEFAULT_SETTINGS, eventWarningMinutes })).toBe(false);
+    }

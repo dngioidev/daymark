@@ -81,3 +81,9 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings(settings).defaultHeadings).toEqual(['Deep work']);
   });
 });
+  it('preserves a stored event warning preference when an older client omits it', () => {
+    const local: AppSettings = { ...DEFAULT_SETTINGS, eventWarningMinutes: 20 };
+    const incoming = { ...DEFAULT_SETTINGS, timeZone: 'Asia/Saigon' };
+    expect(mergeIncomingSettings(local, incoming).eventWarningMinutes).toBe(20);
+    expect(mergeIncomingSettings(local, { ...DEFAULT_SETTINGS, eventWarningMinutes: 15 }).eventWarningMinutes).toBe(15);
+  });

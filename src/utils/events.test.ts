@@ -130,3 +130,31 @@ describe('event domain helpers', () => {
 });
 
 
+
+  it('selects only timed events inside the inclusive lead window and before the start instant', async () => {
+    const { dueEventWarnings } = await import('./events');
+    const start = '2026-11-20T10:00:00.000Z';
+    const timed = (id: string, startInstant: string, order = 0): EventItem => event(id, order, '2026-11-20', {
+      timing: { localTime: startInstant.slice(11, 16), timeZone: 'UTC', startInstant },
+    });
+    const due = timed('due', start);
+    const soon = timed('soon', '2026-11-20T10:05:00.000Z');
+    const past = timed('past', '2026-11-20T09:59:59.999Z');
+    const dateOnly = event('date-only', 0);
+    expect(dueEventWarnings([due, soon, past, dateOnly], Date.parse('2026-11-20T09:45:00.000Z'), 15).map(({ id }) => id)).toEqual(['due']);
+    expect(dueEventWarnings([due], Date.parse('2026-11-20T09:44:59.999Z'), 15)).toEqual([]);
+    expect(dueEventWarnings([due], Date.parse(start), 15)).toEqual([]);
+    expect(dueEventWarnings([due], Date.parse('2026-11-20T10:01:00.000Z'), 15)).toEqual([]);
+    expect(dueEventWarnings([due], Date.parse('2026-11-20T09:50:00.000Z'), null)).toEqual([]);
+  });
+
+  it('returns multiple due warnings ordered by start instant then saved order', async () => {
+    const { dueEventWarnings } = await import('./events');
+    const makeTimed = (id: string, startInstant: string, order: number): EventItem => event(id, order, '2026-11-20', {
+      timing: { localTime: startInstant.slice(11, 16), timeZone: 'UTC', startInstant },
+    });
+    const later = makeTimed('later', '2026-11-20T10:05:00.000Z', 1);
+    const second = makeTimed('second', '2026-11-20T10:00:00.000Z', 2);
+    const first = makeTimed('first', '2026-11-20T10:00:00.000Z', 1);
+    expect(dueEventWarnings([later, second, first], Date.parse('2026-11-20T09:50:00.000Z'), 15).map(({ id }) => id)).toEqual(['first', 'second', 'later']);
+  });

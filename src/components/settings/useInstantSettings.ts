@@ -15,6 +15,9 @@ export function validateSettingsPatch(next: AppSettings): string | null {
     || !Number.isFinite(Date.parse(next.simulatedToday))
     || new Date(next.simulatedToday).toISOString().slice(0, 10) !== next.simulatedToday))
     return 'Choose a valid date.';
+  if (next.eventWarningMinutes !== undefined && next.eventWarningMinutes !== null &&
+    (!Number.isSafeInteger(next.eventWarningMinutes) || next.eventWarningMinutes <= 0))
+    return 'Event warning lead time must be a positive whole number of minutes, or Off.';
   return null;
 }
 
@@ -28,6 +31,7 @@ export function resetTab(tab: SettingsTab, s: AppSettings): AppSettings {
         ...(s.alertDays !== undefined ? { alertDays: { tasks: 'all', habits: 'all' } as const } : {}) };
     }
     case 'headings': return { ...s, defaultHeadings: [...DEFAULT_SETTINGS.defaultHeadings] };
+    case 'events': return { ...s, eventWarningMinutes: 15 };
     default: return s;
   }
 }

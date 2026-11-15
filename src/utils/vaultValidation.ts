@@ -97,7 +97,9 @@ export function isEventItems(value: unknown): value is EventItem[] {
 }
 
 export function isSyncedSettings(v: unknown): boolean {
-  return isObject(v) && Array.isArray(v.statuses) && Array.isArray(v.defaultHeadings);
+  return isObject(v) && Array.isArray(v.statuses) && Array.isArray(v.defaultHeadings) &&
+    (v.eventWarningMinutes === undefined || v.eventWarningMinutes === null ||
+      (Number.isSafeInteger(v.eventWarningMinutes) && (v.eventWarningMinutes as number) > 0));
 }
 
 /** Returns null when the vault is usable, otherwise a sentence explaining why not. */
