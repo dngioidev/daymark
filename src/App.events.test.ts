@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { DailyDocument, EventItem } from './types/daymark';
+import type { VaultData } from './sync/syncClient';
 import { DEFAULT_SETTINGS } from './utils/defaultData';
 
 const harness = vi.hoisted(() => ({
@@ -8,6 +9,7 @@ const harness = vi.hoisted(() => ({
   events: [] as EventItem[],
   slots: [] as unknown[],
   index: 0,
+  syncChange: undefined as ((next: VaultData) => void) | undefined,
 }));
 
 vi.mock('react', async (original) => {
@@ -45,15 +47,19 @@ vi.mock('./hooks/useBackgroundPhoto', () => ({ useBackgroundPhoto: () => ({ url:
 vi.mock('./hooks/useRealToday', () => ({ useRealToday: () => '2026-11-15' }));
 vi.mock('./hooks/useWidgetSync', () => ({ useWidgetSync: () => {} }));
 vi.mock('./native/backButton', () => ({ useBackHandler: vi.fn() }));
-vi.mock('./hooks/useSync', () => ({ useSync: () => ({
-  status: 'off', account: null, lastSyncAt: null, error: null, mode: 'local-web', connect: vi.fn(), disconnect: vi.fn(),
-  signOut: vi.fn(), pendingChanges: () => 0, authFetch: vi.fn(), syncNow: vi.fn(), rebaseAfterReplace: vi.fn(),
-}) }));
+vi.mock('./hooks/useSync', () => ({ useSync: (_vault: unknown, onChange: (next: VaultData) => void) => {
+  harness.syncChange = onChange;
+  return {
+    status: 'off', account: null, lastSyncAt: null, error: null, mode: 'local-web', connect: vi.fn(), disconnect: vi.fn(),
+    signOut: vi.fn(), pendingChanges: () => 0, authFetch: vi.fn(), syncNow: vi.fn(), rebaseAfterReplace: vi.fn(),
+  };
+} }));
 vi.mock('./hooks/useInkPages', () => ({ useInkPages: () => ({ ink: [], setInk: vi.fn(), inkPagesForNote: () => [], updateInkPage: vi.fn(), inkStore: {} }) }));
 
 import App from './App';
 import { TodayView } from './components/TodayView';
 import { EventEditor } from './components/events/EventEditor';
+import { MobileAppShell } from './components/mobile/MobileAppShell';
 import { useBackHandler } from './native/backButton';
 
 function findElement<T>(node: React.ReactNode, type: React.ComponentType<T>): React.ReactElement<T> | undefined {
@@ -65,7 +71,58 @@ function findElement<T>(node: React.ReactNode, type: React.ComponentType<T>): Re
 
 function renderApp() { harness.index = 0; return App(); }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); harness.slots.length = 0; harness.docs.length = 0; harness.events.length = 0; harness.index = 0; });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); harness.slots.length = 0; harness.docs.length = 0; harness.events.length = 0; harness.index = 0; });
+
+it('stamps an inline event checklist update with the local edit time', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-16T10:15:00.000Z'));
+  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  const event: EventItem = { id: 'event-checklist-time', title: 'Pack', date: '2026-11-16', heading: 'Work', order: 1,
+    checklist: [{ id: 'item-1', text: 'Agenda', done: false }], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' };
+  harness.events.push(event);
+  const today = findElement(renderApp(), TodayView)!.props;
+
+  today.onUpdateEvent!({ ...event, checklist: [{ id: 'item-1', text: 'Agenda', done: true }] }, event);
+
+  const finalToday = findElement(renderApp(), TodayView)!.props;
+  expect(finalToday.events).toEqual([expect.objectContaining({ updatedAt: '2026-11-16T10:15:00.000Z', checklist: [{ id: 'item-1', text: 'Agenda', done: true }] })]);
+});
+
+it('passes the live event collection, current zone and callbacks into mobile mode', () => {
+  vi.stubGlobal('window', { innerWidth: 412, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  const event: EventItem = { id: 'event-phone', title: 'Phone appointment', date: '2026-11-15', heading: 'Work', order: 1,
+    createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' };
+  harness.events.push(event);
+
+  const shell = findElement(renderApp(), MobileAppShell)!;
+
+  expect(shell.props).toMatchObject({ events: [event], deviceZone: expect.any(String),
+    onEditEvent: expect.any(Function), onUpdateEvent: expect.any(Function), onDeleteEvent: expect.any(Function), onMoveEvent: expect.any(Function) });
+});
+
+it('does not replace a newer synced event title and notes with a stale checklist candidate', () => {
+  vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });
+  vi.stubGlobal('document', { cookie: '' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  const base: EventItem = { id: 'event-checklist-race', title: 'Planning', date: '2026-11-15', heading: 'Work', order: 1,
+    description: 'Base notes', checklist: [{ id: 'one', text: 'Bring slides', done: false }],
+    createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' };
+  harness.events.push(base);
+  const oldToday = findElement(renderApp(), TodayView)!.props;
+  const staleChecklistUpdate = oldToday.onUpdateEvent!;
+  const remote: EventItem = { ...base, title: 'Remote planning', description: 'Remote notes', updatedAt: '2026-11-02T10:00:00.000Z' };
+  harness.syncChange!({ docs: [], notes: [], events: [remote], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] }, ink: [] });
+
+  staleChecklistUpdate({ ...base, checklist: [{ id: 'one', text: 'Bring slides', done: true }] }, base);
+
+  expect(findElement(renderApp(), TodayView)!.props.events).toEqual([expect.objectContaining({
+    title: 'Remote planning', description: 'Remote notes', checklist: [{ id: 'one', text: 'Bring slides', done: true }],
+  })]);
+});
 
 it('merges an edit against an event update received after the editor callback was captured', () => {
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' } });

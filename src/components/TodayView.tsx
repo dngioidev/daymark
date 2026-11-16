@@ -50,9 +50,9 @@ interface TodayViewProps {
   events?: EventItem[];
   deviceZone?: string;
   onEditEvent?: (event: EventItem) => void;
-  onUpdateEvent?: (event: EventItem) => void;
+  onUpdateEvent?: (event: EventItem, base?: EventItem | null) => void;
   onDeleteEvent?: (eventId: string) => void;
-  onMoveEvent?: (eventId: string, change: { date?: string; heading?: string }) => void;
+  onMoveEvent?: (eventId: string, change: { date?: string; heading?: string; startInstant?: string }) => void;
   onTriggerRollover: () => void;
   /** Phone layout: tighter spacing, no Split view, no manual refresh (rollover runs automatically). */
   compact?: boolean;
@@ -639,7 +639,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {mixedSectionItems(open, sectionEvents).map((entry) => (
               entry.kind === 'task'
                 ? <TaskItemCard key={entry.item.id} task={entry.item} {...cardProps} />
-                : <EventCard key={entry.item.id} event={entry.item} sectionNames={displayHeadings.map(h => h.name)} deviceZone={deviceZone} onEdit={onEditEvent} onUpdate={onUpdateEvent} onDelete={onDeleteEvent} onMove={onMoveEvent} />
+                : <EventCard key={entry.item.id} event={entry.item} sectionNames={displayHeadings.map(h => h.name)} deviceZone={deviceZone} onEdit={onEditEvent} onUpdate={updated => onUpdateEvent(updated, entry.item)} onDelete={onDeleteEvent} onMove={onMoveEvent} />
             ))}
           </div>
         )}

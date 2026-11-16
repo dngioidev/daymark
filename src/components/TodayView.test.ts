@@ -179,3 +179,28 @@ it('projects event-only sections and mixes events with tasks in shared order wit
   expect(html).toContain('Event');
   expect(html).not.toContain('Mark "Design review" done');
 });
+
+it('passes the event rendered in the checklist row as the captured base for an inline update', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const event: EventItem = { id: 'checklist-base', title: 'Review', date: '2026-11-15', heading: 'Work', order: 1,
+    checklist: [{ id: 'step', text: 'Open agenda', done: false }],
+    createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' };
+  const onUpdateEvent = vi.fn();
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(React.createElement(TodayView, { countingDays: 'all',
+      currentDocument: { date: event.date, type: 'daily', headings: [{ name: 'Work', items: [] }], updatedAt: '' },
+      events: [event], allDocs: [], simulatedToday: event.date, statuses: DEFAULT_SETTINGS.statuses,
+      agingThresholds: DEFAULT_SETTINGS.agingThresholds, defaultHeadings: ['Work'],
+      onDateChange: vi.fn(), onUpdateDocument: vi.fn(), onPatchDocument: vi.fn(), onOpenHistoricalModal: vi.fn(),
+      onOpenHistoryDrawer: vi.fn(), onQuickHistoricalDone: vi.fn(), onTriggerRollover: vi.fn(), onUpdateEvent,
+    })));
+    const checkbox = host.querySelector<HTMLInputElement>('input[aria-label="Open agenda"]')!;
+    expect(checkbox).toBeTruthy();
+    await act(async () => { checkbox.click(); });
+    expect(onUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(onUpdateEvent.mock.calls[0][0]).toMatchObject({ checklist: [{ id: 'step', text: 'Open agenda', done: true }] });
+    expect(onUpdateEvent.mock.calls[0][1]).toEqual(event);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});

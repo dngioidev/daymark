@@ -8,15 +8,17 @@ export function EventWarningQueue({
   onDismiss,
   onOpen,
   deviceZone,
+  mobileNavigation = false,
 }: {
   notices: EventWarningNotice[];
   onDismiss: (notice: EventWarningNotice) => void;
   onOpen: (event: EventItem) => void;
   deviceZone: string;
+  mobileNavigation?: boolean;
 }) {
   if (!notices.length) return null;
   return (
-    <section aria-label="Upcoming event warnings" className="fixed z-40 bottom-[calc(env(safe-area-inset-bottom)+5rem)] sm:bottom-4 right-4 max-h-[min(70vh,36rem)] w-[min(24rem,calc(100vw-2rem))] space-y-2 overflow-y-auto">
+    <section aria-label="Upcoming event warnings" className={`fixed z-40 ${mobileNavigation ? 'bottom-[calc(env(safe-area-inset-bottom)+5rem)]' : 'bottom-4'} right-4 max-h-[min(70vh,36rem)] w-[min(24rem,calc(100vw-2rem))] space-y-2 overflow-y-auto`}>
       {notices.map((notice) => {
         const schedule = formatEventSchedule(notice.event, deviceZone);
         return (

@@ -13,8 +13,8 @@ const event = (id: string): EventItem => ({ id, title: `Event ${id}`, date: '202
 const notice = (item: EventItem): EventWarningNotice => ({ key: `${item.id}|${item.timing!.startInstant}`, event: item });
 let root: ReturnType<typeof createRoot>;
 let host: HTMLDivElement;
-function render(notices: EventWarningNotice[], onDismiss: (n: EventWarningNotice) => void, onOpen: (e: EventItem) => void) {
-  act(() => root.render(React.createElement(EventWarningQueue, { notices, onDismiss, onOpen, deviceZone: 'America/Los_Angeles' })));
+function render(notices: EventWarningNotice[], onDismiss: (n: EventWarningNotice) => void, onOpen: (e: EventItem) => void, mobileNavigation = false) {
+  act(() => root.render(React.createElement(EventWarningQueue, { notices, onDismiss, onOpen, deviceZone: 'America/Los_Angeles', mobileNavigation })));
 }
 afterEach(() => { root?.unmount(); document.body.replaceChildren(); vi.restoreAllMocks(); });
 
@@ -36,5 +36,14 @@ describe('EventWarningQueue', () => {
     expect(dismissButton).toBeTruthy(); expect(openButton).toBeTruthy();
     act(() => dismissButton!.click()); act(() => openButton!.click());
     expect(dismiss).toHaveBeenCalledWith(a); expect(open).toHaveBeenCalledWith(b.event);
+  });
+
+  it('offsets the queue from bottom navigation whenever the app is in mobile mode', () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    host = document.createElement('div'); document.body.append(host); root = createRoot(host);
+    render([notice(event('mobile'))], vi.fn(), vi.fn());
+    expect(host.querySelector('section')?.className).toContain('bottom-4');
+    render([notice(event('mobile'))], vi.fn(), vi.fn(), true);
+    expect(host.querySelector('section')?.className).toContain('bottom-[calc(env(safe-area-inset-bottom)+5rem)]');
   });
 });

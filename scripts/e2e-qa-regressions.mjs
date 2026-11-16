@@ -11,8 +11,10 @@ import { cycle14Qa } from './helpers/cycle-14-qa.mjs';
 import { cycle11Qa } from './helpers/cycle-11-qa.mjs';
 import { notesResponsiveScenario, responsiveNotesFixture } from './helpers/cycle-12-responsive.mjs';
 import { pollUntil } from './helpers/poll.mjs';
+import { cycle21Vault } from './helpers/cycle-21-events.mjs';
+import { assertPortAvailable } from './helpers/port.mjs';
 
-const PORT = 3111;
+const PORT = Number(process.env.DAYMARK_QA_PORT ?? 3111);
 const base = `http://localhost:${PORT}`;
 const only = process.argv[2];
 const results = [];
@@ -21,16 +23,30 @@ const check = (id, ok, label, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  [${id}] ${label}${!ok && detail ? `  -> ${detail}` : ''}`);
 };
 
+await assertPortAvailable(PORT);
 const server = spawn('npx', ['tsx', 'server.ts'], {
   env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-qa-')), DAYMARK_PASSWORD: 'qa-password-123' },
   shell: true,
   stdio: 'ignore',
 });
+let serverExit = null;
+server.on('error', error => { serverExit = `spawn error: ${error.message}`; });
+server.on('exit', (code, signal) => { serverExit = `exit code ${code ?? 'null'} signal ${signal ?? 'none'}`; });
 let browser;
 try {
 let ready = false;
 for (let i = 0; i < 60; i++) {
-  try { if ((await fetch(`${base}/api/health`)).ok) { ready = true; break; } } catch {}
+  if (serverExit) throw new Error(`QA server process exited before readiness (${serverExit}); refusing to reuse a server already on port ${PORT}.`);
+  try {
+    if ((await fetch(`${base}/api/health`)).ok) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (serverExit) throw new Error(`QA server process exited during readiness (${serverExit}); refusing to reuse a server already on port ${PORT}.`);
+      ready = true;
+      break;
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('QA server process exited')) throw error;
+  }
   await new Promise((r) => setTimeout(r, 500));
 }
 
@@ -45,24 +61,44 @@ const doc = (date, items, notes = '') => ({ date, type: 'daily', headings: [{ na
 
 browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 
-async function fresh({ docs = [], notes = [], habits, backlog, mobile = false, origin = base, colorScheme = 'light', pristine = false } = {}) {
-  const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
+async function fresh({ docs = [], notes = [], habits, backlog, events, mobile = false, viewport, origin = base, colorScheme = 'light', pristine = false, waitUntil = 'networkidle' } = {}) {
+  const context = await browser.newContext({ locale: 'en-US', colorScheme, ...(mobile ? { viewport: viewport ?? { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: viewport ?? { width: 1440, height: 900 } }) });
   // External font availability is outside this disposable app server and sandbox.
   await context.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: '' }));
   const page = await context.newPage();
   const errors = [];
+  const badResponses = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('response', async (response) => {
+    if (response.status() >= 400) {
+      const request = response.request();
+      let requestSummary = '';
+      try {
+        const body = JSON.parse(request.postData() ?? 'null');
+        requestSummary = ` features=${JSON.stringify(body?.features)} keys=${JSON.stringify(body?.changes?.map(change => change.key))}`;
+      } catch {}
+      badResponses.push(`${response.status()} ${response.url()}: ${(await response.text().catch(() => '')).slice(0, 300)}${requestSummary}`);
+    }
+  });
   const session = await signIn(context, origin, 'qa-password-123');
   await resetServerVault(context, origin, session.accessToken);
   // Empty seeded arrays count as an existing vault. A fresh-install test must seed nothing.
-  if (!pristine) await seedVault(page, origin, { docs, notes, habits, backlog });
-  await page.goto(origin, { waitUntil: 'networkidle' });
-  return { context, page, errors };
+  if (!pristine) await seedVault(page, origin, { docs, notes, habits, backlog, events });
+  await page.goto(origin, { waitUntil });
+  if (waitUntil === 'domcontentloaded') {
+    await page.locator('[data-day-label]').waitFor();
+    await synced(page);
+  }
+  return { context, page, errors, badResponses };
 }
 const readDocs = (page) => page.evaluate(async () => {
   const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => res(r.result); });
   return new Promise((res) => { const r = db.transaction('kv').objectStore('kv').get('daily_docs'); r.onsuccess = () => res(r.result); });
+});
+const readEvents = (page) => page.evaluate(async () => {
+  const db = await new Promise((res) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => res(r.result); });
+  return new Promise((res) => { const r = db.transaction('kv').objectStore('kv').get('events'); r.onsuccess = () => res(r.result ?? []); });
 });
 const titlesOn = (docs, date) => (docs.find((d) => d.date === date)?.headings ?? []).flatMap((h) => h.items.map((t) => `${t.title}|${t.status}`));
 const settle = (page, ms = 600) => page.waitForTimeout(ms);
@@ -1933,6 +1969,124 @@ for (const width of [1440, 1280, 1100, 900, 390]) for (const theme of ['light', 
   await notesResponsiveScenario({ page, width, axe: fs.readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8'),
     verify: (name, ok, detail = '') => check('C12-Responsive-' + width + '-' + theme + '-' + name, ok, name, detail) });
   check('C12-Responsive-' + width + '-' + theme + '-errors', errors.length === 0, 'no browser errors', errors.join(' | '));
+});
+
+await run('C21-Events', async () => {
+  const fixture = cycle21Vault(TODAY);
+  const taskRow = task('c21-e2e-task', 'in-progress', TODAY, { title: 'C21 mixed task row', order: 1 });
+  const { page, context, errors, badResponses } = await fresh({ docs: [doc(TODAY, [taskRow])], events: fixture.events, waitUntil: 'domcontentloaded' });
+  const warningQueue = page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
+  await warningQueue.waitFor();
+  check('C21-warning', await warningQueue.getByText('C21 Upcoming warning preview', { exact: true }).isVisible(), 'default 15-minute setting shows an upcoming event warning');
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+  const settingsDialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await settingsDialog.getByRole('tab', { name: 'Event warnings', exact: true }).click();
+  check('C21-warning-default', await settingsDialog.locator('#event-warning-minutes').inputValue() === '15'
+    && await settingsDialog.locator('input[name="event-warning-mode"][value="on"]').isChecked(), 'settings show the implicit 15-minute default as enabled');
+  await settingsDialog.locator('input[name="event-warning-mode"][value="off"]').check();
+  await settingsDialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await warningQueue.waitFor({ state: 'detached' });
+  check('C21-warning-off', !(await page.getByRole('region', { name: 'Upcoming event warnings' }).count()), 'turning warnings Off removes the active upcoming notice');
+
+  await page.keyboard.press('Control+k');
+  await page.getByRole('button', { name: 'Event', exact: true }).click();
+  const capturedTitle = 'C21 captured event with checklist';
+  await page.locator('#event-title').fill(capturedTitle);
+  await page.locator('#event-date').fill(TODAY);
+  await page.getByLabel('Notes', { exact: true }).fill('Notes survive reload and remain separate from daily task Markdown.');
+  await page.getByLabel('New checklist item', { exact: true }).fill('Pack printed agenda');
+  await page.getByRole('button', { name: 'Add checklist item', exact: true }).click();
+  await page.getByRole('button', { name: 'Add event', exact: true }).click();
+  await page.getByRole('button', { name: capturedTitle, exact: true }).waitFor();
+  check('C21-capture-mixed', await page.getByRole('button', { name: 'Mark "C21 mixed task row" done', exact: true }).isVisible()
+    && await page.getByText('Event', { exact: true }).first().isVisible(), 'captured event remains separately recognizable beside a task row');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-day-label]').waitFor(); await synced(page);
+  await page.getByRole('button', { name: capturedTitle, exact: true }).waitFor();
+  const loadedEvents = await readEvents(page);
+  check('C21-reload', loadedEvents.some((event) => event.title === capturedTitle
+    && event.description === 'Notes survive reload and remain separate from daily task Markdown.'
+    && event.checklist?.some((item) => item.text === 'Pack printed agenda')),
+    'event, notes and checklist survive reload', JSON.stringify(loadedEvents.map(({ id, title }) => ({ id, title }))));
+  const capturedArticle = page.locator('[data-event-id]').filter({ has: page.getByRole('button', { name: capturedTitle, exact: true }) });
+  await capturedArticle.getByRole('checkbox', { name: 'Pack printed agenda', exact: true }).check();
+  await capturedArticle.getByRole('button', { name: capturedTitle, exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit event', exact: true });
+  await editor.getByLabel('Event title', { exact: true }).fill('C21 edited event title');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.getByRole('button', { name: 'C21 edited event title', exact: true }).waitFor();
+  await page.reload({ waitUntil: 'domcontentloaded' }); await page.locator('[data-day-label]').waitFor(); await synced(page);
+  check('C21-edit-checklist', (await readEvents(page)).some((event) => event.title === 'C21 edited event title'
+    && event.checklist?.some((item) => item.text === 'Pack printed agenda' && item.done)), 'editing and checklist state persist independently');
+
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  const tomorrow = await page.evaluate(() => { const date = new Date(); date.setDate(date.getDate() + 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; });
+  const tomorrowCell = page.locator(`button[data-date="${tomorrow}"]`);
+  if (!await tomorrowCell.count()) await page.getByRole('button', { name: 'Next month', exact: true }).click();
+  await tomorrowCell.click();
+  const continuation = page.locator('[data-calendar-event-id="c21-midnight"]');
+  await continuation.waitFor();
+  check('C21-calendar-continuation', (await continuation.innerText()).includes('Continues from'), 'Calendar shows an end-exclusive overnight continuation on the next date');
+  const today = await page.evaluate(() => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; });
+  const todayCell = page.locator(`button[data-date="${today}"]`);
+  if (!await todayCell.count()) await page.getByRole('button', { name: 'Previous month', exact: true }).click();
+  await todayCell.click();
+  const unscheduled = page.locator('[data-calendar-event-id="c21-duration-only"]');
+  await unscheduled.waitFor();
+  check('C21-untimed-duration', (await unscheduled.innerText()).includes('No set time'), 'duration-only commitment is shown without a timed slot');
+  check('C21-errors', errors.length === 0, 'event capture/edit/calendar flow has no browser errors', `${errors.join(' | ')}; HTTP=${badResponses.join(' | ')}`);
+
+  const geometry = await fresh({ events: cycle21Vault(TODAY).events, mobile: true, viewport: { width: 700, height: 900 }, waitUntil: 'domcontentloaded' });
+  const queue = geometry.page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
+  await queue.waitFor();
+  const queueBox = await queue.boundingBox();
+  const navBox = await geometry.page.locator('nav[aria-label="Main"]').boundingBox();
+  check('C21-warning-700-geometry', !!queueBox && !!navBox && queueBox.y + queueBox.height <= navBox.y - 8,
+    'warning queue sits above the bottom navigation at a 700px mobile viewport', `queue=${JSON.stringify(queueBox)}, navigation=${JSON.stringify(navBox)}`);
+  const queueHit = queueBox && await geometry.page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('[aria-label="Upcoming event warnings"]')),
+    { x: queueBox.x + Math.min(queueBox.width / 2, 40), y: queueBox.y + Math.min(queueBox.height / 2, 40) });
+  check('C21-warning-700-hit', !!queueHit, 'warning queue remains hit-testable at a 700px mobile viewport');
+  await context.close();
+});
+
+await run('C21-Mobile-Events', async () => {
+  const fixture = cycle21Vault(TODAY);
+  const pastEvent = { id: 'c21-mobile-event-only-past', title: 'C21 phone event-only past day', date: Y1, heading: 'Personal', order: 1,
+    createdAt: `${Y1}T08:00:00.000Z`, updatedAt: `${Y1}T08:00:00.000Z` };
+  const olderTask = task('c21-mobile-older-doc', 'done', Y2);
+  const { page, errors } = await fresh({ docs: [doc(Y2, [olderTask])], events: [...fixture.events, pastEvent], mobile: true, viewport: { width: 412, height: 915 }, waitUntil: 'domcontentloaded' });
+  const warningQueue = page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
+  await warningQueue.waitFor();
+  await warningQueue.getByRole('button', { name: 'Dismiss C21 Upcoming warning preview', exact: true }).click();
+  const title = 'C21 Retrospective: long-title review of the community launch and next steps';
+  const article = page.locator('[data-event-id="c21-date-only"]');
+  await page.getByRole('button', { name: title, exact: true }).waitFor();
+  check('C21-mobile-daily-row', await article.isVisible(), 'phone Today displays the event beside the daily rows');
+  await article.getByRole('checkbox', { name: 'Bring the printed agenda', exact: true }).check();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit event', exact: true });
+  await editor.getByLabel('Event title', { exact: true }).fill('C21 phone edited event');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.getByRole('button', { name: 'C21 phone edited event', exact: true }).waitFor();
+  const phoneEvents = await readEvents(page);
+  check('C21-mobile-checklist-edit', phoneEvents.some(event => event.id === 'c21-date-only' && event.title === 'C21 phone edited event'
+    && event.checklist?.some(item => item.text === 'Bring the printed agenda' && item.done)), 'phone checklist and event edit persist together');
+
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Calendar', exact: true }).click();
+  const todayCell = page.locator(`button[data-date="${TODAY}"]`);
+  const todayLabel = await todayCell.getAttribute('aria-label');
+  check('C21-mobile-calendar-today', !!todayLabel && /,\s*\d+ events?$/.test(todayLabel) && await todayCell.getAttribute('aria-pressed') === 'true'
+    && await page.locator('[data-calendar-event-id="c21-date-only"]').isVisible(), 'phone Calendar opens on event-only today when the latest daily document is older', todayLabel ?? 'no current-date cell');
+  const pastCell = page.locator(`button[data-date="${Y1}"]`);
+  if (!await pastCell.count()) await page.getByRole('button', { name: 'Previous month', exact: true }).click();
+  await pastCell.click();
+  await page.locator('[data-calendar-event-id="c21-mobile-event-only-past"]').waitFor();
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Today', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Calendar', exact: true }).click();
+  check('C21-mobile-calendar-past', await page.locator('[data-calendar-event-id="c21-mobile-event-only-past"]').isVisible()
+    && await page.locator(`button[data-date="${Y1}"]`).getAttribute('aria-pressed') === 'true', 'phone Calendar keeps an event-only past date selected after tab changes');
+  check('C21-mobile-errors', errors.length === 0, 'phone event flow has no browser errors', errors.join(' | '));
 });
 
 await cycle14Qa({ run, fresh, check });

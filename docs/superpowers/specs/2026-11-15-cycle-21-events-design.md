@@ -121,3 +121,8 @@ Recurrence, external calendar synchronization, invitations, attendees, travel-ti
 Before coding, produce the implementation plan with exact schema/Markdown representation, older-client compatibility strategy, calendar component changes, warning/settings persistence and a tested time-zone resolution approach. Escalate a compatibility limitation or dependency need rather than weakening data preservation. This draft's implementation choices may be refined during planning without changing confirmed product behavior.
 
 This document records the spec only. No application implementation, runtime verification, release or deployment has happened in this cycle.
+
+
+## Execution outcome (2026-11-16)
+
+Implemented and verified on `cycle-21-events` using one reused Luna worker with main-agent supervision. The preceding draft/status paragraphs are the approved design record. Desktop and phone events, optional timing, original-zone/local display, Calendar agenda, readable backups, capability-gated sync and foreground warnings are implemented. See the [Cycle 21 verification report](../../releases/cycle-21/README.md) for results and baseline QA limitations. Physical-device zone switching remains unverified; no merge, release or deployment was performed.

@@ -1,7 +1,7 @@
 import { resolveAlertDays } from '../../utils/alertDays';
 import React, { useState } from 'react';
 import { Calendar, CalendarDays, Download, FolderOpen, Inbox, Maximize2, Minimize2, Monitor, Plus, Search, Settings } from 'lucide-react';
-import { AppSettings, InkPage, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
+import { AppSettings, EventItem, InkPage, DailyDocument, HabitData, MobileTab, NoteMeta, StandaloneNote, TaskItem } from '../../types/daymark';
 import { useOnlineStatus, usePwaInstall } from '../../hooks/usePwa';
 import { useBackHandler } from '../../native/backButton';
 import { TodayView } from '../TodayView';
@@ -12,6 +12,7 @@ import { SyncStatus } from '../../hooks/useSync';
 import { getMostRecentPastDate } from '../../utils/lifecycleEngine';
 import type { SettingsTab } from '../SettingsModal';
 import { SYNC_LABELS } from '../Navbar';
+import { eventsForDate } from '../../utils/events';
 
 interface MobileAppShellProps {
   habits: HabitData;
@@ -20,6 +21,12 @@ interface MobileAppShellProps {
   backlogSlot?: React.ReactNode;
   currentDocument: DailyDocument;
   dailyDocs: DailyDocument[];
+  events?: EventItem[];
+  deviceZone?: string;
+  onEditEvent?: (event: EventItem) => void;
+  onUpdateEvent?: (event: EventItem, base?: EventItem | null) => void;
+  onDeleteEvent?: (eventId: string) => void;
+  onMoveEvent?: (eventId: string, change: { date?: string; heading?: string; startInstant?: string }) => void;
   notes: StandaloneNote[];
   inkPagesForNote?: (noteId: string) => InkPage[];
   updateInkPage?: (page: InkPage) => void;
@@ -68,6 +75,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   backlogSlot,
   currentDocument,
   dailyDocs,
+  events = [],
+  deviceZone = 'UTC',
+  onEditEvent,
+  onUpdateEvent,
+  onDeleteEvent,
+  onMoveEvent,
   notes,
   inkPagesForNote,
   updateInkPage,
@@ -106,7 +119,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   const isOnline = useOnlineStatus();
   const { canInstall, install } = usePwaInstall();
   const [frame, setFrame] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth >= 768);
-  const [calendarDate, setCalendarDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, simulatedToday));
+  const [calendarDate, setCalendarDate] = useState<string>(() =>
+    eventsForDate(events, simulatedToday).length ? simulatedToday : getMostRecentPastDate(dailyDocs, simulatedToday));
 
   // Android Back: other tab -> Today, then leave the app
   useBackHandler(() => {
@@ -203,6 +217,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               statuses={settings.statuses}
               agingThresholds={settings.agingThresholds}
               defaultHeadings={settings.defaultHeadings}
+              events={events}
+              deviceZone={deviceZone}
+              onEditEvent={onEditEvent}
+              onUpdateEvent={onUpdateEvent}
+              onDeleteEvent={onDeleteEvent}
+              onMoveEvent={onMoveEvent}
               onDateChange={onDateChange}
               onUpdateDocument={onUpdateDocument}
               onPatchDocument={onPatchDocument}
@@ -222,6 +242,8 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               onHabitsChange={onHabitsChange}
               compact
               dailyDocuments={dailyDocs}
+              events={events}
+              deviceZone={deviceZone}
               selectedDate={calendarDate}
               simulatedToday={simulatedToday}
               statuses={settings.statuses}
@@ -229,6 +251,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               onReopenTask={onReopenTask}
               onMarkDoneOnDay={onQuickHistoricalDone}
               onMoveTask={(taskId, fromDate, toDate) => onMoveTask(taskId, toDate, fromDate)}
+              onEditEvent={onEditEvent}
               onOpenDay={(date) => {
                 onOpenDay(date);
                 setActiveTab('today');
@@ -250,7 +273,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           {tabButton('today', <Calendar className="w-5 h-5" />, 'Today')}
           {tabButton('calendar', <CalendarDays className="w-5 h-5" />, 'Calendar', () => {
             setActiveTab('calendar');
-            if (calendarDate <= simulatedToday && !dailyDocs.some((d) => d.date === calendarDate)) {
+            if (calendarDate <= simulatedToday && !dailyDocs.some((d) => d.date === calendarDate) && eventsForDate(events, calendarDate).length === 0) {
               setCalendarDate(getMostRecentPastDate(dailyDocs, simulatedToday));
             }
           })}

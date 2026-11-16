@@ -4,7 +4,7 @@ import { seedVault, resetServerVault } from './server-session.mjs';
 
 // Exercise the seeding transaction without starting a server or browser.
 async function seeded(options) {
-  const values = new Map([['habits', 'existing'], ['backlog', 'existing']]);
+  const values = new Map([['habits', 'existing'], ['backlog', 'existing'], ['events', 'existing']]);
   const previous = globalThis.indexedDB;
   globalThis.indexedDB = {
     open() {
@@ -46,6 +46,12 @@ test('seedVault writes backlog only when explicitly provided', async () => {
   assert.deepEqual((await seeded({ backlog })).get('backlog'), backlog);
 });
 
+test('seedVault writes events only when explicitly provided', async () => {
+  const events = [{ id: 'event-one', title: 'Launch', date: '2026-11-16', heading: 'Work', order: 1 }];
+  assert.deepEqual((await seeded({ events })).get('events'), events);
+  assert.equal((await seeded({})).get('events'), 'existing');
+  assert.deepEqual((await seeded({ events: [] })).get('events'), []);
+});
 test('seedVault writes ink pages only when explicitly provided', async () => {
   const ink = [{ noteId: 'study', page: 0, strokes: [], removed: [], updatedAt: '2026-11-01T08:00:00Z' }];
   assert.deepEqual((await seeded({ ink })).get('ink'), ink);
@@ -61,6 +67,7 @@ test('resetServerVault reads and deletes every live entity with habits, backlog 
     { key: 'backlog', value: { items: [] } },
     { key: 'notemeta', value: { folders: [], dismissed: [] } },
     { key: 'ink:study:0', value: { noteId: 'study', page: 0, strokes: [], removed: [] } },
+    { key: 'event:launch', value: { id: 'launch', title: 'Launch' } },
     { key: 'note:deleted', value: null },
   ];
   const calls = [];
@@ -74,7 +81,7 @@ test('resetServerVault reads and deletes every live entity with habits, backlog 
   await resetServerVault(context, 'http://reset.test', 'test-token');
   assert.equal(calls.length, 2);
   assert.equal(calls[0].url, 'http://reset.test/api/sync');
-  assert.deepEqual(calls[0].data, { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta', 'ink'] });
-  assert.deepEqual(calls[1].data, { sinceRev: 0, features: ['habits', 'backlog', 'notemeta', 'ink'], changes: entities.slice(0, 6)
+  assert.deepEqual(calls[0].data, { sinceRev: 0, changes: [], features: ['habits', 'backlog', 'notemeta', 'ink', 'events'] });
+  assert.deepEqual(calls[1].data, { sinceRev: 0, features: ['habits', 'backlog', 'notemeta', 'ink', 'events'], changes: entities.slice(0, 7)
     .map(({ key, value }) => ({ key, base: value, value: null })) });
 });

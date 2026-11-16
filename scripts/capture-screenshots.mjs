@@ -21,6 +21,8 @@ import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
 import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk, penDrag } from './helpers/cycle-14-qa.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
+import { cycle21Vault } from './helpers/cycle-21-events.mjs';
+import { assertPortAvailable } from './helpers/port.mjs';
 
 const args = process.argv.slice(2);
 const cycle = args.find((a) => !a.startsWith('--'));
@@ -30,7 +32,7 @@ if (!cycle) {
 }
 const urlFlag = args.indexOf('--url');
 const externalUrl = urlFlag >= 0 ? args[urlFlag + 1] : null;
-const PORT = 3100;
+const PORT = Number(process.env.DAYMARK_SCREENSHOT_PORT ?? 3100);
 const password = externalUrl ? process.env.DAYMARK_PASSWORD : 'screenshots-password-123';
 if (!password) throw new Error('Set DAYMARK_PASSWORD to sign in to --url');
 const baseUrl = externalUrl || `http://localhost:${PORT}`;
@@ -460,7 +462,76 @@ Steps and expected behaviour: [[${CYCLE20_NOTE}]]`);
   await page.getByRole('button', { name: 'Dismiss' }).click().catch(() => {}); // the "Added to" toast
 });
 
+const cycle21Ready = async (page) => {
+  await page.locator('[data-day-label]').waitFor();
+  await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
+};
+const cycle21DismissWarning = async (page) => {
+  const queue = page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
+  if (await queue.count()) await queue.getByRole('button', { name: /Dismiss C21 Upcoming warning preview/ }).click();
+};
+const cycle21Mixed = async (page) => {
+  await cycle21Ready(page);
+  await cycle21DismissWarning(page);
+  await page.getByRole('button', { name: 'C21 Partner planning session', exact: true }).waitFor();
+  await page.locator('[data-event-id="c21-duration-only"]').waitFor();
+};
+const cycle21Editor = async (page) => {
+  await cycle21Mixed(page);
+  await page.getByRole('button', { name: 'C21 Partner planning session', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit event', exact: true }).waitFor();
+};
+const cycle21Calendar = async (page) => {
+  await cycle21Mixed(page);
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  const tomorrow = await page.evaluate(() => { const date = new Date(); date.setDate(date.getDate() + 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; });
+  let cell = page.locator(`button[data-date="${tomorrow}"]`);
+  if (!await cell.count()) { await page.getByRole('button', { name: 'Next month', exact: true }).click(); cell = page.locator(`button[data-date="${tomorrow}"]`); }
+  await cell.click();
+  const continuation = page.locator('[data-calendar-event-id="c21-midnight"]');
+  await continuation.waitFor();
+  await continuation.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  if (await page.evaluate(() => window.innerWidth < 768)) {
+    const rowBox = await continuation.boundingBox();
+    const navigationBox = await page.getByRole('navigation', { name: 'Main', exact: true }).boundingBox();
+    if (!rowBox || !navigationBox || rowBox.y + rowBox.height > navigationBox.y) {
+      throw new Error(`Calendar continuation row is obscured by phone navigation: row=${JSON.stringify(rowBox)}, navigation=${JSON.stringify(navigationBox)}`);
+    }
+  }
+};
+const cycle21WarningSettings = async (page) => {
+  await cycle21Ready(page);
+  await cycle21DismissWarning(page);
+  await click('button', /^settings$/i)(page);
+  await settings(page).getByRole('tab', { name: 'Event warnings', exact: true }).click();
+  await settings(page).getByLabel('Minutes before start', { exact: true }).waitFor();
+};
+const cycle21WarningQueue = async (page) => {
+  await cycle21Ready(page);
+  await page.getByRole('region', { name: 'Upcoming event warnings', exact: true }).waitFor();
+};
 const SHOTS = [
+  // Cycle 21: events share daily sections, Calendar projects overnight spans, and warnings stay in-app.
+  { name: 'events-mixed-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21Mixed },
+  { name: 'events-mixed-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21Mixed },
+  { name: 'events-mixed-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21Mixed },
+  { name: 'events-mixed-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21Mixed },
+  { name: 'event-editor-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21Editor },
+  { name: 'event-editor-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21Editor },
+  { name: 'event-editor-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21Editor },
+  { name: 'event-editor-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21Editor },
+  { name: 'events-calendar-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21Calendar },
+  { name: 'events-calendar-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21Calendar },
+  { name: 'events-calendar-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21Calendar },
+  { name: 'events-calendar-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21Calendar },
+  { name: 'event-warning-settings-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21WarningSettings },
+  { name: 'event-warning-settings-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21WarningSettings },
+  { name: 'event-warning-settings-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21WarningSettings },
+  { name: 'event-warning-settings-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21WarningSettings },
+  { name: 'event-warning-queue-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21WarningQueue },
+  { name: 'event-warning-queue-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21WarningQueue },
+  { name: 'event-warning-queue-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21WarningQueue },
+  { name: 'event-warning-queue-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21WarningQueue },
   // Cycle 20: task notes render [[links]] that open the note.
   { name: 'task-note-link-desktop', viewport: 'desktop', cycles: ['cycle-20'], prepare: cycle20TaskLink },
   { name: 'task-note-link-mobile', viewport: 'android', cycles: ['cycle-20'], prepare: cycle20TaskLink },
@@ -695,6 +766,7 @@ async function waitForServer(url, ms = 30000) {
 
 let server;
 if (!externalUrl) {
+  await assertPortAvailable(PORT);
   server = spawn('npx', ['tsx', 'server.ts', '--production'], {
     env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-shots-')), DAYMARK_PASSWORD: password,
       ...(cycle === 'cycle-19' ? { DAYMARK_PUBLIC_URL: baseUrl, DAYMARK_MCP: 'on', DAYMARK_TZ: 'UTC' } : {}) },
@@ -709,7 +781,7 @@ try {
   browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
   // Shots without `cycles` are the generic pair; tagged shots run only for their cycle
   for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle))))) {
-    const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], colorScheme: shot.dark ? 'dark' : 'light', ...(shot.publicSite ? { serviceWorkers: 'block' } : {}) });
+    const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], ...(cycle === 'cycle-21' ? { timezoneId: 'Asia/Ho_Chi_Minh' } : {}), colorScheme: shot.dark ? 'dark' : 'light', ...(shot.publicSite ? { serviceWorkers: 'block' } : {}) });
     if (!shot.signedOut) {
       const session = await signIn(ctx, baseUrl, password);
       if (!externalUrl) await resetServerVault(ctx, baseUrl, session.accessToken);
@@ -718,7 +790,9 @@ try {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!externalUrl && !shot.signedOut) {
-      if (cycle === 'cycle-20') {
+      if (cycle === 'cycle-21') {
+        await seedVault(page, baseUrl, cycle21Vault(today));
+      } else if (cycle === 'cycle-20') {
         await seedVault(page, baseUrl, cycle20Vault(today));
       } else if (cycle === 'cycle-19') {
         await seedVault(page, baseUrl, cycle11Vault(today));
@@ -744,8 +818,11 @@ try {
         await seedVault(page, baseUrl, cycle9Vault(today));
       } else await seedSample(page, baseUrl);
     }
-    await page.goto(baseUrl, { waitUntil: 'networkidle' });
-    if (!shot.signedOut) await chooseTheme(page, !!shot.dark);
+    await page.goto(baseUrl, { waitUntil: cycle === 'cycle-21' ? 'domcontentloaded' : 'networkidle' });
+    if (!shot.signedOut) {
+      if (cycle === 'cycle-21') await cycle21Ready(page);
+      await chooseTheme(page, !!shot.dark);
+    }
     if (shot.prepare) await shot.prepare(page, today);
     const file = path.join(outDir, `${shot.name}.png`);
     const target = shot.selector ? page.locator(shot.selector) : page;

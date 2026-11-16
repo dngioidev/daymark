@@ -4,7 +4,7 @@ Goal: Android user first, then self-hosted app, then everything else. Each cycle
 
 ## Cycle 21: One-time event tracking
 
-**Status: specification approved 2026-11-15; implementation plan drafted for review.** Planned and past events mix with tasks in sections and have a dedicated Calendar agenda. Time and duration are independently optional; timed events support end-time/duration entry, cross-midnight spans, original-zone primary display, local secondary display and configurable in-app advance warnings. Events have notes and checklists, without completion, aging or rollover. See the [approved spec](./superpowers/specs/2026-11-15-cycle-21-events-design.md), [implementation plan](./superpowers/plans/2026-11-15-cycle-21-events.md) and [discovery record](./superpowers/specs/2026-11-15-cycle-21-events-discovery.md).
+**Status: implemented and verified on `cycle-21-events`; not merged, released or deployed.** Planned and past events mix with tasks in sections and have a dedicated Calendar agenda. Time and duration are independently optional; timed events support end-time/duration entry, cross-midnight spans, original-zone primary display, local secondary display and configurable in-app advance warnings. Events have notes and checklists, without completion, aging or rollover. See the [approved spec](./superpowers/specs/2026-11-15-cycle-21-events-design.md), [implementation plan](./superpowers/plans/2026-11-15-cycle-21-events.md), [events guide](./guide/events.md) and [discovery record](./superpowers/specs/2026-11-15-cycle-21-events-discovery.md). Verification: 2,644 unit tests passed (1 skipped), 44 helper tests passed, 61 sync checks passed, PWA passed, and 54 captured images reviewed. Browser QA retains 58 exact baseline failures; one startup timeout passed on focused retry. See [Cycle 21 report](./releases/cycle-21/README.md) for raw and consolidated results.
 
 ## Cycle 20: MCP feedback round 1
 
@@ -64,7 +64,8 @@ Assumptions: Claude Pro, Opus 5.5, 5-hour usage windows. Opus consumes a Pro all
 | 2 | Android native shell and widget | 2 | 3-5M | 1-1.5 | 1-2 windows |
 | 3 | Self-hosted server and sync | 3 | 6-10M | 2-3 | 2-3 windows |
 | 4 | Remaining: desktop, iOS, polish, v1.0 | 2-3 | 4-7M | 1.5-2 | 2 windows |
-| Total | | 10-12 | 18-30M | 6-9 | about 7-10 windows (about 1.5-2.5 weeks if one window per day) |
+| 21 | One-time events | Exact session count unavailable; one reused Luna worker with main review | Runtime total unavailable | Not recorded | Implementation checkpoints 2026-11-15 to 2026-11-16 |
+| Total (cycles 0–4 estimates) | | 10-12 | 18-30M | 6-9 | about 7-10 windows (about 1.5-2.5 weeks if one window per day) |
 
 ---
 

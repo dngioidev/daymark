@@ -1,0 +1,468 @@
+{
+  "baseline": {
+    "checks": 808,
+    "passed": 750,
+    "failed": 58
+  },
+  "full_final_run": {
+    "checks": 825,
+    "passed": 766,
+    "failed": 59,
+    "additional_failure": [
+      {
+        "id": "B13",
+        "ok": false,
+        "label": "scenario crashed",
+        "detail": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3121/\", waiting until \"networkidle\"\u001b[22m\n"
+      }
+    ]
+  },
+  "focused_retry": [
+    {
+      "id": "B13b",
+      "ok": true,
+      "label": "after midnight the open task is carried to the new day automatically",
+      "detail": "[\"2026-11-16\",\"2026-11-17\"]"
+    }
+  ],
+  "consolidated": {
+    "checks": 825,
+    "passed": 767,
+    "failed": 58,
+    "new_failures": [],
+    "removed_baseline_failures": []
+  },
+  "comparison_method": "Compare failure multisets by exact ID, label and detail. Keep raw full-run timeout visible; replace only B13 scenario crash with independently executed B13b retry when reporting consolidated coverage.",
+  "remaining_baseline_failures": [
+    {
+      "id": "D4",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.boundingBox: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Settings', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "R1",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C11-Axe-light-tree",
+      "ok": false,
+      "label": "folder tree has no axe findings (light)",
+      "detail": "label-content-name-mismatch: <button type=\"button\" data-tag=\"java\" aria-pressed=\"false\" aria-label=\"#java, 2 notes\" class=\"min-h-8 w-full flex items-"
+    },
+    {
+      "id": "C11-Axe-dark-tree",
+      "ok": false,
+      "label": "folder tree has no axe findings (dark)",
+      "detail": "label-content-name-mismatch: <button type=\"button\" data-tag=\"java\" aria-pressed=\"false\" aria-label=\"#java, 2 notes\" class=\"min-h-8 w-full flex items-"
+    },
+    {
+      "id": "C101-light-S-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-S",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C101-light-M-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-M",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C101-light-L-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-light-L",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C101-dark-S-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":97.5,\"bottom\":127.5,\"w\":21,\"h\":30,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-S",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C101-dark-M-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":104,\"bottom\":136,\"w\":21,\"h\":32,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-M",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    },
+    {
+      "id": "C101-dark-L-800-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-800-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-800-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-800-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-1440-Left",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-1440-Left",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-1440-Right",
+      "ok": false,
+      "label": "Search (Ctrl Shift F) stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L-1440-Right",
+      "ok": false,
+      "label": "Settings stays reachable with a keyboard tooltip in a short window",
+      "detail": "{\"y\":113.75,\"bottom\":148.75,\"w\":21,\"h\":35,\"focus\":true,\"contained\":true,\"hit\":true}"
+    },
+    {
+      "id": "C101-dark-L",
+      "ok": false,
+      "label": "scenario crashed",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Focus mode', exact: true })\u001b[22m\n"
+    }
+  ],
+  "event_checks": [
+    {
+      "id": "C21-warning",
+      "ok": true,
+      "label": "default 15-minute setting shows an upcoming event warning"
+    },
+    {
+      "id": "C21-warning-default",
+      "ok": true,
+      "label": "settings show the implicit 15-minute default as enabled"
+    },
+    {
+      "id": "C21-warning-off",
+      "ok": true,
+      "label": "turning warnings Off removes the active upcoming notice"
+    },
+    {
+      "id": "C21-capture-mixed",
+      "ok": true,
+      "label": "captured event remains separately recognizable beside a task row"
+    },
+    {
+      "id": "C21-reload",
+      "ok": true,
+      "label": "event, notes and checklist survive reload"
+    },
+    {
+      "id": "C21-edit-checklist",
+      "ok": true,
+      "label": "editing and checklist state persist independently"
+    },
+    {
+      "id": "C21-calendar-continuation",
+      "ok": true,
+      "label": "Calendar shows an end-exclusive overnight continuation on the next date"
+    },
+    {
+      "id": "C21-untimed-duration",
+      "ok": true,
+      "label": "duration-only commitment is shown without a timed slot"
+    },
+    {
+      "id": "C21-errors",
+      "ok": true,
+      "label": "event capture/edit/calendar flow has no browser errors"
+    },
+    {
+      "id": "C21-warning-700-geometry",
+      "ok": true,
+      "label": "warning queue sits above the bottom navigation at a 700px mobile viewport"
+    },
+    {
+      "id": "C21-warning-700-hit",
+      "ok": true,
+      "label": "warning queue remains hit-testable at a 700px mobile viewport"
+    },
+    {
+      "id": "C21-mobile-daily-row",
+      "ok": true,
+      "label": "phone Today displays the event beside the daily rows"
+    },
+    {
+      "id": "C21-mobile-checklist-edit",
+      "ok": true,
+      "label": "phone checklist and event edit persist together"
+    },
+    {
+      "id": "C21-mobile-calendar-today",
+      "ok": true,
+      "label": "phone Calendar opens on event-only today when the latest daily document is older"
+    },
+    {
+      "id": "C21-mobile-calendar-past",
+      "ok": true,
+      "label": "phone Calendar keeps an event-only past date selected after tab changes"
+    },
+    {
+      "id": "C21-mobile-errors",
+      "ok": true,
+      "label": "phone event flow has no browser errors"
+    }
+  ]
+}

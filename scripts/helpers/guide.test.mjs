@@ -35,7 +35,14 @@ test('guide parser names the topic when a required part is missing or wrong', as
 test('every shipped guide topic has a summary, numbered steps on every platform and valid links', async () => {
   const { loadGuide } = await import('./guide.mjs');
   const topics = loadGuide(new URL('../../docs/guide/', import.meta.url));
-  assert.equal(topics.length, 22);
+  assert.equal(topics.length, 23);
+  const events = topics.find(t => t.slug === 'events');
+  assert.ok(events);
+  for (const platform of ['web', 'phone']) {
+    assert.match(events[platform], /date-only/i);
+    assert.match(events[platform], /foreground/i);
+    assert.match(events[platform], /Calendar/i);
+  }
   assert.ok(topics.some(t => t.slug === 'ai-connections'));
   assert.ok(topics.some(t => t.slug === 'ai-clients'));
   assert.deepEqual(topics.filter(t => t.group === 'start').map(t => t.slug), ['first-5-minutes', 'whats-new']);

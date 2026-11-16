@@ -682,6 +682,19 @@ export default function App() {
     setEditingEvent(null);
   };
 
+  const handleUpdateEvent = (candidate: EventItem, capturedBase?: EventItem | null) => {
+    const latest = eventsRef.current.find((event) => event.id === candidate.id) ?? null;
+    const merged = mergeEvent(capturedBase ?? latest, latest, candidate);
+    if (merged.conflicts.length) showToast(merged.conflicts.length === 1 ? merged.conflicts[0] : `${merged.conflicts.length} event edits changed on two devices; your changes were merged.`, { tone: 'info' });
+    if (!merged.value) return;
+    const updated: EventItem = { ...merged.value, updatedAt: new Date().toISOString() };
+    if (!validateEvent(updated)) {
+      showToast('This event could not be updated because its schedule is invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((current) => upsertEvent(current, updated));
+  };
+
   const handleDeleteEvent = (id: string) => updateEvents((current) => removeEvent(current, id));
 
   const handleMoveEvent = (id: string, change: { date?: string; heading?: string; startInstant?: string }) => {
@@ -1040,7 +1053,7 @@ export default function App() {
                 events={events}
                 deviceZone={deviceZone}
                 onEditEvent={setEditingEvent}
-                onUpdateEvent={(event) => updateEvents((current) => upsertEvent(current, event))}
+                onUpdateEvent={handleUpdateEvent}
                 onDeleteEvent={handleDeleteEvent}
                 onMoveEvent={handleMoveEvent}
                 onTriggerRollover={handleTriggerRollover}
@@ -1099,6 +1112,12 @@ export default function App() {
           habitsSlot={<HabitsBar countingDays={alertDays.habits} data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}
+          events={events}
+          deviceZone={deviceZone}
+          onEditEvent={setEditingEvent}
+          onUpdateEvent={handleUpdateEvent}
+          onDeleteEvent={handleDeleteEvent}
+          onMoveEvent={handleMoveEvent}
           inkPagesForNote={inkPagesForNote}
           updateInkPage={updateInkPage}
           notes={notes}
@@ -1172,7 +1191,7 @@ export default function App() {
       />
 
       {eventWarningAnnouncement && <div className="sr-only" aria-live="polite" aria-atomic="false">{eventWarningAnnouncement}</div>}
-      <EventWarningQueue deviceZone={deviceZone} notices={eventWarningState.notices} onDismiss={eventWarningState.dismiss} onOpen={(event) => {
+      <EventWarningQueue deviceZone={deviceZone} mobileNavigation={appMode === 'mobile-app'} notices={eventWarningState.notices} onDismiss={eventWarningState.dismiss} onOpen={(event) => {
         const notice = eventWarningState.notices.find((item) => item.key === `${event.id}|${event.timing?.startInstant ?? ''}`);
         if (notice) eventWarningState.dismiss(notice);
         setEditingEvent(event);

@@ -89,7 +89,8 @@ beforeEach(() => {
   vi.stubGlobal('window', { innerWidth: 1440, location: { search: '' }, setTimeout, clearTimeout,
     addEventListener: (name: string, fn: (e: unknown) => void) => { if (name === 'keydown') listener = fn; }, removeEventListener: vi.fn() });
   themeMeta.content = '#1c1917';
-  vi.stubGlobal('document', { cookie: '', querySelector: (selector: string) => selector === 'meta[name="theme-color"]' ? themeMeta : null, documentElement: { classList: { toggle: vi.fn(), remove: vi.fn() } } });
+  vi.stubGlobal('document', { cookie: '', visibilityState: 'visible', addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    querySelector: (selector: string) => selector === 'meta[name="theme-color"]' ? themeMeta : null, documentElement: { classList: { toggle: vi.fn(), remove: vi.fn() } } });
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
   docs.splice(0, docs.length, { date: '2026-10-20', type: 'daily', updatedAt: '', headings: [{ name: 'Work', items: [{ id: 't1', title: 'Found', status: 'done', createdDate: '2026-10-20', originalNoteDate: '2026-10-20', heading: 'Work', order: 0, historyLog: [] }] }] });
   render(); hooks.effects.forEach((effect) => effect());
