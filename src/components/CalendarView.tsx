@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Check, ChevronLeft, ChevronRight, Circle, ExternalLink, MoreHorizontal, RotateCcw } from 'lucide-react';
-import { CountingDays, DailyDocument, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
+import { CountingDays, DailyDocument, EventItem, HabitData, StatusDefinition, TaskItem } from '../types/daymark';
 import { getNextDate, getPreviousDate } from '../utils/lifecycleEngine';
 import { formatDay, formatLongDate } from '../utils/dateFormat';
 import { monthCells, weekCells } from '../utils/calendarGrid';
@@ -11,13 +11,20 @@ import { Menu } from './ui/Menu';
 import { WeekRows } from './WeekRows';
 import { HabitChecklist } from './habits/HabitChecklist';
 import { habitsForDay, setTick } from '../utils/habits';
+import { CalendarEvents } from './events/CalendarEvents';
+import { eventsForDate } from '../utils/events';
+import { EventWeekGrid } from './events/EventWeekGrid';
+import { eventDateAtInstant } from '../utils/eventTime';
+import { shiftEventWeekAnchor } from '../utils/eventWeekProjection';
 
 interface CalendarViewProps {
   countingDays: CountingDays;
   habits: HabitData;
   onHabitsChange: (next: HabitData) => void;
-  initialView?: 'month' | 'week';
+  initialView?: 'month' | 'week' | 'events-week';
   dailyDocuments: DailyDocument[];
+  events?: EventItem[];
+  deviceZone?: string;
   selectedDate: string;
   simulatedToday: string;
   statuses: StatusDefinition[];
@@ -28,6 +35,7 @@ interface CalendarViewProps {
   /** Opens the day in the Today view (editable). */
   onOpenDay?: (date: string) => void;
   onMoveTask: (taskId: string, fromDate: string, toDate: string) => void;
+  onEditEvent?: (event: EventItem) => void;
   compact?: boolean;
 }
 
@@ -45,6 +53,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onHabitsChange,
   initialView = 'month',
   dailyDocuments,
+  events = [],
+  deviceZone = 'UTC',
   selectedDate,
   simulatedToday,
   statuses,
@@ -53,11 +63,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onMarkDoneOnDay,
   onOpenDay,
   onMoveTask,
+  onEditEvent = () => undefined,
   compact = false,
 }) => {
   const [year, setYear] = useState(() => Number(selectedDate.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(selectedDate.slice(5, 7)) - 1);
-  const [view, setView] = useState<'month' | 'week'>(initialView);
+  const [view, setView] = useState<'month' | 'week' | 'events-week'>(initialView);
   const [weekAnchor, setWeekAnchor] = useState(selectedDate);
   const [moveTask, setMoveTask] = useState<TaskItem | null>(null);
   const [moveDate, setMoveDate] = useState('');
@@ -74,6 +85,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }, [selectedDate]);
 
   const shiftMonth = (delta: number) => {
+    if (view === 'events-week') {
+      setWeekAnchor((anchor) => shiftEventWeekAnchor(anchor, delta < 0 ? -7 : 7) ?? anchor);
+      return;
+    }
     if (view === 'week') {
       setWeekAnchor((anchor) => delta < 0 ? getPreviousDate(anchor, 7) : getNextDate(anchor, 7));
       return;
@@ -85,6 +100,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const docMap = useMemo(() => new Map(dailyDocuments.map((d) => [d.date, d])), [dailyDocuments]);
   const selectedDoc = docMap.get(selectedDate);
+  const selectedEvents = eventsForDate(events, selectedDate);
   const selectedSections = (selectedDoc?.headings ?? []).map((section) => ({
     ...section, items: section.items.filter((task) => !task.movedToBacklogDate),
   }));
@@ -106,7 +122,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyDocuments, simulatedToday]);
 
-  const cells = view === 'month' ? monthCells(year, month, dailyDocuments, simulatedToday) : weekCells(weekAnchor, dailyDocuments, simulatedToday);
+  const cells = view === 'month' ? monthCells(year, month, dailyDocuments, simulatedToday, events)
+    : view === 'week' ? weekCells(weekAnchor, dailyDocuments, simulatedToday, events) : [];
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const recentDays = dailyDocuments
     .filter((d) => d.date <= simulatedToday)
@@ -149,39 +166,50 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     onDrop: (event) => dropTask(event, date),
   });
 
+  const goToDeviceToday = () => {
+    const today = eventDateAtInstant(new Date().toISOString(), deviceZone) ?? simulatedToday;
+    setWeekAnchor(today);
+    setYear(Number(today.slice(0, 4)));
+    setMonth(Number(today.slice(5, 7)) - 1);
+    onSelectDate(today);
+  };
+
   return (
     <div className={compact ? 'space-y-3 text-sm' : 'w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4 text-sm'}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         {compact && <h1 className="text-xl font-bold text-[var(--dm-page-fg)]">Calendar</h1>}
-        <p className="text-stone-700 dark:text-stone-300">
+        {view !== 'events-week' && <p className="text-stone-700 dark:text-stone-300">
           Last 7 days: <strong>{week.done} done</strong> · {week.open} still open
-        </p>
+        </p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        <div className={`${view === 'week' ? 'lg:col-span-12' : 'lg:col-span-6'} min-w-0 space-y-4`}>
+        <div className={`${view === 'week' || view === 'events-week' ? 'lg:col-span-12' : 'lg:col-span-6'} min-w-0 space-y-4`}>
           <div className={`${card} p-3`}>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-base font-semibold pl-1">{view === 'month' ? monthLabel : `${formatDay(cells[0].date, simulatedToday)} – ${formatDay(cells[6].date, simulatedToday)}`}</h2>
+              <h2 className="text-base font-semibold pl-1">{view === 'month' ? monthLabel : view === 'events-week' ? 'Events week' : `${formatDay(cells[0].date, simulatedToday)} – ${formatDay(cells[6].date, simulatedToday)}`}</h2>
               <div className="flex items-center">
-                <button type="button" onClick={() => shiftMonth(-1)} aria-label={`Previous ${view}`} className={iconBtn}>
+                <button type="button" onClick={() => shiftMonth(-1)} aria-label={`Previous ${view === 'events-week' ? 'Events week' : view}`} className={iconBtn}>
                   <ChevronLeft className="w-5 h-5" />
                 </button>
-                <button type="button" onClick={() => shiftMonth(1)} aria-label={`Next ${view}`} className={iconBtn}>
+                {view === 'events-week' && <button type="button" onClick={goToDeviceToday} aria-label="Go to current Events week" className="min-h-11 px-3 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-800">Today</button>}
+                <button type="button" onClick={() => shiftMonth(1)} aria-label={`Next ${view === 'events-week' ? 'Events week' : view}`} className={iconBtn}>
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
             <div className="flex gap-1 mb-3" role="group" aria-label="Calendar view">
-              {(['month', 'week'] as const).map((mode) => (
+              {(['month', 'week', 'events-week'] as const).map((mode) => (
                 <button key={mode} type="button" aria-pressed={view === mode} onClick={() => setView(mode)}
                   className={`min-h-11 px-3 rounded-lg font-medium ${view === mode ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'hover:bg-stone-100 dark:hover:bg-stone-800'}`}>
-                  {mode === 'month' ? 'Month' : 'Week'}
+                  {mode === 'month' ? 'Month' : mode === 'week' ? 'Week' : 'Events week'}
                 </button>
               ))}
             </div>
-            {view === 'week' ? (
+            {view === 'events-week' ? (
+              <EventWeekGrid events={events} anchor={weekAnchor} deviceZone={deviceZone} onEdit={onEditEvent} />
+            ) : view === 'week' ? (
               <WeekRows countingDays={countingDays} cells={cells} selectedDate={selectedDate} today={simulatedToday} habits={habits}
                 onSelectDate={onSelectDate} dropProps={dropProps} />
             ) : <>
@@ -191,7 +219,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {cells.map(({ date, done, total, hasNotes, inMonth, isToday }) => {
+              {cells.map(({ date, done, total, eventCount, hasNotes, inMonth, isToday }) => {
                 const doc = docMap.get(date);
                 const isSelected = date === selectedDate;
                 const ratio = total ? done / total : 0;
@@ -212,7 +240,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onClick={() => onSelectDate(date)}
                     {...dropProps(date)}
                     aria-pressed={isSelected}
-                    aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : ': nothing recorded'}`}
+                    aria-label={`${formatLongDate(date)}${total ? `: ${done} of ${total} done` : hasNotes ? ': notes only' : eventCount ? ': no tasks' : ': nothing recorded'}${eventCount ? `, ${eventCount} ${eventCount === 1 ? 'event' : 'events'}` : ''}`}
                     className={`min-h-20 justify-center min-w-0 px-1 rounded-lg flex flex-col items-center gap-1 text-sm tabular-nums ${
                       isSelected
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-bold'
@@ -227,6 +255,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   >
                     <span>{Number(date.slice(8))}</span>
                     {total > 0 && <span className="text-xs">{done}/{total}</span>}
+                    {eventCount > 0 && <span aria-label={`${eventCount} ${eventCount === 1 ? 'event' : 'events'}`} className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-950 dark:bg-amber-900 dark:text-amber-100">{eventCount}</span>}
                     {hasNotes && <span role="img" aria-label="has notes" className="w-1.5 h-1.5 rounded-full bg-current" />}
                     <span className={`w-4 h-1 rounded-full ${marker || 'bg-transparent'}`} />
                   </button>
@@ -247,7 +276,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </>}
           </div>
 
-          {!compact && recentDays.length > 0 && (
+          {view !== 'events-week' && !compact && recentDays.length > 0 && (
             <div className={`${card} p-2`}>
               <h2 className="px-2 pt-1 pb-1.5 font-semibold">Recent days</h2>
               <ul>
@@ -274,7 +303,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           )}
         </div>
 
-        <div className={`${view === 'week' ? 'lg:col-span-12' : 'lg:col-span-6'} ${card} p-4 space-y-4`}>
+        {view !== 'events-week' && <div className={`${view === 'week' ? 'lg:col-span-12' : 'lg:col-span-6'} ${card} p-4 space-y-4`}>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-stone-900 dark:text-stone-50">{formatLongDate(selectedDate)}</h2>
@@ -294,6 +323,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             )}
           </div>
+
+          <CalendarEvents events={selectedEvents} selectedDate={selectedDate} deviceZone={deviceZone} onEdit={onEditEvent} />
 
           {selectedHabits.length > 0 && (
             <section className="space-y-2">
@@ -373,9 +404,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </section>
               ))
           ) : (
-            <p className="py-10 text-center text-stone-600 dark:text-stone-400">Nothing was recorded on {formatDay(selectedDate, simulatedToday)}.</p>
+            <p className="py-10 text-center text-stone-600 dark:text-stone-400">{selectedEvents.length > 0 ? `No tasks recorded on ${formatDay(selectedDate, simulatedToday)}.` : `Nothing was recorded on ${formatDay(selectedDate, simulatedToday)}.`}</p>
           )}
-        </div>
+        </div>}
       </div>
       <Dialog isOpen={!!moveTask} onClose={() => setMoveTask(null)} title="Move to date…"
         description={`Move “${moveTask?.title ?? ''}” from ${formatDay(selectedDate, simulatedToday)}.`} size="sm"

@@ -1,14 +1,15 @@
 import { inkPageVersion } from '../ink/inkVersion';
 import type { InkPage } from '../types/daymark';
 import { isInkPage, isInkPages } from './vaultValidation';
-import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, StandaloneNote } from '../types/daymark';
+import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, EventItem, HabitData, NoteMeta, StandaloneNote } from '../types/daymark';
 import { uneditedRecoveredNoteMeta } from './noteFolders';
+import { uneditedRecoveredEvents } from './events';
 import { EMPTY_BACKLOG, uneditedRecoveredBacklog } from './backlog';
 import { EMPTY_HABITS, uneditedRecoveredHabits } from './habits';
 import { DEFAULT_SETTINGS, normalizeSettings, SEED_DAILY_DOCUMENTS, SEED_STANDALONE_NOTES } from './defaultData';
 import { buildVaultZip, exportBackupAssets } from './vaultArchive';
 import type { SyncState } from '../sync/syncClient';
-import { isNoteMeta, isNoteFolder, isDismissedPair, isBacklogData, isBacklogItem, isDailyDocument, isHabit, isHabitData, isHabitDay, isHabitTick, isStandaloneNote, isSyncedSettings } from './vaultValidation';
+import { isNoteMeta, isNoteFolder, isDismissedPair, isBacklogData, isBacklogItem, isDailyDocument, isEventItem, isEventItems, isHabit, isHabitData, isHabitDay, isHabitTick, isStandaloneNote, isSyncedSettings } from './vaultValidation';
 import { isNativeApp } from '../native/daymarkBridge';
 import { LOGOUT_PENDING_KEY } from './logoutPending';
 import { decideInitialAppearance } from './appearance';
@@ -33,6 +34,7 @@ const STORE = 'kv';
 const KEYS = {
   SETTINGS: 'settings',
   DAILY_DOCS: 'daily_docs',
+  EVENTS: 'events',
   NOTES: 'notes',
   HABITS: 'habits',
   BACKLOG: 'backlog',
@@ -46,6 +48,7 @@ const KEYS = {
 const LEGACY_KEYS: Record<string, string> = {
   [KEYS.SETTINGS]: 'daymark_settings_v1',
   [KEYS.DAILY_DOCS]: 'daymark_daily_docs_v1',
+  [KEYS.EVENTS]: 'daymark_events_v1',
   [KEYS.NOTES]: 'daymark_notes_v1',
   [KEYS.HABITS]: 'daymark_habits_v1',
   [KEYS.BACKLOG]: 'daymark_backlog_v1',
@@ -181,7 +184,7 @@ function readLegacyLocalStorage(key: string): unknown {
     if (!raw) return undefined;
     try { return JSON.parse(raw); } catch {
       // Keep a marker for unreadable data so mount saves cannot replace stored data.
-      return key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META ? null : undefined;
+      return key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META || key === KEYS.EVENTS ? null : undefined;
     }
   } catch {
     return undefined;
@@ -257,7 +260,7 @@ export async function initVaultStore(): Promise<void> {
   }
 }
 
-export type SharedKey = 'daily_docs' | 'notes' | 'settings' | 'habits' | 'backlog' | 'notemeta' | 'ink';
+export type SharedKey = 'daily_docs' | 'notes' | 'settings' | 'habits' | 'backlog' | 'notemeta' | 'events' | 'ink';
 type ExternalListener = (key: SharedKey, value: unknown) => void;
 const externalListeners = new Set<ExternalListener>();
 const CHANNEL_NAME = 'daymark-vault';
@@ -277,6 +280,7 @@ export function parseVaultMessage(data: unknown): { key: SharedKey; value: unkno
   }
   if (key === 'notemeta' && isNoteMeta(value)) return { key, value };
   if (key === 'backlog' && isBacklogData(value)) return { key, value };
+  if (key === 'events' && isEventItems(value)) return { key, value };
   return null;
 }
 
@@ -322,7 +326,7 @@ function writeValue(key: string, value: unknown, force = false): Promise<void> {
   if (!force && value === previous && key !== KEYS.SYNC_STATE) return writeChain;
   if (key === KEYS.SETTINGS && previous && JSON.stringify(value) === JSON.stringify(previous)) return writeChain;
   cache.set(key, value);
-  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES || key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META || key === KEYS.INK) {
+  if (key === KEYS.SETTINGS || key === KEYS.DAILY_DOCS || key === KEYS.NOTES || key === KEYS.HABITS || key === KEYS.BACKLOG || key === KEYS.NOTE_META || key === KEYS.EVENTS || key === KEYS.INK) {
     try {
       channel?.postMessage({ key, value });
     } catch {
@@ -374,7 +378,7 @@ export function loadSettings(): AppSettings {
   const value = cache.get(KEYS.SETTINGS) as AppSettings | undefined;
   let settings = value ?? DEFAULT_SETTINGS;
   if (!value?.appearance) {
-    const hasExistingData = [KEYS.SETTINGS, KEYS.DAILY_DOCS, KEYS.NOTES].some(
+    const hasExistingData = [KEYS.SETTINGS, KEYS.DAILY_DOCS, KEYS.NOTES, KEYS.EVENTS].some(
       (key) => cache.has(key) || readLegacyLocalStorage(key) !== undefined,
     );
     const systemPrefersDark = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -395,6 +399,35 @@ export function loadDailyDocuments(): DailyDocument[] {
 
 export function saveDailyDocuments(docs: DailyDocument[]): void {
   writeValue(KEYS.DAILY_DOCS, docs);
+}
+
+export function loadEvents(): EventItem[] {
+  const value = cache.get(KEYS.EVENTS);
+  if (isEventItems(value)) return value;
+  if (!cache.has(KEYS.EVENTS)) return [];
+  const valid: EventItem[] = [];
+  const ids = new Set<string>();
+  const raw = Array.isArray(value) ? value : [];
+  for (const candidate of raw) {
+    if (!isEventItem(candidate) || ids.has(candidate.id)) continue;
+    ids.add(candidate.id);
+    valid.push(candidate);
+  }
+  console.error(`Recovered ${valid.length} valid events from damaged event storage; keeping the stored value until events are edited.`);
+  const syncState = loadSyncState();
+  if (syncState) {
+    const bases = Object.fromEntries(Object.entries(syncState.bases).filter(([key]) => !key.startsWith('event:')));
+    void saveSyncState({ ...syncState, bases, eventsSynced: false }).catch(() => undefined);
+  }
+  uneditedRecoveredEvents.add(valid);
+  cache.set(KEYS.EVENTS, valid);
+  return valid;
+}
+
+export function saveEvents(events: EventItem[]): void {
+  if (uneditedRecoveredEvents.has(events)) return;
+  if (!isEventItems(events)) throw new Error('Cannot save invalid events.');
+  writeValue(KEYS.EVENTS, events);
 }
 
 export function loadStandaloneNotes(): StandaloneNote[] {
@@ -698,7 +731,7 @@ export function wipeLocalVault(): Promise<void> {
 /** True once the user has chosen how to start (empty vault or sample data), or has any data. */
 export function needsOnboarding(): boolean {
   if (cache.get(KEYS.ONBOARDED)) return false;
-  return loadDailyDocuments().length === 0 && loadStandaloneNotes().length === 0;
+  return loadDailyDocuments().length === 0 && loadStandaloneNotes().length === 0 && loadEvents().length === 0;
 }
 
 export function markOnboarded(): void {
@@ -716,6 +749,7 @@ export function resetVaultToSeedData(): {
   backlog: BacklogData;
   notemeta: NoteMeta;
   ink: InkPage[];
+  events: EventItem[];
 } {
   saveSettings(DEFAULT_SETTINGS);
   saveDailyDocuments(SEED_DAILY_DOCUMENTS);
@@ -724,6 +758,7 @@ export function resetVaultToSeedData(): {
   saveBacklog(EMPTY_BACKLOG);
   saveNoteMeta(EMPTY_NOTE_META);
   saveInkPages([]);
+  saveEvents([]);
   markOnboarded();
   return {
     settings: DEFAULT_SETTINGS,
@@ -733,6 +768,7 @@ export function resetVaultToSeedData(): {
     backlog: EMPTY_BACKLOG,
     notemeta: EMPTY_NOTE_META,
     ink: [],
+    events: [],
   };
 }
 
@@ -806,8 +842,9 @@ export async function exportVaultAsZip(
   backlog: BacklogData = loadBacklog(),
   notemeta: NoteMeta = loadNoteMeta(),
   ink: InkPage[] = readInkPages(),
+  events: EventItem[] = loadEvents(),
 ): Promise<boolean> {
-  const bytes = await buildVaultZip(docs, notes, settings, habits, onMissingPictures, backlog, notemeta, ink);
+  const bytes = await buildVaultZip(docs, notes, settings, habits, onMissingPictures, backlog, notemeta, ink, events);
   return recordBackup(await downloadBlob(new Blob([bytes as BlobPart], { type: 'application/zip' }), `daymark-vault-${new Date().toISOString().split('T')[0]}.zip`));
 }
 
@@ -823,6 +860,7 @@ export async function exportVaultAsJson(
   backlog: BacklogData = loadBacklog(),
   notemeta: NoteMeta = loadNoteMeta(),
   ink: InkPage[] = readInkPages(),
+  events: EventItem[] = loadEvents(),
 ): Promise<boolean> {
   const bundle = {
     daymark_backup_version: '1.0',
@@ -835,6 +873,7 @@ export async function exportVaultAsJson(
     backlog,
     notemeta,
     ink,
+    events,
   };
   return recordBackup(
     await downloadBlob(

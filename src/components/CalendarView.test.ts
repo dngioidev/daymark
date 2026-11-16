@@ -5,7 +5,7 @@ import { CalendarView } from './CalendarView';
 import { WeekRows } from './WeekRows';
 import { weekCells } from '../utils/calendarGrid';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import type { DailyDocument, HabitData } from '../types/daymark';
+import type { DailyDocument, EventItem, HabitData } from '../types/daymark';
 import { formatLongDate } from '../utils/dateFormat';
 
 const habits: HabitData = {
@@ -105,6 +105,23 @@ it('week view renders rows with all tasks', () => {
   expect(html).not.toMatch(/\+\d+ more/);
 });
 
+it('renders Events week without task-week rows or the selected-day task panel', () => {
+  const event: EventItem = { id: 'week-event', title: 'Planning session', date: '2026-10-20', heading: 'Work', order: 0,
+    timing: { localTime: '09:00', timeZone: 'Asia/Saigon', startInstant: '2026-10-20T02:00:00.000Z' },
+    durationMinutes: 60, createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' };
+  const html = renderToStaticMarkup(React.createElement(CalendarView, { ...calendarProps, initialView: 'events-week',
+    selectedDate: '2026-10-20', simulatedToday: '2026-10-20', events: [event], deviceZone: 'Asia/Saigon' }));
+  expect(html).toContain('Events week');
+  expect(html).toContain('Planning session');
+  expect(html).toContain('Device timezone: Asia/Saigon');
+  expect(html).not.toContain('Last 7 days:');
+  expect(html).not.toContain('Recent days');
+  expect(html).not.toContain('Nothing was recorded on');
+  expect(html).not.toContain('No tasks recorded on');
+  expect(html).not.toContain('Habits:');
+  expect(html).not.toContain('data-date=');
+});
+
 it('future row has no habit dots', () => {
   const html = renderToStaticMarkup(React.createElement(CalendarView, { ...calendarProps, initialView: 'week', selectedDate: '2026-10-24' }));
   const rows = html.split(/(?=<(?:button|div)[^>]*data-date=")/).slice(1);
@@ -116,6 +133,24 @@ it('future row has no habit dots', () => {
     expect(row).not.toContain('bg-stone-300 dark:bg-stone-600');
   }
   expect(html).not.toContain('type="checkbox"');
+});
+
+it('shows an Events agenda and separate month/week counts on a task-empty date', () => {
+  const date = '2026-10-20';
+  const event: EventItem = { id: 'calendar-only', title: 'Community event', date, heading: 'Personal', order: 1,
+    durationMinutes: 90, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+  const props = { ...calendarProps, selectedDate: date, events: [event], deviceZone: 'Asia/Saigon', onEditEvent: vi.fn() };
+  const monthHtml = renderToStaticMarkup(React.createElement(CalendarView, props));
+  expect(monthHtml).toContain('aria-label="Events"');
+  expect(monthHtml).toContain('Community event');
+  expect(monthHtml).toContain('No set time · 1 hour 30 minutes');
+  expect(monthHtml).toContain('No tasks recorded on');
+  expect(monthHtml).toContain(', 1 event"');
+
+  const weekHtml = renderToStaticMarkup(React.createElement(CalendarView, { ...props, initialView: 'week' }));
+  expect(weekHtml).toContain('1 event');
+  expect(weekHtml).toContain('No tasks');
+  expect(weekHtml).toContain('Community event');
 });
 
 it('past day detail shows habit checkboxes', () => {

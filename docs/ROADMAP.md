@@ -2,6 +2,12 @@
 
 Goal: Android user first, then self-hosted app, then everything else. Each cycle is sized for one to two focused AI-agent sessions, not for human days. Every cycle ends with `npm run lint`, `npm run build`, `npm test` (from Cycle 1), `npm run validate:ai`, and a **release doc with captured screenshots**.
 
+## Cycle 21: One-time event tracking
+
+**Status: implemented and verified on `cycle-21-events`; not merged, released or deployed.** Planned and past events mix with tasks in sections and have a dedicated Calendar agenda. Time and duration are independently optional; timed events support end-time/duration entry, cross-midnight spans, original-zone primary display, local secondary display and configurable in-app advance warnings. Events have notes and checklists, without completion, aging or rollover. See the [approved spec](./superpowers/specs/2026-11-15-cycle-21-events-design.md), [implementation plan](./superpowers/plans/2026-11-15-cycle-21-events.md), [events guide](./guide/events.md) and [discovery record](./superpowers/specs/2026-11-15-cycle-21-events-discovery.md). Verification: 2,644 unit tests passed (1 skipped), 44 helper tests passed, 61 sync checks passed, PWA passed, and 54 captured images reviewed. Browser QA retains 58 exact baseline failures; one startup timeout passed on focused retry. See [Cycle 21 report](./releases/cycle-21/README.md) for raw and consolidated results.
+
+**Events week follow-up (2026-11-16):** a separate seven-day grid projects event instants into the current device zone while retaining original dates and schedules. Month and task Week remain separate. Calendar integration passed 35 event and 17 existing Calendar browser checks, plus PWA e2e. Four new feature screenshots and 34 fresh audit images were reviewed. See the [follow-up report](./releases/cycle-21/README.md#events-week-follow-up-verification); no release is included.
+
 ## Cycle 20: MCP feedback round 1
 
 **Status: released in 1.13.2 (tag `v1.13.2`); 1.13.3 flags AI connections whose cached tool list is out of date.** Fixes from the owner's own connector use: open pages update instantly after server-side changes (SSE `/api/events`), MCP folder tools (`list_folders`, `create_folder`, `rename_folder`, `delete_folder`), `[[Note title]]` links that open from task notes and daily notes, and clearer skill guidance for app-issue tasks and new folders. See the [design](./superpowers/specs/2026-11-13-cycle-20-mcp-feedback-design.md) and [release notes](./releases/cycle-20/README.md). Screenshot scenario: `node scripts/capture-screenshots.mjs cycle-20`.
@@ -60,7 +66,8 @@ Assumptions: Claude Pro, Opus 5.5, 5-hour usage windows. Opus consumes a Pro all
 | 2 | Android native shell and widget | 2 | 3-5M | 1-1.5 | 1-2 windows |
 | 3 | Self-hosted server and sync | 3 | 6-10M | 2-3 | 2-3 windows |
 | 4 | Remaining: desktop, iOS, polish, v1.0 | 2-3 | 4-7M | 1.5-2 | 2 windows |
-| Total | | 10-12 | 18-30M | 6-9 | about 7-10 windows (about 1.5-2.5 weeks if one window per day) |
+| 21 | One-time events | Exact session count unavailable; one reused Luna worker with main review | Runtime total unavailable | Not recorded | Implementation checkpoints 2026-11-15 to 2026-11-16 |
+| Total (cycles 0–4 estimates) | | 10-12 | 18-30M | 6-9 | about 7-10 windows (about 1.5-2.5 weeks if one window per day) |
 
 ---
 

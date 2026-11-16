@@ -58,6 +58,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'ai', label: 'AI connections' },
   { id: 'lifecycle', label: 'Statuses' },
   { id: 'aging', label: 'Old-task warnings' },
+  { id: 'events', label: 'Event warnings' },
   { id: 'headings', label: 'Sections' },
   { id: 'widget', label: 'Widget' },
   { id: 'help', label: 'Help' },
@@ -491,6 +492,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             ))}
             <AlertDaysChoices value={resolveAlertDays(draft)} onChange={(key, days) => commit({ ...draft, alertDays: { ...draft.alertDays, [key]: days } })} />
+          </>
+        )}
+
+        {activeTab === 'events' && (
+          <>
+            <p className={hint}>Show an in-app reminder before timed events. Reminders appear only while Daymark is open and visible.</p>
+            <div className={card}>
+              <fieldset>
+                <legend className="font-semibold">Upcoming event warnings</legend>
+                <label className="mt-3 flex items-center gap-2 min-h-11 sm:min-h-9">
+                  <input type="radio" name="event-warning-mode" value="on"
+                    checked={draft.eventWarningMinutes !== null}
+                    onChange={() => commit({ ...draft, eventWarningMinutes: draft.eventWarningMinutes ?? 15 })}
+                    className="w-4 h-4 accent-amber-700" />
+                  <span>Warn before events</span>
+                </label>
+                <label className="flex items-center gap-2 min-h-11 sm:min-h-9">
+                  <input type="radio" name="event-warning-mode" value="off"
+                    checked={draft.eventWarningMinutes === null}
+                    onChange={() => commit({ ...draft, eventWarningMinutes: null })}
+                    className="w-4 h-4 accent-amber-700" />
+                  <span>Off</span>
+                </label>
+                <label htmlFor="event-warning-minutes" className="mt-3 block font-medium">Minutes before start</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input id="event-warning-minutes" type="number" min={1} step={1} inputMode="numeric"
+                    disabled={draft.eventWarningMinutes === null}
+                    value={draft.eventWarningMinutes === null ? 15 : Number.isNaN(draft.eventWarningMinutes) ? '' : draft.eventWarningMinutes ?? 15}
+                    onChange={(e) => setDraft({ ...draft, eventWarningMinutes: e.target.value === '' ? NaN : Number(e.target.value) })}
+                    onBlur={() => commit()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+                    aria-invalid={Boolean(error)} aria-describedby={error ? 'event-warning-error' : undefined}
+                    className={`${input} w-28`} />
+                  <span className="text-stone-700 dark:text-stone-300">minutes</span>
+                </div>
+                {error && <p id="event-warning-error" role="alert" className={`${hint} mt-2`}>{error}</p>}
+              </fieldset>
+            </div>
           </>
         )}
 

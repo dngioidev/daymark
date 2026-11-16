@@ -1,9 +1,11 @@
 import { isInkEntityKey, mergeInkPage } from '../ink/inkModel';
 import type { InkPage } from '../types/daymark';
-import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
+import { AppSettings, NoteMeta, BacklogData, BacklogItem, DailyDocument, EventItem, Habit, HabitDay, HeadingSection, StandaloneNote, TaskItem } from '../types/daymark';
 import { isBacklogUndoEvent, mergeBacklogHistory, taskHistoryIdentity } from '../utils/backlogHistory';
 import { canonicalJson } from '../utils/canonicalJson';
+import { CONFLICT_SEPARATOR, sameValue } from './mergeShared';
 import { trustedTime } from './clock';
+import { mergeEventAt } from './eventMerge';
 export { canonicalJson } from '../utils/canonicalJson';
 
 /**
@@ -32,7 +34,7 @@ export interface MergeResult<T> {
   extraNotes?: StandaloneNote[];
 }
 
-export const sameValue = (a: unknown, b: unknown): boolean => canonicalJson(a ?? null) === canonicalJson(b ?? null);
+export { sameValue, CONFLICT_SEPARATOR } from './mergeShared';
 
 type Pick3<T> = { kind: 'value'; value: T | null } | { kind: 'conflict' };
 
@@ -48,8 +50,6 @@ function pick3<T>(base: T | null | undefined, ours: T | null | undefined, theirs
   if (t === null) return { kind: 'value', value: o };
   return { kind: 'conflict' };
 }
-
-export const CONFLICT_SEPARATOR = '\n\n---\n*Edited on another device at the same time:*\n\n';
 
 function mergeText(base: string, ours: string, theirs: string): { text: string; conflict: boolean } {
   const result = pick3(base, ours, theirs);
@@ -471,6 +471,8 @@ export const isNoteMetaEntityKey = (key: string): boolean => key === 'notemeta';
 
 export const isBacklogEntityKey = (key: string): boolean => key === 'backlog';
 
+export const isEventEntityKey = (key: string): boolean => /^event:[\w.-]{1,200}$/.test(key);
+
 /** Entity keys: `doc:<YYYY-MM-DD>`, `note:<id>`, `settings`, `habits`, `habitday:<YYYY-MM-DD>`, `backlog`, `notemeta`. */
 export type EntityKey = string;
 
@@ -478,6 +480,7 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
   if (isInkEntityKey(key)) {
     return { value: mergeInkPage(base as InkPage | null, ours as InkPage | null, theirs as InkPage | null), conflicts: [] };
   }
+  if (isEventEntityKey(key)) return mergeEventAt(base as EventItem | null, ours as EventItem | null, theirs as EventItem | null, now);
   if (isNoteMetaEntityKey(key)) {
     return mergeNoteMeta(base as NoteMeta | null, ours as NoteMeta | null, theirs as NoteMeta | null, now);
   }
@@ -503,7 +506,7 @@ export function mergeEntity(key: EntityKey, base: unknown, ours: unknown, theirs
 }
 
 export function isValidEntityKey(key: unknown): key is EntityKey {
-  return typeof key === 'string' && (isInkEntityKey(key) && /^ink:[\w.-]{1,200}:(0|[1-9]\d*)$/.test(key) || /^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
+  return typeof key === 'string' && (isInkEntityKey(key) && /^ink:[\w.-]{1,200}:(0|[1-9]\d*)$/.test(key) || isEventEntityKey(key) || /^doc:\d{4}-\d{2}-\d{2}$/.test(key) || /^note:[\w.-]{1,200}$/.test(key) || key === 'settings' || key === 'habits' || isBacklogEntityKey(key) || isNoteMetaEntityKey(key) || /^habitday:\d{4}-\d{2}-\d{2}$/.test(key));
 }
 
 /**

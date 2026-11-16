@@ -140,3 +140,47 @@ it('the Help item opens the full-size Help instead of a settings tab', async () 
   expect(onOpenHelp).toHaveBeenCalledTimes(1);
   expect(host.textContent).not.toContain('Guide platform');
 });
+it('shows the implicit fifteen-minute default without saving until the setting changes', async () => {
+  const save = await mountEvents(DEFAULT_SETTINGS);
+  const input = document.querySelector<HTMLInputElement>('#event-warning-minutes');
+  expect(input?.value).toBe('15');
+  expect(document.querySelector<HTMLInputElement>('input[name=event-warning-mode][value=on]')?.checked).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+});
+
+it('stores Off explicitly and commits a valid whole-minute lead time', async () => {
+  const save = await mountEvents(DEFAULT_SETTINGS);
+  const off = document.querySelector<HTMLInputElement>('input[name="event-warning-mode"][value="off"]');
+  await act(async () => { off!.click(); });
+  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ eventWarningMinutes: null }));
+  save.mockClear();
+  const on = document.querySelector<HTMLInputElement>('input[name="event-warning-mode"][value="on"]');
+  await act(async () => { on!.click(); });
+  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ eventWarningMinutes: 15 }));
+});
+
+
+it('shows validation for a fractional event warning lead', async () => {
+  const save = await mountEvents(DEFAULT_SETTINGS);
+  const input = document.querySelector<HTMLInputElement>('#event-warning-minutes')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  input.focus();
+  setter.call(input, '1.5');
+  await act(async () => input.dispatchEvent(new Event('input', { bubbles: true })));
+  await act(async () => input.blur());
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('positive whole number');
+  expect(save).not.toHaveBeenCalled();
+});
+async function mountEvents(settings: AppSettings) {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+  const save = vi.fn();
+  const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
+  const noop = () => {};
+  await act(async () => root!.render(React.createElement(SettingsModal, {
+    isOpen: true, onClose: noop, settings, onChangeSettings: save,
+    onExportZip: noop, onExportJson: noop, onImportJson: noop, onImportZip: noop,
+    onResetVault: noop, syncPanel: null, initialTab: 'events',
+  })));
+  return save;
+}

@@ -11,15 +11,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample } from './helpers/server-session.mjs';
+import { assertPortAvailable } from './helpers/port.mjs';
 
 const cycle = process.argv[2] || 'cycle-4';
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').split('=')[1];
 const schemeArg = (process.argv.find((a) => a.startsWith('--scheme=')) || '').split('=')[1];
 const outDir = path.resolve('docs', 'releases', cycle, 'audit');
 fs.mkdirSync(outDir, { recursive: true });
-const PORT = 3106;
+const PORT = Number(process.env.DAYMARK_AUDIT_PORT ?? 3106);
 const base = `http://localhost:${PORT}`;
 
+await assertPortAvailable(PORT);
 const server = spawn('npx', ['tsx', 'server.ts', '--production'], {
   env: { ...process.env, PORT: String(PORT), DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-audit-')), DAYMARK_PASSWORD: 'audit-password-1' },
   shell: true,
@@ -42,6 +44,16 @@ const tryClick = async (locator) => {
   await locator.first().click({ timeout: 10000 });
   return true;
 };
+
+async function selectTheme(page, scheme) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).first().click();
+  const theme = page.getByRole('button', { name: scheme === 'dark' ? /Dark$/ : /Light$/ });
+  await theme.click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.waitForFunction((dark) => document.documentElement.classList.contains('dark') === dark, scheme === 'dark');
+  const actualDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+  if (actualDark !== (scheme === 'dark')) throw new Error(`Requested ${scheme} audit but app root has dark=${actualDark}`);
+}
 
 const PHONE = [
   ['today', async () => {}],
@@ -85,10 +97,15 @@ try {
         await resetServerVault(ctx, base, session.accessToken);
         const page = await ctx.newPage();
         await seedSample(page, base);
-        await page.goto(base, { waitUntil: 'networkidle' });
+        await page.goto(base, { waitUntil: 'domcontentloaded' });
+        await page.locator('[data-day-label]').first().waitFor({ state: 'visible' });
+        await page.locator('[aria-label="Sync: Synced. Open sync settings"]').waitFor({ state: 'visible' });
+        await selectTheme(page, scheme);
         await page.waitForTimeout(800);
         await action(page);
         await page.waitForTimeout(700);
+        const actualDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+        if (actualDark !== (scheme === 'dark')) throw new Error(`Refusing mislabeled ${scheme} audit screenshot`);
         await page.screenshot({ path: path.join(outDir, `${scheme}-${vpName}-${screen}.png`) });
         console.log('Captured', `${scheme}-${vpName}-${screen}`);
         await ctx.close();

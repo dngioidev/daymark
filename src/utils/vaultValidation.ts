@@ -1,7 +1,8 @@
 import { inkKey, PAGE_WIDTH } from '../ink/inkModel';
 import { TEXT_BOX_MAX, TEXT_SIZE_MAX, TEXT_SIZE_MIN, TEXT_WIDTH_MIN } from '../ink/inkText';
 import type { InkPage } from '../types/daymark';
-import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
+import type { BacklogData, BacklogItem, DailyDocument, DismissedPair, EventItem, Habit, HabitData, HabitDay, HabitTick, NoteFolder, NoteMeta, StandaloneNote, TaskHistoryItem } from '../types/daymark';
+import { validateEvent } from './events';
 
 // Pure structural checks (no DOM/React) shared by restore, load and server sync.
 
@@ -85,8 +86,20 @@ export function isStandaloneNote(v: unknown): v is StandaloneNote {
   );
 }
 
+export function isEventItem(value: unknown): value is EventItem {
+  return validateEvent(value);
+}
+
+export function isEventItems(value: unknown): value is EventItem[] {
+  if (!Array.isArray(value) || !value.every(isEventItem)) return false;
+  const ids = value.map(event => event.id);
+  return new Set(ids).size === ids.length;
+}
+
 export function isSyncedSettings(v: unknown): boolean {
-  return isObject(v) && Array.isArray(v.statuses) && Array.isArray(v.defaultHeadings);
+  return isObject(v) && Array.isArray(v.statuses) && Array.isArray(v.defaultHeadings) &&
+    (v.eventWarningMinutes === undefined || v.eventWarningMinutes === null ||
+      (Number.isSafeInteger(v.eventWarningMinutes) && (v.eventWarningMinutes as number) > 0));
 }
 
 /** Returns null when the vault is usable, otherwise a sentence explaining why not. */

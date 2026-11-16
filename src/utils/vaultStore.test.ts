@@ -160,7 +160,7 @@ describe('habit storage', () => {
       await syncOnce(async (_url, init) => {
         sent.push(JSON.parse(String(init?.body)));
         return Response.json({ rev: 2, entities: [], conflicts: [] });
-      }, { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
+      }, { ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: loaded, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } }, {
         serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 1, lastSyncAt: null,
         bases: { habits: JSON.stringify({ habits: habits.habits }), 'habitday:2026-10-24': JSON.stringify(habits.days[0]) },
       }, 'access');
@@ -470,7 +470,7 @@ it('damaged backlog resets only its sync base and cannot be pushed before backfi
     expect(uneditedRecoveredBacklog.has(recovered)).toBe(true);
     expect(store.loadSyncState()).toMatchObject({ backlogSynced: false, habitsSynced: true, bases: { habits: '{"habits":[]}' } });
     expect(store.loadSyncState()!.bases).not.toHaveProperty('backlog');
-    const local = { ink: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
+    const local = { ink: [], events: [], docs: [], notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: recovered, notemeta: { folders: [], dismissed: [] } };
     const requests: { sinceRev: number; changes: { key: string }[] }[] = [];
     const outcome = await syncOnce(async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)));
@@ -805,4 +805,119 @@ it('still opens when both IndexedDB and localStorage enumeration are blocked', a
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   try { const store = await import('./vaultStore'); await expect(store.initVaultStore()).resolves.toBeUndefined(); }
   finally { error.mockRestore(); vi.unstubAllGlobals(); }
+});
+const event = (id: string): import('../types/daymark').EventItem => ({
+  id, title: `Event ${id}`, date: '2026-11-20', heading: 'Work', order: 1,
+  createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:00:00.000Z',
+});
+
+const eventStoreTest = (run: Parameters<typeof habitStoreTest>[0], indexed = false, legacy?: string) =>
+  habitStoreTest(run, indexed, legacy, 'daymark_events_v1');
+
+describe('event storage', () => {
+  it.each([false, true])('saves, broadcasts and reloads events (IndexedDB: %s)', async indexed => {
+    await eventStoreTest(async ({ store, raw, values, messages }) => {
+      const events = [event('event-1')];
+      store.saveEvents(events);
+      expect(store.loadEvents()).toBe(events);
+      expect(messages).toContainEqual({ key: 'events', value: events });
+      await vi.waitFor(() => expect(indexed ? raw.get('events') : JSON.parse(values.get('daymark_events_v1')!)).toEqual(events));
+      vi.resetModules();
+      const next = await import('./vaultStore');
+      await next.initVaultStore();
+      expect(next.loadEvents()).toEqual(events);
+    }, indexed);
+  });
+
+  it('accepts only valid uniquely identified event messages', () => {
+    expect(parseVaultMessage({ key: 'events', value: [event('one')] })).toEqual({ key: 'events', value: [event('one')] });
+    for (const value of [null, {}, [null], [event('same'), event('same')], [{ ...event('bad'), id: '../escape' }]]) {
+      expect(parseVaultMessage({ key: 'events', value })).toBeNull();
+    }
+  });
+
+  it('rejects duplicate event IDs before saving or broadcasting', async () => {
+    await eventStoreTest(async ({ store, values, messages }) => {
+      expect(() => store.saveEvents([event('same'), event('same')])).toThrow(/invalid events/i);
+      expect(values.has('daymark_events_v1')).toBe(false);
+      expect(messages.filter(message => (message as { key?: string }).key === 'events')).toEqual([]);
+    });
+  });
+
+  it('receives events from a peer and avoids rebroadcasting the same array', async () => {
+    await eventStoreTest(async ({ store, peers, messages }) => {
+      const received: string[] = [];
+      const unsubscribe = store.subscribeExternalChanges(key => received.push(key));
+      const events = [event('remote')];
+      peers[0].onmessage?.({ data: { key: 'events', value: events } });
+      expect(store.loadEvents()).toBe(events);
+      expect(received).toEqual(['events']);
+      store.saveEvents(store.loadEvents());
+      expect(messages).toEqual([]);
+      unsubscribe();
+    });
+  });
+
+  it.each([false, true])('keeps recovered valid entries read-only and clears only event sync bases (IndexedDB: %s)', async indexed => {
+    const damaged = [event('good'), { ...event('../bad'), id: '../bad' }];
+    await eventStoreTest(async ({ store, raw, values, messages }) => {
+      const state = { serverUrl: 'https://test', username: 'a', deviceId: 'a', deviceName: 'a', lastRev: 8,
+        eventsSynced: true, habitsSynced: true, lastSyncAt: null,
+        bases: { 'event:good': JSON.stringify(event('good')), 'note:keep': '{}' } };
+      await store.saveSyncState(state);
+      const recovered = store.loadEvents();
+      const { uneditedRecoveredEvents } = await import('./events');
+      expect(recovered).toEqual([event('good')]);
+      expect(recovered).not.toBe(damaged);
+      expect(uneditedRecoveredEvents.has(recovered)).toBe(true);
+      expect(store.loadSyncState()).toEqual({ ...state, eventsSynced: false, bases: { 'note:keep': '{}' } });
+      store.saveEvents(recovered);
+      expect(indexed ? raw.get('events') : JSON.parse(values.get('daymark_events_v1')!)).toEqual(damaged);
+      expect(messages.filter(message => (message as { key?: string }).key === 'events')).toEqual([]);
+    }, indexed, JSON.stringify(damaged));
+  });
+
+  it.each([false, true])('preserves an unreadable event value until a deliberate replacement (IndexedDB: %s)', async indexed => {
+    await eventStoreTest(async ({ store, raw, values, messages }) => {
+      expect(store.loadEvents()).toEqual([]);
+      store.saveEvents(store.loadEvents());
+      expect(indexed ? raw.get('events') : values.get('daymark_events_v1')).toBe(indexed ? null : '{bad json');
+      expect(messages.filter(message => (message as { key?: string }).key === 'events')).toEqual([]);
+      const replacement = [event('new')];
+      store.saveEvents(replacement);
+      await vi.waitFor(() => expect(indexed ? raw.get('events') : JSON.parse(values.get('daymark_events_v1')!)).toEqual(replacement));
+    }, indexed, '{bad json');
+  });
+
+  it.each([false, true])('resets and wipes event storage (IndexedDB: %s)', async indexed => {
+    await eventStoreTest(async ({ store, raw, values }) => {
+      store.saveEvents([event('before-reset')]);
+      expect(store.resetVaultToSeedData().events).toEqual([]);
+      expect(store.loadEvents()).toEqual([]);
+      store.saveEvents([event('before-wipe')]);
+      await store.wipeLocalVault();
+      expect(store.loadEvents()).toEqual([]);
+      expect(raw.has('events')).toBe(false);
+      expect(values.has('daymark_events_v1')).toBe(false);
+    }, indexed);
+  });
+
+  it('does not show onboarding for an event-only vault', async () => {
+    await eventStoreTest(async ({ store }) => {
+      store.saveEvents([event('only-event')]);
+      expect(store.needsOnboarding()).toBe(false);
+    });
+  });
+
+  it('JSON export includes stored events', async () => {
+    await eventStoreTest(async ({ store }) => {
+      let exported: Blob | undefined;
+      vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} });
+      vi.stubGlobal('document', { createElement: () => ({ click: () => {} }), body: { appendChild: () => {}, removeChild: () => {} } });
+      const events = [event('backup-event')];
+      store.saveEvents(events);
+      await store.exportVaultAsJson([], [], DEFAULT_SETTINGS, EMPTY_HABITS);
+      expect(JSON.parse(await exported!.text()).events).toEqual(events);
+    });
+  });
 });

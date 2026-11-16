@@ -1,0 +1,555 @@
+{
+  "date": "2026-11-16",
+  "branch": "cycle-21-events",
+  "scope": "Separate device-zone Events week, existing task Week intact",
+  "browserRuns": [
+    {
+      "log": "task-3-qa-first.log",
+      "passed": 10,
+      "failed": 2,
+      "checks": [
+        {
+          "id": "C21-event-week-view",
+          "passed": false,
+          "description": "Events week opens on the selected Sunday-first week in the device timezone\r"
+        },
+        {
+          "id": "C21-event-week-overlap",
+          "passed": true,
+          "description": "overlapping events occupy separate visible rectangles\r"
+        },
+        {
+          "id": "C21-event-week-untimed",
+          "passed": true,
+          "description": "date-only and duration-only entries remain above the timeline\r"
+        },
+        {
+          "id": "C21-event-week-short-span",
+          "passed": true,
+          "description": "five-minute event keeps a 44px target with only five minutes visually booked\r"
+        },
+        {
+          "id": "C21-event-week-start-only",
+          "passed": true,
+          "description": "start-only event shows No duration and a point marker\r"
+        },
+        {
+          "id": "C21-event-week-late-reachable",
+          "passed": true,
+          "description": "23:59 event remains reachable at the timeline end without implying a 44-minute reservation\r"
+        },
+        {
+          "id": "C21-event-week-cross-date",
+          "passed": true,
+          "description": "Saturday original-zone date is visible in the Sunday device-local column\r"
+        },
+        {
+          "id": "C21-event-week-editor-source",
+          "passed": true,
+          "description": "every projected segment opens the original event record\r"
+        },
+        {
+          "id": "C21-event-week-editor-save",
+          "passed": true,
+          "description": "editing from an Events week segment saves the original event\r"
+        },
+        {
+          "id": "C21-event-week-next",
+          "passed": true,
+          "description": "next Events week advances by seven civil days\r"
+        },
+        {
+          "id": "C21-event-week-today",
+          "passed": true,
+          "description": "Today restores the device-local current week even when its selected date is unchanged\r"
+        },
+        {
+          "id": "C21-EventWeek",
+          "passed": false,
+          "description": "scenario crashed  -> locator.isVisible: Error: strict mode violation: getByText('C21 task week remains separate', { exact: true }) resolved to 2 elements:\r"
+        }
+      ]
+    },
+    {
+      "log": "task-3-qa-final.log",
+      "passed": 13,
+      "failed": 1,
+      "checks": [
+        {
+          "id": "C21-event-week-view",
+          "passed": true,
+          "description": "Events week opens on the selected Sunday-first week with readable full-width columns\r"
+        },
+        {
+          "id": "C21-event-week-overlap",
+          "passed": true,
+          "description": "overlapping events occupy separate visible rectangles\r"
+        },
+        {
+          "id": "C21-event-week-untimed",
+          "passed": true,
+          "description": "date-only and duration-only entries remain above the timeline\r"
+        },
+        {
+          "id": "C21-event-week-short-span",
+          "passed": true,
+          "description": "five-minute event keeps a 44px target with only five minutes visually booked\r"
+        },
+        {
+          "id": "C21-event-week-start-only",
+          "passed": true,
+          "description": "start-only event shows No duration and a point marker\r"
+        },
+        {
+          "id": "C21-event-week-late-reachable",
+          "passed": true,
+          "description": "23:59 event remains reachable at the timeline end without implying a 44-minute reservation\r"
+        },
+        {
+          "id": "C21-event-week-cross-date",
+          "passed": true,
+          "description": "Saturday original-zone date is visible in the Sunday device-local column\r"
+        },
+        {
+          "id": "C21-event-week-editor-source",
+          "passed": true,
+          "description": "every projected segment opens the original event record\r"
+        },
+        {
+          "id": "C21-event-week-editor-save",
+          "passed": true,
+          "description": "editing from an Events week segment saves the original event\r"
+        },
+        {
+          "id": "C21-event-week-next",
+          "passed": true,
+          "description": "next Events week advances by seven civil days\r"
+        },
+        {
+          "id": "C21-event-week-today",
+          "passed": true,
+          "description": "Today restores the device-local current week even when its selected date is unchanged\r"
+        },
+        {
+          "id": "C21-event-week-task-view",
+          "passed": true,
+          "description": "existing task Week remains available with its task rows\r"
+        },
+        {
+          "id": "C21-event-week-month-view",
+          "passed": true,
+          "description": "existing Month remains available with its day grid\r"
+        },
+        {
+          "id": "C21-EventWeek",
+          "passed": false,
+          "description": "scenario crashed  -> cdpSession.send: Protocol error (Emulation.setTimezoneOverride): Timezone override is already in effect\r"
+        }
+      ]
+    },
+    {
+      "log": "task-3-qa-rerun.log",
+      "passed": 19,
+      "failed": 0,
+      "checks": [
+        {
+          "id": "C21-event-week-view",
+          "passed": true,
+          "description": "Events week opens on the selected Sunday-first week with readable full-width columns\r"
+        },
+        {
+          "id": "C21-event-week-overlap",
+          "passed": true,
+          "description": "overlapping events occupy separate visible rectangles\r"
+        },
+        {
+          "id": "C21-event-week-untimed",
+          "passed": true,
+          "description": "date-only and duration-only entries remain above the timeline\r"
+        },
+        {
+          "id": "C21-event-week-short-span",
+          "passed": true,
+          "description": "five-minute event keeps a 44px target with only five minutes visually booked\r"
+        },
+        {
+          "id": "C21-event-week-start-only",
+          "passed": true,
+          "description": "start-only event shows No duration and a point marker\r"
+        },
+        {
+          "id": "C21-event-week-late-reachable",
+          "passed": true,
+          "description": "23:59 event remains reachable at the timeline end without implying a 44-minute reservation\r"
+        },
+        {
+          "id": "C21-event-week-cross-date",
+          "passed": true,
+          "description": "Saturday original-zone date is visible in the Sunday device-local column\r"
+        },
+        {
+          "id": "C21-event-week-editor-source",
+          "passed": true,
+          "description": "every projected segment opens the original event record\r"
+        },
+        {
+          "id": "C21-event-week-editor-save",
+          "passed": true,
+          "description": "editing from an Events week segment saves the original event\r"
+        },
+        {
+          "id": "C21-event-week-next",
+          "passed": true,
+          "description": "next Events week advances by seven civil days\r"
+        },
+        {
+          "id": "C21-event-week-today",
+          "passed": true,
+          "description": "Today restores the device-local current week even when its selected date is unchanged\r"
+        },
+        {
+          "id": "C21-event-week-task-view",
+          "passed": true,
+          "description": "existing task Week remains available with its task rows\r"
+        },
+        {
+          "id": "C21-event-week-month-view",
+          "passed": true,
+          "description": "existing Month remains available with its day grid\r"
+        },
+        {
+          "id": "C21-event-week-zone-refresh",
+          "passed": true,
+          "description": "device-zone changes reposition labels without saving or rewriting events\r"
+        },
+        {
+          "id": "C21-event-week-errors",
+          "passed": true,
+          "description": "Events week flow has no browser errors or failed requests\r"
+        },
+        {
+          "id": "C21-event-week-phone-scroll",
+          "passed": true,
+          "description": "phone Events week supports horizontal day scrolling and keeps No set time entries available\r"
+        },
+        {
+          "id": "C21-event-week-phone-sticky",
+          "passed": true,
+          "description": "phone keeps the time gutter and day headings sticky while scrolling\r"
+        },
+        {
+          "id": "C21-event-week-phone-editor",
+          "passed": true,
+          "description": "phone event-week cards open their original event in the editor\r"
+        },
+        {
+          "id": "C21-event-week-phone-errors",
+          "passed": true,
+          "description": "phone Events week has no browser errors or failed requests\r"
+        }
+      ]
+    },
+    {
+      "log": "task-3-c21-regression.log",
+      "passed": 35,
+      "failed": 0,
+      "checks": [
+        {
+          "id": "C21-warning",
+          "passed": true,
+          "description": "default 15-minute setting shows an upcoming event warning\r"
+        },
+        {
+          "id": "C21-warning-default",
+          "passed": true,
+          "description": "settings show the implicit 15-minute default as enabled\r"
+        },
+        {
+          "id": "C21-warning-off",
+          "passed": true,
+          "description": "turning warnings Off removes the active upcoming notice\r"
+        },
+        {
+          "id": "C21-capture-mixed",
+          "passed": true,
+          "description": "captured event remains separately recognizable beside a task row\r"
+        },
+        {
+          "id": "C21-reload",
+          "passed": true,
+          "description": "event, notes and checklist survive reload\r"
+        },
+        {
+          "id": "C21-edit-checklist",
+          "passed": true,
+          "description": "editing and checklist state persist independently\r"
+        },
+        {
+          "id": "C21-calendar-continuation",
+          "passed": true,
+          "description": "Calendar shows an end-exclusive overnight continuation on the next date\r"
+        },
+        {
+          "id": "C21-untimed-duration",
+          "passed": true,
+          "description": "duration-only commitment is shown without a timed slot\r"
+        },
+        {
+          "id": "C21-errors",
+          "passed": true,
+          "description": "event capture/edit/calendar flow has no browser errors\r"
+        },
+        {
+          "id": "C21-warning-700-geometry",
+          "passed": true,
+          "description": "warning queue sits above the bottom navigation at a 700px mobile viewport\r"
+        },
+        {
+          "id": "C21-warning-700-hit",
+          "passed": true,
+          "description": "warning queue remains hit-testable at a 700px mobile viewport\r"
+        },
+        {
+          "id": "C21-mobile-daily-row",
+          "passed": true,
+          "description": "phone Today displays the event beside the daily rows\r"
+        },
+        {
+          "id": "C21-mobile-checklist-edit",
+          "passed": true,
+          "description": "phone checklist and event edit persist together\r"
+        },
+        {
+          "id": "C21-mobile-calendar-today",
+          "passed": true,
+          "description": "phone Calendar opens on event-only today when the latest daily document is older\r"
+        },
+        {
+          "id": "C21-mobile-calendar-past",
+          "passed": true,
+          "description": "phone Calendar keeps an event-only past date selected after tab changes\r"
+        },
+        {
+          "id": "C21-mobile-errors",
+          "passed": true,
+          "description": "phone event flow has no browser errors\r"
+        },
+        {
+          "id": "C21-event-week-view",
+          "passed": true,
+          "description": "Events week opens on the selected Sunday-first week with readable full-width columns\r"
+        },
+        {
+          "id": "C21-event-week-overlap",
+          "passed": true,
+          "description": "overlapping events occupy separate visible rectangles\r"
+        },
+        {
+          "id": "C21-event-week-untimed",
+          "passed": true,
+          "description": "date-only and duration-only entries remain above the timeline\r"
+        },
+        {
+          "id": "C21-event-week-short-span",
+          "passed": true,
+          "description": "five-minute event keeps a 44px target with only five minutes visually booked\r"
+        },
+        {
+          "id": "C21-event-week-start-only",
+          "passed": true,
+          "description": "start-only event shows No duration and a point marker\r"
+        },
+        {
+          "id": "C21-event-week-late-reachable",
+          "passed": true,
+          "description": "23:59 event remains reachable at the timeline end without implying a 44-minute reservation\r"
+        },
+        {
+          "id": "C21-event-week-cross-date",
+          "passed": true,
+          "description": "Saturday original-zone date is visible in the Sunday device-local column\r"
+        },
+        {
+          "id": "C21-event-week-editor-source",
+          "passed": true,
+          "description": "every projected segment opens the original event record\r"
+        },
+        {
+          "id": "C21-event-week-editor-save",
+          "passed": true,
+          "description": "editing from an Events week segment saves the original event\r"
+        },
+        {
+          "id": "C21-event-week-next",
+          "passed": true,
+          "description": "next Events week advances by seven civil days\r"
+        },
+        {
+          "id": "C21-event-week-today",
+          "passed": true,
+          "description": "Today restores the device-local current week even when its selected date is unchanged\r"
+        },
+        {
+          "id": "C21-event-week-task-view",
+          "passed": true,
+          "description": "existing task Week remains available with its task rows\r"
+        },
+        {
+          "id": "C21-event-week-month-view",
+          "passed": true,
+          "description": "existing Month remains available with its day grid\r"
+        },
+        {
+          "id": "C21-event-week-zone-refresh",
+          "passed": true,
+          "description": "device-zone changes reposition labels without saving or rewriting events\r"
+        },
+        {
+          "id": "C21-event-week-errors",
+          "passed": true,
+          "description": "Events week flow has no browser errors or failed requests\r"
+        },
+        {
+          "id": "C21-event-week-phone-scroll",
+          "passed": true,
+          "description": "phone Events week supports horizontal day scrolling and keeps No set time entries available\r"
+        },
+        {
+          "id": "C21-event-week-phone-sticky",
+          "passed": true,
+          "description": "phone keeps the time gutter and day headings sticky while scrolling\r"
+        },
+        {
+          "id": "C21-event-week-phone-editor",
+          "passed": true,
+          "description": "phone event-week cards open their original event in the editor\r"
+        },
+        {
+          "id": "C21-event-week-phone-errors",
+          "passed": true,
+          "description": "phone Events week has no browser errors or failed requests\r"
+        }
+      ]
+    },
+    {
+      "log": "task-3-calendar-regression.log",
+      "passed": 17,
+      "failed": 0,
+      "checks": [
+        {
+          "id": "H1-1440",
+          "passed": true,
+          "description": "habits closed by default with Add a daily habit\r"
+        },
+        {
+          "id": "H1-390",
+          "passed": true,
+          "description": "habits closed by default with Add a daily habit\r"
+        },
+        {
+          "id": "H2",
+          "passed": true,
+          "description": "adding two habits and ticking one persists through reload in kv habits and shows 1 of 2\r"
+        },
+        {
+          "id": "H3a",
+          "passed": true,
+          "description": "closed bar warns about a habit added Y5 and never ticked\r"
+        },
+        {
+          "id": "H3b",
+          "passed": true,
+          "description": "ticking today clears the closed warning chip\r"
+        },
+        {
+          "id": "H4a",
+          "passed": true,
+          "description": "Today starts with a one-day streak\r"
+        },
+        {
+          "id": "H4b",
+          "passed": true,
+          "description": "Calendar yesterday backfill increases Today streak to two\r"
+        },
+        {
+          "id": "H5-1440-titles",
+          "passed": true,
+          "description": "week row displays all nine titles without +N more\r"
+        },
+        {
+          "id": "H5-desktop-width",
+          "passed": true,
+          "description": "1440px week row occupies at least 90% of Calendar card\r"
+        },
+        {
+          "id": "H5-390-titles",
+          "passed": true,
+          "description": "week row displays all nine titles without +N more\r"
+        },
+        {
+          "id": "H5-phone-column",
+          "passed": true,
+          "description": "390px task titles form a single column\r"
+        },
+        {
+          "id": "H6a",
+          "passed": true,
+          "description": "today starts ticked\r"
+        },
+        {
+          "id": "H6b",
+          "passed": true,
+          "description": "resolved tomorrow starts with zero ticks\r"
+        },
+        {
+          "id": "H6c",
+          "passed": true,
+          "description": "Calendar keeps yesterday tick after date override\r"
+        },
+        {
+          "id": "H7",
+          "passed": true,
+          "description": "desktop drag moves task once from Today onto future week row\r"
+        },
+        {
+          "id": "H8a",
+          "passed": true,
+          "description": "confirmed removal hides habit from Today\r"
+        },
+        {
+          "id": "H8b",
+          "passed": true,
+          "description": "Calendar yesterday retains removed habit and its tick\r"
+        }
+      ]
+    }
+  ],
+  "pwa": {
+    "passed": true,
+    "checks": 56
+  },
+  "images": {
+    "feature": 4,
+    "generalAudit": 34,
+    "allReviewed": true
+  },
+  "notRun": [
+    "Full 825-check QA rerun",
+    "Sync suite rerun (view-only follow-up)",
+    "Native Android or physical device timezone switching"
+  ],
+  "baseline": "Earlier results remain in qa-comparison.json; not rerun or reclassified here",
+  "unit": {
+    "filesPassed": 218,
+    "testsPassed": 2685,
+    "testsSkipped": 1,
+    "durationSeconds": 206.04
+  },
+  "checks": {
+    "lint": "passed",
+    "build": "passed; existing chunk-size warning",
+    "siteBuild": "passed",
+    "helpersPassed": 45,
+    "aiConfigPassed": 81
+  }
+}

@@ -35,3 +35,16 @@ describe('instant settings validation and resets', () => {
     expect(resetTab('storage', custom)).toBe(custom);
   });
 });
+
+  it.each([0, -1, 1.5, NaN, Infinity])('rejects invalid event warning lead time %s', (eventWarningMinutes) => {
+    expect(validateSettingsPatch({ ...DEFAULT_SETTINGS, eventWarningMinutes })).not.toBeNull();
+  });
+  it('accepts an explicitly disabled or positive event warning lead time', () => {
+    expect(validateSettingsPatch({ ...DEFAULT_SETTINGS, eventWarningMinutes: null })).toBeNull();
+    expect(validateSettingsPatch({ ...DEFAULT_SETTINGS, eventWarningMinutes: 15 })).toBeNull();
+  });
+  it('resets event warnings to an explicit default that can sync', () => {
+    expect(DEFAULT_SETTINGS).not.toHaveProperty('eventWarningMinutes');
+    expect(resetTab('events', DEFAULT_SETTINGS).eventWarningMinutes).toBe(15);
+    expect(resetTab('events', { ...DEFAULT_SETTINGS, eventWarningMinutes: 30 }).eventWarningMinutes).toBe(15);
+  });

@@ -18,7 +18,8 @@ import { WeekRows } from './WeekRows';
 import { HabitChecklist } from './habits/HabitChecklist';
 import { Menu } from './ui/Menu';
 import { DEFAULT_SETTINGS } from '../utils/defaultData';
-import type { DailyDocument } from '../types/daymark';
+import type { DailyDocument, EventItem } from '../types/daymark';
+import { EventWeekGrid } from './events/EventWeekGrid';
 
 type Element = React.ReactElement<Record<string, unknown>>;
 function elements(node: React.ReactNode): Element[] {
@@ -79,6 +80,41 @@ it('switches to seven week rows, shows every title, selects rows and navigates b
   invoke(tree.find((el) => el.props['aria-label'] === 'Next week')!, 'onClick');
   tree = render();
   expect(cell(tree, '2026-11-01')).toBeDefined();
+});
+
+it('selects Events week independently and projects existing events without invoking save actions', () => {
+  const event: EventItem = { id: 'cross-zone', title: 'Late Saturday event', date: '2026-10-31', heading: 'Work', order: 0,
+    timing: { localTime: '23:30', timeZone: 'America/Los_Angeles', startInstant: '2026-11-01T06:30:00.000Z' },
+    durationMinutes: 45, createdAt: '2026-10-20T00:00:00.000Z', updatedAt: '2026-10-20T00:00:00.000Z' };
+  const save = vi.fn();
+  let tree = render({ selectedDate: '2026-11-01', events: [event], deviceZone: 'America/New_York', onMoveTask: save });
+  expect(tree.some((el) => el.type === EventWeekGrid)).toBe(false);
+  invoke(tree.find((el) => el.type === 'button' && el.props.children === 'Events week')!, 'onClick');
+  tree = render({ selectedDate: '2026-11-01', events: [event], deviceZone: 'America/New_York', onMoveTask: save });
+  const grid = tree.find((el) => el.type === EventWeekGrid)!;
+  expect(grid.props.events).toEqual([event]);
+  expect(grid.props.anchor).toBe('2026-11-01');
+  expect(grid.props.deviceZone).toBe('America/New_York');
+  expect(tree.some((el) => el.type === WeekRows)).toBe(false);
+  expect(tree.some((el) => el.type === 'button' && el.props['data-date'])).toBe(false);
+  expect(save).not.toHaveBeenCalled();
+});
+
+it('advances and returns Events week by seven device-local days even when the parent date is already Today', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-15T17:30:00.000Z')); // 00:30 on Nov 16 in Asia/Saigon.
+  const today = '2026-11-16';
+  const select = vi.fn();
+  let tree = render({ initialView: 'events-week', selectedDate: today, simulatedToday: today, deviceZone: 'Asia/Saigon', onSelectDate: select });
+  const grid = () => tree.find((el) => el.type === EventWeekGrid)!;
+  expect(grid().props.anchor).toBe(today);
+  invoke(tree.find((el) => el.type === 'button' && el.props['aria-label'] === 'Next Events week')!, 'onClick');
+  tree = render({ initialView: 'events-week', selectedDate: today, simulatedToday: today, deviceZone: 'Asia/Saigon', onSelectDate: select });
+  expect(grid().props.anchor).toBe('2026-11-23');
+  invoke(tree.find((el) => el.type === 'button' && el.props['aria-label'] === 'Go to current Events week')!, 'onClick');
+  tree = render({ initialView: 'events-week', selectedDate: today, simulatedToday: today, deviceZone: 'Asia/Saigon', onSelectDate: select });
+  expect(grid().props.anchor).toBe(today);
+  expect(select).toHaveBeenCalledWith(today);
 });
 
 it.each(['month', 'week'] as const)('moves only local Calendar drags onto today or later in %s mode', (view) => {

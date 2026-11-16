@@ -1,12 +1,15 @@
 import type { InkPage } from '../types/daymark';
+import type JSZip from 'jszip';
 import { isInkPages } from './vaultValidation';
 // JSZip is loaded on demand: it is only needed when exporting or importing
 const loadJSZip = async () => (await import('jszip')).default;
-import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, HabitData, NoteMeta, NoteAssetMeta, StandaloneNote } from '../types/daymark';
+import { AppSettings, BacklogData, DailyDocument, EMPTY_NOTE_META, EventItem, HabitData, NoteMeta, NoteAssetMeta, StandaloneNote } from '../types/daymark';
 import { exportFolderPath, safeExportSegment } from './noteFolders';
 import { EMPTY_BACKLOG, visibleBacklog } from './backlog';
 import { parseDailyDocument, serializeDailyDocument } from './markdownEngine';
 import { isNoteMeta, isBacklogData, isHabitData, vaultProblem } from './vaultValidation';
+import { isEventItems } from './vaultValidation';
+import { parseEvent, serializeEvent } from './eventMarkdown';
 import { assetRef, deleteAsset, invalidateAssetInventory, listAssets, MAX_ASSET_BYTES, parseAssetRefs, storeAsset } from './noteAssets';
 import { isPhotoStorageAvailable, kvGetRaw } from './vaultStore';
 
@@ -111,6 +114,14 @@ export interface VaultSnapshot {
   notemeta?: NoteMeta;
   skippedPictures?: number;
   ink?: InkPage[];
+  events?: EventItem[];
+}
+
+/** Missing or damaged event data in an older backup never erases valid local events. */
+export function mergeRestoredEvents(current: EventItem[], restored?: unknown): EventItem[] {
+  if (restored === undefined) return current;
+  if (!isEventItems(restored)) throw new Error('Damaged backup events.');
+  return restored;
 }
 
 /** Older backups have no habits; restoring those must preserve the current data. */
@@ -153,6 +164,35 @@ const MONTH_NAMES = [
 
 const SNAPSHOT_PATH = 'Daymark/.daymark/vault.json';
 
+function eventPathId(name: string): string | null {
+  const normalized = name.replace(/\\/g, '/');
+  if (/(?:^|\/)Notes(?:\/|$)/i.test(normalized)) return null;
+  const match = normalized.match(/^(?:[^/]+\/)?events\/([^/]+)\.md$/);
+  if (!match) return null;
+  let id: string;
+  try { id = decodeURIComponent(match[1]); }
+  catch { throw new Error('Damaged event filename encoding.'); }
+  if (!/^[\w.-]{1,200}$/.test(id) || encodeURIComponent(id) !== match[1]) throw new Error('Damaged event filename identity.');
+  return id;
+}
+
+async function importEventMarkdownFiles(names: string[], zip: JSZip): Promise<EventItem[]> {
+  const found: EventItem[] = [];
+  const ids = new Set<string>();
+  for (const name of names) {
+    const pathId = eventPathId(name);
+    if (pathId === null) continue;
+    let event: EventItem;
+    try { event = parseEvent(await zip.files[name].async('string')); }
+    catch (error) { throw new Error(`Could not read event file ${name}: ${error instanceof Error ? error.message : 'invalid event data'}`); }
+    if (event.id !== pathId) throw new Error(`Event filename identity does not match event ID in ${name}.`);
+    if (ids.has(event.id)) throw new Error(`Duplicate event ID in backup: ${event.id}.`);
+    ids.add(event.id);
+    found.push(event);
+  }
+  return found;
+}
+
 /**
  * Builds the vault ZIP, strictly matching the folder hierarchy in Section 5 of the PRD:
  * Daymark/
@@ -173,7 +213,9 @@ export async function buildVaultZip(
   backlog: BacklogData = EMPTY_BACKLOG,
   notemeta: NoteMeta = EMPTY_NOTE_META,
   ink: InkPage[] = [],
+  events: EventItem[] = [],
 ): Promise<Uint8Array> {
+  if (!isEventItems(events)) throw new Error('Cannot back up invalid events.');
   const assets = await collectBackupAssets(notes, onMissingPictures);
   const JSZip = await loadJSZip();
   const zip = new JSZip();
@@ -183,6 +225,8 @@ export async function buildVaultZip(
     root.file(`ink/${encodeURIComponent(note.id)}.json`, JSON.stringify(ink.filter(page => page.noteId === note.id)));
   }
   root.file('Backlog.md', backlogMarkdown(backlog));
+  const eventsFolder = root.folder('events')!;
+  for (const event of events) eventsFolder.file(`${encodeURIComponent(event.id)}.md`, serializeEvent(event));
 
   for (const doc of docs) {
     const [year, monthStr] = doc.date.split('-');
@@ -231,7 +275,7 @@ export async function buildVaultZip(
   );
   meta.file(
     'vault.json',
-    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, notemeta, ink, assets: assets.map(asset => asset.meta) })
+    JSON.stringify({ daymark_backup_version: '1.0', settings, daily_documents: docs, standalone_notes: notes, habits, backlog, notemeta, ink, events, assets: assets.map(asset => asset.meta) })
   );
 
   return zip.generateAsync({ type: 'uint8array' });
@@ -252,6 +296,7 @@ export async function importVaultFromZip(
   const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(data);
   const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
+  const markdownEvents = await importEventMarkdownFiles(names, zip);
 
   const snapshotName = names.find((n) => n === SNAPSHOT_PATH || n.endsWith('.daymark/vault.json'));
   if (snapshotName) {
@@ -259,6 +304,16 @@ export async function importVaultFromZip(
     if (Array.isArray(parsed.daily_documents) && Array.isArray(parsed.standalone_notes)) {
       const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
       if (problem) throw new Error(problem);
+      const snapshotHasEvents = Object.hasOwn(parsed, 'events');
+      let restoredEvents: EventItem[] | undefined = snapshotHasEvents
+        ? mergeRestoredEvents([], parsed.events)
+        : markdownEvents.length ? markdownEvents : undefined;
+      if (snapshotHasEvents && markdownEvents.length) {
+        const snapshotIds = new Set((restoredEvents ?? []).map(event => event.id));
+        if (markdownEvents.some(event => !snapshotIds.has(event.id))) throw new Error('Event Markdown files do not match the backup snapshot.');
+        const markdownById = new Map(markdownEvents.map(event => [event.id, event]));
+        restoredEvents = (restoredEvents ?? []).map(event => markdownById.get(event.id) ?? event);
+      }
       const ink = parsed.ink === undefined ? undefined : mergeRestoredInk([], parsed.ink);
       let skippedPictures = 0;
       if (parsed.assets !== undefined) {
@@ -284,6 +339,7 @@ export async function importVaultFromZip(
         backlog: isBacklogData(parsed.backlog) ? parsed.backlog : undefined,
         notemeta: isNoteMeta(parsed.notemeta) ? parsed.notemeta : undefined,
         ink,
+        events: restoredEvents,
         skippedPictures,
       };
     }
@@ -359,12 +415,12 @@ export async function importVaultFromZip(
     }
   }
 
-  if (docs.length === 0 && notes.length === 0) {
+  if (docs.length === 0 && notes.length === 0 && markdownEvents.length === 0) {
     throw new Error('No Daymark daily notes or standalone notes were found in this ZIP.');
   }
   const problem = vaultProblem(docs, notes);
   if (problem) throw new Error(problem);
   skippedPictures += await importBinaryAssets(assets);
   docs.sort((a, b) => a.date.localeCompare(b.date));
-  return { docs, notes, settings, skippedPictures };
+  return { docs, notes, settings, skippedPictures, ...(markdownEvents.length ? { events: markdownEvents } : {}) };
 }

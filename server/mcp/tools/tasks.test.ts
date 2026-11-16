@@ -87,7 +87,7 @@ const ok = async (client: Client, name: string, args: Record<string, unknown>) =
   return JSON.parse(result.content[0].text);
 };
 
-const vault = (docs: DailyDocument[]): VaultData => ({ ink: [], docs, notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
+const vault = (docs: DailyDocument[]): VaultData => ({ ink: [], events: [], docs, notes: [], settings: DEFAULT_SETTINGS, habits: { habits: [], days: [] }, backlog: { items: [] }, notemeta: { folders: [], dismissed: [] } });
 const task = (id: string, heading: string, date: string, extra: Partial<TaskItem> = {}): TaskItem => ({
   id, title: `Task ${id}`, status: 'in-progress', createdDate: date, originalNoteDate: date, heading, order: 1, historyLog: [], ...extra,
 });
@@ -126,6 +126,18 @@ describe('task write tools', () => {
     const entries = await audit.list({ connectionId: mcp.connections[0].id });
     expect(entries).toEqual([expect.objectContaining({ tool: 'create_task', action: 'create', targets: [{ key: `doc:${today}` }] })]);
     expect(JSON.stringify(entries)).not.toContain('Write report');
+  });
+
+  it('task MCP writes leave independently stored events unchanged', async () => {
+    const event = { id: 'separate-event', title: 'Review', date: today, heading: 'Work', order: 1,
+      createdAt: `${today}T08:00:00Z`, updatedAt: `${today}T08:00:00Z` };
+    const seeder = await device('event-seeder');
+    seeder.local = { ...seeder.local, events: [event] };
+    await sync(seeder);
+    const before = store.vault.entities[`event:${event.id}`];
+    const ai = await assistant('full', { headings: ['Work'] });
+    await ok(ai, 'create_task', { title: 'Independent task', heading: 'Work' });
+    expect(store.vault.entities[`event:${event.id}`]).toEqual(before);
   });
 
   it('create_task into a non-granted heading is refused and nothing is written', async () => {

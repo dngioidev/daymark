@@ -29,6 +29,26 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export interface EventTiming {
+  localTime: string; // HH:mm on EventItem.date in timeZone
+  timeZone: string; // IANA zone
+  startInstant: string; // canonical ISO instant; preserves fold selection
+}
+
+export interface EventItem {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD, original calendar placement
+  heading: string;
+  order: number; // shared numeric placement relative to task.order
+  description?: string;
+  checklist?: ChecklistItem[];
+  timing?: EventTiming;
+  durationMinutes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskItem {
   id: string;
   title: string;
@@ -92,6 +112,7 @@ export interface CalendarCell {
   isFuture: boolean;
   done: number;
   total: number;
+  eventCount: number;
   hasNotes: boolean;
   titles: string[];
   items: { title: string; done: boolean }[];
@@ -250,6 +271,8 @@ export interface AlertDaysSettings {
 export interface AppSettings {
   /** Partial on purpose: a click stores only the key it changed, so two devices changing different keys merge without loss. */
   alertDays?: Partial<AlertDaysSettings>;
+  /** Shared event warning lead time in minutes; absent defaults to 15 and null disables warnings. */
+  eventWarningMinutes?: number | null;
   appearance?: AppearanceSettings;
   defaultHeadings: string[];
   agingThresholds: AgingThresholds;
@@ -273,7 +296,7 @@ export interface ServerAuthState {
 
 export type EditorMode = 'visual' | 'split' | 'raw';
 
-export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'ai' | 'lifecycle' | 'aging' | 'headings' | 'widget' | 'advanced' | 'help';
+export type SettingsTab = 'appearance' | 'storage' | 'sync' | 'ai' | 'lifecycle' | 'aging' | 'events' | 'headings' | 'widget' | 'advanced' | 'help';
 
 /** Metadata for a background photo stored only on this device. */
 export interface PhotoMeta {

@@ -15,11 +15,12 @@ import { tsImport } from 'tsx/esm/api';
 import { createNotebook, writeTwoStrokes, readStored, readInk, waitInk, touchDoesNotDraw, openNotes, highlightWords, inkCanvas, penDrag } from './helpers/cycle-14-qa.mjs';
 import { signIn } from './helpers/server-session.mjs';
 import { pollUntil } from './helpers/poll.mjs';
+import { assertPortAvailable } from './helpers/port.mjs';
 
 const cycle = process.argv[2];
 const outDir = cycle ? path.resolve('docs', 'releases', cycle, 'images') : null;
 if (outDir) fs.mkdirSync(outDir, { recursive: true });
-const PORT = 3103;
+const PORT = Number(process.env.DAYMARK_SYNC_PORT ?? 3103);
 const base = `http://localhost:${PORT}`;
 const PASSWORD = 'e2e-password-123';
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'daymark-e2e-sync-'));
@@ -68,7 +69,13 @@ const killServer = (server) =>
   });
 
 const synced = (page) => page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
+const readEvents = (page) => page.evaluate(async () => {
+  const db = await new Promise((resolve) => { const r = indexedDB.open('daymark', 1); r.onsuccess = () => resolve(r.result); });
+  try { return await new Promise((resolve) => { const r = db.transaction('kv').objectStore('kv').get('events'); r.onsuccess = () => resolve(r.result ?? []); }); }
+  finally { db.close(); }
+});
 
+await assertPortAvailable(PORT);
 let server = startServer();
 let browser;
 try {
@@ -618,6 +625,60 @@ try {
   // Restore Today for the existing dashboard/restart assertions below.
   for (const page of [laptop, phone]) await page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'Today', exact: true }).click();
 
+  // Cycle 21: an offline event survives reload, then converges through edit, move and delete.
+  const eventDates = await phone.evaluate(() => {
+    const today = new Date(); const ymd = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const current = ymd(today); today.setDate(today.getDate() + 1); return { today: current, tomorrow: ymd(today) };
+  });
+  await phoneCtx.setOffline(true);
+  await phone.getByRole('button', { name: /^new task$/i }).click();
+  await phone.getByRole('button', { name: 'Event', exact: true }).click();
+  await phone.locator('#event-title').fill('Cycle 21 offline event');
+  await phone.locator('#event-date').fill(eventDates.today);
+  await phone.locator('#event-duration-hours').fill('1');
+  await phone.getByLabel('New checklist item', { exact: true }).fill('Bring access badge');
+  await phone.getByRole('button', { name: 'Add checklist item', exact: true }).click();
+  await phone.getByRole('button', { name: 'Add event', exact: true }).click();
+  await phone.getByRole('button', { name: 'Cycle 21 offline event', exact: true }).waitFor();
+  await phone.reload({ waitUntil: 'domcontentloaded' });
+  await phone.locator('[data-day-label]').waitFor();
+  await phone.getByRole('button', { name: 'Cycle 21 offline event', exact: true }).waitFor();
+  let offlineEvent = (await readEvents(phone)).find(event => event.title === 'Cycle 21 offline event');
+  if (!offlineEvent) throw new Error('offline event was not saved locally');
+  await phone.getByRole('button', { name: 'Cycle 21 offline event', exact: true }).click();
+  const offlineEditor = phone.getByRole('dialog', { name: 'Edit event', exact: true });
+  await offlineEditor.getByLabel('Event title', { exact: true }).fill('Cycle 21 edited offline event');
+  await offlineEditor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await phone.getByRole('button', { name: 'Cycle 21 edited offline event', exact: true }).waitFor();
+  offlineEvent = (await readEvents(phone)).find(event => event.id === offlineEvent.id);
+  check(!!offlineEvent && offlineEvent.title === 'Cycle 21 edited offline event'
+    && offlineEvent.durationMinutes === 60 && offlineEvent.checklist?.some(item => item.text === 'Bring access badge'),
+    'phone keeps an offline event edit, duration and checklist after reload');
+  await phoneCtx.setOffline(false);
+  await syncNow(phone);
+  await syncNow(laptop);
+  await laptop.getByRole('button', { name: 'Cycle 21 edited offline event', exact: true }).waitFor();
+  check((await readEvents(laptop)).some(event => event.id === offlineEvent.id && event.title === 'Cycle 21 edited offline event'),
+    'laptop receives the offline event and its edit');
+
+  await laptop.locator(`[data-event-id="${offlineEvent.id}"]`).getByRole('button', { name: /More actions for event/ }).click();
+  await laptop.getByRole('menuitem', { name: /Move to date/ }).click();
+  const moveEventDialog = laptop.getByRole('dialog', { name: 'Move event to date', exact: true });
+  await moveEventDialog.locator('#event-move-date-input').fill(eventDates.tomorrow);
+  await moveEventDialog.getByRole('button', { name: 'Move', exact: true }).click();
+  await syncNow(laptop);
+  await syncNow(phone);
+  check((await readEvents(phone)).some(event => event.id === offlineEvent.id && event.date === eventDates.tomorrow),
+    'both devices converge on the moved event date');
+
+  await laptop.getByRole('button', { name: 'Next day', exact: true }).click();
+  await laptop.locator(`[data-event-id="${offlineEvent.id}"]`).getByRole('button', { name: /More actions for event/ }).click();
+  await laptop.getByRole('menuitem', { name: 'Delete event', exact: true }).click();
+  await laptop.getByRole('alertdialog', { name: 'Delete this event?', exact: true }).getByRole('button', { name: 'Delete', exact: true }).click();
+  await syncNow(laptop);
+  await syncNow(phone);
+  check(!(await readEvents(phone)).some(event => event.id === offlineEvent.id)
+    && !(await readEvents(laptop)).some(event => event.id === offlineEvent.id), 'deletion converges on both devices without resurrecting the event');
   // Server dashboard lists both devices
   await laptop.getByRole('button', { name: /open sync settings/i }).click();
   const deviceRows = laptop.getByRole('dialog', { name: 'Settings' }).locator('ul.divide-y > li').filter({ hasText: 'e2e' });
@@ -627,6 +688,7 @@ try {
 
   // Server restart keeps everything; a new device gets the full vault
   await killServer(server);
+  await assertPortAvailable(PORT);
   server = startServer();
   await waitForServer();
   const thirdCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });

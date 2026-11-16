@@ -44,6 +44,28 @@ export interface TaskItem {
 }
 ```
 
+### `EventItem` (Cycle 21)
+```typescript
+export interface EventItem {
+  id: string;
+  title: string;
+  date: string;              // YYYY-MM-DD in the event's original calendar zone
+  heading: string;
+  order: number;              // Shared section order with tasks
+  description?: string;       // Markdown notes
+  checklist?: ChecklistItem[];
+  timing?: { localTime: string; timeZone: string; startInstant: string };
+  durationMinutes?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+- Time and duration are independently optional. A timed event's end is derived from elapsed duration; date-only events remain all-day, and a duration without a start is an untimed commitment. A timed span can cross midnight; its occupied calendar interval is end-exclusive.
+- Placement remains on the saved original-zone date. The UI presents original-zone time first and current device-local time second. DST gaps require correction; repeated wall times preserve the selected instant.
+- Events share section ordering and appear in daily rows and a distinct Calendar agenda/count. They never enter task status, aging, completion, search task counts or daily rollover.
+- Standalone backup Markdown is `Daymark/events/<URL-encoded-id>.md`. Version 1 `daymark_event` JSON frontmatter preserves typed metadata and stable IDs; visible fields and delimited notes/checklist sections are readable and authoritative for their corresponding editable values.
+- The default event warning lead is 15 minutes without synthesizing a saved setting. `null` disables it. Warnings are in-app, foreground-only notices, not operating-system notifications.
+
 ### `DailyDocument`
 ```typescript
 export interface DailyDocument {

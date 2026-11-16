@@ -13,6 +13,7 @@ import {
   HabitData,
   BacklogData,
   BacklogItem,
+  EventItem,
   AppSettings,
   ViewTab,
   TaskItem,
@@ -24,6 +25,8 @@ import {
   saveSettings,
   loadDailyDocuments,
   saveDailyDocuments,
+  loadEvents,
+  saveEvents,
   loadStandaloneNotes,
   saveStandaloneNotes,
   loadHabits,
@@ -43,7 +46,7 @@ import {
   getLastBackupDate,
   isShareCancel,
 } from './utils/vaultStore';
-import { importBackupAssets, importVaultFromZip, mergeRestoredInk, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, removeUnusedPictures } from './utils/vaultArchive';
+import { importBackupAssets, importVaultFromZip, mergeRestoredInk, mergeRestoredBacklog, mergeRestoredNoteMeta, mergeRestoredHabits, mergeRestoredEvents, removeUnusedPictures } from './utils/vaultArchive';
 import { addBacklogItem, editBacklogItem, moveTaskToBacklog, pickBacklogItem, reconcileBacklogVault, removeBacklogItem, reorderBacklogItem, restoreBacklogItem, undoBacklogMove, uneditedRecoveredBacklog, visibleBacklog } from './utils/backlog';
 import { isHabitData, vaultProblem } from './utils/vaultValidation';
 import { resolveToday } from './utils/clock';
@@ -97,6 +100,15 @@ import { isDialogOpen } from './components/ui/Dialog';
 import { isMenuOpen } from './components/ui/Menu';
 import { NoteLinkContext, type NoteLinks } from './components/notes/NoteLinkContext';
 import { resolveNoteLink } from './utils/noteLinks';
+import { eventEndInstant } from './utils/eventTime';
+import { nextEventOrder, upsertEvent, removeEvent, validateEvent } from './utils/events';
+import { shouldFallbackFromCalendarDate } from './utils/calendarGrid';
+import { resolveEventMove } from './utils/eventDraft';
+import { mergeEvent } from './sync/eventMerge';
+import { EventEditor } from './components/events/EventEditor';
+import { EventWarningQueue } from './components/events/EventWarningQueue';
+import { useEventWarnings } from './hooks/useEventWarnings';
+import { useDeviceTimeZone } from './hooks/useDeviceTimeZone';
 
 const DESKTOP_PAGE_LABELS: Record<ViewTab, string> = { today: 'Today', calendar: 'Calendar', notes: 'Notes', backlog: 'Backlog', 'mobile-code': 'Mobile & Code', server: 'Server', settings: 'Settings' };
 
@@ -128,6 +140,20 @@ export default function App() {
     return () => document.documentElement.classList.remove('dm-glass');
   }, [background.url]);
   const [dailyDocs, setDailyDocs] = useState<DailyDocument[]>(loadDailyDocuments);
+  const [events, setEvents] = useState<EventItem[]>(loadEvents);
+  const [eventWarningAnnouncement, setEventWarningAnnouncement] = useState('');
+  const eventWarningAnnouncementHistory = React.useRef<string[]>([]);
+  const announceEventWarning = React.useCallback((event: EventItem) => {
+    const message = `${event.title} is coming up.`;
+    eventWarningAnnouncementHistory.current = [...eventWarningAnnouncementHistory.current.slice(-4), message];
+    setEventWarningAnnouncement(eventWarningAnnouncementHistory.current.join(' '));
+  }, []);
+  const eventsRef = React.useRef(events);
+  const updateEvents = (update: EventItem[] | ((current: EventItem[]) => EventItem[])) => {
+    const next = typeof update === 'function' ? update(eventsRef.current) : update;
+    eventsRef.current = next;
+    setEvents(next);
+  };
   const dailyDocsRef = React.useRef(dailyDocs);
   dailyDocsRef.current = dailyDocs;
   const [notes, setNotes] = useState<StandaloneNote[]>(loadStandaloneNotes);
@@ -147,6 +173,8 @@ export default function App() {
   // Current active date
   // "Today" is the real local date (updates at midnight) unless a developer override is set
   const realToday = useRealToday();
+  const deviceZone = useDeviceTimeZone();
+  const eventWarningState = useEventWarnings(events, settings.eventWarningMinutes === undefined ? 15 : settings.eventWarningMinutes, announceEventWarning);
   const today = resolveToday(settings.simulatedToday, realToday);
   const [currentDate, setCurrentDate] = useState<string>(today);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => getMostRecentPastDate(dailyDocs, today));
@@ -167,6 +195,7 @@ export default function App() {
 
   // Modals & Drawers state
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // Help topic slug while Help is open; one Help for the rail, Settings and `?`.
   const [helpTopic, setHelpTopic] = useState<string | null>(null);
@@ -314,6 +343,7 @@ export default function App() {
     if (isSearchOpen) return (setIsSearchOpen(false), true);
     if (helpTopic) return (setHelpTopic(null), true);
     if (isQuickCaptureOpen) return (setIsQuickCaptureOpen(false), true);
+    if (editingEvent) return (setEditingEvent(null), true);
     if (historicalModalTask) return (setHistoricalModalTask(null), true);
     if (detailsTaskId) return (setDetailsTaskId(null), true);
     if (isSettingsOpen) return (setIsSettingsOpen(false), true);
@@ -322,7 +352,7 @@ export default function App() {
 
   // Keep the latest recorded past day as the initial review, preserving future selections.
   useEffect(() => {
-    if (activeDesktopTab === 'calendar' && calendarSelectedDate <= today && !dailyDocs.some((d) => d.date === calendarSelectedDate)) {
+    if (activeDesktopTab === 'calendar' && shouldFallbackFromCalendarDate(calendarSelectedDate, today, dailyDocsRef.current, eventsRef.current)) {
       setCalendarSelectedDate(getMostRecentPastDate(dailyDocs, today));
     }
   }, [activeDesktopTab]);
@@ -341,6 +371,8 @@ export default function App() {
   useEffect(() => {
     saveDailyDocuments(dailyDocs);
   }, [dailyDocs]);
+
+  useEffect(() => { saveEvents(events); }, [events]);
 
   useEffect(() => {
     saveStandaloneNotes(notes);
@@ -373,6 +405,7 @@ export default function App() {
       subscribeExternalChanges((key, value) => {
         // The loaders drop damaged entries and keep the cached array's identity (loop guard)
         if (key === 'daily_docs') setDailyDocs(loadDailyDocuments());
+        else if (key === 'events') updateEvents(loadEvents());
         else if (key === 'notes') setNotes(loadStandaloneNotes());
         else if (key === 'ink') setInk(readInkPages());
         else if (key === 'notemeta') setNoteMeta(loadNoteMeta());
@@ -627,6 +660,70 @@ export default function App() {
     showToast(`Added to ${heading.name}`);
   };
 
+  const handleCaptureEvent = (event: EventItem) => {
+    const next = { ...event, order: nextEventOrder(dailyDocsRef.current, eventsRef.current, event.date, event.heading) };
+    updateEvents((current) => upsertEvent(current, next));
+    showToast(`Added event to ${event.heading}`);
+  };
+
+  const handleSaveEvent = (candidate: EventItem, editorBase: EventItem | null) => {
+    const latest = eventsRef.current.find((event) => event.id === candidate.id) ?? null;
+    const merged = mergeEvent(editorBase, latest, candidate);
+    if (merged.conflicts.length) showToast(merged.conflicts.length === 1 ? merged.conflicts[0] : `${merged.conflicts.length} event edits changed on two devices; your changes were merged.`, { tone: 'info' });
+    if (!merged.value) {
+      showToast('This event was deleted elsewhere. Your draft was kept open.', { tone: 'error' });
+      return;
+    }
+    if (!validateEvent(merged.value)) {
+      showToast('This event could not be saved because its schedule is invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((current) => upsertEvent(current, merged.value!));
+    setEditingEvent(null);
+  };
+
+  const handleUpdateEvent = (candidate: EventItem, capturedBase?: EventItem | null) => {
+    const latest = eventsRef.current.find((event) => event.id === candidate.id) ?? null;
+    const merged = mergeEvent(capturedBase ?? latest, latest, candidate);
+    if (merged.conflicts.length) showToast(merged.conflicts.length === 1 ? merged.conflicts[0] : `${merged.conflicts.length} event edits changed on two devices; your changes were merged.`, { tone: 'info' });
+    if (!merged.value) return;
+    const updated: EventItem = { ...merged.value, updatedAt: new Date().toISOString() };
+    if (!validateEvent(updated)) {
+      showToast('This event could not be updated because its schedule is invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((current) => upsertEvent(current, updated));
+  };
+
+  const handleDeleteEvent = (id: string) => updateEvents((current) => removeEvent(current, id));
+
+  const handleMoveEvent = (id: string, change: { date?: string; heading?: string; startInstant?: string }) => {
+    const current = eventsRef.current.find((event) => event.id === id);
+    if (!current) return;
+    const targetDate = change.date ?? current.date;
+    const targetHeading = change.heading ?? current.heading;
+    const schedule = targetDate === current.date ? { kind: 'ready' as const, timing: current.timing } : resolveEventMove(current, targetDate, change.startInstant);
+    if (schedule.kind === 'choice') {
+      showToast('Choose an occurrence of this time in the move dialog.', { tone: 'error' });
+      return;
+    }
+    if (schedule.kind === 'invalid') {
+      showToast(schedule.message, { tone: 'error' });
+      return;
+    }
+    const moved: EventItem = {
+      ...current, date: targetDate, heading: targetHeading,
+      order: targetDate === current.date && targetHeading.toLowerCase() === current.heading.toLowerCase()
+        ? current.order : nextEventOrder(dailyDocsRef.current, eventsRef.current, targetDate, targetHeading),
+      timing: schedule.timing, updatedAt: new Date().toISOString(),
+    };
+    if (!validateEvent(moved) || (moved.timing && moved.durationMinutes !== undefined && !eventEndInstant(moved))) {
+      showToast('This event cannot move there because its schedule would be invalid.', { tone: 'error' });
+      return;
+    }
+    updateEvents((currentEvents) => upsertEvent(currentEvents, moved));
+  };
+
   // Handler: Quick add task from widget/mobile hub
   const handleQuickAddTaskFromHub = (title: string, sectionName: string) => {
     handleQuickCapture({
@@ -671,7 +768,7 @@ export default function App() {
   const runBackup = async (exporter: typeof exportVaultAsZip, done: string) => {
     try {
       let missingPictures = 0;
-      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, inkStore.get())) {
+      if (await exporter(dailyDocs, notes, settings, habits, count => { missingPictures = count; }, loadBacklog(), notemeta, inkStore.get(), events)) {
         setLastBackupAt(getLastBackupDate());
         showToast(missingPictures ? `${done} ${missingPictures} ${missingPictures === 1 ? 'picture was' : 'pictures were'} not included (not on this device yet)` : done);
       }
@@ -690,7 +787,7 @@ export default function App() {
 
   // Importing replaces the whole vault, so ask first when there is existing data
   const confirmReplaceVault = async () =>
-    (dailyDocs.length === 0 && notes.length === 0 && backlog.items.length === 0) ||
+    (dailyDocs.length === 0 && notes.length === 0 && events.length === 0 && backlog.items.length === 0) ||
     confirmDialog({
       title: 'Restore this backup?',
       message: sync.account
@@ -712,6 +809,9 @@ export default function App() {
     }
     const problem = vaultProblem(parsed.daily_documents, parsed.standalone_notes);
     if (problem) return alertDialog("This file can't be restored", problem);
+    try { mergeRestoredEvents([], parsed.events); } catch (error) {
+      return alertDialog("This file can't be restored", (error as Error).message);
+    }
     // Validate now; merge into the live pages at the end so strokes written meanwhile stay.
     try { mergeRestoredInk(inkStore.get(), parsed.ink); } catch (error) {
       return alertDialog("This file can't be restored", (error as Error).message);
@@ -725,6 +825,7 @@ export default function App() {
     }
     const nextSettings: AppSettings = parsed.settings ? normalizeSettings(parsed.settings) : settings;
     setDailyDocs(rolloverIntoToday(parsed.daily_documents, nextSettings));
+    updateEvents(current => mergeRestoredEvents(current, parsed.events));
     setNotes(parsed.standalone_notes);
     setInk(current => mergeRestoredInk(current, parsed.ink));
     setNoteMeta(current => mergeRestoredNoteMeta(current, parsed.notemeta));
@@ -743,6 +844,7 @@ export default function App() {
       const snapshot = await importVaultFromZip(file, settings.defaultHeadings);
       const nextSettings = snapshot.settings ? normalizeSettings(snapshot.settings) : settings;
       setDailyDocs(rolloverIntoToday(snapshot.docs, nextSettings));
+      updateEvents(current => mergeRestoredEvents(current, snapshot.events));
       setNotes(snapshot.notes);
       setInk(current => mergeRestoredInk(current, snapshot.ink));
       setNoteMeta(current => mergeRestoredNoteMeta(current, snapshot.notemeta));
@@ -764,6 +866,7 @@ export default function App() {
     const res = resetVaultToSeedData();
     setSettings(res.settings);
     setDailyDocs(rolloverIntoToday(res.docs, res.settings));
+    updateEvents(res.events);
     setNotes(res.notes);
     setInk(res.ink);
     setNoteMeta(res.notemeta);
@@ -787,7 +890,7 @@ export default function App() {
   // Self-hosted sync: merges this vault with the server in the background
   // `ink` is App's snapshot (refreshed after a writing pause), so it only schedules the debounced
   // sync; the sync itself sends and merges against the live pages, never a snapshot missing strokes.
-  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, settings, habits, backlog, notemeta, ink]);
+  const vaultForSync = useMemo(() => ({ docs: dailyDocs, notes, events, settings, habits, backlog, notemeta, ink }), [dailyDocs, notes, events, settings, habits, backlog, notemeta, ink]);
   const liveVault = React.useCallback((vault: typeof vaultForSync) => ({ ...vault, ink: inkStore.get() }), [inkStore]);
   const sync = useSync(
     vaultForSync,
@@ -796,6 +899,7 @@ export default function App() {
       setDailyDocs(next.docs);
       notesRef.current = next.notes;
       setNotes(next.notes);
+      updateEvents(next.events);
       setHabits(next.habits);
       setBacklog(next.backlog);
       setNoteMeta(next.notemeta);
@@ -946,6 +1050,12 @@ export default function App() {
                 onMoveTask={handleMoveTask}
                 onMoveToSection={handleMoveToSection}
                 onMoveToBacklog={handleMoveToBacklog}
+                events={events}
+                deviceZone={deviceZone}
+                onEditEvent={setEditingEvent}
+                onUpdateEvent={handleUpdateEvent}
+                onDeleteEvent={handleDeleteEvent}
+                onMoveEvent={handleMoveEvent}
                 onTriggerRollover={handleTriggerRollover}
               />
             )}
@@ -955,6 +1065,9 @@ export default function App() {
                 habits={habits}
                 onHabitsChange={setHabits}
                 dailyDocuments={dailyDocs}
+                events={events}
+                deviceZone={deviceZone}
+                onEditEvent={setEditingEvent}
                 selectedDate={calendarSelectedDate}
                 simulatedToday={today}
                 statuses={settings.statuses}
@@ -999,6 +1112,12 @@ export default function App() {
           habitsSlot={<HabitsBar countingDays={alertDays.habits} data={habits} date={currentDoc.date} today={today} onChange={setHabits} openSignal={habitsOpenSignal} compact />}
           currentDocument={currentDoc}
           dailyDocs={dailyDocs}
+          events={events}
+          deviceZone={deviceZone}
+          onEditEvent={setEditingEvent}
+          onUpdateEvent={handleUpdateEvent}
+          onDeleteEvent={handleDeleteEvent}
+          onMoveEvent={handleMoveEvent}
           inkPagesForNote={inkPagesForNote}
           updateInkPage={updateInkPage}
           notes={notes}
@@ -1064,10 +1183,30 @@ export default function App() {
         statuses={settings.statuses}
         simulatedToday={today}
         targetDate={currentDate}
+        deviceZone={deviceZone}
         onCapture={handleQuickCapture}
+        onCaptureEvent={handleCaptureEvent}
         onCaptureBacklog={handleCaptureBacklog}
         categories={visibleBacklog(backlog).map((item) => item.category).filter((category): category is string => !!category)}
       />
+
+      {eventWarningAnnouncement && <div className="sr-only" aria-live="polite" aria-atomic="false">{eventWarningAnnouncement}</div>}
+      <EventWarningQueue deviceZone={deviceZone} mobileNavigation={appMode === 'mobile-app'} notices={eventWarningState.notices} onDismiss={eventWarningState.dismiss} onOpen={(event) => {
+        const notice = eventWarningState.notices.find((item) => item.key === `${event.id}|${event.timing?.startInstant ?? ''}`);
+        if (notice) eventWarningState.dismiss(notice);
+        setEditingEvent(event);
+      }} />
+
+      {editingEvent && <EventEditor
+        event={editingEvent}
+        latestEvent={events.find((event) => event.id === editingEvent.id) ?? null}
+        date={editingEvent.date}
+        deviceZone={deviceZone}
+        headings={[...new Set([...settings.defaultHeadings, ...dailyDocs.find((doc) => doc.date === editingEvent.date)?.headings.map((heading) => heading.name) ?? [], ...events.filter((event) => event.date === editingEvent.date).map((event) => event.heading)])]}
+        onSave={handleSaveEvent}
+        onClose={() => setEditingEvent(null)}
+        onConflict={(messages) => messages.forEach((message) => showToast(message, { tone: 'info' }))}
+      />}
 
       <WelcomeModal
         isOpen={showWelcome}

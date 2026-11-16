@@ -63,6 +63,13 @@ daymark/
 | `src/utils/dateFormat.ts` | Logic | The UI's date vocabulary: Today/Yesterday/Tomorrow, "Fri 16 Oct", long dates, ages. No ISO dates on screen. |
 | `src/utils/notes.ts` | Logic | Note previews without Markdown syntax, pinned-first sorting and last-edited date labels. |
 | `src/components/TodayView.tsx` | UI | Full-width daily notebook with visual, split and Markdown modes, collapsible sections and progress/planned-day sidebar. |
+| `src/utils/events.ts`, `src/utils/eventTime.ts` | Logic | Event validation, occupied-date projection, time-zone resolution, elapsed spans and schedule formatting. |
+| `src/utils/eventMarkdown.ts`, `src/utils/vaultArchive.ts` | Backup | Readable versioned event Markdown plus JSON/ZIP snapshot import and export. |
+| `src/utils/eventMerge.ts`, `src/sync/syncClient.ts`, `server/app.ts` | Sync | Per-event and checklist merge, feature negotiation, event tombstones and capability-filtered entity exchange. |
+| `src/components/events/` | UI | Event fields, editor, mixed-list card, selected-day Calendar agenda and foreground warning queue. |
+| `src/hooks/useEventWarnings.ts`, `src/hooks/useDeviceTimeZone.ts` | Hooks | Foreground-only upcoming event notices and device-zone changes on focus/resume/visible polling. |
+| `src/utils/eventDraft.ts` | Logic | Pure event editor draft conversion, span-mode arithmetic and validation. |
+| `scripts/helpers/cycle-21-events.mjs`, `scripts/helpers/port.mjs`, `scripts/e2e-qa-regressions.mjs`, `scripts/e2e-sync.mjs` | QA | Isolated event fixtures, exclusive disposable-server port preflight, UI regression coverage and offline/two-device event convergence. |
 | `src/components/StandaloneNotesView.tsx` | UI | Notes page: one navigation column (`NoteNavigation`), editor and Related panel, templates, word count and focus mode; no page header row. Owns pane modes (`paneMode`), the wide/minimised-strip/drawer/phone switch and folder/dismissal writes. |
 | `src/components/notes/NoteNavigation.tsx`, `useNoteNavigationState.ts`, `useTreeWindow.ts` | UI / Hook | The single Notes column: search, New note / New folder / List \| Graph switch, then a windowed tree of folders with notes inside (Pinned group, unfiled notes after top-level folders, in-place search, current folder, drag and drop, arrow/Home/End/Enter and Shift+F10 keys). |
 | `src/utils/noteTree.ts` | Logic | `buildNoteTreeRows`, `defaultExpanded` and `ancestorPaths`: flatten folders and notes into tree rows, with search matches and the dimmed open note. |
