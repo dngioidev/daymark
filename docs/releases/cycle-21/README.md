@@ -75,3 +75,8 @@ Captured with `node scripts/capture-screenshots.mjs cycle-21`: desktop 1440×900
 ## References
 
 [Events guide](../../guide/events.md) · [Calendar guide](../../guide/calendar.md) · [Sync guide](../../guide/sync.md) · [Approved design](../../superpowers/specs/2026-11-15-cycle-21-events-design.md) · [Implementation plan](../../superpowers/plans/2026-11-15-cycle-21-events.md) · [Roadmap](../../ROADMAP.md)
+
+
+## Daymark handoff
+
+Implementation checkpoint: `02fb472`. Tracking task `task-1794741962916-m7v3` is done under the existing Daymark heading. The verified outcome was appended to both **Daymark Cycle 21 - Events specification** and **Daymark Cycle 21 - Events implementation plan**, preserving their existing contents. The connector exposes checklist text updates but no per-item completion operation, so the existing checklist records were preserved and all six verified milestones are recorded in the task description.
