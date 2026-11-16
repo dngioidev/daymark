@@ -71,3 +71,8 @@ No storage schema, sync protocol, reminder setting, event lifecycle or dependenc
 ## Approval and execution
 
 This adds the hourly-grid scope that the original Cycle 21 spec explicitly deferred. No product code has been changed for this view. After approval, write an implementation plan that resolves the DST axis detail and execute with one reused Luna worker under main-agent review, consistent with the owner's earlier constraint.
+
+
+## Implementation outcome - 2026-11-16
+
+The approved separate Events week mode is implemented. Browser checks verified device-zone placement, preserved original schedules/dates, overlap rectangles, short/start-only markers, editor save, week navigation, existing Month/task Week preservation and phone scrolling. A device-zone switch was emulated on the same page and verified not to rewrite stored events. DST/domain tests cover gaps, repeats, half-hour changes and skipped dates. Historical second-level transitions use a whole-event readable fallback where exact plotting is unsupported. See the [verification report](../../releases/cycle-21/README.md#events-week-follow-up-verification). Native Android timezone switching remains untested; no release is included.

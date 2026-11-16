@@ -52,6 +52,31 @@ describe('EventWeekGrid', () => {
     } finally { await ui.unmount(); }
   });
 
+  it('keeps the original start clock first on the first piece of an overnight event', async () => {
+    const overnight = timed('overnight-first-label', '2026-11-02', '23:00', 'UTC', '2026-11-02T23:00:00.000Z', 180);
+    const ui = await mount({ events: [overnight], anchor: '2026-11-02' });
+    try {
+      const segment = ui.host.querySelector<HTMLElement>('[data-event-week-event-id="overnight-first-label"]')!;
+      expect(segment.dataset.eventWeekDate).toBe('2026-11-02');
+      expect(segment.querySelector('[data-original-schedule]')?.textContent?.startsWith('23:00')).toBe(true);
+      expect(segment.getAttribute('aria-label')).toContain('2026-11-02');
+    } finally { await ui.unmount(); }
+  });
+
+  it('shows the original event date when a zone shift places the event in another device day', async () => {
+    const shifted = timed('cross-date', '2026-10-31', '23:30', 'America/Los_Angeles', '2026-11-01T06:30:00.000Z', 45);
+    const ui = await mount({ events: [shifted], anchor: '2026-11-01', deviceZone: 'America/New_York' });
+    try {
+      const segment = ui.host.querySelector<HTMLElement>('[data-event-week-event-id="cross-date"]')!;
+      expect(segment.dataset.eventWeekDate).toBe('2026-11-01');
+      const originalLabel = segment.querySelector('[data-original-schedule]')?.textContent ?? '';
+      expect(originalLabel).toContain('Oct 31');
+      expect(originalLabel.indexOf('Oct 31')).toBeLessThan(originalLabel.indexOf('2026-11-01'));
+      expect(segment.getAttribute('aria-label')).toContain('2026-10-31');
+      expect(segment.querySelector('[data-device-schedule]')?.textContent).toContain('01:30');
+    } finally { await ui.unmount(); }
+  });
+
   it('keeps date-only and duration-only events in the bounded No set time strip', async () => {
     const dateOnly = event('date-only', '2026-11-03', { title: 'Date only planning' });
     const durationOnly = event('duration-only', '2026-11-03', { title: 'Repair estimate', durationMinutes: 90 });
@@ -92,6 +117,15 @@ describe('EventWeekGrid', () => {
       expect(button.querySelector<HTMLElement>('[data-exact-span]')?.style.height).toBe('1px');
       expect(column.style.height).toBe('1484px');
       expect(Number.parseFloat(button.style.top) + Number.parseFloat(button.style.height)).toBeLessThanOrEqual(Number.parseFloat(column.style.height));
+    } finally { await ui.unmount(); }
+  });
+
+  it('fills desktop width without forcing the seven columns to max-content width', async () => {
+    const ui = await mount();
+    try {
+      const content = ui.host.querySelector<HTMLElement>('[data-event-week-scroll] > div')!;
+      expect(content.className).toContain('min-w-0');
+      expect(content.className).not.toContain('min-w-max');
     } finally { await ui.unmount(); }
   });
 
@@ -150,6 +184,7 @@ describe('EventWeekGrid', () => {
       const fallback = ui.host.querySelector<HTMLButtonElement>('[data-fallback-event-id="historical-fallback"]')!;
       expect(fallback).not.toBeNull();
       expect(fallback.textContent).toContain('23:40');
+      expect(fallback.textContent).toContain('1911-03-10');
       expect(fallback.textContent).toContain('A historical time-zone transition');
       act(() => fallback.click());
       expect(ui.onEdit).toHaveBeenCalledWith(source);
@@ -161,6 +196,7 @@ describe('EventWeekGrid', () => {
     const ui = await mount({ events: [source], anchor: '0001-01-01' });
     try {
       expect(ui.host.textContent).toContain('invalid or unsupported date');
+      expect(ui.host.querySelector('[data-fallback-event-id="out-of-range-event"]')?.textContent).toContain('Nov 2, 2026');
       expect(ui.host.querySelector('[data-fallback-event-id="out-of-range-event"]')?.textContent).toContain('Date only');
     } finally { await ui.unmount(); }
   });

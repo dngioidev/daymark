@@ -99,6 +99,15 @@ function civilDate(epochMs: number): string | undefined {
   return `${String(year).padStart(4, '0')}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
 }
 
+/** Shift an event-week anchor by civil calendar days without host-timezone arithmetic. */
+export function shiftEventWeekAnchor(anchor: string, days: number): string | undefined {
+  const anchorMs = civilEpoch(anchor);
+  if (anchorMs === undefined || !Number.isSafeInteger(days)) return undefined;
+  const shiftedMs = anchorMs + days * DAY_MS;
+  if (!Number.isSafeInteger(shiftedMs)) return undefined;
+  return civilDate(shiftedMs);
+}
+
 function civilWeek(anchor: string): { weekStart: string; dates: string[] } | undefined {
   const anchorMs = civilEpoch(anchor);
   if (anchorMs === undefined) return undefined;

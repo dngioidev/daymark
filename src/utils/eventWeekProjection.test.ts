@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EventItem } from '../types/daymark';
-import { buildEventWeek } from './eventWeekProjection';
+import { getNextDate } from './lifecycleEngine';
+import { buildEventWeek, shiftEventWeekAnchor } from './eventWeekProjection';
 
 const item = (id: string, date: string, overrides: Partial<EventItem> = {}): EventItem => ({
   id, title: id, date, heading: 'Work', order: 1,
@@ -19,6 +20,20 @@ const expectNoUnavailableOverlap = (day: { unavailableIntervals: { topMinutes: n
 };
 
 describe('buildEventWeek', () => {
+  it('advances event weeks by civil dates even when the host zone skipped the selected anchor date', () => {
+    const previousZone = process.env.TZ;
+    process.env.TZ = 'Pacific/Kwajalein';
+    try {
+      const skippedSaturday = '1993-08-21';
+      expect(getNextDate(skippedSaturday, 7)).toBe('1993-08-29');
+      expect(shiftEventWeekAnchor(skippedSaturday, 7)).toBe('1993-08-28');
+      expect(shiftEventWeekAnchor(skippedSaturday, -7)).toBe('1993-08-14');
+    } finally {
+      if (previousZone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousZone;
+    }
+  });
+
   it('places a Saturday original-zone start on Sunday when it is Sunday in the device zone', () => {
     const saturday = timed('cross-zone', '2026-10-31', '23:30', 'America/Los_Angeles', '2026-11-01T06:30:00.000Z', 60);
     const week = buildEventWeek([saturday], '2026-11-01', 'Asia/Tokyo');

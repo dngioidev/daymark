@@ -11,9 +11,9 @@ related: today, calendar, sync, backups
 2. Add a date and title. Time and duration are independent and optional. With neither set, Daymark records a date-only event (it does not treat the event as all-day occupancy). A duration without a start appears as **No set time**.
 3. Add notes and checklist items as needed. Save, then use the event menu to edit, move or delete it. Checklist changes save immediately.
 
-Timed events keep the time zone in which they were scheduled. Daymark shows that original-zone time first and the device's current local time second. End times and durations use elapsed time, including overnight spans and daylight-saving changes. If a clock time is repeated or skipped when the clocks change, choose the displayed occurrence or correct the time.
+Timed events keep their original time zone, with device-local time shown second. End times use elapsed time across midnight and daylight-saving changes. If a local time repeats or is skipped, choose an occurrence or correct it.
 
-Events appear beside open tasks in Today and in a separate Calendar agenda. An event has no completion or overdue state, aging or carry-forward; its checklist items can be checked independently. In **Settings → Event warnings**, advance warnings default to 15 minutes; choose another positive number of minutes or **Off**. Warnings appear only while Daymark is open in the foreground. They do not use operating-system notifications.
+Events appear beside tasks in Today, the selected-day Calendar agenda, and **Events week**. The grid uses the device zone but keeps the original time and date visible; view or zone changes never edit events. Date-only and duration-only entries stay in **No set time**. Events have no completion, overdue, aging or carry-forward state, but checklist items can be checked. **Settings → Event warnings** defaults to 15 minutes; choose more minutes or **Off**. Warnings appear only in the foreground; there are no operating-system notifications.
 
 ## Phone
 1. Tap **Today**, then the plus button. Choose **Event** in the capture form.

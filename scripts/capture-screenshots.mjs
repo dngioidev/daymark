@@ -21,7 +21,7 @@ import { chromium } from 'playwright-core';
 import { signIn, resetServerVault, seedSample, seedVault } from './helpers/server-session.mjs';
 import { createNotebook, writeTwoStrokes, openNotes, highlightWords, inkCanvas, waitInk, penDrag } from './helpers/cycle-14-qa.mjs';
 import { cycle7Fixture } from './helpers/cycle-7-fixture.mjs';
-import { cycle21Vault } from './helpers/cycle-21-events.mjs';
+import { cycle21EventWeekVault, cycle21Vault } from './helpers/cycle-21-events.mjs';
 import { assertPortAvailable } from './helpers/port.mjs';
 
 const args = process.argv.slice(2);
@@ -466,6 +466,14 @@ const cycle21Ready = async (page) => {
   await page.locator('[data-day-label]').waitFor();
   await page.getByRole('button', { name: /sync: synced/i }).waitFor({ timeout: 20000 });
 };
+const cycle21DismissAllWarnings = async (page) => {
+  const queue = page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
+  for (let index = 0; index < 20 && await queue.count(); index += 1) {
+    const dismiss = queue.getByRole('button', { name: /^Dismiss / }).first();
+    if (!await dismiss.count()) break;
+    await dismiss.click();
+  }
+};
 const cycle21DismissWarning = async (page) => {
   const queue = page.getByRole('region', { name: 'Upcoming event warnings', exact: true });
   if (await queue.count()) await queue.getByRole('button', { name: /Dismiss C21 Upcoming warning preview/ }).click();
@@ -499,6 +507,14 @@ const cycle21Calendar = async (page) => {
     }
   }
 };
+const cycle21EventWeek = async (page) => {
+  await cycle21Ready(page);
+  await cycle21DismissAllWarnings(page);
+  await page.getByRole('button', { name: 'Calendar', exact: true }).first().click();
+  await page.getByRole('group', { name: 'Calendar view', exact: true }).getByRole('button', { name: 'Events week', exact: true }).click();
+  await page.locator('[data-event-week-scroll]').waitFor();
+  await page.getByText('C21 Design review', { exact: true }).waitFor();
+};
 const cycle21WarningSettings = async (page) => {
   await cycle21Ready(page);
   await cycle21DismissWarning(page);
@@ -524,6 +540,10 @@ const SHOTS = [
   { name: 'events-calendar-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21Calendar },
   { name: 'events-calendar-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21Calendar },
   { name: 'events-calendar-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21Calendar },
+  { name: 'events-week-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21EventWeek },
+  { name: 'events-week-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21EventWeek },
+  { name: 'events-week-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21EventWeek },
+  { name: 'events-week-android-dark', viewport: 'android', dark: true, cycles: ['cycle-21'], prepare: cycle21EventWeek },
   { name: 'event-warning-settings-desktop', viewport: 'desktop', cycles: ['cycle-21'], prepare: cycle21WarningSettings },
   { name: 'event-warning-settings-desktop-dark', viewport: 'desktop', dark: true, cycles: ['cycle-21'], prepare: cycle21WarningSettings },
   { name: 'event-warning-settings-android', viewport: 'android', cycles: ['cycle-21'], prepare: cycle21WarningSettings },
@@ -780,7 +800,8 @@ try {
   await waitForServer(baseUrl);
   browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
   // Shots without `cycles` are the generic pair; tagged shots run only for their cycle
-  for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle))))) {
+  for (const shot of SHOTS.filter((s) => (s.cycles ? s.cycles.includes(cycle) : !SHOTS.some((t) => t.cycles?.includes(cycle)))
+    && (!process.env.DAYMARK_SHOT_PREFIX || s.name.startsWith(process.env.DAYMARK_SHOT_PREFIX)))) {
     const ctx = await browser.newContext({ ...VIEWPORTS[shot.viewport], ...(cycle === 'cycle-21' ? { timezoneId: 'Asia/Ho_Chi_Minh' } : {}), colorScheme: shot.dark ? 'dark' : 'light', ...(shot.publicSite ? { serviceWorkers: 'block' } : {}) });
     if (!shot.signedOut) {
       const session = await signIn(ctx, baseUrl, password);
@@ -788,10 +809,13 @@ try {
     }
     const page = await ctx.newPage();
     const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayParts = new Intl.DateTimeFormat('en-CA', { timeZone: cycle === 'cycle-21' ? 'Asia/Ho_Chi_Minh' : undefined,
+      year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+    const part = (type) => todayParts.find((item) => item.type === type)?.value;
+    const today = `${part('year')}-${part('month')}-${part('day')}`;
     if (!externalUrl && !shot.signedOut) {
       if (cycle === 'cycle-21') {
-        await seedVault(page, baseUrl, cycle21Vault(today));
+        await seedVault(page, baseUrl, shot.name.startsWith('events-week-') ? cycle21EventWeekVault(today) : cycle21Vault(today));
       } else if (cycle === 'cycle-20') {
         await seedVault(page, baseUrl, cycle20Vault(today));
       } else if (cycle === 'cycle-19') {

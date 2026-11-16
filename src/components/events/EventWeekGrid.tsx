@@ -93,11 +93,24 @@ function clockLabel(minute: number): string {
 
 function TimelineEvent({ segment, zone, onEdit }: { segment: PositionedEventWeekSegment; zone: string; onEdit: (event: EventItem) => void }) {
   const schedule = formatEventSchedule(segment.event, zone);
-  const original = schedule.primary;
-  const device = schedule.secondary
+  const shiftedOriginalDate = segment.date !== segment.event.date;
+  const originalDateLabel = formatCivilDate(segment.event.date, { month: 'short', day: 'numeric', year: 'numeric' });
+  const original = shiftedOriginalDate && !schedule.primary.includes(segment.event.date)
+    ? `${originalDateLabel} · ${schedule.primary}`
+    : schedule.primary;
+  const originalVisibleBase = schedule.primary.startsWith(segment.event.date)
+    ? schedule.primary.slice(segment.event.date.length).trimStart()
+    : schedule.primary;
+  const compactOriginalDate = formatCivilDate(segment.event.date, { month: 'short', day: 'numeric' });
+  const originalClock = segment.event.timing?.localTime;
+  const originalVisible = shiftedOriginalDate && originalClock && originalVisibleBase.startsWith(originalClock)
+    ? `${originalClock} · ${compactOriginalDate}${originalVisibleBase.slice(originalClock.length)}`
+    : shiftedOriginalDate ? `${originalVisibleBase} · ${compactOriginalDate}` : originalVisibleBase;
+  const deviceVisible = `${segment.localLabel} · ${zone}`;
+  const deviceAccessible = schedule.secondary
     ? `${schedule.secondary.replace(/^Your local time:\s*/, '')} · ${segment.localLabel}`
-    : `${segment.localLabel} · ${zone}`;
-  const accessibleName = eventAccessibleName(segment, original, device);
+    : deviceVisible;
+  const accessibleName = eventAccessibleName(segment, original, deviceAccessible);
   const continuationText = segment.continuesBefore || segment.continuesAfter ? 'Continues' : '';
   const spanLabel = segment.startOnly ? 'No duration' : `Exact span: ${formatSpan(segment.spanMinutes)}`;
 
@@ -127,8 +140,8 @@ function TimelineEvent({ segment, zone, onEdit }: { segment: PositionedEventWeek
         {continuationText && <span className="shrink-0 text-[9px] font-medium text-stone-600 dark:text-stone-300">{continuationText}</span>}
         {segment.startOnly && <span data-no-duration className="shrink-0 rounded bg-stone-100 px-1 text-[9px] font-medium leading-3 text-stone-700 dark:bg-stone-800 dark:text-stone-200">No duration</span>}
       </span>
-      <span data-original-schedule className="truncate text-[10px] font-medium leading-3">{original}</span>
-      <span data-device-schedule className="truncate text-[10px] leading-3 text-stone-700 dark:text-stone-300">{device}</span>
+      <span data-original-schedule className="truncate text-[10px] font-medium leading-3">{originalVisible}</span>
+      <span data-device-schedule className="truncate text-[10px] leading-3 text-stone-700 dark:text-stone-300">{deviceVisible}</span>
     </span>
   </button>;
 }
@@ -147,6 +160,9 @@ function UnavailableBand({ interval, date }: { interval: EventWeekDay['unavailab
 
 function EmptyFallback({ reason, event, onEdit, zone }: { reason: string; event: EventItem; onEdit: (event: EventItem) => void; zone: string }) {
   const schedule = formatEventSchedule(event, zone);
+  const original = schedule.primary.includes(event.date)
+    ? schedule.primary
+    : `${formatCivilDate(event.date, { month: 'short', day: 'numeric', year: 'numeric' })} · ${schedule.primary}`;
   return <button
     type="button"
     data-fallback-event-id={event.id}
@@ -154,7 +170,7 @@ function EmptyFallback({ reason, event, onEdit, zone }: { reason: string; event:
     className="flex min-h-11 w-full flex-col items-start justify-center rounded-lg border border-amber-300 border-l-4 border-l-amber-600 bg-amber-50 px-3 py-2 text-left text-stone-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-800 dark:border-l-amber-400 dark:bg-amber-950/50 dark:text-stone-100 dark:hover:bg-amber-900/60 dark:focus-visible:outline-amber-300"
   >
     <span className="font-semibold">{event.title}</span>
-    <span data-original-schedule className="text-xs">{schedule.primary}</span>
+    <span data-original-schedule className="text-xs">{original}</span>
     {schedule.secondary && <span className="text-xs text-stone-700 dark:text-stone-300">{schedule.secondary}</span>}
     <span className="text-xs text-stone-600 dark:text-stone-400">{reason}</span>
   </button>;
@@ -213,7 +229,7 @@ export const EventWeekGrid: React.FC<EventWeekGridProps> = ({ events, anchor, de
       className="relative max-h-[min(68vh,700px)] min-h-[360px] overflow-auto overscroll-contain rounded-xl border border-stone-300 bg-white outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-stone-700 dark:bg-stone-900"
       style={{ scrollbarGutter: 'stable' }}
     >
-      <div className="min-w-max" style={{ width: `max(100%, ${contentMinWidth}px)` }}>
+      <div className="min-w-0" style={{ width: `max(100%, ${contentMinWidth}px)` }}>
         <div className="sticky top-0 z-30 grid h-14 border-b border-stone-300 bg-stone-100 text-stone-900 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100" style={{ gridTemplateColumns: columns }}>
           <div className="sticky left-0 z-40 flex h-14 items-center justify-center border-r border-stone-300 bg-stone-100 text-[10px] font-semibold text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">Time</div>
           {model.days.map(day => <div key={day.date} data-event-week-day-heading={day.date} className="flex h-14 min-w-0 flex-col justify-center border-r border-stone-300 px-2 dark:border-stone-700">

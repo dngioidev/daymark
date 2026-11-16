@@ -84,12 +84,12 @@ The projection helper may expose narrowly scoped existing `eventTime.ts` formatt
 
 **Interface:** extend Calendar's view union to `'month' | 'week' | 'events-week'`. Continue using the existing `events`, `deviceZone` and `onEditEvent` props already wired through desktop and mobile.
 
-- [ ] Write failing integration tests: **Events week** is independently selectable; Month/task Week still render their existing content; Events week renders no task-week rows or selected-day task panel; previous/next move seven days; Today returns to device-local today; changing deviceZone repositions events without a save callback.
-- [ ] Add the third view control and a dedicated full-width rendering branch. Keep existing Month and Week strings/behavior. Reuse `weekAnchor`, selected-date following and date helpers; show the event week range, Today control and device timezone. Hide task-only summary/recent-day/selected-day panels only in this new branch.
-- [ ] Add `C21-EventWeek` real-browser checks on desktop and phone for navigation, cross-zone date placement, overlaps, untimed entries, horizontal scroll/sticky geometry and opening/editing the correct event. Use existing disposable-port guards and DOM plus visible-app/Synced readiness, not `networkidle` in the new scenario.
-- [ ] Capture four new feature images (desktop/phone light/dark) with overlaps and untimed entries; inspect every image and actual theme/viewport. Keep all fixtures disposable and existing screenshot sets intact.
-- [ ] Run focused tests, lint, build, helper/config checks and full bounded unit suite. Run the new browser scenario, relevant existing Calendar/mobile cases and PWA; compare any broad QA failures with committed `docs/releases/cycle-21/qa-comparison.json`, retaining raw timeouts and focused retries separately. Do not change tests to hide failures.
-- [ ] Main performs the whole-branch review against the approved design, updates Daymark task/spec/plan outcomes and records exact verification. Commit the completed follow-up; do not merge, push or deploy.
+- [x] Write failing integration tests: **Events week** is independently selectable; Month/task Week still render their existing content; Events week renders no task-week rows or selected-day task panel; previous/next move seven days; Today returns to device-local today; changing deviceZone repositions events without a save callback.
+- [x] Add the third view control and a dedicated full-width rendering branch. Keep existing Month and Week strings/behavior. Reuse `weekAnchor`, selected-date following and date helpers; show the event week range, Today control and device timezone. Hide task-only summary/recent-day/selected-day panels only in this new branch.
+- [x] Add `C21-EventWeek` real-browser checks on desktop and phone for navigation, cross-zone date placement, overlaps, untimed entries, horizontal scroll/sticky geometry and opening/editing the correct event. Use existing disposable-port guards and DOM plus visible-app/Synced readiness, not `networkidle` in the new scenario.
+- [x] Capture four new feature images (desktop/phone light/dark) with overlaps and untimed entries; inspect every image and actual theme/viewport. Keep all fixtures disposable and existing screenshot sets intact.
+- [x] Run focused tests, lint, build, helper/config checks and full bounded unit suite. Run the new browser scenario, relevant existing Calendar/mobile cases and PWA; compare any broad QA failures with committed `docs/releases/cycle-21/qa-comparison.json`, retaining raw timeouts and focused retries separately. Do not change tests to hide failures.
+- [x] Main performs the whole-branch review against the approved design, updates Daymark task/spec/plan outcomes and records exact verification. Commit the completed follow-up; do not merge, push or deploy.
 
 ## Self-review and handoff
 
@@ -101,3 +101,8 @@ Execution method is already chosen: one reused Luna worker with main-agent revie
 ## Execution rulings
 
 Task 1 review confirmed that minute-only occurrence maps cannot represent every historical second-level clock change. Such events must retain their whole source record in the explicit readable fallback. Coverage checks must not use an approximate minute-map boundary as proof that no time was lost. UTC civil-date stepping avoids host-zone skipped-date errors. These are safety refinements within the approved fallback/timezone contract, not new scope.
+
+
+## Verified execution outcome - 2026-11-16
+
+Task 1 checkpoint `05ff363`; Task 2 checkpoint `618e877`. Task 3 is implemented with main review and independent verification. C21 browser checks passed 35/35, including 19 dedicated Events week assertions; existing Calendar/habit checks passed 17/17; PWA e2e passed. All 45 helper checks, lint, production/site builds and 81 AI config checks passed. Four feature screenshots and 34 general audit images were captured and reviewed. The final full-unit result and completed Daymark handoff are recorded in the Cycle 21 release report. No merge, push or deployment.
