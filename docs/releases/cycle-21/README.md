@@ -104,3 +104,6 @@ Approved design: [Events week grid](../../superpowers/specs/2026-11-16-events-we
 | :--- | :--- | :--- |
 | Desktop | ![Events week desktop light](./images/events-week-desktop.png) | ![Events week desktop dark](./images/events-week-desktop-dark.png) |
 | Phone | ![Events week phone light](./images/events-week-android.png) | ![Events week phone dark](./images/events-week-android-dark.png) |
+
+
+Follow-up implementation checkpoint: `5d6c30d`. Daymark task `task-1794741962916-m7v3` is done again after this follow-up. The verified outcome was appended to both existing specification and implementation-plan notes on 2026-11-16; existing note content and checklist records were preserved.
