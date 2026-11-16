@@ -2,7 +2,7 @@
 
 Date: 2026-11-16 · Branch: `cycle-21-events` · Tag: none
 
-**Status: merged for Daymark 1.14.0.** Publication and production deployment verification are in progress. Preceding implementation records describe the earlier checkpoints.
+**Status: released as Daymark 1.14.0 (`v1.14.0`) and deployed on 2026-11-16.** Earlier implementation records below describe the pre-release checkpoints.
 
 ## What changed
 
@@ -107,3 +107,18 @@ Approved design: [Events week grid](../../superpowers/specs/2026-11-16-events-we
 
 
 Follow-up implementation checkpoint: `5d6c30d`. Daymark task `task-1794741962916-m7v3` is done again after this follow-up. The verified outcome was appended to both existing specification and implementation-plan notes on 2026-11-16; existing note content and checklist records were preserved.
+
+
+## Release and deployment - 2026-11-16
+
+The owner explicitly authorized merge, release and deployment after implementation approval. Merge commit `97e65a0` integrates Cycle 21; release source `03a95e770bbc641a56373386d22c6ca1ff33bb58` is on `main` and tagged `v1.14.0`.
+
+- [Published 1.14.0 release](https://github.com/dngioidev/daymark/releases/tag/v1.14.0): signed `daymark-1.14.0.apk`, `daymark-skill.zip` and `SHA256SUMS`. APK versionName 1.14.0 / versionCode 1140; signature verified and certificate matches the published 1.13.3 APK.
+- Signed release build and all 59 Kotlin unit tests passed (six suites, zero failures/errors/skips). Release-specific typecheck, guide/site tests (11), archive tests (26) and 81 configuration checks passed.
+- [Release CI](https://github.com/dngioidev/daymark/actions/runs/43851158962) passed both Android and verification jobs, including the full unit suite, PWA and two-device sync checks.
+- Production Docker image built from the exact release source. Before replacing the container, stopped Daymark briefly and verified a vault archive at `/home/deploy/daymark-backups/pre-1.14.0-20261116T104520Z/data.tar.gz`; preserved the persistent volume and existing environment/compose override. Retained image `daymark-rollback:1.13.3-20261116` for rollback.
+- Production container is healthy. HTTPS `/api/health` and the connected MCP `ping` report 1.14.0; sign-in gate returns 401, both documented OAuth discovery endpoints return 200, and unauthenticated `/mcp` returns 401 with the resource-metadata challenge.
+- [GitHub Pages deployment](https://github.com/dngioidev/daymark/actions/runs/43851639084) passed; the live website links to the 1.14.0 release and APK.
+- The original dirty checkout at `D:/dngioi/daymark` was preserved. The temporary Codex worktree disappeared after a successful first Android build; all committed work remained intact. Release artifacts were rebuilt and verified in `D:/dngioi/daymark-release-1.14.0` before publication. No uncommitted owner files were included.
+
+Upgrade the server before apps; install the signed APK over the existing app. Native-device timezone switching remains untested, as disclosed above.
