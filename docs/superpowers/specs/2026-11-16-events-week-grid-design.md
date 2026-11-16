@@ -1,7 +1,7 @@
 # Events week grid
 
 Date: 2026-11-16
-Status: proposed design; awaiting owner approval.
+Status: approved by the owner on 2026-11-16; implementation planning in progress.
 
 ## Intent and confirmed requirements
 
