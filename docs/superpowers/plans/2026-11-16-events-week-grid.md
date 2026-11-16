@@ -10,6 +10,8 @@
 
 **Spec:** [Approved Events week design](../specs/2026-11-16-events-week-grid-design.md).
 
+**Status:** owner approved this plan on 2026-11-16; implementation started with the existing single Luna worker and main-agent review.
+
 ## Global Constraints
 
 - One reused Luna implementation worker; main performs reviews and independent verification. No additional agents.
@@ -44,7 +46,7 @@ Examples pinned by tests:
 - A normal day in that fall-back week, 01:30–02:30: two 30-minute pieces separated by the unavailable repeated-hour band.
 - Lord Howe 2026-04-05 inserts a 30-minute repeat. Apia 2011-12-30 is an unavailable date, not a fabricated ordinary day.
 
-The projection helper may expose narrowly scoped existing `eventTime.ts` formatting/offset primitives to avoid duplicate Intl logic. Cache bounded models by date/zone; do not perform expensive timezone resolution during JSX rendering.
+The projection helper may expose narrowly scoped existing `eventTime.ts` formatting/offset primitives to avoid duplicate Intl logic. Cache bounded timezone-only day/axis data by date/zone; projected event models must reflect every event edit/delete. Do not perform expensive timezone resolution during JSX rendering.
 
 ## Task 1: Device-zone projection, axis and overlap model
 
@@ -52,16 +54,16 @@ The projection helper may expose narrowly scoped existing `eventTime.ts` formatt
 
 **Interfaces:**
 - `buildEventWeek(events: readonly EventItem[], anchor: string, deviceZone: string): EventWeekModel`.
-- `EventWeekModel`: `zone`, seven Sunday-first `days`, shared `axis` bands, `totalMinutes`, projected `segments`, and untimed entries by date.
+- `EventWeekModel`: `zone`, seven Sunday-first `days`, shared `axis` bands, `totalMinutes`, projected `segments`, and untimed entries by date. `fallbackEvents: { event: EventItem; reason: string }[]` preserves whole source events that cannot be plotted exactly; optional `fallbackReason` explains an unsupported/invalid week and the grid renders a readable schedule instead of throwing.
 - `EventWeekSegment`: stable `key`, source `event`, `date`, exact clipped `startInstant`/optional `endInstant`, `topMinutes`, `spanMinutes`, `startOnly`, `continuesBefore`, `continuesAfter`, and local schedule/offset label.
 - Axis bands expose stable key, wall-clock range, occurrence index, minute-coordinate range, label and per-day availability. Day models expose their date and unavailable intervals.
 - `layoutEventWeekSegments(segments: readonly EventWeekSegment[], minimumCalloutMinutes: number): PositionedEventWeekSegment[]` adds `lane`, `laneCount` and `calloutMinutes`; it never changes `spanMinutes` or source data. Segments collide by displayed rectangle for callout placement; actual time remains represented separately.
 
-- [ ] Write failing projection tests: cross-zone Saturday/Sunday shift; start-only; both untimed shapes; overnight and multi-day continuation; end exactly at midnight; no source mutation; invalid-zone safe fallback; all DST examples above and a midnight-gap date.
-- [ ] Run `node node_modules/vitest/vitest.mjs run src/utils/eventWeekProjection.test.ts --maxWorkers=2` and record the expected missing-module/behavior failure.
-- [ ] Implement the projection/axis model. Reuse calendar/date and event validation helpers. Return UTC with an explicit fallback zone when the supplied device zone is invalid; never lose the original schedule label.
-- [ ] Write failing layout tests for identical starts, nested/transitive overlaps, end-exclusive adjacency, independent overlap groups and crowded short/start-only callouts; then implement deterministic lane assignment and lane reuse. Use event ID plus segment start as tie-breakers.
-- [ ] Run both new test files and existing `eventTime.test.ts`, `events.test.ts`, `calendarGrid.test.ts`, plus lint. Main reviews DST geometry, exact source instants and bounded work before the domain checkpoint commit.
+- [x] Write failing projection tests: cross-zone Saturday/Sunday shift; start-only; both untimed shapes; overnight and multi-day continuation; end exactly at midnight; no source mutation; invalid-zone safe fallback; all DST examples above and a midnight-gap date.
+- [x] Run `node node_modules/vitest/vitest.mjs run src/utils/eventWeekProjection.test.ts --maxWorkers=2` and record the expected missing-module/behavior failure.
+- [x] Implement the projection/axis model. Reuse calendar/date and event validation helpers. Return UTC with an explicit fallback zone when the supplied device zone is invalid; never lose the original schedule label.
+- [x] Write failing layout tests for identical starts, nested/transitive overlaps, end-exclusive adjacency, independent overlap groups and crowded short/start-only callouts; then implement deterministic lane assignment and lane reuse. Use event ID plus segment start as tie-breakers.
+- [x] Run both new test files and existing `eventTime.test.ts`, `events.test.ts`, `calendarGrid.test.ts`, plus lint. Main reviews DST geometry, exact source instants and bounded work before the domain checkpoint commit.
 
 ## Task 2: Dedicated Events week grid component
 
@@ -93,4 +95,9 @@ The projection helper may expose narrowly scoped existing `eventTime.ts` formatt
 
 Coverage: device-zone/date/DST contract is Task 1; visual blocks, unscheduled events and phone usability are Task 2; separate Calendar navigation, existing-task preservation, editor wiring and real-browser evidence are Task 3. Interfaces consistently use `EventItem` and one immutable source event per segment. No storage or backend work is needed.
 
-Execution method is already chosen: one reused Luna worker with main-agent review. Owner design approval is recorded; this concrete plan is ready for review before implementation.
+Execution method is already chosen: one reused Luna worker with main-agent review. Owner design and plan approvals are recorded. Execute the tasks continuously without further routine approval prompts.
+
+
+## Execution rulings
+
+Task 1 review confirmed that minute-only occurrence maps cannot represent every historical second-level clock change. Such events must retain their whole source record in the explicit readable fallback. Coverage checks must not use an approximate minute-map boundary as proof that no time was lost. UTC civil-date stepping avoids host-zone skipped-date errors. These are safety refinements within the approved fallback/timezone contract, not new scope.

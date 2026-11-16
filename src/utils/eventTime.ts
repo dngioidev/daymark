@@ -232,6 +232,45 @@ export function eventDateAtInstant(instant: string, zone: string): string | unde
   }
 }
 
+export interface EventZonedParts {
+  date: string;
+  hour: number;
+  minute: number;
+  second: number;
+  offsetSeconds: number;
+  offsetLabel: string;
+}
+
+function formatOffset(offsetSeconds: number): string {
+  const sign = offsetSeconds < 0 ? '-' : '+';
+  const absolute = Math.abs(offsetSeconds);
+  const hours = Math.floor(absolute / 3600);
+  const minutes = Math.floor((absolute % 3600) / 60);
+  const seconds = absolute % 60;
+  return `UTC${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${seconds ? `:${String(seconds).padStart(2, '0')}` : ''}`;
+}
+
+/** Local wall-clock fields and offset for a finite epoch value in an IANA zone. */
+export function eventZonedPartsAt(epochMs: number, zone: string): EventZonedParts | undefined {
+  if (!Number.isFinite(epochMs) || Math.abs(epochMs) > MAX_DATE_MS) return undefined;
+  try {
+    const wholeSecondMs = Math.floor(epochMs / 1000) * 1000;
+    const parts = partsAt(wholeSecondMs, getFormatter(zone));
+    const offsetSeconds = (utcMillis(parts) - wholeSecondMs) / 1000;
+    return {
+      date: dateKey(parts), hour: parts.hour, minute: parts.minute, second: parts.second,
+      offsetSeconds, offsetLabel: formatOffset(offsetSeconds),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** UTC offset at an instant, including historical second-level offsets. */
+export function eventZoneOffsetSeconds(epochMs: number, zone: string): number | undefined {
+  return eventZonedPartsAt(epochMs, zone)?.offsetSeconds;
+}
+
 /** Checks whether any local clock time exists on a calendar date in a zone. */
 export function eventDateHasInstant(date: string, zone: string): boolean {
   if (!isValidEventDate(date)) return false;
