@@ -71,12 +71,12 @@ The projection helper may expose narrowly scoped existing `eventTime.ts` formatt
 
 **Interface:** `EventWeekGrid({ events, anchor, deviceZone, onEdit })`, where events are readonly `EventItem[]`, anchor is a date string, deviceZone is an IANA zone and `onEdit(event: EventItem): void` opens the existing editor. Consume Task 1 models through memoization.
 
-- [ ] Write failing component tests for seven day headings, explicit device zone, original-zone primary label/local secondary text, unscheduled strip, start-only **No duration**, overlapping buttons, unavailable DST bands and editing the correct source event from a continuation.
-- [ ] Implement a bounded, keyboard-scrollable viewport with shared column sizing, sticky day headings and a sticky time gutter. Use 1 CSS pixel per axis minute. Minimum callout height is 44px; render the true duration separately as an exact-span indicator so a small event never implies a 44-minute reservation.
-- [ ] Use a minimum day width of 160px; widen all columns when needed so each overlap lane is at least 72px. Horizontal scrolling is allowed within the full-width view on both narrow desktops and phones. Truncate compact labels with full accessible names and existing editor access.
-- [ ] Render **No set time** entries as ordinary labeled buttons above the timeline, including duration when present; use a bounded scrollable strip when crowded. Never fill a whole day's timeline for these events.
-- [ ] Initially scroll the timeline toward 08:00 on view/week changes. Re-render on device-zone changes while retaining editor identity and source data; do not reset scroll on unrelated event edits. Show an explicit readable fallback schedule if an axis cannot be represented safely.
-- [ ] Run new component tests plus existing `CalendarEvents.test.ts`, `EventEditor.test.ts` and lint. Main reviews desktop/phone layout semantics before checkpoint.
+- [x] Write failing component tests for seven day headings, explicit device zone, original-zone primary label/local secondary text, unscheduled strip, start-only **No duration**, overlapping buttons, unavailable DST bands and editing the correct source event from a continuation.
+- [x] Implement a bounded, keyboard-scrollable viewport with shared column sizing, sticky day headings and a sticky time gutter. Use 1 CSS pixel per axis minute. Minimum callout height is 44px; render the true duration separately as an exact-span indicator so a small event never implies a 44-minute reservation.
+- [x] Use a minimum day width of 160px; widen all columns when needed so each overlap lane is at least 72px. Horizontal scrolling is allowed within the full-width view on both narrow desktops and phones. Truncate compact labels with full accessible names and existing editor access.
+- [x] Render **No set time** entries as ordinary labeled buttons above the timeline, including duration when present; use a bounded scrollable strip when crowded. Never fill a whole day's timeline for these events.
+- [x] Initially scroll the timeline toward 08:00 on view/week changes. Re-render on device-zone changes while retaining editor identity and source data; do not reset scroll on unrelated event edits. Show an explicit readable fallback schedule if an axis cannot be represented safely.
+- [x] Run new component tests plus existing `CalendarEvents.test.ts`, `EventEditor.test.ts` and lint. Main reviews desktop/phone layout semantics before checkpoint.
 
 ## Task 3: Calendar integration, browser evidence and documentation
 
