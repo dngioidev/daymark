@@ -6,6 +6,8 @@ summary: Connect an AI to the parts of Daymark you choose; 1.13.2 adds instant u
 related: ai-connections, ai-clients, sync, sections
 ---
 ## Web
+**Daymark 1.14.0:** one-time events with optional time and duration, original-zone schedules, notes and checklists, foreground warnings, and a separate device-local **Events week** calendar. Update the server before apps so events sync safely.
+
 **Daymark 1.13.2:** pages update within a second when an AI or another device changes something, `[[Note title]]` links in task notes and daily notes open the note, and an AI can create, rename and delete note folders. **1.13.3:** Settings → AI connections marks connections that need a refresh after an update.
 
 **Daymark 1.13:**
@@ -16,6 +18,8 @@ related: ai-connections, ai-clients, sync, sections
 4. **One switch** turns all AI access off.
 5. **Local mode** runs the AI tools on this computer with no internet, for sensitive notes.
 ## Tablet
+**Daymark 1.14.0:** one-time events with optional time and duration, original-zone schedules, notes and checklists, foreground warnings, and a separate device-local **Events week** calendar. Update the server before apps so events sync safely.
+
 **Daymark 1.13.2:** pages update within a second when an AI or another device changes something, `[[Note title]]` links in task notes and daily notes open the note, and an AI can create, rename and delete note folders. **1.13.3:** Settings → AI connections marks connections that need a refresh after an update.
 
 **Daymark 1.13:**
@@ -26,6 +30,8 @@ related: ai-connections, ai-clients, sync, sections
 4. **One switch** turns all AI access off.
 5. Set it up from the web or the tablet with your server's Connector address.
 ## Phone
+**Daymark 1.14.0:** one-time events with optional time and duration, original-zone schedules, notes and checklists, foreground warnings, and a separate device-local **Events week** calendar. Update the server before apps so events sync safely.
+
 **Daymark 1.13.2:** pages update within a second when an AI or another device changes something, `[[Note title]]` links in task notes and daily notes open the note, and an AI can create, rename and delete note folders. **1.13.3:** Settings → AI connections marks connections that need a refresh after an update.
 
 **Daymark 1.13:**

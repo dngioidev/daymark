@@ -2,7 +2,7 @@
 
 Date: 2026-11-16 · Branch: `cycle-21-events` · Tag: none
 
-**Status: implemented and verified on the feature branch.** No version bump, release, merge, push or deployment is recorded here.
+**Status: merged for Daymark 1.14.0.** Publication and production deployment verification are in progress. Preceding implementation records describe the earlier checkpoints.
 
 ## What changed
 
